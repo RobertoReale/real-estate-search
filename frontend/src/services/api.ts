@@ -188,6 +188,7 @@ export const api = {
   /** Query listings extracted from alert emails staged for user review. */
   getImportedListings(filters: Partial<ImportFilters>): Promise<ImportedListing[]> {
     const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
     if (filters.profile_id) params.set("profile_id", filters.profile_id);
     if (filters.contract) params.set("contract", filters.contract);
     if (filters.city) params.set("city", filters.city);
@@ -220,6 +221,20 @@ export const api = {
   /** Poll live progress of an ongoing portal availability check (`AdProbe`). */
   importCheckProgress(): Promise<ImportCheckProgress> {
     return request("/email-import/check-progress");
+  },
+  /** Probe portals (`AdProbe`) to check if dashboard properties are still online. */
+  checkProperties(ids: number[]): Promise<ImportCheckSummary> {
+    return request("/properties/check", {
+      method: "POST", body: JSON.stringify({ ids }),
+    });
+  },
+  /** Probe portals for a single dashboard property and get updated status right away. */
+  checkSingleProperty(id: number): Promise<{ property: Property; summary: ImportCheckSummary }> {
+    return request(`/properties/${id}/check`, { method: "POST" });
+  },
+  /** Poll live progress of an ongoing dashboard properties availability check. */
+  propertiesCheckProgress(): Promise<ImportCheckProgress> {
+    return request("/properties/check-progress");
   },
 };
 

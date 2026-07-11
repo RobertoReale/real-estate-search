@@ -7,6 +7,8 @@ interface Props {
   onClick: () => void;
   onQuickHide: () => void;
   onToggleFavorite: () => void;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 /** Badge comparing this property's €/sqm to the local median.
@@ -65,7 +67,7 @@ export function DealBadge({ property: p }: { property: Property }) {
 }
 
 export default function PropertyCard({
-  property: p, onClick, onQuickHide, onToggleFavorite,
+  property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect,
 }: Props) {
   const drop =
     p.first_price && p.current_min_price && p.current_min_price < p.first_price
@@ -78,9 +80,9 @@ export default function PropertyCard({
   return (
     <article
       onClick={onClick}
-      className="glass rounded-2xl overflow-hidden cursor-pointer group
-        hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10
-        transition-all duration-200 hover:-translate-y-0.5">
+      className={`glass rounded-2xl overflow-hidden cursor-pointer group hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-200 hover:-translate-y-0.5 ${
+        selected ? "ring-2 ring-blue-500 border-blue-500" : ""
+      }`}>
       <div className="relative h-44 bg-slate-200 dark:bg-slate-800 overflow-hidden">
         {p.image_url ? (
           <img src={p.image_url} alt={p.title} loading="lazy"
@@ -92,7 +94,7 @@ export default function PropertyCard({
         )}
         {/* right padding reserves the quick-action corner, which is wider on
             phones where the buttons grow to a thumb-sized target */}
-        <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 pr-20 sm:pr-16">
+        <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 pr-28 sm:pr-24">
           {portals.map((portal) => (
             <PortalBadge key={portal} portal={portal} variant="overlay" />
           ))}
@@ -108,9 +110,22 @@ export default function PropertyCard({
           )}
         </div>
 
-        {/* quick actions: star + hide without opening the modal */}
+        {/* quick actions: select + star + hide without opening the modal */}
         <div className="absolute top-2 right-2 flex gap-1.5"
           onClick={(e) => e.stopPropagation()}>
+          {onToggleSelect && (
+            <button
+              type="button"
+              className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center justify-center text-sm transition btn-focus ${
+                selected
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-white/80 text-slate-400 dark:bg-slate-900/60 dark:text-slate-500 hover:text-blue-500"
+              }`}
+              title={selected ? "Deselect" : "Select for batch check"}
+              onClick={onToggleSelect}>
+              {selected ? "✓" : "☐"}
+            </button>
+          )}
           <button
             className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center
               justify-center text-sm transition btn-focus ${

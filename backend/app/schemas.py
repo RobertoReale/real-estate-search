@@ -78,6 +78,11 @@ class PropertyPatch(BaseModel):
     notes: str | None = None
 
 
+class PropertyCheckIn(BaseModel):
+    """Payload for live availability verification (`AdProbe`) of dashboard properties."""
+    ids: list[int]
+
+
 class PricingTrendPoint(BaseModel):
     """One dated median €/sqm reading for an area."""
     captured_on: date

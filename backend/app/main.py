@@ -18,7 +18,7 @@ from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
 from .models import ImportedListing, Property, SearchProfile
 from .scrapers import detect_portal
-from .services import email_import, exporter, notifier, scheduler
+from .services import availability_check, email_import, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
@@ -258,6 +258,44 @@ def restore_property(property_id: int, db: Session = Depends(get_db)):
     prop.status = "active"
     db.commit()
     return {"ok": True}
+
+
+@app.get("/api/properties/check-progress")
+def properties_check_progress():
+    """Live progress of the ongoing dashboard properties availability check."""
+    return availability_check.get_prop_check_progress()
+
+
+@app.post("/api/properties/check")
+def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db)):
+    """Runs live availability check (`AdProbe`) across multiple dashboard properties."""
+    ids = data.ids[:email_import.MAX_CHECKS_PER_CALL]
+    props = [p for p in (db.get(Property, x) for x in ids) if p]
+    if not props:
+        raise HTTPException(400, "No properties to check")
+    try:
+        return availability_check.check_properties_availability(db, props)
+    except availability_check.AvailabilityCheckError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/properties/{property_id}/check")
+def check_single_property(property_id: int, db: Session = Depends(get_db)):
+    """Runs AdProbe live availability check on a single property."""
+    prop = db.get(Property, property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    try:
+        summary = availability_check.check_properties_availability(db, [prop])
+    except availability_check.AvailabilityCheckError as e:
+        raise HTTPException(400, str(e))
+    annotate_market_position(db, [prop])
+    annotate_match_scores([prop], load_settings())
+    annotate_deal_scores(db, [prop])
+    return {
+        "property": schemas.PropertyOut.model_validate(prop).model_dump(mode="json"),
+        "summary": summary,
+    }
 
 
 

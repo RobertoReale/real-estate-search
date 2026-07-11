@@ -259,6 +259,7 @@ export interface EmailScanProgress {
 }
 
 export interface ImportFilters {
+  status: "pending" | "accepted" | "discarded" | "all";
   profile_id: string;      // "" = ad-hoc filters below
   contract: "" | "sale" | "rent";
   city: string;

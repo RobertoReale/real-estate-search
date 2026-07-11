@@ -19,8 +19,31 @@ export default function PropertyModal({
   const history = [...p.price_history].reverse();
   const [notes, setNotes] = useState(p.notes);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [checkingOnline, setCheckingOnline] = useState(false);
+  const [checkResult, setCheckResult] = useState<string | null>(null);
   const [error, setError] = useState("");
   const notesDirty = notes !== p.notes;
+
+  async function checkIfOnline() {
+    setCheckingOnline(true);
+    setCheckResult(null);
+    setError("");
+    try {
+      const { property: updated, summary } = await api.checkSingleProperty(p.id);
+      onNotesSaved(updated);
+      if (summary.gone > 0) {
+        setCheckResult("🔴 Rimosso / Gone (404)");
+      } else if (summary.online > 0) {
+        setCheckResult("🟢 Online (Verificato adesso)");
+      } else {
+        setCheckResult("⚠️ Impossibile verificare (bloccato dal portale o timeout)");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Errore durante la verifica online");
+    } finally {
+      setCheckingOnline(false);
+    }
+  }
 
   async function saveNotes() {
     setSavingNotes(true);
@@ -212,7 +235,22 @@ export default function PropertyModal({
             <p className="text-sm text-rose-600 dark:text-rose-300 mt-4">⚠️ {error}</p>
           )}
 
-          <div className="flex justify-end mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-6">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                disabled={checkingOnline || !p.listings.length}
+                onClick={checkIfOnline}
+                title="Probes the portal URL right now to verify if this listing is still online or removed (404)">
+                {checkingOnline ? "⏳ Verifica in corso..." : "🔎 Verifica se ancora online"}
+              </button>
+              {checkResult && (
+                <span className="text-xs font-medium animate-fade-in">
+                  {checkResult}
+                </span>
+              )}
+            </div>
             {p.status === "hidden" ? (
               <button
                 className="accent-good hover:opacity-80 text-sm transition"

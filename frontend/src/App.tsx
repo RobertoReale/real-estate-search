@@ -15,7 +15,8 @@ import SearchProfiles from "./components/SearchProfiles";
 import SettingsModal from "./components/SettingsModal";
 import { api } from "./services/api";
 import type {
-  Property, PropertyFilters, ScanStatus, SearchProfile, Settings, ViewMode,
+  ImportCheckProgress, ImportCheckSummary, Property, PropertyFilters,
+  ScanStatus, SearchProfile, Settings, ViewMode,
 } from "./types";
 
 const DEFAULT_FILTERS: PropertyFilters = {
@@ -32,6 +33,11 @@ export default function App() {
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
   const [view, setView] = useState<ViewMode>("grid");
   const [selected, setSelected] = useState<Property | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [checkingBatch, setCheckingBatch] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<ImportCheckProgress | null>(null);
+  const [batchSummary, setBatchSummary] = useState<ImportCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -124,7 +130,43 @@ export default function App() {
     });
   }
 
+  useEffect(() => {
+    if (!checkingBatch) return;
+    let cancelled = false;
+    async function tick() {
+      try {
+        const prog = await api.propertiesCheckProgress();
+        if (!cancelled && prog.active) setBatchProgress(prog);
+      } catch {
+        /* ignore poll errors */
+      }
+    }
+    tick();
+    const timer = setInterval(tick, 800);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [checkingBatch]);
+
+  async function checkSelectedProperties() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setCheckingBatch(true);
+    setBatchSummary(null);
+    setBatchProgress(null);
+    setActionError("");
+    try {
+      const summary = await api.checkProperties(ids);
+      setBatchSummary(summary);
+      await refresh();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Batch check failed");
+    } finally {
+      setCheckingBatch(false);
+      setBatchProgress(null);
+    }
+  }
+
   const hasProfiles = profiles.length > 0;
+
 
   return (
     <div className="min-h-screen">
@@ -205,6 +247,94 @@ export default function App() {
           </div>
         )}
 
+        {/* Batch Selection & Live Availability Check Bar */}
+        {properties.length > 0 && (
+          <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={`btn-ghost text-xs px-3 py-1.5 rounded-lg border transition ${
+                    selectionMode
+                      ? "bg-blue-600 text-white border-blue-600 shadow"
+                      : "border-slate-200 dark:border-slate-700 hover:border-blue-500"
+                  }`}
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) setSelectedIds(new Set());
+                  }}>
+                  {selectionMode ? "✕ Chiudi selezione multipla" : "☐ Selezione multipla annunci"}
+                </button>
+                {selectionMode && (
+                  <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === properties.length && properties.length > 0}
+                      onChange={() =>
+                        setSelectedIds(
+                          selectedIds.size === properties.length
+                            ? new Set()
+                            : new Set(properties.map((p) => p.id))
+                        )
+                      }
+                    />
+                    Seleziona tutti ({selectedIds.size} di {properties.length})
+                  </label>
+                )}
+              </div>
+              {selectionMode && selectedIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                    disabled={checkingBatch}
+                    onClick={checkSelectedProperties}>
+                    {checkingBatch ? "⏳ Verifica in corso..." : `🔎 Verifica disponibilità online (${selectedIds.size})`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {checkingBatch && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-700/50" role="status" aria-live="polite">
+                <div className="h-1.5 w-full rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
+                  <div
+                    className="h-full bg-blue-500 transition-[width] duration-300"
+                    style={{
+                      width: batchProgress && batchProgress.total > 0
+                        ? `${Math.round((batchProgress.done / batchProgress.total) * 100)}%`
+                        : "0%",
+                    }}
+                  />
+                </div>
+                <p className="text-xs t-muted">
+                  {batchProgress
+                    ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.gone} rilevati come rimossi/venduti`
+                    : "Avvio verifica in corso…"}
+                  {" "}Pausa di sicurezza attiva tra una richiesta e l'altra per proteggere l'IP da blocchi DataDome.
+                </p>
+              </div>
+            )}
+
+            {batchSummary && !checkingBatch && (
+              <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 text-xs t-muted flex items-center justify-between">
+                <div>
+                  🔎 Controllati: <strong>{batchSummary.checked}</strong> |{" "}
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} rimossi o venduti (spostati in Gone)</span> |{" "}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} ancora online</span>
+                  {batchSummary.unknown > 0 && ` (${batchSummary.unknown} non verificabili dal portale)`}
+                </div>
+                <button
+                  type="button"
+                  className="btn-ghost text-xs py-0.5 px-2"
+                  onClick={() => setBatchSummary(null)}>
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {view === "map" ? (
           properties.length > 0 && (
             <MapView properties={properties} onSelect={setSelected} />
@@ -215,7 +345,30 @@ export default function App() {
               <PropertyCard
                 key={p.id}
                 property={p}
-                onClick={() => setSelected(p)}
+                selected={selectedIds.has(p.id)}
+                onToggleSelect={
+                  selectionMode
+                    ? () =>
+                        setSelectedIds((prev) => {
+                          const n = new Set(prev);
+                          if (n.has(p.id)) n.delete(p.id);
+                          else n.add(p.id);
+                          return n;
+                        })
+                    : undefined
+                }
+                onClick={() => {
+                  if (selectionMode) {
+                    setSelectedIds((prev) => {
+                      const n = new Set(prev);
+                      if (n.has(p.id)) n.delete(p.id);
+                      else n.add(p.id);
+                      return n;
+                    });
+                  } else {
+                    setSelected(p);
+                  }
+                }}
                 onQuickHide={() => quickHide(p)}
                 onToggleFavorite={() => toggleFavorite(p)}
               />

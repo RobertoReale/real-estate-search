@@ -51,7 +51,7 @@ const DEFAULT_SCAN: EmailScanParams = {
 };
 
 const DEFAULT_FILTERS: ImportFilters = {
-  profile_id: "", contract: "", city: "", min_price: "", max_price: "",
+  status: "pending", profile_id: "", contract: "", city: "", min_price: "", max_price: "",
   rooms: "", q: "",
 };
 
@@ -389,7 +389,21 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
 
           {/* review filters */}
           <div className="grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap">
-            <div className="col-span-2 flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs t-muted" title="Scegli se mostrare annunci in attesa, scartati o già accettati">
+                Stato / Status
+              </label>
+              <select className="input w-full sm:w-40 font-medium" value={filters.status}
+                onChange={(e) => setFilter({
+                  status: e.target.value as ImportFilters["status"],
+                })}>
+                <option value="pending">⏳ In attesa (Pending)</option>
+                <option value="discarded">🗑️ Scartati (Discarded)</option>
+                <option value="accepted">✅ Accettati (Accepted)</option>
+                <option value="all">📋 Tutti (All)</option>
+              </select>
+            </div>
+            <div className="col-span-2 flex flex-col gap-1 sm:col-span-1">
               <label className="text-xs t-muted"
                 title="Reuse the contract, city and excluded keywords of a search you already monitor">
                 Filter like search
@@ -601,9 +615,20 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
                   })} />
                 <PortalBadge portal={item.portal} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm truncate">
-                    {item.title || item.email_subject || `Listing ${item.portal_id}`}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm truncate">
+                      {item.title || item.email_subject || `Listing ${item.portal_id}`}
+                    </p>
+                    {item.status && item.status !== "pending" && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                        item.status === "accepted"
+                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                      }`}>
+                        {item.status === "accepted" ? "✅ Accettato" : "🗑️ Scartato"}
+                      </span>
+                    )}
+                  </div>
                   {item.is_available === false && (
                     <p className="text-xs text-rose-600 dark:text-rose-400">
                       🚫 No longer online — the portal answered "page not found"
@@ -643,17 +668,21 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
                   title="The ad may no longer exist on the portal">
                   Open ↗
                 </a>
-                <button className="btn-ghost text-xs" disabled={busy}
-                  title="Add to the dashboard (deduplicated against existing properties)"
-                  onClick={() => act([item.id], "accept")}>
-                  ✓ Accept
-                </button>
-                <button className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
-                  disabled={busy} title="Discard (it will not come back on re-scan)"
-                  aria-label="Discard listing"
-                  onClick={() => act([item.id], "discard")}>
-                  ✕
-                </button>
+                {item.status !== "accepted" && (
+                  <button className="btn-ghost text-xs" disabled={busy}
+                    title="Add to the dashboard (deduplicated against existing properties)"
+                    onClick={() => act([item.id], "accept")}>
+                    ✓ {item.status === "discarded" ? "Recupera / Accetta" : "Accept"}
+                  </button>
+                )}
+                {item.status !== "discarded" && (
+                  <button className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
+                    disabled={busy} title="Discard (it will not come back on re-scan)"
+                    aria-label="Discard listing"
+                    onClick={() => act([item.id], "discard")}>
+                    ✕
+                  </button>
+                )}
               </li>
             ))}
           </ul>
