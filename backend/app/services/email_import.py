@@ -222,6 +222,34 @@ def _match_portal(href: str) -> tuple[str, str] | None:
     return None
 
 
+def _extract_image_from_container(container, anchor) -> str:
+    imgs = anchor.find_all("img", src=True) if hasattr(anchor, "find_all") else []
+    if not imgs and hasattr(container, "find_all"):
+        imgs = container.find_all("img", src=True)
+    for img in imgs:
+        src = str(img["src"]).strip()
+        if not src or not src.lower().startswith(("http://", "https://")):
+            continue
+        src_lower = src.lower()
+        if any(bad in src_lower for bad in (
+            "logo", "pixel", "tracking", "tracker", "spacer", "1x1", "blank",
+            "facebook", "twitter", "instagram", "linkedin", "apple", "google",
+            "playstore", "appstore", "icon", "arrow", "social", "badge"
+        )):
+            continue
+        width = img.get("width", "")
+        height = img.get("height", "")
+        try:
+            if width and int(str(width).replace("px", "").strip()) <= 30:
+                continue
+            if height and int(str(height).replace("px", "").strip()) <= 30:
+                continue
+        except (ValueError, TypeError):
+            pass
+        return src[:500]
+    return ""
+
+
 def _merge_entry(found: dict, entry: dict) -> None:
     """Same ad linked N times per email (image + title + button): keep the
     richest combination of fields instead of the first occurrence."""
@@ -235,6 +263,8 @@ def _merge_entry(found: dict, entry: dict) -> None:
     for f in ("price", "sqm", "rooms"):
         if current[f] is None and entry[f] is not None:
             current[f] = entry[f]
+    if not current.get("image_url") and entry.get("image_url"):
+        current["image_url"] = entry["image_url"]
 
 
 def _extract_from_html(html_text: str, contract: str, found: dict) -> None:
@@ -267,12 +297,14 @@ def _extract_from_html(html_text: str, contract: str, found: dict) -> None:
         if not title:
             img = anchor.find("img", alt=True)
             title = _clean_title(str(img["alt"])) if img else ""
+        image_url = _extract_image_from_container(container, anchor)
         _merge_entry(found, {
             "portal": portal, "portal_id": portal_id,
             "title": title,
             "price": parse_price(text, contract),
             "sqm": parse_sqm(text),
             "rooms": parse_rooms(text),
+            "image_url": image_url,
         })
 
 
@@ -393,6 +425,8 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
         summary["already_imported"] += 1
         if not staged.title and entry["title"]:
             staged.title = entry["title"]
+        if not getattr(staged, "image_url", None) and entry.get("image_url"):
+            staged.image_url = entry["image_url"]
         for f in ("price", "sqm", "rooms"):
             if getattr(staged, f) is None and entry[f] is not None:
                 setattr(staged, f, entry[f])
@@ -405,6 +439,7 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
         price=entry["price"],
         rooms=entry["rooms"],
         sqm=entry["sqm"],
+        image_url=entry.get("image_url", ""),
         contract=meta["contract"],
         email_from=meta["from"],
         email_subject=meta["subject"],
@@ -678,6 +713,17 @@ def check_availability(db: Session, items: list[ImportedListing]) -> dict:
             else:
                 item.is_available = available
                 summary["gone" if available is False else "online"] += 1
+                if available is True and getattr(probe, "last_soup", None):
+                    # Enrich missing image_url or title from live ad page
+                    soup = probe.last_soup
+                    if not getattr(item, "image_url", ""):
+                        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "twitter:image"})
+                        if og_img and og_img.get("content"):
+                            item.image_url = str(og_img["content"]).strip()[:500]
+                    if not item.title:
+                        og_title = soup.find("meta", property="og:title")
+                        if og_title and og_title.get("content"):
+                            item.title = _clean_title(str(og_title["content"]))
             summary["checked"] += 1
             # each answer cost seconds of polite pacing: commit it now, so a
             # crash halfway through the batch does not throw the rest away
@@ -726,6 +772,7 @@ def accept_import(db: Session, item: ImportedListing) -> Property:
         rooms=item.rooms,
         city=item.city,
         zone=item.zone,
+        image_url=getattr(item, "image_url", "") or "",
     )
     prop, _is_new, _price_changed = upsert_listing(db, raw)
     item.status = "accepted"

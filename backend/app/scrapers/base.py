@@ -413,6 +413,7 @@ class AdProbe(BaseScraper):
         self._warmed_hosts: set[str] = set()
         self.was_blocked = False
         self.last_error: str | None = None
+        self.last_soup: typing.Any = None
 
     def warm_host(self, url: str) -> None:
         """Picks up the portal's DataDome cookie from its homepage first.
@@ -442,6 +443,7 @@ class AdProbe(BaseScraper):
         """True = still online, False = gone, None = could not tell."""
         self.was_blocked = False
         self.last_error = None
+        self.last_soup = None
         self.warm_host(url)
         path = urlparse(url).path.rstrip("/")
         resp = None
@@ -473,7 +475,14 @@ class AdProbe(BaseScraper):
         if path and path not in urlparse(str(resp.url)).path:
             return False
         page = resp.text.lower()
-        return not any(marker in page for marker in AD_GONE_MARKERS)
+        is_online = not any(marker in page for marker in AD_GONE_MARKERS)
+        if is_online:
+            try:
+                from bs4 import BeautifulSoup
+                self.last_soup = BeautifulSoup(resp.text, "html.parser")
+            except Exception:
+                pass
+        return is_online
 
 
 def find_card_container(anchor, ad_path_re: re.Pattern):

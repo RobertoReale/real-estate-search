@@ -109,19 +109,27 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
   }
 
   async function checkAvailability(ids: number[]) {
-    const toCheck =
-      ids.length === 1
-        ? ids
-        : ids.filter((id) => {
-            const item = items.find((i) => i.id === id);
-            return item && item.is_available === null;
-          });
+    let toCheck: number[] = [];
+    if (ids.length === 0) {
+      toCheck = items.filter((i) => i.is_available === null).map((i) => i.id);
+      if (toCheck.length === 0 && items.length > 0) {
+        toCheck = items.map((i) => i.id);
+      }
+    } else if (ids.length === 1) {
+      toCheck = ids;
+    } else {
+      toCheck = ids.filter((id) => {
+        const item = items.find((i) => i.id === id);
+        return item && item.is_available === null;
+      });
+      if (toCheck.length === 0) {
+        toCheck = ids;
+      }
+    }
 
     if (toCheck.length === 0) {
       setError(
-        ids.length > 0
-          ? "All selected listings were already checked — select a single one to force a re-check."
-          : "",
+        "Nessun annuncio da verificare. Scansiona le email o seleziona un annuncio specifico per forzare il ricalcolo.",
       );
       return;
     }

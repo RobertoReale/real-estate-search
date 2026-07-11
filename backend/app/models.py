@@ -133,6 +133,7 @@ class ImportedListing(Base):
     zone: Mapped[str] = mapped_column(String, default="")
     rooms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sqm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    image_url: Mapped[str] = mapped_column(String, default="")
     # guessed from the email text ("affitto"/"rent"), NOT authoritative like
     # a search URL: the user reviews it before accepting
     contract: Mapped[str] = mapped_column(String, default="sale")

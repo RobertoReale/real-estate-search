@@ -195,6 +195,7 @@ export interface ImportedListing {
   zone: string;
   rooms: number | null;
   sqm: number | null;
+  image_url: string;
   contract: "sale" | "rent";
   email_from: string;
   email_subject: string;

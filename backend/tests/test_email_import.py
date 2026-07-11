@@ -130,6 +130,24 @@ def test_same_ad_linked_many_times_yields_one_entry():
     assert len(entries) == 2  # image link + title link of card 1 are merged
 
 
+def test_extracts_image_url_from_email_html():
+    html = """
+    <html><body>
+      <div>
+        <a href="https://www.immobiliare.it/annunci/99999/">
+          <img src="https://image-cdn.immobiliare.it/foto/99999/main.jpg" alt="Attico di lusso"/>
+        </a>
+        <a href="https://www.immobiliare.it/annunci/99999/">Attico di lusso, Roma</a>
+        <p>€ 850.000 · 160 m² · 4 locali</p>
+      </div>
+    </body></html>
+    """
+    entries, _ = extract_listings(_email(html))
+    assert len(entries) == 1
+    assert entries[0]["portal_id"] == "99999"
+    assert entries[0]["image_url"] == "https://image-cdn.immobiliare.it/foto/99999/main.jpg"
+
+
 # --- Inbox scan and idempotency ------------------------------------------------
 
 

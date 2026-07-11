@@ -304,6 +304,7 @@ class ImportedListingOut(BaseModel):
     zone: str
     rooms: int | None
     sqm: float | None
+    image_url: str = ""
     contract: str
     email_from: str
     email_subject: str

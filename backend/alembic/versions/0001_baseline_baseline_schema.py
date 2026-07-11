@@ -76,6 +76,7 @@ def upgrade() -> None:
     sa.Column('zone', sa.String(), nullable=False),
     sa.Column('rooms', sa.Integer(), nullable=True),
     sa.Column('sqm', sa.Float(), nullable=True),
+    sa.Column('image_url', sa.String(), nullable=False, server_default=""),
     sa.Column('contract', sa.String(), nullable=False),
     sa.Column('email_from', sa.String(), nullable=False),
     sa.Column('email_subject', sa.String(), nullable=False),
