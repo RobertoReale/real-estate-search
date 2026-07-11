@@ -876,6 +876,52 @@ def test_check_availability_uses_db_listing(db, monkeypatch):
     assert staged2.is_available is True
 
 
+def test_a_stale_active_property_is_probed_not_trusted(db, monkeypatch):
+    """The bug behind "164 still online" for ads that were actually removed:
+    the dashboard shortcut trusted `status == active` no matter how old the
+    sighting was. But a blocked scan suspends gone-marking, so a removed ad
+    keeps reading "active" for days. Only a *recent* sighting proves online;
+    past the trust window the listing must go through the HTTP probe, which is
+    the only thing that may answer False (invariant 16)."""
+    from datetime import timedelta
+
+    from app.models import Listing, Property
+    import uuid
+
+    staged = _staged(db, "128206878")
+    prop = Property(fingerprint=str(uuid.uuid4()), status="active")
+    db.add(prop)
+    db.commit()
+    # last seen well beyond the trust window: the scans have been blocked, so
+    # the dashboard is frozen on a status that is no longer true
+    prop.last_seen_at = datetime.now(timezone.utc) - timedelta(days=7)
+    db.add(Listing(property_id=prop.id, portal=staged.portal,
+                   portal_id=staged.portal_id, url=staged.url))
+    db.commit()
+
+    # the portal answers with its "non più disponibile" page → gone
+    class GoneProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+            self.calls = 0
+
+        def check(self, url):
+            self.calls += 1
+            return False
+
+        def polite_sleep(self):
+            pass
+
+    probe = GoneProbe()
+    monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
+
+    summary = check_availability(db, [staged])
+    assert probe.calls == 1              # it did NOT trust the stale status
+    assert summary["gone"] == 1
+    assert summary["online"] == 0
+    assert staged.is_available is False
+
+
 def test_check_availability_handles_orphan_listing(db, monkeypatch):
     """If a Listing exists but has no associated Property (orphan listing),
     check_availability should not crash and should fall back to the HTTP probe."""

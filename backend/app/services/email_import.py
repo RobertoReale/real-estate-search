@@ -719,6 +719,16 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
             else:
                 logger.info("email-import: browser-first requested but the "
                             "browser is unavailable; using curl_cffi")
+        from .availability_check import _is_recently_checked
+        # How long the dashboard's "active" status stays trustworthy as proof
+        # that the ad is still online without probing. A scan re-confirms a
+        # live property every cycle, so within a couple of cycles "active" is
+        # solid; past that it goes stale — and it goes stale exactly when this
+        # check is needed, because a blocked scan suspends gone-marking, so a
+        # removed ad keeps reading "active" for days. Beyond the window we probe
+        # the portal for the truth instead of reporting a stale "still online".
+        scan_interval_min = float(settings.get("scan_interval_minutes") or 480)
+        db_trust_hours = max(48.0, scan_interval_min / 60.0 * 2.0)
         block_streak = 0
         refreshes_used = 0
         probes_used = 0
@@ -733,14 +743,16 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                             "after %d listings", MAX_CHECKS_PER_CALL, index)
                 break
             # If the dashboard already tracks this listing, resolve it from
-            # the database — but only in the safe direction: a property still
-            # seen by scans is certainly online. A "gone" status is NOT proof
-            # the ad is offline: it only means no scan has seen it for a week,
-            # which also happens when a profile was deleted or narrowed, or
-            # the scans were blocked. Only a clear answer from the portal may
-            # become False (invariant 16): a false "gone" invites a discard,
-            # and discards are remembered forever. Gone and orphan listings
-            # fall through to the HTTP probe.
+            # the database — but only in the safe direction, and only while the
+            # status is still fresh: a property a scan re-confirmed *recently*
+            # is certainly online. A stale "active" is not proof: a blocked scan
+            # suspends gone-marking, so a removed ad keeps reading "active" for
+            # days — trusting it printed "164 still online" for ads that in fact
+            # showed the portal's "non più disponibile" page. Past the trust
+            # window the listing falls through to the HTTP probe, which is the
+            # only thing that may answer False (invariant 16). A "gone" status
+            # is never trusted either: it only means no scan saw it for a week
+            # (also true when a profile was deleted/narrowed, or scans blocked).
             db_listing = db.execute(
                 select(Listing).where(
                     Listing.portal == item.portal,
@@ -748,8 +760,9 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                 )
             ).scalar_one_or_none()
             prop = db_listing.property if db_listing else None
-            if prop is not None and prop.status in ("active", "filtered",
-                                                    "hidden"):
+            if (prop is not None and prop.status in ("active", "filtered",
+                                                     "hidden")
+                    and _is_recently_checked(prop.last_seen_at, db_trust_hours)):
                 item.is_available = True
                 item.last_checked_at = datetime.now(timezone.utc)
                 summary["online"] += 1
@@ -758,7 +771,6 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                 _check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
 
-            from .availability_check import _is_recently_checked
             if (skip_recent_hours > 0 and len(items) > 1 and item.is_available is not None
                     and _is_recently_checked(item.last_checked_at, skip_recent_hours)):
                 summary["gone" if item.is_available is False else "online"] += 1
