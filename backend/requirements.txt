@@ -1,6 +1,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
+alembic>=1.13
 curl_cffi>=0.13
 beautifulsoup4>=4.12
 apscheduler>=3.10

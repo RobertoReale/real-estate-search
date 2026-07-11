@@ -1,5 +1,6 @@
 """SQLAlchemy connection to local SQLite database (case.db)."""
 import logging
+from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -7,6 +8,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 logger = logging.getLogger(__name__)
 
 from .config import DB_PATH
+
+ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
+ALEMBIC_DIR = Path(__file__).resolve().parent.parent / "alembic"
 
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
@@ -59,7 +63,58 @@ def _apply_additive_migrations():
                 logger.info("DB migration: added %s.%s", table.name, column.name)
 
 
+def _run_migrations():
+    """Apply any authored Alembic migrations, and adopt pre-Alembic databases.
+
+    Coexists with create_all + additive migrations on purpose (see the module
+    docstring / CLAUDE.md invariant on migrations): those two keep the schema
+    working for every *additive* change and always run first, so by the time we
+    get here every current table already exists. Alembic's job starts at the
+    first change they cannot express — a rename, a drop, a type change.
+
+    Adoption is the delicate part. An existing case.db has the tables but no
+    `alembic_version`; running `upgrade` blind would re-run the baseline's
+    create_table and fail. So we **stamp** such a DB at the baseline first
+    (record "you already have this schema") and only then upgrade, which applies
+    solely the migrations authored *after* the baseline — nothing today, the
+    real ones tomorrow.
+
+    Fail-open like the rest of the app: the schema is already guaranteed by the
+    steps above, so a migration harness problem is logged, not fatal. A genuine
+    post-baseline migration failure surfaces loudly (error + traceback) without
+    taking startup down with it.
+    """
+    try:
+        from alembic import command
+        from alembic.config import Config
+    except ImportError:
+        logger.warning(
+            "alembic not installed: skipping migrations "
+            "(schema still maintained by create_all + additive ALTER)"
+        )
+        return
+
+    cfg = Config(str(ALEMBIC_INI))
+    cfg.set_main_option("script_location", str(ALEMBIC_DIR))
+    inspector = inspect(engine)
+    has_version = inspector.has_table("alembic_version")
+    has_schema = inspector.has_table("properties")
+    try:
+        # A plain connect(), not begin(): Alembic opens and commits its own
+        # transaction per command via context.begin_transaction().
+        with engine.connect() as connection:
+            cfg.attributes["connection"] = connection
+            if has_schema and not has_version:
+                # Pre-Alembic DB (or a fresh one just built by create_all):
+                # mark it at the baseline instead of trying to recreate tables.
+                command.stamp(cfg, "0001_baseline")
+            command.upgrade(cfg, "head")
+    except Exception:
+        logger.error("Alembic migration failed", exc_info=True)
+
+
 def init_db():
     from . import models  # noqa: F401 - registers models on metadata
     Base.metadata.create_all(bind=engine)
     _apply_additive_migrations()
+    _run_migrations()

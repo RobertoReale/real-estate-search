@@ -110,7 +110,7 @@ progetto/
 │   ├── app/
 │   │   ├── main.py               # FastAPI: REST routes + static frontend mount
 │   │   ├── config.py             # settings.json (Telegram/SMTP, keywords, intervals)
-│   │   ├── database.py           # SQLAlchemy + SQLite (case.db), additive migrations
+│   │   ├── database.py           # SQLAlchemy + SQLite (case.db), additive migrations + Alembic
 │   │   ├── models.py             # Property, Listing, PriceHistory, SearchProfile, ImportedListing
 │   │   ├── schemas.py            # Pydantic v2
 │   │   ├── scrapers/
@@ -130,7 +130,9 @@ progetto/
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
-│   ├── tests/                    # 207 tests
+│   ├── alembic/                  # migration harness (baseline + future non-additive changes)
+│   ├── alembic.ini
+│   ├── tests/                    # 216 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
