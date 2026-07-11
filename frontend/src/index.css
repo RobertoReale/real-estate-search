@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/* the theme toggle stamps .dark on <html>; light is the default */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(59 130 246 / 0.07), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 110%, rgb(168 85 247 / 0.05), transparent);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(59 130 246 / 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 110%, rgb(168 85 247 / 0.08), transparent);
+}
+
+.glass {
+  @apply bg-white/90 backdrop-blur-xl border border-slate-200 shadow-sm
+    dark:bg-slate-900/70 dark:border-slate-700/50 dark:shadow-none;
+}
+
+.input {
+  @apply bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm
+    text-slate-900 placeholder-slate-400 outline-none
+    focus:border-blue-500/70 focus:ring-2 focus:ring-blue-500/20 transition
+    dark:bg-slate-800/80 dark:border-slate-600/60 dark:text-slate-100
+    dark:placeholder-slate-500;
+}
+
+/* iOS Safari zooms the whole page in when a focused field's text is below 16px,
+   and never zooms back out. Restricted to phone widths: the 14px of `.input`
+   is what keeps the desktop filter bar on one row. `width < 40rem` is the exact
+   complement of Tailwind's `sm` (min-width: 40rem); a `max-width: 639px` would
+   leave fractional viewports styled by neither rule. */
+@media (width < 40rem) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+/* Native checkboxes render around 13px, well under what a fingertip can hit.
+   Enlarged on phones only: `w-auto` restores the intrinsic size from `sm` up,
+   where the pointer is precise and the rows are denser. `shrink-0` keeps them
+   square inside the flex rows they share with a wrapping label. */
+input[type="checkbox"] {
+  @apply w-[1.15rem] h-[1.15rem] shrink-0 sm:w-auto sm:h-auto;
+}
+
+/* keyboard-only focus ring, shared by every clickable control (including
+   icon-only buttons that don't use .btn-primary/.btn-ghost) so tab-navigation
+   never loses track of the focused element. Defined before the classes that
+   reuse its utilities: a class built with @apply cannot itself be @applied. */
+.btn-focus {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
+    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
+    dark:focus-visible:ring-offset-slate-950;
+}
+
+/* `min-h-11` is the 44px touch target a finger needs; a mouse does not, and on
+   desktop the extra height only loosens dense rows, so it is dropped at `sm`.
+   inline-flex (rather than the default inline-block) is what keeps the label
+   centered once min-height makes the box taller than its line. */
+.btn-primary {
+  @apply inline-flex items-center justify-center
+    bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium
+    rounded-lg px-4 py-2 text-sm min-h-11 sm:min-h-0 transition disabled:opacity-50
+    disabled:cursor-not-allowed shadow-lg shadow-blue-600/20
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
+    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
+    dark:focus-visible:ring-offset-slate-950;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center
+    bg-white hover:bg-slate-100 border border-slate-300 text-slate-700
+    rounded-lg px-4 py-2 text-sm min-h-11 sm:min-h-0 transition
+    dark:bg-slate-800/60 dark:hover:bg-slate-700/80 dark:border-slate-600/50
+    dark:text-slate-200
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
+    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
+    dark:focus-visible:ring-offset-slate-950;
+}
+
+/* Semantic helpers: the visual hierarchy inverts between themes
+   (in light mode darker = more prominent, in dark mode lighter = more
+   prominent), so components use these instead of raw slate shades. */
+.t-muted { @apply text-slate-500 dark:text-slate-400; }
+.t-dim { @apply text-slate-400 dark:text-slate-500; }
+.t-body { @apply text-slate-700 dark:text-slate-300; }
+.t-strong { @apply text-slate-800 dark:text-slate-200; }
+
+/* inner panels/rows inside a .glass container */
+.panel {
+  @apply bg-slate-50 border border-slate-200
+    dark:bg-slate-800/50 dark:border-slate-700/40;
+}
+
+/* small colored badges (portal, status, market position, …) */
+.chip-blue { @apply bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300; }
+.chip-lime { @apply bg-lime-100 text-lime-700 dark:bg-lime-500/20 dark:text-lime-300; }
+.chip-teal { @apply bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300; }
+.chip-emerald { @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300; }
+.chip-amber { @apply bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300; }
+.chip-rose { @apply bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300; }
+
+.accent-price { @apply text-blue-700 dark:text-blue-300; }
+.accent-good { @apply text-emerald-600 dark:text-emerald-400; }
+.accent-bad { @apply text-rose-600 dark:text-rose-400; }
+.accent-link { @apply text-blue-600 dark:text-blue-400; }
+
+/* --- Leaflet (map view) ---------------------------------------------------
+   Leaflet positions its panes and controls at z-index 400–800, which would
+   paint the map over the modals (z-50) and the sticky navbar (z-40).
+   `isolation` gives the map its own stacking context: the internal ordering
+   of tiles/markers/popups is preserved, but the whole map participates in
+   the page at z-index 0. */
+.leaflet-container {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+  @apply bg-slate-200 dark:bg-slate-800 font-sans;
+}
+
+/* OSM ships light tiles only; inverting hue-rotated keeps roads legible and
+   the palette close to the dark theme instead of a photo negative. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9);
+}
+
+.leaflet-tooltip {
+  @apply bg-white text-slate-800 border-slate-300 shadow-lg text-xs
+    dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600;
+}
+.dark .leaflet-tooltip-top::before { border-top-color: rgb(71 85 105); }
+
+.leaflet-control-attribution,
+.leaflet-control-zoom a {
+  @apply bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200
+    dark:border-slate-600;
+}
+/* the underlying utilities, not `@apply accent-link`: a custom class that is
+   itself defined with @apply cannot be applied again */
+.leaflet-control-attribution a { @apply text-blue-600 dark:text-blue-400; }

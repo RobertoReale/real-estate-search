@@ -1,0 +1,276 @@
+export interface Listing {
+  id: number;
+  portal: "immobiliare" | "idealista";
+  portal_id: string;
+  url: string;
+  price: number | null;
+  agency: string;
+  description: string;
+  image_url: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface PricePoint {
+  old_price: number | null;
+  new_price: number;
+  changed_at: string;
+}
+
+export interface Property {
+  id: number;
+  title: string;
+  city: string;
+  zone: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  rooms: number | null;
+  floor: string;
+  sqm: number | null;
+  contract: "sale" | "rent";
+  current_min_price: number | null;
+  first_price: number | null;
+  image_url: string;
+  status: string;
+  filtered_reason: string;
+  is_favorite: boolean;
+  notes: string;
+  // market position vs the local median €/sqm (null = not enough comparables)
+  area_median_sqm_price: number | null;
+  area_median_scope: "zone" | "city" | null;
+  sqm_price_delta_pct: number | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  listings: Listing[];
+  price_history: PricePoint[];
+}
+
+export interface SearchProfile {
+  id: number;
+  name: string;
+  portal: string;
+  search_url: string;
+  excluded_keywords: string;
+  notify_channels: string;
+  is_active: boolean;
+  last_run_at: string | null;
+  last_run_status: string;
+  last_run_detail: string;
+  consecutive_failures: number;
+}
+
+export interface Settings {
+  telegram_bot_token: string;
+  telegram_chat_id: string;
+  telegram_enabled: boolean;
+  telegram_token_set?: boolean;
+  email_enabled: boolean;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
+  smtp_password: string;
+  smtp_password_set?: boolean;
+  email_from: string;
+  email_to: string;
+  imap_host: string;
+  imap_port: number;
+  imap_user: string;
+  imap_password: string;
+  imap_password_set?: boolean;
+  scan_interval_minutes: number;
+  excluded_keywords: string[];
+  request_delay_seconds: number;
+  max_pages_per_search: number;
+  health_alert_after_failures: number;
+  proxy_url: string;
+  datadome_cookie: string;
+  datadome_cookie_set?: boolean;
+  datadome_auto_refresh?: boolean;
+  datadome_cookie_ttl_minutes?: number;
+  datadome_cookie_updated_at?: string;
+  datadome_harvester_available?: boolean;
+}
+
+export interface ScanStatus {
+  running: boolean;
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_summary: string;
+  next_auto_run: string | null;
+}
+
+export interface PropertyFilters {
+  status: string;
+  contract: "sale" | "rent";
+  city: string;
+  min_price: string;
+  max_price: string;
+  min_sqm: string;
+  rooms: string;
+  only_price_drops: boolean;
+  only_favorites: boolean;
+  sort: string;
+}
+
+export interface SearchBuilderParams {
+  city: string;
+  province: string;
+  zone: string;
+  contract: "sale" | "rent";
+  min_price: string;
+  max_price: string;
+  min_rooms: string;
+  max_rooms: string;
+  min_sqm: string;
+}
+
+export interface SearchBuilderUrls {
+  immobiliare: string;
+  idealista: string;
+}
+
+/** One search alternative the assistant understood ("bilocale in zona X o
+ *  trilocale in zona Y" yields two of these). */
+export interface AssistantSearch {
+  params: {
+    city: string;
+    province: string;
+    zone: string;
+    contract: "sale" | "rent";
+    min_price: number | null;
+    max_price: number | null;
+    min_rooms: number | null;
+    max_rooms: number | null;
+    min_sqm: number | null;
+  };
+  interpretation: string[];
+  notes: string[];
+  warnings: string[];
+  // null when no city was recognised: URLs without one search all of Italy
+  urls: SearchBuilderUrls | null;
+}
+
+/** What the natural-language assistant understood, before anything is saved. */
+export interface AssistantResult {
+  searches: AssistantSearch[];
+}
+
+/** A listing found in the user's inbox, staged for review. */
+export interface ImportedListing {
+  id: number;
+  portal: "immobiliare" | "idealista";
+  portal_id: string;
+  url: string;
+  title: string;
+  price: number | null;
+  city: string;
+  zone: string;
+  rooms: number | null;
+  sqm: number | null;
+  contract: "sale" | "rent";
+  email_from: string;
+  email_subject: string;
+  email_date: string | null;
+  status: "pending" | "accepted" | "discarded";
+  property_id: number | null;
+  // null = never checked against the portal; false = the ad page is gone
+  is_available: boolean | null;
+  last_checked_at: string | null;
+  created_at: string;
+}
+
+/** Outcome of probing staged listings against the portals. `unknown` counts the
+ *  ones the portal would not answer for (a block, a timeout): not gone. */
+export interface ImportCheckSummary {
+  checked: number;
+  gone: number;
+  online: number;
+  unknown: number;
+  // the portal refused three times in a row and the batch stopped early
+  aborted: boolean;
+  last_error?: string | null;
+}
+
+export interface ImportCheckProgress {
+  active: boolean;
+  done: number;
+  total: number;
+  gone: number;
+}
+
+export interface EmailScanParams {
+  mode: "portals" | "address" | "any";
+  senders: string;
+  since_days: number;
+  max_emails: number;
+}
+
+export interface EmailScanSummary {
+  emails_scanned: number;
+  emails_with_listings: number;
+  listings_found: number;
+  imported: number;
+  already_tracked: number;
+  already_imported: number;
+  // links the email said nothing about (footer URLs, CTA buttons): not staged
+  blank_links: number;
+  // blank rows left behind by scans that ran before those links were filtered
+  blank_removed: number;
+}
+
+/** Live state of a running inbox scan, polled while it works. */
+export interface EmailScanProgress {
+  active: boolean;
+  phase: "idle" | "connecting" | "searching" | "fetching";
+  emails_done: number;
+  emails_total: number;   // 0 until the IMAP search has answered
+  staged: number;
+}
+
+export interface ImportFilters {
+  profile_id: string;      // "" = ad-hoc filters below
+  contract: "" | "sale" | "rent";
+  city: string;
+  min_price: string;
+  max_price: string;
+  rooms: string;
+  q: string;
+}
+
+export interface AreaVelocity {
+  city: string;
+  zone: string;
+  scope: "zone" | "city";
+  sample: number;
+  closed: number;
+  median_days_to_gone: number | null;
+  median_days_listed: number | null;
+  sell_through_pct: number;
+  price_drop_pct: number;
+}
+
+export interface AgencyBehavior {
+  agency: string;
+  sample: number;
+  price_drop_pct: number;
+  median_drop_pct: number | null;
+  // positive = lists above the local median €/sqm
+  median_sqm_price_delta_pct: number | null;
+  priced_sample: number;
+  median_days_to_gone: number | null;
+}
+
+export interface MarketVelocity {
+  contract: "sale" | "rent";
+  city: string;
+  generated_at: string;
+  min_sample: number;
+  total_properties: number;
+  closed_properties: number;
+  tracking_since: string | null;
+  areas: AreaVelocity[];
+  agencies: AgencyBehavior[];
+}
+
+export type ViewMode = "grid" | "map";

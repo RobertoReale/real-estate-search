@@ -1,0 +1,32 @@
+# Local user data: NEVER commit to git (the DB contains collected history,
+# settings.json contains the Telegram bot token in plaintext)
+backend/case.db
+backend/settings.json
+backend/app.log*
+
+# Local AI agent instructions & workspace history (NEVER commit to public git)
+CLAUDE.md
+PIANO_LANCIO_PRIVATE.md
+.agents/
+.gemini/
+
+
+# Environments and dependencies
+backend/.venv/
+frontend/node_modules/
+__pycache__/
+.pytest_cache/
+
+# Build and temporary files
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.ts.timestamp-*.mjs
+
+# Automatic DB backups (see backend/app/services/backup.py): local copies of
+# case.db, same never-commit rule as the DB itself
+backend/backups/
+
+# Playwright's persistent browser profile for automatic DataDome cookie
+# harvesting (services/cookie_harvester.py): local browser state, same
+# never-commit rule as case.db and settings.json.
+backend/browser_profile/

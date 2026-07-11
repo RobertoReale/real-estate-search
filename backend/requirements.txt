@@ -1,0 +1,14 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+curl_cffi>=0.13
+beautifulsoup4>=4.12
+apscheduler>=3.10
+pydantic>=2.7
+pytest>=8.0
+
+# OPTIONAL: automatic DataDome cookie harvesting (services/cookie_harvester.py).
+# Not installed by default — it pulls a ~300 MB browser and the app runs fine
+# without it (the feature just hides its button). To enable:
+#   pip install playwright && playwright install chromium
+# playwright
