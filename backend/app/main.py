@@ -17,6 +17,7 @@ from .database import get_db, init_db
 from .models import ImportedListing, Property, SearchProfile
 from .scrapers import detect_portal
 from .services import email_import, notifier, scheduler
+from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import annotate_match_scores
@@ -136,6 +137,7 @@ def list_properties(
         props.sort(key=lambda p: p.match_score if p.match_score is not None else -1,
                    reverse=True)
     annotate_market_position(db, props)
+    annotate_deal_scores(db, props)
     return props
 
 
@@ -146,6 +148,7 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Property not found")
     annotate_market_position(db, [prop])
     annotate_match_scores([prop], load_settings())
+    annotate_deal_scores(db, [prop])
     return prop
 
 
@@ -165,6 +168,7 @@ def patch_property(
     db.refresh(prop)
     annotate_market_position(db, [prop])
     annotate_match_scores([prop], load_settings())
+    annotate_deal_scores(db, [prop])
     return prop
 
 

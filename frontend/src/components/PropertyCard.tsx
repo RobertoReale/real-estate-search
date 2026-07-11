@@ -45,6 +45,25 @@ export function MatchBadge({ score }: { score: number | null }) {
   );
 }
 
+/** "🎯 16% below market" badge from the Deal Score. Shown only when the
+ *  verdict is decisive (undervalued/overpriced); "fair" adds no signal. A
+ *  positive score means priced below the local market. */
+export function DealBadge({ property: p }: { property: Property }) {
+  if (p.deal_score === null || p.deal_label === "fair" || p.deal_label === null) {
+    return null;
+  }
+  const under = p.deal_label === "undervalued";
+  return (
+    <span
+      className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
+        under ? "chip-emerald" : "chip-amber"
+      }`}
+      title={(p.deal_reasons ?? []).join(" · ") || "Deal Score"}>
+      🎯 {Math.abs(p.deal_score)}% {under ? "below" : "above"} market
+    </span>
+  );
+}
+
 export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite,
 }: Props) {
@@ -149,6 +168,7 @@ export default function PropertyCard({
           )}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
+          <DealBadge property={p} />
           <MatchBadge score={p.match_score} />
           <MarketBadge property={p} />
         </div>

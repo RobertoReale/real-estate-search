@@ -131,6 +131,24 @@ def _fmt_price(value: float | None, contract: str = "sale") -> str:
     return f"{formatted}/month" if contract == "rent" else formatted
 
 
+def _deal_line(prop: Property) -> str:
+    """A "below market" highlight for an undervalued listing, or "" otherwise.
+
+    Reads the transient Deal Score fields (services/deal_score); when the scan
+    did not annotate them, or the listing is not undervalued, the notification
+    stays exactly as it was — the flag is opt-in signal, never noise."""
+    score = getattr(prop, "deal_score", None)
+    if score is None or getattr(prop, "deal_label", None) != "undervalued":
+        return ""
+    low = getattr(prop, "target_price_low", None)
+    high = getattr(prop, "target_price_high", None)
+    target = ""
+    if low and high:
+        target = (f" · Target {_fmt_price(low, prop.contract)}–"
+                  f"{_fmt_price(high, prop.contract)}")
+    return f"\n🎯 <b>Below market ({score:+d}%)</b>{target}"
+
+
 def notify_new_property(prop: Property, channels: list[str] | None = None) -> bool:
     portals = ", ".join(sorted({l.portal for l in prop.listings}))
     url = prop.listings[0].url if prop.listings else ""
@@ -146,7 +164,8 @@ def notify_new_property(prop: Property, channels: list[str] | None = None) -> bo
         f"{html.escape(prop.title or 'Untitled')}\n"
         f"📍 {html.escape(prop.city or '?')} {html.escape(prop.zone or '')}"
         f"{sqm_part}{rooms_part}\n"
-        f"💰 <b>{_fmt_price(prop.current_min_price, prop.contract)}</b>{price_sqm}\n"
+        f"💰 <b>{_fmt_price(prop.current_min_price, prop.contract)}</b>{price_sqm}"
+        f"{_deal_line(prop)}\n"
         f"🌐 Sources: {portals}\n"
         f'<a href="{html.escape(url)}">Open listing</a>'
     )

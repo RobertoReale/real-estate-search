@@ -46,6 +46,12 @@ export interface Property {
   area_median_scope: "zone" | "city" | null;
   sqm_price_delta_pct: number | null;
   match_score: number | null;
+  deal_score: number | null;
+  deal_label: "undervalued" | "fair" | "overpriced" | null;
+  deal_reasons: string[] | null;
+  expected_discount_pct: number | null;
+  target_price_low: number | null;
+  target_price_high: number | null;
   first_seen_at: string;
   last_seen_at: string;
   listings: Listing[];

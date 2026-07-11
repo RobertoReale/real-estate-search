@@ -3,7 +3,7 @@ import { api, formatPrice } from "../services/api";
 import type { Property } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
-import { MarketBadge } from "./PropertyCard";
+import { DealBadge, MarketBadge } from "./PropertyCard";
 
 interface Props {
   property: Property;
@@ -85,8 +85,45 @@ export default function PropertyModal({
             )}
             {p.rooms && <span className="self-end">🚪 {p.rooms} rooms</span>}
             {p.sqm && <span className="self-end">📐 {p.sqm.toFixed(0)} sqm</span>}
+            <DealBadge property={p} />
             <MarketBadge property={p} />
           </div>
+
+          {/* Deal Score breakdown */}
+          {p.deal_score !== null && p.deal_label !== "fair" && (
+            <div className="mt-4 rounded-xl panel p-3 text-sm">
+              <p className="font-medium mb-1">
+                🎯 Deal Score:{" "}
+                <span className={p.deal_score > 0 ? "accent-good" : "accent-bad"}>
+                  {p.deal_score > 0 ? "+" : ""}{p.deal_score}%
+                </span>{" "}
+                <span className="t-muted">
+                  ({p.deal_label === "undervalued"
+                    ? "below the local market"
+                    : "above the local market"})
+                </span>
+              </p>
+              {p.deal_reasons && p.deal_reasons.length > 0 && (
+                <ul className="list-disc list-inside t-body text-xs space-y-0.5">
+                  {p.deal_reasons.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              )}
+              {p.target_price_low && p.target_price_high && (
+                <p className="mt-2 t-body">
+                  💬 Suggested proposal:{" "}
+                  <span className="font-semibold">
+                    {formatPrice(p.target_price_low, p.contract)} –{" "}
+                    {formatPrice(p.target_price_high, p.contract)}
+                  </span>
+                </p>
+              )}
+              <p className="mt-2 text-[11px] t-dim">
+                An estimate from the area's median €/sqm, the listing's condition
+                cues, and the agency's usual discount — a starting point for your
+                own judgement, not an appraisal.
+              </p>
+            </div>
+          )}
 
           {/* Listings merged across portals */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">

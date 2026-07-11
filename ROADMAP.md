@@ -19,21 +19,14 @@ no-cloud design) were considered and dropped rather than listed here.
 
 These three features transform the platform from a unified local scraper into an active **decision-making engine and negotiation assistant**, leveraging the local SQLite history (`case.db`) to provide insights that no commercial portal allows.
 
-### 1. Deal Radar & Congruity Engine (`Deal Score`) — *Feasibility: Easy*
-Portals only display the asking price, leaving buyers to guess fair market value. Automatically compute a **Congruity & Expected Discount Score (`Deal Score` from -50% to +50%)** on every new listing:
-- **Micro-zone Price Comparison:** Compare the listing's €/sqm against the local median of its specific neighborhood (`pricing_stats.py`), segmented by property type and floor.
-- **Agency Behavior Signature:** Cross-reference `market_velocity.py` data to see if the listing agency systematically overprices above the local median and what their average historical price drop is (e.g., if agency X typically cuts prices by 8% after 45 days, estimate the realistic closing price).
-- **Text & Condition Modifiers:** Factor in condition cues extracted by the keyword/filter engine (e.g., `-15%` valuation adjustment for "da ristrutturare", `+10%` for "ristrutturato / classe A").
-- **UI & Notification Display:** Highlight undervalued opportunities directly on Telegram (`🎯 SOTTO-MERCATO -16% | Target di Proposta: €285k - €295k`) within minutes of publication.
-
-### 2. Ghost Price & Re-listing Memory (Recycled Ad Tracker) — *Feasibility: Medium*
+### 1. Ghost Price & Re-listing Memory (Recycled Ad Tracker) — *Feasibility: Medium*
 When a property fails to sell after several months, agencies often delete the ad (`status = 'gone'`) and re-publish it weeks later with fresh photos and a new or slightly lowered price to reset the "days on market" counter on portals.
 - Extend `deduplicator.py` matching rules (`location + sqm + rooms + floor`) against **properties in `status = 'gone'` older than 30–180 days**.
 - When a match is found across re-publications or different agencies, instead of creating a brand new property, **re-link it to the historical "dead" record** and attach a prominent badge:
   `👻 IMMOBILE RICICLATO — Originally listed Jan 2026 at €430k by Agency A (unsold after 160 days). Re-listed today by Agency B at €389k (-9.5%). Total days on market: 245.`
 - Provides immense negotiation leverage during property visits against fixed-price claims or synthetic urgency.
 
-### 3. Red Flags Audit & Total Cost of Ownership (`TCO Calculator`) — *Feasibility: Easy/Medium*
+### 2. Red Flags Audit & Total Cost of Ownership (`TCO Calculator`) — *Feasibility: Easy/Medium*
 Agencies frequently bury critical legal or structural drawbacks in lengthy text descriptions or technical fields (e.g., "locato fino al 2028", "nuda proprietà", "spese condominiali €3,800/anno", "diritto di superficie", "senza ascensore al 4° piano").
 - **Automated Red/Yellow/Green Flag Extraction:** Extend `filter_engine.py` / text parsing into a structured audit summary on each card:
   - 🚩 **Red Flags (Legal/Occupancy):** Occupied by tenant with active lease, right of surface ("diritto di superficie"), pending extraordinary roof/facade costs.

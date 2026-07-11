@@ -111,6 +111,15 @@ phone without any of this. The dashboard is for browsing and triaging.
   and sale and rental prices are never mixed — until your database has enough
   history, cards simply show nothing rather than a number invented from two
   samples.
+* **Deal Score**: builds on the fairness check to flag genuine opportunities. It
+  combines the €/sqm gap to the local median with condition cues read from the
+  listing text (*da ristrutturare* lowers it, *ristrutturato / classe A* raises
+  it) into a single score — positive means priced below the market. An
+  undervalued listing shows a **🎯 below market** badge, and its detail modal
+  adds a suggested proposal range drawn from the agency's own usual discount. If
+  Telegram or email alerts are on, an undervalued new listing carries the flag
+  into the notification. It is a starting point for your judgement, not an
+  appraisal, and appears only where there are enough comparables to mean it.
 * **Smart Match Score**: define your "dream home" once in **Settings** — a budget,
   minimum rooms, surface or floor, must-have features (e.g. *balcone, ascensore*),
   and preferred zones — and every card shows a **compatibility %** scored against

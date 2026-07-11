@@ -71,6 +71,14 @@ class Property(Base):
     sqm_price_delta_pct: float | None = None
     # Smart Match Score: compatibility % vs the user's "dream home" (None = off)
     match_score: int | None = None
+    # Deal Score: congruity vs fair value (~[-50, +50]; positive = below market),
+    # set by services/deal_score.annotate_deal_scores. All transient.
+    deal_score: int | None = None
+    deal_label: str | None = None  # "undervalued" | "fair" | "overpriced"
+    deal_reasons: list[str] | None = None
+    expected_discount_pct: float | None = None
+    target_price_low: float | None = None
+    target_price_high: float | None = None
 
 
 class Listing(Base):

@@ -59,6 +59,13 @@ class PropertyOut(BaseModel):
     sqm_price_delta_pct: float | None = None
     # Smart Match Score: 0–100 compatibility vs "dream home" (None when off)
     match_score: int | None = None
+    # Deal Score: congruity vs fair value (positive = below market; None = no data)
+    deal_score: int | None = None
+    deal_label: str | None = None
+    deal_reasons: list[str] | None = None
+    expected_discount_pct: float | None = None
+    target_price_low: float | None = None
+    target_price_high: float | None = None
     first_seen_at: datetime
     last_seen_at: datetime
     listings: list[ListingOut] = []

@@ -10,7 +10,7 @@ from ..config import load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper
-from . import notifier, pricing_stats
+from . import deal_score, notifier, pricing_stats
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
 
@@ -292,6 +292,11 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
 
     # per-profile channel routing: empty notify_channels = all enabled channels
     channels = notifier.parse_channels_csv(profile.notify_channels) or None
+    # Deal Score for the new listings, so an undervalued one is flagged in the
+    # notification itself (market position must be computed first — it feeds it).
+    if new_properties:
+        pricing_stats.annotate_market_position(db, new_properties)
+        deal_score.annotate_deal_scores(db, new_properties)
     summary["notified"] += _dispatch_notifications(
         new_properties, price_drops, channels
     )
