@@ -203,9 +203,55 @@ phone without any of this. The dashboard is for browsing and triaging.
 
 ## Background Operations & Caching
 * **Data Persistence**: All settings, search profiles, listings, price history, and hidden statuses are saved locally in a database file (`backend/case.db`). You can close the app or shut down your PC at any time without losing any progress or history.
-* **Always-on Scanning**: Because this app runs on your local network, the terminal window(s) must remain open (minimized) to execute background scans and send Telegram alerts — two with `start.bat`, one with `serve.bat`. For a 24/7 silent monitoring setup, deploying the project onto a home server or Raspberry Pi is highly recommended.
+* **Always-on Scanning**: background scans, price-trend snapshots, and alerts run only while the app is running. With `start.bat`/`serve.bat` that means keeping the terminal window open (minimized). To run it silently with no window — the closest thing to a Raspberry Pi on a Windows PC — see *Running it 24/7 on Windows* below.
 * **Catch-up Scan**: the scheduled scan normally fires one full interval after startup. If the PC was off and the last scan is already older than the configured interval, a catch-up scan runs ~2 minutes after startup instead — so switching the PC on is enough to bring the listings up to date.
 * **Automatic Backups**: a copy of `case.db` is written to `backend/backups/` at most once per day (checked at startup; the 14 most recent copies are kept). The folder is local — point your cloud-sync or a second drive at it if you want off-machine safety.
+
+### Running it 24/7 on Windows (no window to keep open)
+
+Don't have a Raspberry Pi yet? You can make the app run in the background on
+Windows, with no console window. Whichever option you pick, **build the
+dashboard once first** so the backend serves it on a single port — run
+`serve.bat` once (Ctrl+C after "Building the frontend"), or `cd frontend && npm
+run build`. Then open **http://localhost:8000** and bookmark it. Everything
+stays on `127.0.0.1` — the API has no password, so it must not be exposed.
+
+Three options, from simplest to most robust:
+
+| Option | What it does | Trade-off |
+|---|---|---|
+| **A — Start at login (hidden)** | A shortcut to `run-hidden.vbs` in your Startup folder launches the backend, hidden, every time you log in. | Simplest. Runs only after you log in; no auto-restart if it crashes. |
+| **B — Task Scheduler (hidden)** | A scheduled task runs `run-hidden.vbs` "At log on", with more control (delay, run even on battery, etc.). | Still tied to login, but more configurable than A. |
+| **C — Windows Service (NSSM)** ⭐ | `install-service.bat` registers the backend as a real service: starts at **boot** (before login), **auto-restarts on crash**, logs to `backend/service.log`. | The closest to an always-on appliance. One-time setup, needs a small download. |
+
+**Option A — Start at login.** Press `Win+R`, type `shell:startup`, Enter. In
+the folder that opens, right-click → *New → Shortcut*, and point it at
+`run-hidden.vbs` in the project folder. Done — it launches silently at every
+login. (To stop it, delete the shortcut and end `pythonw.exe` in Task Manager.)
+
+**Option B — Task Scheduler.** Open *Task Scheduler* → *Create Task* → trigger
+*At log on*, action *Start a program* → `wscript.exe` with argument the full path
+to `run-hidden.vbs`. This gives you options A doesn't (delay after login, "run
+whether logged on or not", stop if idle, …).
+
+**Option C — Windows Service (recommended).**
+1. Download **NSSM** from <https://nssm.cc/download>, and copy `win64\nssm.exe`
+   into the project folder (next to `install-service.bat`).
+2. Right-click **`install-service.bat`** → *Run as administrator*. It builds the
+   frontend if needed, registers the `RealEstateSearch` service (auto-start,
+   auto-restart), and starts it.
+3. Open **http://localhost:8000**.
+
+Manage it from an admin terminal: `nssm restart RealEstateSearch` (after
+updating the code), `nssm stop RealEstateSearch`, `nssm edit RealEstateSearch`
+(GUI). To remove it, run **`uninstall-service.bat`** as administrator — your
+database and settings are left untouched.
+
+> Notes for all three: don't run `start.bat` at the same time (both use port
+> 8000 — stop the autostart first). After changing the code, rebuild the
+> frontend and restart. The optional browser-based DataDome cookie grab is
+> interactive, so it won't work headless from a service — paste the cookie by
+> hand instead; normal scans are unaffected.
 
 ---
 

@@ -3,6 +3,8 @@
 backend/case.db
 backend/settings.json
 backend/app.log*
+backend/service.log*
+nssm.exe
 
 # Local AI agent instructions & workspace history (NEVER commit to public git)
 CLAUDE.md

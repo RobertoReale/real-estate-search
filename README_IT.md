@@ -50,6 +50,59 @@ Esegui **`serve.bat`** al posto di `start.bat`. Questo comando compila l'interfa
 
 ---
 
+## Esecuzione 24/7 su Windows (senza finestra aperta)
+
+Le scansioni automatiche, gli snapshot per i grafici dei prezzi e le notifiche
+funzionano **solo mentre l'app è in esecuzione**. Con `start.bat`/`serve.bat`
+questo significa tenere aperta (minimizzata) la finestra del terminale. Se non
+hai ancora un Raspberry Pi, puoi far girare l'app in background sul PC Windows,
+**senza alcuna finestra**.
+
+Qualunque opzione scegli, **compila prima la dashboard una volta** così il
+backend la serve su un'unica porta: esegui `serve.bat` una volta (Ctrl+C dopo
+"Building the frontend"), oppure `cd frontend && npm run build`. Poi apri
+**http://localhost:8000** e aggiungilo ai preferiti. Tutto resta su `127.0.0.1`:
+l'API non ha password, quindi non va esposta.
+
+Tre opzioni, dalla più semplice alla più robusta:
+
+| Opzione | Cosa fa | Compromesso |
+|---|---|---|
+| **A — Avvio all'accesso (nascosto)** | Un collegamento a `run-hidden.vbs` nella cartella Esecuzione automatica avvia il backend, nascosto, a ogni login. | La più semplice. Parte solo dopo il login; nessun riavvio automatico in caso di crash. |
+| **B — Utilità di pianificazione (nascosto)** | Un'attività pianificata esegue `run-hidden.vbs` "All'accesso", con più controllo (ritardo, esecuzione a batteria, ecc.). | Sempre legata al login, ma più configurabile della A. |
+| **C — Servizio Windows (NSSM)** ⭐ | `install-service.bat` registra il backend come vero servizio: parte all'**accensione** (prima del login), **si riavvia da solo se crasha**, log in `backend/service.log`. | La più simile a un dispositivo sempre acceso. Setup una tantum, richiede un piccolo download. |
+
+**Opzione A — Avvio all'accesso.** Premi `Win+R`, scrivi `shell:startup`,
+Invio. Nella cartella che si apre: tasto destro → *Nuovo → Collegamento* e
+puntalo a `run-hidden.vbs` nella cartella del progetto. Fatto: parte in
+silenzio a ogni accesso. (Per fermarlo: elimina il collegamento e chiudi
+`pythonw.exe` da Gestione attività.)
+
+**Opzione B — Utilità di pianificazione.** Apri *Utilità di pianificazione* →
+*Crea attività* → attivazione *All'accesso*, azione *Avvio programma* →
+`wscript.exe` con argomento il percorso completo di `run-hidden.vbs`.
+
+**Opzione C — Servizio Windows (consigliata).**
+1. Scarica **NSSM** da <https://nssm.cc/download> e copia `win64\nssm.exe` nella
+   cartella del progetto (accanto a `install-service.bat`).
+2. Tasto destro su **`install-service.bat`** → *Esegui come amministratore*.
+   Compila il frontend se serve, registra il servizio `RealEstateSearch`
+   (avvio e riavvio automatici) e lo avvia.
+3. Apri **http://localhost:8000**.
+
+Gestione da terminale amministratore: `nssm restart RealEstateSearch` (dopo aver
+aggiornato il codice), `nssm stop RealEstateSearch`, `nssm edit RealEstateSearch`
+(interfaccia grafica). Per rimuoverlo: **`uninstall-service.bat`** da
+amministratore — database e impostazioni restano intatti.
+
+> Note per tutte e tre: non lanciare `start.bat` in contemporanea (userebbe la
+> stessa porta 8000 — ferma prima l'avvio automatico). Dopo aver cambiato il
+> codice, ricompila il frontend e riavvia. Il grab automatico del cookie
+> DataDome col browser è interattivo, quindi da servizio non funziona: incolla
+> il cookie a mano (le scansioni normali non ne risentono).
+
+---
+
 ## Come Utilizzarlo
 
 1. **Crea l'URL di Ricerca:** Vai su Immobiliare.it o Idealista.it dal tuo browser. Seleziona la città o disegna un'area sulla mappa (`poligoni disegnati a mano`), imposta fasce di prezzo, numero locali, presenza balconi/ascensore e qualsiasi altra opzione del portale, quindi **copia l'URL dalla barra degli indirizzi**.
