@@ -133,6 +133,18 @@ export default function FiltersBar({
 
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
         <span className="text-sm t-muted pb-2">{count} properties</span>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium t-muted">Manutenzione</label>
+          <button
+            className="px-3 py-2 text-sm font-medium rounded-lg transition bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1 shadow-sm"
+            title="Ripara istantaneamente titoli, zone e foto mancanti degli annunci importati in passato"
+            onClick={async () => {
+              await api.repairListings();
+              onChange({ ...filters });
+            }}>
+            🛠️ Ripara Dati
+          </button>
+        </div>
         {/* Export the filtered set as a shareable offline file (no server, no
             DB) — see services/exporter.py */}
         <div className="flex flex-col gap-1">

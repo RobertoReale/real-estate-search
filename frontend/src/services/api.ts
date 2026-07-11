@@ -145,6 +145,10 @@ export const api = {
   getScanStatus(): Promise<ScanStatus> {
     return request("/scrapers/status");
   },
+  /** Instantly repair existing dashboard properties lacking city, zone, title, or photos. */
+  repairListings(): Promise<{ properties_fixed: number; listings_fixed: number; images_recovered: number }> {
+    return request("/maintenance/repair-listings", { method: "POST" });
+  },
 
   /** Load current user preferences and API credentials. */
   getSettings(): Promise<Settings> {

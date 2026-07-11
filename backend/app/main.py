@@ -603,6 +603,13 @@ def scraper_status():
     return {**scan_state, "next_auto_run": scheduler.next_run_time()}
 
 
+@app.post("/api/maintenance/repair-listings")
+def repair_listings_endpoint(db: Session = Depends(get_db)):
+    """Instantly repairs existing dashboard properties lacking city, zone, title, or photos."""
+    from .services.repair_listings import repair_empty_listings_locally
+    return repair_empty_listings_locally(db)
+
+
 # --- Settings ---
 
 @app.get("/api/settings")

@@ -81,6 +81,20 @@ def check_properties_availability(db: Session, properties: list[Property]) -> di
                 res = probe.check(listing.url)
                 listing.last_seen_at = datetime.now(timezone.utc)
                 results.append(res)
+                if res is True and getattr(probe, "last_soup", None):
+                    soup = probe.last_soup
+                    if not listing.image_url:
+                        og_img = (soup.find("meta", property="og:image")
+                                  or soup.find("meta", attrs={"name": "twitter:image"}))
+                        if og_img and og_img.get("content"):
+                            listing.image_url = str(og_img["content"]).strip()[:500]
+                    if not prop.image_url and listing.image_url:
+                        prop.image_url = listing.image_url
+                    if prop.title in ("Appartamento in vendita", "N/A", "") or not prop.title:
+                        og_title = soup.find("meta", property="og:title")
+                        if og_title and og_title.get("content"):
+                            from .email_import import _clean_title
+                            prop.title = _clean_title(str(og_title["content"]))
                 if res is None and getattr(probe, "last_error", None):
                     summary["last_error"] = probe.last_error
 

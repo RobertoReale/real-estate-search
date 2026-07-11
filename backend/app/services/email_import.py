@@ -410,10 +410,17 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
     if not _has_details(entry):
         summary["blank_links"] += 1
         return
-    if db.scalar(select(Listing).where(
+    existing_listing = db.scalar(select(Listing).where(
         Listing.portal == portal, Listing.portal_id == portal_id
-    )):
+    ))
+    if existing_listing:
         summary["already_tracked"] += 1
+        if not existing_listing.image_url and entry.get("image_url"):
+            existing_listing.image_url = entry["image_url"]
+            from ..models import Property as _Property
+            prop = db.get(_Property, existing_listing.property_id)
+            if prop and not prop.image_url:
+                prop.image_url = entry["image_url"]
         return
     staged = db.scalar(select(ImportedListing).where(
         ImportedListing.portal == portal,
@@ -427,6 +434,14 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
             staged.title = entry["title"]
         if not getattr(staged, "image_url", None) and entry.get("image_url"):
             staged.image_url = entry["image_url"]
+            if getattr(staged, "property_id", None):
+                from ..models import Property as _Property
+                prop = db.get(_Property, staged.property_id)
+                if prop and not prop.image_url:
+                    prop.image_url = entry["image_url"]
+                for l in (prop.listings if prop else []):
+                    if not l.image_url:
+                        l.image_url = entry["image_url"]
         for f in ("price", "sqm", "rooms"):
             if getattr(staged, f) is None and entry[f] is not None:
                 setattr(staged, f, entry[f])
