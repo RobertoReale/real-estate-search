@@ -68,6 +68,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [proxyUrl, setProxyUrl] = useState("");
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [browserFirst, setBrowserFirst] = useState(false);
   const [grabbing, setGrabbing] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<Section | null>(null);
@@ -103,6 +104,7 @@ export default function SettingsModal({ onClose }: Props) {
     setDreamZones((s.dream_zones ?? []).join(", "));
     setProxyUrl(s.proxy_url || "");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
+    setBrowserFirst(s.availability_browser_first ?? false);
     // Secrets are write-only: the server never returns them, so the inputs go
     // back to their "already saved" placeholder rather than showing stale dots.
     setToken("");
@@ -139,6 +141,7 @@ export default function SettingsModal({ onClose }: Props) {
       dream_zones: dreamZones.split(",").map((k) => k.trim()).filter(Boolean),
       proxy_url: proxyUrl,
       datadome_auto_refresh: autoRefresh,
+      availability_browser_first: browserFirst,
     };
     // An empty secret field means "keep the stored one", never "erase it".
     // Pasted app passwords keep their display spaces; save_settings strips them.
@@ -583,6 +586,15 @@ export default function SettingsModal({ onClose }: Props) {
                   <input type="checkbox" checked={autoRefresh}
                     onChange={(e) => setAutoRefresh(e.target.checked)} />
                   Refresh the cookie automatically before each scan (headless)
+                </label>
+                <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
+                  <input type="checkbox" checked={browserFirst} className="mt-0.5"
+                    onChange={(e) => setBrowserFirst(e.target.checked)} />
+                  <span>
+                    Run the "still online?" check through the browser instead of
+                    fast requests — slower per ad, but it holds a real cookie so
+                    DataDome does not interrupt it with 403 blocks.
+                  </span>
                 </label>
               </>
             ) : (

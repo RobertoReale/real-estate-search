@@ -189,6 +189,13 @@ phone without any of this. The dashboard is for browsing and triaging.
   insisting would only deepen the block, and the block would land on the same
   home connection your scheduled scans need. In that case, wait and retry later.
 
+  If DataDome keeps interrupting the check, turn on **"Run the check through the
+  browser"** in **Settings** (under the automatic cookie section). The check then
+  runs through a real local browser (headless) that earns a genuine cookie once
+  and reuses it, instead of a fresh request per ad — so it does not collect 403
+  blocks. It is slower per listing, but it does not stop mid-run. This needs the
+  optional browser engine installed (same one as the automatic cookie grab).
+
   **Only ads hosted on Immobiliare.it or Idealista.it can be imported**, since
   the app identifies a listing by its portal ID. An agency that mails you its
   own proposals (Tecnocasa, a local agency, …) is imported only if the email

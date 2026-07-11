@@ -432,6 +432,12 @@ class AdProbe(BaseScraper):
         self._browser_ctx: typing.Any = None
         self._browser_page: typing.Any = None
         self._browser_warmed_hosts: set[str] = set()
+        # Browser-first mode: once set, `check()` skips curl_cffi entirely and
+        # answers through the persistent Playwright context. The point is to
+        # stop *re-earning* a DataDome 403 per ad on the residential IP once the
+        # portal has already shown it will refuse the TLS session — every extra
+        # 403 only tightens the block the real scans depend on (invariant 16).
+        self._browser_primary = False
 
     def warm_host(self, url: str) -> None:
         """Picks up the portal's DataDome cookie from its homepage first.
@@ -495,7 +501,12 @@ class AdProbe(BaseScraper):
             if not cookie_harvester.is_available():
                 return False
             from ..config import load_settings
-            if not load_settings().get("datadome_auto_refresh"):
+            s = load_settings()
+            # Either switch is an explicit opt-in to an unattended browser
+            # launch (invariant 18): the reactive cookie/refresh machinery, or
+            # the availability check's browser-first transport.
+            if not (s.get("datadome_auto_refresh")
+                    or s.get("availability_browser_first")):
                 return False
             return self._ensure_pw_pool().submit(self._start_browser_session_inner).result()
         except Exception as e:
@@ -537,6 +548,8 @@ class AdProbe(BaseScraper):
         self.was_blocked = False
         self.last_error = None
         self.last_soup = None
+        if self._browser_primary:
+            return self._check_via_browser(url)
         self.warm_host(url)
         path = urlparse(url).path.rstrip("/")
         host = urlparse(url).netloc
@@ -588,6 +601,22 @@ class AdProbe(BaseScraper):
                 pass
         return is_online
 
+    def _check_via_browser(self, url: str) -> bool | None:
+        """Browser-primary check: answer straight from the Playwright context,
+        never touching curl_cffi. Used once the batch has switched to
+        browser-first mode, so no further TLS 403 is earned per ad.
+
+        A `None` here means the browser itself could not tell (a CAPTCHA it
+        cannot pass headless, a 5xx). If the context is gone entirely, that is
+        indistinguishable from a hard block, so `was_blocked` is raised to let
+        the caller's streak logic decide to stop rather than loop forever.
+        """
+        res = self._browser_check(url)
+        if res is None and not self._browser_ctx:
+            self.was_blocked = True
+            self.last_error = self.last_error or "Browser session unavailable"
+        return res
+
     def _browser_check(self, url: str) -> bool | None:
         """Fallback to checking the ad URL in the persistent Playwright context.
 
@@ -624,6 +653,11 @@ class AdProbe(BaseScraper):
             if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
                 page.wait_for_timeout(5000)
                 if "captcha" in page.content()[:4000].lower():
+                    # The browser too is being challenged: report it as a block
+                    # so a browser-first batch can abort on a streak instead of
+                    # grinding out an all-unknown run at ~25s per ad.
+                    self.was_blocked = True
+                    self.last_error = "Blocked by DataDome (browser CAPTCHA)"
                     return None
             path = urlparse(url).path.rstrip("/")
             if resp.status in (404, 410):

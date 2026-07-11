@@ -705,6 +705,20 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
     _check_progress.update(active=True, done=0, total=len(items), gone=0,
                            online=0, unknown=0, last_error=None)
     try:
+        # Browser-first: open one persistent headless browser up front and run
+        # the whole batch through it, so curl_cffi never earns a 403 on the
+        # residential IP. Opt-in and best-effort — if Playwright is missing or
+        # the flag is off, start_browser_session returns False and the batch
+        # proceeds on curl_cffi exactly as before (invariant 16 unchanged).
+        if settings.get("availability_browser_first") and hasattr(
+                probe, "start_browser_session"):
+            if probe.start_browser_session():
+                probe._browser_primary = True
+                logger.info("email-import: availability check running "
+                            "browser-first (curl_cffi bypassed)")
+            else:
+                logger.info("email-import: browser-first requested but the "
+                            "browser is unavailable; using curl_cffi")
         block_streak = 0
         refreshes_used = 0
         probes_used = 0
@@ -802,12 +816,15 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                     block_streak = 0
                     continue
                 if (hasattr(probe, "start_browser_session")
-                        and not getattr(probe, "_browser_ctx", None)
+                        and not getattr(probe, "_browser_primary", False)
                         and probe.start_browser_session()):
-                    # Last resort, opt-in (invariant 18): carry on through the
-                    # persistent browser instead of hammering a TLS session the
-                    # portal already refused.
-                    logger.info("email-import: curl_cffi blocked repeatedly, switching to persistent browser session")
+                    # Last resort, opt-in (invariant 18): switch the *rest of
+                    # the batch* to the persistent browser instead of hammering
+                    # a TLS session the portal already refused. Sticky, not
+                    # per-ad: leaving curl_cffi as primary would re-earn a 403
+                    # on every remaining listing before falling back here.
+                    probe._browser_primary = True
+                    logger.info("email-import: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session")
                     time.sleep(6.0)
                     block_streak = 0
                     continue

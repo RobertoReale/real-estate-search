@@ -472,6 +472,95 @@ def test_cookie_recovery_is_skipped_when_not_opted_in(db, monkeypatch):
     assert called == []  # no browser launched
 
 
+def test_browser_first_runs_the_whole_batch_through_the_browser(db, monkeypatch):
+    """With `availability_browser_first` on, the check opens one persistent
+    browser up front and never touches curl_cffi, so it earns a real DataDome
+    cookie once instead of a 403 per ad. The point of the mode is to not get
+    interrupted: no block, no abort, no per-ad handshake to rotate."""
+    items = [_staged(db, str(600 + n)) for n in range(4)]
+
+    class BrowserFirstProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+            self._browser_primary = False
+            self.started = 0
+
+        def start_browser_session(self):
+            self.started += 1
+            return True
+
+        def check(self, url):
+            # In browser-first mode the caller flips this before the loop; the
+            # test asserts curl was never the transport by checking it stayed on.
+            assert self._browser_primary is True
+            return True
+
+        def polite_sleep(self):
+            pass
+
+    probe = BrowserFirstProbe()
+    monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"request_delay_seconds": 0,
+                                 "availability_browser_first": True})
+
+    summary = check_availability(db, items)
+
+    assert probe.started == 1                 # one launch, reused for the batch
+    assert probe._browser_primary is True
+    assert summary["online"] == 4
+    assert summary["aborted"] is False
+
+
+def test_a_block_streak_switches_the_rest_of_the_batch_to_the_browser(db, monkeypatch):
+    """Reactive counterpart: once curl_cffi has earned a streak of 403s, the
+    remaining listings go through the persistent browser instead of re-earning
+    a 403 each — the switch is sticky (sets `_browser_primary`), not a per-ad
+    fallback that would keep hammering the TLS session the portal refused."""
+    items = [_staged(db, str(620 + n)) for n in range(6)]
+
+    class SwitchingProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+            self.last_error = None
+            self._warmed_hosts: set = set()
+            self.impersonations = ["safari"]
+            self._browser_primary = False
+
+        def check(self, url):
+            if self._browser_primary:
+                self.was_blocked = False
+                return True
+            self.was_blocked = True   # curl_cffi keeps getting refused
+            return None
+
+        def start_browser_session(self):
+            return True
+
+        def polite_sleep(self):
+            pass
+
+    probe = SwitchingProbe()
+    monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"request_delay_seconds": 0,
+                                 "datadome_auto_refresh": True})
+    from app.services import cookie_harvester
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(
+        cookie_harvester, "refresh_into_settings",
+        lambda portal="immobiliare", headless=True: {"ok": False},
+    )
+    monkeypatch.setattr(email_import.time, "sleep", lambda *_: None)
+
+    summary = check_availability(db, items)
+
+    assert summary["aborted"] is False
+    assert probe._browser_primary is True     # switched, and stayed switched
+    # the ads probed after the switch got a clean answer through the browser
+    assert summary["online"] >= 1
+
+
 def test_the_probe_budget_caps_live_fetches_not_the_selection(db, monkeypatch):
     """The cap bounds portal fetches per run (invariant 16). It used to slice
     the ids in the endpoint instead, which combined with smart resume meant a

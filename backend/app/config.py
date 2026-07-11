@@ -84,6 +84,13 @@ DEFAULT_SETTINGS = {
     "datadome_auto_refresh": False,
     "datadome_cookie_updated_at": "",
     "datadome_cookie_ttl_minutes": 50,
+    # Availability check transport. When on, the "is this ad still online?"
+    # batch runs entirely through a persistent headless browser (Playwright)
+    # instead of curl_cffi, so it earns a real DataDome cookie once and reuses
+    # it — no per-ad 403 on the residential IP. Opt-in like every unattended
+    # browser launch (invariant 18); degrades to curl_cffi if Playwright is
+    # absent. Slower per ad, but it does not get interrupted by blocks.
+    "availability_browser_first": False,
 }
 
 
