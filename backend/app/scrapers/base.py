@@ -6,6 +6,7 @@ import logging
 import random
 import re
 import time
+import typing
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
@@ -13,6 +14,45 @@ from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
 
 logger = logging.getLogger(__name__)
+
+
+def supported_impersonations() -> frozenset[str]:
+    """Profile names the *installed* curl_cffi actually accepts.
+
+    curl_cffi is pinned open-ended (invariant 8) and both adds new browser
+    fingerprints and drops names as the browsers they mimic age out. An unknown
+    name raises only when a real fetch runs — never in a test — so resolving the
+    configured list against this set is what lets a routine `pip install -U
+    curl_cffi` degrade gracefully instead of breaking every scrape until someone
+    edits the code.
+    """
+    return frozenset(typing.get_args(BrowserTypeLiteral))
+
+
+def resolve_impersonations(
+    desired: list[str], fallback: list[str] | None = None
+) -> list[BrowserTypeLiteral]:
+    """Keep only the supported names from `desired`, order and Safari-first
+    preference preserved, duplicates dropped.
+
+    Never returns empty: an all-unsupported list falls back to `fallback`
+    (itself resolved), and finally to the generic "safari" alias curl_cffi
+    always ships — a blocked default beats a crash. This is the runtime half of
+    the TLS-rotation maintenance loop: the user (or a curl_cffi upgrade) can
+    change the profile list and anything stale is quietly filtered out.
+    """
+    supported = supported_impersonations()
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in desired or []:
+        if name in supported and name not in seen:
+            seen.add(name)
+            out.append(name)
+    if not out:
+        return resolve_impersonations(fallback) if fallback else ["safari"]
+    # Names are validated members of BrowserTypeLiteral; the cast documents that
+    # for the type checker without a per-element narrowing dance.
+    return typing.cast(list[BrowserTypeLiteral], out)
 
 
 class BlockedError(Exception):
@@ -157,6 +197,10 @@ class BaseScraper:
         # handshakes are scored on different fingerprint pools than desktop
         # Safari/Chrome, so they extend the rotation rather than replace it.
         "safari18_4_ios", "firefox147",
+        # Current-generation Safari (26.x), added to keep the rotation abreast
+        # of real browser evolution. It trails the measured-good profiles: an
+        # untested handshake only gets tried once those ahead of it are blocked.
+        "safari260",
     ]
     # if blocked, retry with the next impersonation profile
     rotate_on_block = True
@@ -169,6 +213,15 @@ class BaseScraper:
         # set from the search URL at scrape() time; heuristic price parsing
         # needs it because rent and sale amounts live in disjoint ranges
         self.contract = "sale"
+        # Effective, self-healing profile list. A non-empty `tls_impersonations`
+        # setting overrides the code default portal-by-portal (the user's escape
+        # hatch to react to a new block wave without a code change); either way
+        # anything the installed curl_cffi no longer supports is filtered out.
+        from ..config import load_settings
+        configured = load_settings().get("tls_impersonations") or []
+        self.impersonations = resolve_impersonations(
+            configured, list(type(self).impersonations)
+        )
         self.session = self._new_session()
 
     def _new_session(self):

@@ -67,11 +67,7 @@ whether newly staged items should notify or wait silently in the review queue.
 - Introduce migrations as soon as a change goes beyond adding a column (rename, type change, drop), ensuring historical listings/prices are not lost during schema updates.
 - Mature library, standard pattern — the only care needed is doing it without breaking existing `case.db` files.
 
-### 5. TLS Handshake Fingerprints
-- Periodically rotate and update `curl_cffi` impersonation versions (e.g., `safari184`, `chrome131_android`) to match real browser evolution and prevent DataDome blocks.
-- Recurring maintenance on an already-proven pattern, not new design.
-
-### 6. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
+### 5. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
 - Allow one-click export of curated shortlists (favorites), specific property cards with full price-drop history and TCO/Deal Score, or entire search profile results into a self-contained, interactive offline HTML dossier (or clean Markdown/CSV report).
 - Can be sent easily via Telegram, WhatsApp, or email to partners, family members, or real estate advisors without exposing the local dashboard or SQLite database to the network.
 

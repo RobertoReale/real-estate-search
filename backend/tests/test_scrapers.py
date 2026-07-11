@@ -4,7 +4,15 @@ import json
 
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.scrapers.idealista import IdealistaScraper
-from app.scrapers.base import AdProbe, BaseScraper, parse_price, parse_rooms, parse_sqm
+from app.scrapers.base import (
+    AdProbe,
+    BaseScraper,
+    parse_price,
+    parse_rooms,
+    parse_sqm,
+    resolve_impersonations,
+    supported_impersonations,
+)
 
 # --- Simulated Pages ---
 
@@ -315,6 +323,52 @@ def test_impersonation_profiles_exist_in_curl_cffi():
     for scraper in (BaseScraper, ImmobiliareScraper, IdealistaScraper):
         unknown = [p for p in scraper.impersonations if p not in supported]
         assert not unknown, f"{scraper.__name__}: unsupported profiles {unknown}"
+
+
+def test_resolve_impersonations_drops_unsupported_names_but_keeps_order():
+    """A curl_cffi upgrade can retire a profile name; at runtime that raises
+    only on a real fetch, breaking every scrape silently. Resolving the list
+    against the installed set filters the stale name while preserving the
+    empirical Safari-first ordering of the survivors."""
+    resolved = resolve_impersonations(
+        ["safari184", "totally_made_up_profile", "safari180"]
+    )
+    assert resolved == ["safari184", "safari180"]
+
+
+def test_resolve_impersonations_dedupes():
+    assert resolve_impersonations(["safari184", "safari184", "safari180"]) == [
+        "safari184",
+        "safari180",
+    ]
+
+
+def test_resolve_impersonations_never_returns_empty():
+    """An all-unsupported list must not leave a scraper with no handshake to
+    use: it falls back to the provided default, then to the generic alias
+    curl_cffi always ships. A blocked default still beats a crash."""
+    fallback = resolve_impersonations(["nope1", "nope2"], ["safari180"])
+    assert fallback == ["safari180"]
+
+    last_ditch = resolve_impersonations(["nope1"], ["also_nope"])
+    assert last_ditch == ["safari"]
+    assert "safari" in supported_impersonations()
+
+
+def test_settings_override_replaces_the_scraper_profile_list(monkeypatch):
+    """A non-empty `tls_impersonations` setting is the zero-code escape hatch to
+    rotate handshakes when a new block wave lands; unsupported entries in it are
+    filtered out the same way the code defaults are."""
+    from app import config
+
+    monkeypatch.setattr(
+        config,
+        "load_settings",
+        lambda: {**config.DEFAULT_SETTINGS,
+                 "tls_impersonations": ["safari180", "bogus", "firefox147"]},
+    )
+    scraper = IdealistaScraper()
+    assert scraper.impersonations == ["safari180", "firefox147"]
 
 
 # --- AdProbe: "is this ad still online?" ---------------------------------------

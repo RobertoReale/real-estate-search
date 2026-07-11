@@ -50,6 +50,12 @@ DEFAULT_SETTINGS = {
     # ignore the alerts. 0 disables health alerting entirely.
     "health_alert_after_failures": 3,
     "proxy_url": "",
+    # TLS impersonation override (advanced). Empty = use each scraper's built-in,
+    # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
+    # profile names (e.g. ["safari260", "safari184"]) replaces it for every
+    # scraper; unsupported names are silently filtered at runtime, so this is the
+    # zero-code way to rotate handshakes when a new DataDome wave lands.
+    "tls_impersonations": [],
     "datadome_cookie": "",
     # Automatic DataDome cookie refresh via a local browser (optional, needs
     # Playwright — see services/cookie_harvester.py). Opt-in: a scan must not
