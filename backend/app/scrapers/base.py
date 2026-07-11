@@ -466,7 +466,10 @@ class AdProbe(BaseScraper):
             if blocked and attempt == 0 and self._rotate_session():
                 continue
             if blocked:
-                logger.info("ad-probe: %s -> unknown (blocked)", url)
+                logger.info("ad-probe: %s -> unknown (blocked via curl_cffi), trying _browser_check fallback", url)
+                browser_res = self._browser_check(url)
+                if browser_res is not None:
+                    return browser_res
                 self.was_blocked = True
                 self.last_error = f"Blocked by DataDome (HTTP {resp.status_code})"
                 return None
@@ -490,6 +493,54 @@ class AdProbe(BaseScraper):
             except Exception:
                 pass
         return is_online
+
+    def _browser_check(self, url: str) -> bool | None:
+        """Fallback to checking the ad URL using the persistent AutomationControlled Playwright context."""
+        try:
+            from ..services import cookie_harvester
+            if not cookie_harvester.is_available():
+                return None
+            from playwright.sync_api import sync_playwright
+            host = urlparse(url).netloc
+            with sync_playwright() as p:
+                # Try headful first for maximum DataDome bypass reliability
+                ctx = cookie_harvester._launch(p, headless=False)
+                try:
+                    if not hasattr(self, "_browser_warmed_hosts"):
+                        self._browser_warmed_hosts = set()
+                    page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                    if host not in self._browser_warmed_hosts:
+                        home = f"https://{host}/"
+                        resp_home = page.goto(home, wait_until="domcontentloaded", timeout=20000)
+                        if resp_home and resp_home.status not in (403, 429):
+                            self._browser_warmed_hosts.add(host)
+                        page.wait_for_timeout(1000)
+                    resp = page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                    if not resp:
+                        return None
+                    if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
+                        return None
+                    path = urlparse(url).path.rstrip("/")
+                    if resp.status in (404, 410):
+                        return False
+                    if resp.status >= 400:
+                        return None
+                    if path and path not in urlparse(str(page.url)).path:
+                        return False
+                    content = page.content().lower()
+                    is_online = not any(marker in content for marker in AD_GONE_MARKERS)
+                    if is_online:
+                        try:
+                            from bs4 import BeautifulSoup
+                            self.last_soup = BeautifulSoup(page.content(), "html.parser")
+                        except Exception:
+                            pass
+                    return is_online
+                finally:
+                    ctx.close()
+        except Exception as e:
+            logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
+            return None
 
 
 def find_card_container(anchor, ad_path_re: re.Pattern):

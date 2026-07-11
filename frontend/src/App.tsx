@@ -59,6 +59,14 @@ export default function App() {
       ]);
       if (seq !== refreshSeq.current) return; // a newer refresh superseded this one
       setProperties(props);
+      setSelectedIds((prev) => {
+        if (prev.size === 0) return prev;
+        const validIds = new Set<number>();
+        for (const id of prev) {
+          if (props.some((p) => p.id === id)) validIds.add(id);
+        }
+        return validIds;
+      });
       setProfiles(profs);
       setScanStatus(status);
       setSettings(sett);

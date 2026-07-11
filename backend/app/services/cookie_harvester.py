@@ -131,12 +131,28 @@ def _launch(p, headless: bool):
     back to bundled Chromium when neither is installed."""
     PROFILE_DIR.mkdir(exist_ok=True)
     last_error: Exception | None = None
+    args = [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-infobars",
+        "--no-sandbox",
+    ]
+    ignore_default_args = ["--enable-automation"]
     for channel in ("chrome", "msedge", None):
         try:
-            kwargs = {"user_data_dir": str(PROFILE_DIR), "headless": headless}
+            kwargs = {
+                "user_data_dir": str(PROFILE_DIR),
+                "headless": headless,
+                "args": args,
+                "ignore_default_args": ignore_default_args,
+            }
             if channel:
                 kwargs["channel"] = channel
-            return p.chromium.launch_persistent_context(**kwargs)
+            ctx = p.chromium.launch_persistent_context(**kwargs)
+            try:
+                ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+            except Exception:
+                pass
+            return ctx
         except Exception as e:  # channel not installed, etc.
             last_error = e
     assert last_error is not None
@@ -165,10 +181,12 @@ def harvest(portal: str = "immobiliare", headless: bool = True,
             ctx = _launch(p, headless)
             try:
                 page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                page.goto(home, wait_until="domcontentloaded",
-                          timeout=timeout_seconds * 1000)
+                resp = page.goto(home, wait_until="domcontentloaded",
+                                 timeout=timeout_seconds * 1000)
                 deadline = time.monotonic() + timeout_seconds
                 while time.monotonic() < deadline:
+                    if resp and resp.status in (403, 429):
+                        return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
                     cookie = _pick_datadome(ctx.cookies())
                     if cookie:
                         logger.info("cookie-harvest: got datadome from %s", portal)

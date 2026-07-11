@@ -95,7 +95,8 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
             results = []
             for listing in prop.listings:
                 res = probe.check(listing.url)
-                listing.last_seen_at = datetime.now(timezone.utc)
+                if res is not None:
+                    listing.last_seen_at = datetime.now(timezone.utc)
                 results.append(res)
                 if res is True and getattr(probe, "last_soup", None):
                     soup = probe.last_soup
