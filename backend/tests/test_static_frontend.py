@@ -42,6 +42,27 @@ def test_static_mount_never_shadows_the_api():
     )
 
 
+def test_literal_get_routes_precede_their_dynamic_sibling():
+    """Starlette matches GET routes in registration order, and a bare
+    `{property_id}: int` path parameter still matches the literal segment
+    "check-progress" before FastAPI's own type validation rejects it — so a
+    literal route registered afterwards is dead code, its every request
+    answering 422 instead of reaching the handler. This silently broke the
+    dashboard availability-check progress bar, which polls
+    `/api/properties/check-progress` every second: every poll failed, the bar
+    never advanced, and the check looked stuck even while it worked."""
+    get_paths = [
+        path for route in app_main.app.router.routes
+        if "GET" in getattr(route, "methods", ())
+        and (path := getattr(route, "path", "")).startswith("/api/properties")
+    ]
+    dynamic_index = get_paths.index("/api/properties/{property_id}")
+    for literal in ("/api/properties/check-progress", "/api/properties/export"):
+        assert get_paths.index(literal) < dynamic_index, (
+            f"{literal} must be registered before /api/properties/{{property_id}}"
+        )
+
+
 def test_cors_stays_scoped_to_the_dev_server():
     """Remote clients load the built app from this same origin, so they need no
     CORS entry. A wildcard here would mean someone "fixed" a phone that could

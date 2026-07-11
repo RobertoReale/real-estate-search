@@ -206,6 +206,19 @@ def export_properties(
     )
 
 
+@app.get("/api/properties/check-progress")
+def properties_check_progress():
+    """Live progress of the ongoing dashboard properties availability check.
+
+    Must stay registered before GET /api/properties/{property_id}: Starlette
+    matches routes in registration order, and an int-typed path parameter
+    still matches the literal segment "check-progress" first, turning every
+    poll into a 422 instead of ever reaching this handler — the progress bar
+    then never advances past its initial state.
+    """
+    return availability_check.get_prop_check_progress()
+
+
 @app.get("/api/properties/{property_id}", response_model=schemas.PropertyOut)
 def get_property(property_id: int, db: Session = Depends(get_db)):
     prop = db.get(Property, property_id)
@@ -261,12 +274,6 @@ def restore_property(property_id: int, db: Session = Depends(get_db)):
     prop.status = "active"
     db.commit()
     return {"ok": True}
-
-
-@app.get("/api/properties/check-progress")
-def properties_check_progress():
-    """Live progress of the ongoing dashboard properties availability check."""
-    return availability_check.get_prop_check_progress()
 
 
 @app.post("/api/properties/check")
