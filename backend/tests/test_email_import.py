@@ -687,3 +687,83 @@ def test_check_availability_handles_orphan_listing(db, monkeypatch):
     assert summary["checked"] == 1
     assert staged.is_available is True
 
+
+# --- Scheduled auto re-scan ---------------------------------------------------
+
+def _memory_sessionmaker():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def test_auto_scan_does_nothing_when_disabled(monkeypatch):
+    """Opt-in: with the flag off, the job must not open any IMAP connection —
+    the app never touches the mailbox on a schedule the user did not enable."""
+    called = []
+    monkeypatch.setattr(email_import, "scan_inbox",
+                        lambda *a, **k: called.append(True))
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"email_import_auto_scan": False})
+    email_import.auto_scan_job()
+    assert not called
+
+
+def test_auto_scan_skips_when_imap_unconfigured(monkeypatch):
+    """Enabled but no credentials: skip quietly rather than raising into the
+    scheduler thread (there is nothing to connect to)."""
+    called = []
+    monkeypatch.setattr(email_import, "scan_inbox",
+                        lambda *a, **k: called.append(True))
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"email_import_auto_scan": True, "imap_host": ""})
+    email_import.auto_scan_job()
+    assert not called
+
+
+def test_auto_scan_stages_silently(monkeypatch):
+    """The happy path: it runs the real scan (portal-only, its own session and
+    IMAP client) and stages listings as `pending`. Nothing is accepted and no
+    notification is sent — the staged rows wait in the review queue, which is
+    the whole point of keeping this silent (invariant 12)."""
+    Session = _memory_sessionmaker()
+    monkeypatch.setattr(email_import, "SessionLocal", Session)
+    monkeypatch.setattr(email_import, "_connect",
+                        lambda settings: FakeImap([_email(TWO_CARDS_HTML)]))
+    monkeypatch.setattr(email_import, "load_settings", lambda: {
+        "email_import_auto_scan": True,
+        "imap_host": "imap.gmail.com", "imap_user": "u", "imap_password": "p",
+    })
+
+    email_import.auto_scan_job()
+
+    rows = Session().scalars(select(ImportedListing)).all()
+    assert {r.portal_id for r in rows} == {"12345", "67890"}
+    assert all(r.status == "pending" for r in rows)
+
+
+def test_auto_scan_is_fail_open(monkeypatch):
+    """A scan blowing up (a broken mailbox, or a manual scan already holding the
+    lock) must be swallowed: the scheduler thread has to survive to try again on
+    the next interval."""
+    class _Dummy:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(email_import, "SessionLocal", lambda: _Dummy())
+    monkeypatch.setattr(email_import, "load_settings", lambda: {
+        "email_import_auto_scan": True,
+        "imap_host": "h", "imap_user": "u", "imap_password": "p",
+    })
+
+    def _imap_boom(*a, **k):
+        raise ImapError("mailbox refused the connection")
+
+    def _unexpected_boom(*a, **k):
+        raise RuntimeError("something unforeseen")
+
+    monkeypatch.setattr(email_import, "scan_inbox", _imap_boom)
+    email_import.auto_scan_job()  # ImapError: must not propagate
+
+    monkeypatch.setattr(email_import, "scan_inbox", _unexpected_boom)
+    email_import.auto_scan_job()  # any Exception: must not propagate either
+

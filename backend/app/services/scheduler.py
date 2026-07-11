@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..database import SessionLocal
 from ..models import SearchProfile
-from . import backup
+from . import backup, email_import
 from .scanner import run_scan
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 _scheduler = BackgroundScheduler()
 JOB_ID = "auto-scan"
 BACKUP_JOB_ID = "auto-backup"
+EMAIL_IMPORT_JOB_ID = "auto-email-import"
 
 # An interval trigger first fires one *full interval* after startup — and on a
 # PC that is switched on occasionally that moment may never come: with an
@@ -75,6 +76,7 @@ def start_scheduler():
         backup.maybe_backup, "interval", hours=24, id=BACKUP_JOB_ID,
         max_instances=1, coalesce=True,
     )
+    _configure_email_import(load_settings())
     _scheduler.start()
     logger.info("Scheduler started: scan every %s minutes", interval)
 
@@ -83,6 +85,47 @@ def reschedule(interval_minutes: int):
     if _scheduler.get_job(JOB_ID):
         _scheduler.reschedule_job(JOB_ID, trigger="interval", minutes=interval_minutes)
         logger.info("Scheduler updated: every %s minutes", interval_minutes)
+
+
+def _email_import_schedule(settings: dict) -> tuple[bool, int]:
+    """Pure decision behind the inbox re-scan job: (enabled, interval_hours).
+
+    Split from the APScheduler wiring so it can be tested offline, exactly like
+    `_scan_overdue` — the wiring itself stays untested by design. The floor of 1
+    hour mirrors the schema validator and guards against a hand-edited
+    settings.json asking for a 0-hour (i.e. every-tick) mailbox hammering."""
+    enabled = bool(settings.get("email_import_auto_scan"))
+    hours = max(1, int(settings.get("email_import_auto_scan_interval_hours") or 24))
+    return enabled, hours
+
+
+def _configure_email_import(settings: dict) -> None:
+    """Add, reschedule, or remove the opt-in inbox re-scan job to match the
+    current settings. Called at startup and whenever the settings change, so the
+    toggle in the UI takes effect without a restart. Not run at startup itself:
+    the job must not reach into the mailbox merely because the app booted —
+    the interval trigger (with coalesce) fires it, and covers downtime."""
+    enabled, hours = _email_import_schedule(settings)
+    existing = _scheduler.get_job(EMAIL_IMPORT_JOB_ID)
+    if not enabled:
+        if existing:
+            _scheduler.remove_job(EMAIL_IMPORT_JOB_ID)
+            logger.info("Email-import auto-scan disabled")
+        return
+    if existing:
+        _scheduler.reschedule_job(
+            EMAIL_IMPORT_JOB_ID, trigger="interval", hours=hours)
+    else:
+        _scheduler.add_job(
+            email_import.auto_scan_job, "interval", hours=hours,
+            id=EMAIL_IMPORT_JOB_ID, max_instances=1, coalesce=True,
+        )
+    logger.info("Email-import auto-scan every %s hours", hours)
+
+
+def reschedule_email_import():
+    """Reconfigure the inbox re-scan job from the persisted settings."""
+    _configure_email_import(load_settings())
 
 
 def next_run_time() -> str | None:

@@ -53,6 +53,8 @@ export default function SettingsModal({ onClose }: Props) {
   const [imapPort, setImapPort] = useState(993);
   const [imapUser, setImapUser] = useState("");
   const [imapPassword, setImapPassword] = useState("");
+  const [autoImport, setAutoImport] = useState(false);
+  const [autoImportHours, setAutoImportHours] = useState(24);
   const [interval, setIntervalMin] = useState(60);
   const [healthAfter, setHealthAfter] = useState(3);
   const [keywords, setKeywords] = useState("");
@@ -80,6 +82,8 @@ export default function SettingsModal({ onClose }: Props) {
     setImapHost(s.imap_host);
     setImapPort(s.imap_port);
     setImapUser(s.imap_user);
+    setAutoImport(s.email_import_auto_scan ?? false);
+    setAutoImportHours(s.email_import_auto_scan_interval_hours ?? 24);
     setIntervalMin(s.scan_interval_minutes);
     setHealthAfter(s.health_alert_after_failures);
     setKeywords(s.excluded_keywords.join(", "));
@@ -107,6 +111,8 @@ export default function SettingsModal({ onClose }: Props) {
       imap_host: imapHost,
       imap_port: imapPort,
       imap_user: imapUser,
+      email_import_auto_scan: autoImport,
+      email_import_auto_scan_interval_hours: autoImportHours,
       scan_interval_minutes: interval,
       health_alert_after_failures: healthAfter,
       excluded_keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
@@ -365,6 +371,34 @@ export default function SettingsModal({ onClose }: Props) {
             </button>
           </div>
           <Result where="imap" />
+          <div className="pt-1">
+            <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
+              <input type="checkbox" checked={autoImport}
+                onChange={(e) => setAutoImport(e.target.checked)} />
+              Re-scan the inbox automatically for new listing emails
+            </label>
+            {autoImport && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-2">
+                <label className="text-xs t-muted" htmlFor="import-interval">
+                  Re-scan frequency
+                </label>
+                <select id="import-interval" className="input w-full"
+                  value={autoImportHours}
+                  onChange={(e) => setAutoImportHours(Number(e.target.value))}>
+                  <option value={6}>Every 6 hours</option>
+                  <option value={12}>Every 12 hours</option>
+                  <option value={24}>Once a day</option>
+                  <option value={72}>Every 3 days</option>
+                  <option value={168}>Once a week</option>
+                </select>
+              </div>
+            )}
+            <p className="text-xs t-dim mt-1">
+              New listings are staged silently in the "📥 Import from email"
+              review queue — you are not notified, and nothing appears in the
+              dashboard until you accept it.
+            </p>
+          </div>
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">

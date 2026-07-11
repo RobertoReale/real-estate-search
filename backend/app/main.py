@@ -500,6 +500,9 @@ def update_settings(data: schemas.SettingsIn):
     settings = save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
+    if ("email_import_auto_scan" in values
+            or "email_import_auto_scan_interval_hours" in values):
+        scheduler.reschedule_email_import()
     settings["telegram_bot_token"] = "***" if settings.get("telegram_bot_token") else ""
     settings["smtp_password"] = "***" if settings.get("smtp_password") else ""
     settings["imap_password"] = "***" if settings.get("imap_password") else ""

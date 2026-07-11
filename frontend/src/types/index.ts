@@ -85,6 +85,8 @@ export interface Settings {
   imap_user: string;
   imap_password: string;
   imap_password_set?: boolean;
+  email_import_auto_scan?: boolean;
+  email_import_auto_scan_interval_hours?: number;
   scan_interval_minutes: number;
   excluded_keywords: string[];
   request_delay_seconds: number;

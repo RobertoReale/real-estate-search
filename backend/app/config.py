@@ -40,6 +40,13 @@ DEFAULT_SETTINGS = {
     "imap_port": 993,
     "imap_user": "",
     "imap_password": "",
+    # Opt-in periodic inbox re-scan (piggybacks on APScheduler). Off by default:
+    # a scan opens an IMAP connection, and the app must not reach into the user's
+    # mailbox on a schedule they never asked for. Newly staged listings wait
+    # silently in the review queue — nothing enters the dashboard without an
+    # explicit accept (invariant 12), so there is nothing to notify about.
+    "email_import_auto_scan": False,
+    "email_import_auto_scan_interval_hours": 24,
     "scan_interval_minutes": 60,
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,

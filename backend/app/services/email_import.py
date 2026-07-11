@@ -41,6 +41,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import load_settings
+from ..database import SessionLocal
 from ..models import ImportedListing, Listing, Property, SearchProfile
 from ..scrapers.base import AdProbe, RawListing, detect_contract, parse_price, \
     parse_rooms, parse_sqm
@@ -489,6 +490,54 @@ def scan_inbox(
         _scan_run_lock.release()
     logger.info("email-import: %s", summary)
     return summary
+
+
+# --- Scheduled auto re-scan --------------------------------------------------
+
+# The automatic re-scan runs unattended, so its parameters are fixed rather than
+# taken from the manual UI. "portals" keeps it to genuine Immobiliare/Idealista
+# alert mails (no address list to maintain); a rolling window wider than any
+# plausible interval means an occasional stretch with the PC off is still caught
+# on the next run (re-scans are idempotent — nothing is staged twice).
+AUTO_SCAN_MODE = "portals"
+AUTO_SCAN_SINCE_DAYS = 14
+AUTO_SCAN_MAX_EMAILS = 300
+
+
+def auto_scan_job() -> None:
+    """Opt-in scheduled inbox re-scan (registered by the scheduler).
+
+    Silent by design: staged listings wait in the review queue for an explicit
+    accept (invariant 12), so a re-scan never notifies — it would be alerting
+    about ads the user has not yet chosen to track. Fail-open like the rest of
+    the background work: a mailbox that is unreachable, unconfigured, or busy
+    with a manual scan is logged and skipped, never raised, so it cannot take
+    the scheduler thread down.
+    """
+    settings = load_settings()
+    if not settings.get("email_import_auto_scan"):
+        return
+    if not (settings.get("imap_host") and settings.get("imap_user")
+            and settings.get("imap_password")):
+        logger.info(
+            "email-import auto-scan enabled but IMAP is not configured; skipping"
+        )
+        return
+    db = SessionLocal()
+    try:
+        summary = scan_inbox(
+            db, mode=AUTO_SCAN_MODE, since_days=AUTO_SCAN_SINCE_DAYS,
+            max_emails=AUTO_SCAN_MAX_EMAILS,
+        )
+        logger.info("email-import auto-scan: %s", summary)
+    except ImapError as e:
+        # includes "a scan is already running": the manual scan wins, this run
+        # is simply skipped and the next interval tries again
+        logger.warning("email-import auto-scan skipped: %s", e)
+    except Exception:
+        logger.exception("email-import auto-scan failed")
+    finally:
+        db.close()
 
 
 # --- Availability check ------------------------------------------------------

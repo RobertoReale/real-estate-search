@@ -122,7 +122,12 @@ phone without any of this. The dashboard is for browsing and triaging.
   are not even marked as read. Imported listings are staged in a review list and
   enter the dashboard only when you accept them, going through the same
   deduplication as a normal scan. A scan of a large mailbox takes minutes, and a
-  progress bar reports how many emails it has read so far.
+  progress bar reports how many emails it has read so far. Once the first import
+  is done, tick **"Re-scan the inbox automatically"** in **Settings** to have the
+  app pick up newly arrived alert emails on a schedule (every few hours up to
+  once a week). New listings are added to the review list silently — you are not
+  notified and nothing enters the dashboard until you accept it, exactly like a
+  manual scan.
 
   Review cards show only what the email itself contained: price, surface, rooms,
   the €/m² derived from them, and the alert's subject line (usually the name of

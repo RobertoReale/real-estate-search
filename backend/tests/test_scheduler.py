@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import SearchProfile
-from app.services.scheduler import _scan_overdue
+from app.services.scheduler import _email_import_schedule, _scan_overdue
 
 
 @pytest.fixture
@@ -75,3 +75,37 @@ def test_newest_scan_wins_across_profiles(db):
     db.add(_profile(name="stale", last_run_at=None))
     db.commit()
     assert _scan_overdue(db, 60) is False
+
+
+# --- Inbox re-scan schedule decision -----------------------------------------
+
+def test_email_import_off_by_default():
+    """Opt-in: an unset flag must leave the job disabled — the app must never
+    reach into the mailbox on a schedule the user did not ask for."""
+    assert _email_import_schedule({}) == (False, 24)
+
+
+def test_email_import_enabled_with_interval():
+    assert _email_import_schedule({
+        "email_import_auto_scan": True,
+        "email_import_auto_scan_interval_hours": 12,
+    }) == (True, 12)
+
+
+def test_email_import_interval_falls_back_when_zero():
+    """A hand-edited settings.json with 0 hours falls back to the daily default
+    rather than meaning 'every tick'."""
+    assert _email_import_schedule({
+        "email_import_auto_scan": True,
+        "email_import_auto_scan_interval_hours": 0,
+    }) == (True, 24)
+
+
+def test_email_import_interval_floored_at_one_hour():
+    """A negative interval (only reachable by editing settings.json by hand,
+    the schema rejects it) is clamped to hourly instead of hammering the
+    mailbox — or worse, tripping APScheduler with a non-positive interval."""
+    assert _email_import_schedule({
+        "email_import_auto_scan": True,
+        "email_import_auto_scan_interval_hours": -5,
+    }) == (True, 1)

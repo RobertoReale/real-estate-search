@@ -121,6 +121,8 @@ class SettingsIn(BaseModel):
     imap_port: int | None = None
     imap_user: str | None = None
     imap_password: str | None = None
+    email_import_auto_scan: bool | None = None
+    email_import_auto_scan_interval_hours: int | None = None
     scan_interval_minutes: int | None = None
     excluded_keywords: list[str] | None = None
     request_delay_seconds: float | None = None
@@ -136,6 +138,13 @@ class SettingsIn(BaseModel):
     def failures_not_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
             raise ValueError("must be >= 0 (0 disables health alerting)")
+        return v
+
+    @field_validator("email_import_auto_scan_interval_hours")
+    @classmethod
+    def import_interval_at_least_hourly(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("must be >= 1 hour")
         return v
 
 

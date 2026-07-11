@@ -45,25 +45,16 @@ Agencies frequently bury critical legal or structural drawbacks in lengthy text 
 
 ## Easy — existing infrastructure, no new unknowns
 
-### 1. Periodic Inbox Re-Scan (Email Import)
-Once the initial import of a mailbox is done, matching alert emails keep
-arriving — today catching them means remembering to press **Scan inbox** by
-hand. Offer an opt-in periodic re-scan (piggybacking on the existing
-APScheduler) so new emails are staged automatically. Re-scans are already
-idempotent thanks to the `imported_listings` memory, so the machinery is safe
-to repeat; the open questions are cadence (every scan cycle? daily?) and
-whether newly staged items should notify or wait silently in the review queue.
-
-### 2. Smart Match Score (Dream Home Filter)
+### 1. Smart Match Score (Dream Home Filter)
 - Define your "dream home" parameters (e.g. 3 rooms, balcony, floor > 2, quiet neighborhood, under 350k).
 - Automatically calculate and display a compatibility percentage (e.g., *"92% Match"*) on every new property card.
 - Pure weighted scoring over fields the DB already has — no external dependency.
 
-### 3. Historical Price Trends
+### 2. Historical Price Trends
 - Display interactive charts showing median price-per-square-meter changes over time for specific cities or neighborhoods.
 - `services/pricing_stats.py` already computes the historical medians; this is mostly a frontend chart consuming data that exists.
 
-### 4. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
+### 3. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
 - Allow one-click export of curated shortlists (favorites), specific property cards with full price-drop history and TCO/Deal Score, or entire search profile results into a self-contained, interactive offline HTML dossier (or clean Markdown/CSV report).
 - Can be sent easily via Telegram, WhatsApp, or email to partners, family members, or real estate advisors without exposing the local dashboard or SQLite database to the network.
 
