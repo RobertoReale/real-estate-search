@@ -10,13 +10,13 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from . import schemas
 from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
-from .models import ImportedListing, Property, SearchProfile
+from .models import ImportedListing, Listing, Property, SearchProfile
 from .scrapers import detect_portal
 from .services import availability_check, email_import, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
@@ -76,11 +76,29 @@ def _select_properties(
     db: Session, *, status: str, contract: str | None, city: str | None,
     min_price: float | None, max_price: float | None, min_sqm: float | None,
     rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
+    q: str | None = None, zone: str | None = None, source: str | None = None,
+    profile_id: int | None = None,
 ) -> list[Property]:
     """Shared property selection + annotation for the grid and the exports, so
     a dossier holds exactly what the dashboard is showing under the same
     filters. Match scores are annotated before the sort (compatibility ranking
-    needs them); market position and deal score are order-independent."""
+    needs them); market position and deal score are order-independent.
+
+    `profile_id` overlays a monitored search on the whole dashboard (D): it
+    forces the profile's contract/city and drops properties matching that
+    profile's exclusion keywords (global + profile), so the same criteria that
+    keep the scans clean can be applied retroactively to email imports too."""
+    profile = db.get(SearchProfile, profile_id) if profile_id else None
+    profile_keywords: list[str] = []
+    if profile is not None:
+        crit = email_import.profile_criteria(
+            profile, list(load_settings().get("excluded_keywords", []))
+        )
+        # the profile's own contract/city take precedence over ad-hoc filters
+        contract = crit["contract"] or contract
+        city = crit["city"] or city
+        profile_keywords = crit["keywords"]
+
     query = select(Property).options(
         selectinload(Property.listings), selectinload(Property.price_history)
     )
@@ -94,6 +112,24 @@ def _select_properties(
         query = query.where(Property.contract == contract)
     if city:
         query = query.where(Property.city.ilike(f"%{city}%"))
+    if zone:
+        query = query.where(Property.zone.ilike(f"%{zone}%"))
+    if source in ("scan", "email"):
+        query = query.where(Property.source == source)
+    if q:
+        # free-text search across the fields a user would actually type
+        # (zone "San Siro", a street, "nuova costruzione" in the title or the
+        # listing's own description/agency). One term, matched anywhere.
+        like = f"%{q.strip()}%"
+        query = query.where(or_(
+            Property.title.ilike(like),
+            Property.zone.ilike(like),
+            Property.address.ilike(like),
+            Property.city.ilike(like),
+            Property.listings.any(or_(
+                Listing.agency.ilike(like), Listing.description.ilike(like),
+            )),
+        ))
     # "is not None" and not truthiness: 0 is a legitimate threshold
     if min_price is not None:
         query = query.where(Property.current_min_price >= min_price)
@@ -107,6 +143,19 @@ def _select_properties(
         query = query.where(Property.is_favorite.is_(True))
 
     props = list(db.scalars(query))
+    if profile_keywords:
+        # apply the monitored search's exclusion keywords to the whole set:
+        # email imports never passed through the scan's keyword filter, so this
+        # is how "nuda proprietà"/"asta"/… get pruned from them too
+        props = [
+            p for p in props
+            if not find_excluded_keyword(
+                [p.title, p.zone, p.address,
+                 *(l.description for l in p.listings),
+                 *(l.agency for l in p.listings)],
+                profile_keywords,
+            )
+        ]
     if only_price_drops:
         props = [
             p for p in props
@@ -142,6 +191,10 @@ def list_properties(
     status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
+    zone: str | None = None,
+    q: str | None = None,
+    source: str | None = Query(None, pattern="^(scan|email)$"),
+    profile_id: int | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
@@ -157,7 +210,7 @@ def list_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
         max_price=max_price, min_sqm=min_sqm, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
-        sort=sort,
+        sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
     )
 
 
@@ -169,6 +222,10 @@ def export_properties(
     status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
+    zone: str | None = None,
+    q: str | None = None,
+    source: str | None = Query(None, pattern="^(scan|email)$"),
+    profile_id: int | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
@@ -187,7 +244,7 @@ def export_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
         max_price=max_price, min_sqm=min_sqm, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
-        sort=sort,
+        sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
     )
     clean_title = (title or "Property shortlist").strip()[:120] or "Property shortlist"
     if fmt == "csv":
@@ -274,6 +331,29 @@ def restore_property(property_id: int, db: Session = Depends(get_db)):
     prop.status = "active"
     db.commit()
     return {"ok": True}
+
+
+@app.post("/api/properties/bulk")
+def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db)):
+    """Apply hide/restore/favorite/unfavorite to many properties at once.
+
+    Same per-property semantics as the single-item routes (hiding stays
+    reversible only via restore, invariant 5), just batched: the point is to
+    let the user clear a dashboard cluttered by inbox imports in one gesture
+    instead of opening cards one by one. Missing ids are skipped silently."""
+    props = [p for p in (db.get(Property, x) for x in data.ids) if p]
+    for prop in props:
+        if data.action == "hide":
+            prop.status = "hidden"
+            prop.filtered_reason = ""
+        elif data.action == "restore":
+            prop.status = "active"
+        elif data.action == "favorite":
+            prop.is_favorite = True
+        elif data.action == "unfavorite":
+            prop.is_favorite = False
+    db.commit()
+    return {"ok": True, "processed": len(props)}
 
 
 @app.post("/api/properties/check")

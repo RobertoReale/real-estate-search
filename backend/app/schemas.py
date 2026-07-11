@@ -1,5 +1,6 @@
 """Pydantic schemas for REST API input/output."""
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -50,6 +51,7 @@ class PropertyOut(BaseModel):
     image_url: str
     status: str
     filtered_reason: str
+    source: str = "scan"  # "scan" (monitored search) | "email" (inbox import)
     is_favorite: bool = False
     notes: str = ""
     # market position vs local median €/sqm (computed per request,
@@ -81,6 +83,15 @@ class PropertyPatch(BaseModel):
 class PropertyCheckIn(BaseModel):
     """Payload for live availability verification (`AdProbe`) of dashboard properties."""
     ids: list[int]
+
+
+class PropertyBulkIn(BaseModel):
+    """Payload for a bulk action on many selected properties at once."""
+    ids: list[int]
+    # hide/restore mirror the single-property DELETE/restore; favorite/unfavorite
+    # mirror the PATCH is_favorite flag — batched so the user can clear a
+    # cluttered dashboard (e.g. every "nuova costruzione") in one gesture.
+    action: Literal["hide", "restore", "favorite", "unfavorite"]
 
 
 class PricingTrendPoint(BaseModel):

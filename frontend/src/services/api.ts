@@ -32,6 +32,10 @@ function propertyParams(filters: PropertyFilters): URLSearchParams {
   params.set("contract", filters.contract);
   params.set("sort", filters.sort);
   if (filters.city) params.set("city", filters.city);
+  if (filters.zone) params.set("zone", filters.zone);
+  if (filters.q) params.set("q", filters.q);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.profile_id) params.set("profile_id", filters.profile_id);
   if (filters.min_price) params.set("min_price", filters.min_price);
   if (filters.max_price) params.set("max_price", filters.max_price);
   if (filters.min_sqm) params.set("min_sqm", filters.min_sqm);
@@ -64,6 +68,12 @@ export const api = {
   /** Restore a previously hidden property back to `active` status. */
   restoreProperty(id: number) {
     return request<{ ok: boolean }>(`/properties/${id}/restore`, { method: "POST" });
+  },
+  /** Apply hide/restore/favorite/unfavorite to many selected properties at once. */
+  bulkProperties(ids: number[], action: "hide" | "restore" | "favorite" | "unfavorite") {
+    return request<{ ok: boolean; processed: number }>("/properties/bulk", {
+      method: "POST", body: JSON.stringify({ ids, action }),
+    });
   },
   /** Patch user-curated property metadata (`is_favorite` flag or custom `notes`). */
   updateProperty(id: number, data: { is_favorite?: boolean; notes?: string }) {

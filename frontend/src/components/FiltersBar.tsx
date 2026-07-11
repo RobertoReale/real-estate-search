@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../services/api";
-import type { PropertyFilters, ViewMode } from "../types";
+import type { PropertyFilters, SearchProfile, ViewMode } from "../types";
 
 interface Props {
   filters: PropertyFilters;
@@ -8,10 +8,11 @@ interface Props {
   count: number;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
+  profiles: SearchProfile[];
 }
 
 export default function FiltersBar({
-  filters, onChange, count, view, onViewChange,
+  filters, onChange, count, view, onViewChange, profiles,
 }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<{
@@ -43,6 +44,30 @@ export default function FiltersBar({
     // item, so the desktop layout ignores them without a breakpoint prefix.
     <section className="glass rounded-2xl p-4 grid grid-cols-2 items-end gap-3
       sm:flex sm:flex-wrap">
+      {/* Free-text search spans the full width on both layouts: it is the
+          fastest way to prune a cluttered dashboard ("San Siro", "nuova
+          costruzione") and searches title, zone, address and the ad text. */}
+      <div className="col-span-2 w-full flex flex-col gap-1">
+        <label className="text-xs t-muted">Search</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 t-muted pointer-events-none">🔍</span>
+          <input
+            className="input w-full pl-9"
+            placeholder="Cerca per zona, indirizzo, titolo o testo dell'annuncio…"
+            value={filters.q}
+            onChange={(e) => set({ q: e.target.value })}
+          />
+          {filters.q && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 t-muted hover:t-strong text-lg leading-none px-1"
+              aria-label="Clear search"
+              onClick={() => set({ q: "" })}>
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
       {/* Buy/Rent are separate worlds (different price scales, different
           goals), so the toggle is the most prominent control */}
       <div className="col-span-2 flex flex-col gap-1">
@@ -68,10 +93,15 @@ export default function FiltersBar({
           </button>
         </div>
       </div>
-      <div className="col-span-2 flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">City</label>
-        <input className="input w-full sm:w-36" placeholder="e.g. Milan"
+        <input className="input w-full sm:w-32" placeholder="e.g. Milan"
           value={filters.city} onChange={(e) => set({ city: e.target.value })} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs t-muted">Zone</label>
+        <input className="input w-full sm:w-32" placeholder="e.g. Navigli"
+          value={filters.zone} onChange={(e) => set({ zone: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">
@@ -126,6 +156,32 @@ export default function FiltersBar({
           <option value="all">All</option>
         </select>
       </div>
+      {/* Origin: tell inbox imports apart from monitored-search finds — the
+          two are otherwise indistinguishable once accepted (source column). */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs t-muted">Origin</label>
+        <select className="input w-full sm:w-36" value={filters.source}
+          onChange={(e) => set({ source: e.target.value as PropertyFilters["source"] })}>
+          <option value="">All sources</option>
+          <option value="scan">🔎 Monitored search</option>
+          <option value="email">✉️ Email import</option>
+        </select>
+      </div>
+      {/* Overlay a saved monitored search on the WHOLE grid (imports included):
+          applies its city/contract and its exclusion keywords, so the same
+          rules that keep scans clean can prune email imports too. */}
+      {profiles.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs t-muted">Match a search</label>
+          <select className="input w-full sm:w-44" value={filters.profile_id}
+            onChange={(e) => set({ profile_id: e.target.value })}>
+            <option value="">— none —</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={String(p.id)}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="col-span-2 flex flex-wrap gap-x-5 gap-y-1 sm:flex-col sm:gap-1 sm:pb-2">
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
           <input type="checkbox" checked={filters.only_price_drops}

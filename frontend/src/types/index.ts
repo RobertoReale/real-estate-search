@@ -45,6 +45,7 @@ export interface Property {
   image_url: string;
   status: string;
   filtered_reason: string;
+  source: "scan" | "email";  // how it entered the dashboard
   is_favorite: boolean;
   notes: string;
   // market position vs the local median €/sqm (null = not enough comparables)
@@ -136,6 +137,10 @@ export interface PropertyFilters {
   status: string;
   contract: "sale" | "rent";
   city: string;
+  zone: string;
+  q: string;                 // free-text search (title/zone/address/description)
+  source: "" | "scan" | "email";  // "" = both origins
+  profile_id: string;        // "" = no monitored-search overlay
   min_price: string;
   max_price: string;
   min_sqm: string;

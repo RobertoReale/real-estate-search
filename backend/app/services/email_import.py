@@ -877,7 +877,7 @@ def accept_import(db: Session, item: ImportedListing) -> Property:
         zone=item.zone,
         image_url=getattr(item, "image_url", "") or "",
     )
-    prop, _is_new, _price_changed = upsert_listing(db, raw)
+    prop, _is_new, _price_changed = upsert_listing(db, raw, source="email")
     item.status = "accepted"
     item.property_id = prop.id
     db.commit()

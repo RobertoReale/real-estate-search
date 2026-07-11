@@ -42,6 +42,13 @@ class Property(Base):
     # hidden   = manually hidden by user (never returns to active automatically)
     status: Mapped[str] = mapped_column(String, default="active")
     filtered_reason: Mapped[str] = mapped_column(String, default="")
+    # how this property first entered the dashboard:
+    #   scan  = found by a monitored search profile
+    #   email = imported from the inbox (never yet matched by a monitored scan)
+    # An email-origin property is upgraded to "scan" the moment a monitored
+    # scan re-finds it (see deduplicator.upsert_listing), so "email" means
+    # "only ever seen via the inbox" — the set the user wants to prune in bulk.
+    source: Mapped[str] = mapped_column(String, default="scan", index=True)
     # user-curated fields: never touched by scans
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str] = mapped_column(Text, default="")

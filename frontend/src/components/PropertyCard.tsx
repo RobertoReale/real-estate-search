@@ -108,6 +108,12 @@ export default function PropertyCard({
               {p.listings.length} merged listings
             </span>
           )}
+          {p.source === "email" && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-600/80 text-white backdrop-blur"
+              title="Imported from your email inbox (not from a monitored search)">
+              ✉️ email
+            </span>
+          )}
         </div>
 
         {/* quick actions: select + star + hide without opening the modal */}

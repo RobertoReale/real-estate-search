@@ -31,7 +31,7 @@ def get_db():
         db.close()
 
 
-def _apply_additive_migrations():
+def _apply_additive_migrations() -> set[str]:
     """Adds columns that exist in the models but not in the on-disk DB.
 
     There is no Alembic in this project: create_all only creates *missing
@@ -40,7 +40,11 @@ def _apply_additive_migrations():
     price history would be lost. Additive ALTER TABLE covers the only schema
     change made so far (new nullable/defaulted columns); anything more
     invasive is the trigger for finally introducing Alembic.
+
+    Returns the set of "table.column" names newly created, so callers can run
+    a one-time backfill exactly when a column first appears (never again).
     """
+    added: set[str] = set()
     inspector = inspect(engine)
     with engine.begin() as conn:
         for table in Base.metadata.sorted_tables:
@@ -60,7 +64,30 @@ def _apply_additive_migrations():
                 elif isinstance(default, str):
                     ddl += f" DEFAULT '{default}'"
                 conn.execute(text(ddl))
+                added.add(f"{table.name}.{column.name}")
                 logger.info("DB migration: added %s.%s", table.name, column.name)
+    return added
+
+
+def _backfill_property_source():
+    """One-time backfill for the new `properties.source` column.
+
+    The additive ALTER stamps every existing row with the default ("scan"),
+    but a dashboard built before this column had plenty of email-imported
+    properties — the very set the user needs to prune. `imported_listings`
+    remembers which ones (status='accepted', property_id set), so recover the
+    origin from there. Run only the first time the column appears (see
+    init_db), otherwise it would fight the email->scan upgrade in
+    deduplicator.upsert_listing on every startup.
+    """
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE properties SET source = 'email' "
+            "WHERE source = 'scan' AND id IN ("
+            "  SELECT property_id FROM imported_listings "
+            "  WHERE status = 'accepted' AND property_id IS NOT NULL"
+            ")"
+        ))
 
 
 def _run_migrations():
@@ -116,5 +143,7 @@ def _run_migrations():
 def init_db():
     from . import models  # noqa: F401 - registers models on metadata
     Base.metadata.create_all(bind=engine)
-    _apply_additive_migrations()
+    added = _apply_additive_migrations()
+    if "properties.source" in added:
+        _backfill_property_source()
     _run_migrations()

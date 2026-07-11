@@ -23,9 +23,9 @@ import type {
 } from "./types";
 
 const DEFAULT_FILTERS: PropertyFilters = {
-  status: "active", contract: "sale", city: "", min_price: "", max_price: "",
-  min_sqm: "", rooms: "", only_price_drops: false, only_favorites: false,
-  sort: "newest",
+  status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
+  profile_id: "", min_price: "", max_price: "", min_sqm: "", rooms: "",
+  only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
 export default function App() {
@@ -151,6 +151,21 @@ export default function App() {
     800,
   );
 
+  function bulkAction(action: "hide" | "favorite") {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (action === "hide" && !confirm(
+      `Nascondere ${ids.length} annunci? Spariranno da liste e notifiche ` +
+      `(recuperabili da 🙈 Scartati → Ripristina).`
+    )) return;
+    return runAction(async () => {
+      await api.bulkProperties(ids, action);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      await refresh();
+    });
+  }
+
   async function checkSelectedProperties() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
@@ -209,7 +224,7 @@ export default function App() {
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
-          view={view} onViewChange={setView} />
+          view={view} onViewChange={setView} profiles={profiles} />
 
         {properties.length === 0 && !loadError && (
           <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
@@ -289,7 +304,21 @@ export default function App() {
                 )}
               </div>
               {selectionMode && selectedIds.size > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
+                    disabled={checkingBatch}
+                    onClick={() => bulkAction("hide")}>
+                    🙈 Nascondi selezionati ({selectedIds.size})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    disabled={checkingBatch}
+                    onClick={() => bulkAction("favorite")}>
+                    ⭐ Aggiungi ai preferiti
+                  </button>
                   <button
                     type="button"
                     className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"

@@ -95,6 +95,20 @@ phone without any of this. The dashboard is for browsing and triaging.
 5. **Curation (Hide & Discard)**:
    - If you see a listing you do not want to track, click on the card to open its modal, then click **`Hide property`**.
    - Hidden listings are permanently excluded from searches and notifications. If you want to review or retrieve them, select the **`Discarded`** option in the **Status** filter at the top of the dashboard. Inside the detail modal of a discarded property, you can click **`Restore property`** to move it back to active status.
+   - **Search & filter the grid**: the **Search** bar at the top of the filter
+     bar matches any word across a listing's zone, address, title and ad text
+     (type *San Siro* or *nuova costruzione* to isolate them), and there are
+     dedicated **Zone** and **Origin** filters. *Origin* separates listings your
+     monitored searches found (**🔎 Monitored search**) from ones you pulled in
+     from your inbox (**✉️ Email import**) — an email-imported card also carries
+     a small **✉️ email** badge. *Match a search* overlays one of your saved
+     monitored searches on the whole grid, imports included: it applies that
+     search's city, contract and excluded keywords, so the rules that keep your
+     scans clean can prune old email imports too.
+   - **Bulk cleanup**: click **`Selezione multipla annunci`**, tick the cards
+     (or *Seleziona tutti*), and **hide** or **star** the whole selection at
+     once — the fast way to clear a batch (e.g. every *nuova costruzione* the
+     search above surfaced) without opening cards one by one.
 
 ---
 

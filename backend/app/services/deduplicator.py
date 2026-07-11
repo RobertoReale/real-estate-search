@@ -193,8 +193,17 @@ def _find_matching_property(db: Session, raw: RawListing) -> Property | None:
     return None
 
 
-def upsert_listing(db: Session, raw: RawListing) -> tuple[Property, bool, bool]:
+def upsert_listing(
+    db: Session, raw: RawListing, *, source: str = "scan"
+) -> tuple[Property, bool, bool]:
     """Inserts or updates a listing.
+
+    `source` records how a *newly created* property first entered the
+    dashboard ("scan" for a monitored search, "email" for an inbox import).
+    A property already stored as email-origin is upgraded to "scan" the moment
+    a monitored scan re-finds it, so "email" keeps meaning "only ever seen via
+    the inbox" — never downgraded, so an email import merging into a
+    scan-origin property leaves it "scan".
 
     Returns (property, is_new_property, price_changed), where price_changed
     indicates that the *minimum* price of the Property changed (see
@@ -215,6 +224,8 @@ def upsert_listing(db: Session, raw: RawListing) -> tuple[Property, bool, bool]:
         # even though the profile that owns them is a rental search
         if prop.contract != raw.contract:
             prop.contract = raw.contract
+        if source == "scan" and prop.source == "email":
+            prop.source = "scan"  # a monitored search now covers it
         if raw.price:
             existing.price = raw.price
         if raw.description:
@@ -249,12 +260,15 @@ def upsert_listing(db: Session, raw: RawListing) -> tuple[Property, bool, bool]:
             sqm=raw.sqm,
             contract=raw.contract,
             image_url=raw.image_url,
+            source=source,
             first_seen_at=now,
             last_seen_at=now,
         )
         db.add(prop)
         db.flush()
     else:
+        if source == "scan" and prop.source == "email":
+            prop.source = "scan"  # a monitored search now covers it
         # enriches the Property with any missing data
         if not prop.title and raw.title:
             prop.title = raw.title
