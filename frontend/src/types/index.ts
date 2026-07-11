@@ -294,4 +294,24 @@ export interface MarketVelocity {
   agencies: AgencyBehavior[];
 }
 
+export interface PricingTrendPoint {
+  captured_on: string; // ISO date
+  median_sqm_price: number;
+  sample_count: number;
+}
+
+export interface PricingTrend {
+  city: string;
+  zone: string;
+  contract: string;
+  points: PricingTrendPoint[];
+}
+
+export interface TrendArea {
+  city: string;
+  zone: string;
+  contract: string;
+  point_count: number;
+}
+
 export type ViewMode = "grid" | "map";

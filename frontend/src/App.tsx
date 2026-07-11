@@ -8,6 +8,7 @@ import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
 import Navbar from "./components/Navbar";
+import PriceTrends from "./components/PriceTrends";
 import PropertyCard from "./components/PropertyCard";
 import PropertyModal from "./components/PropertyModal";
 import SearchProfiles from "./components/SearchProfiles";
@@ -153,6 +154,10 @@ export default function App() {
 
         {hasProfiles && (
           <MarketVelocityPanel contract={filters.contract} city={filters.city} />
+        )}
+
+        {hasProfiles && (
+          <PriceTrends contract={filters.contract} city={filters.city} />
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}

@@ -1,5 +1,5 @@
 """Pydantic schemas for REST API input/output."""
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -69,6 +69,29 @@ class PropertyPatch(BaseModel):
     """User-curated fields; scans never touch them."""
     is_favorite: bool | None = None
     notes: str | None = None
+
+
+class PricingTrendPoint(BaseModel):
+    """One dated median €/sqm reading for an area."""
+    captured_on: date
+    median_sqm_price: float
+    sample_count: int
+
+
+class PricingTrendOut(BaseModel):
+    """Median €/sqm over time for one (city, zone, contract) area."""
+    city: str
+    zone: str
+    contract: str
+    points: list[PricingTrendPoint] = []
+
+
+class TrendAreaOut(BaseModel):
+    """An area with enough snapshot history to plot (>= 2 points)."""
+    city: str
+    zone: str
+    contract: str
+    point_count: int
 
 
 class SearchProfileIn(BaseModel):

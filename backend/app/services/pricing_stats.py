@@ -6,12 +6,16 @@ the value is only as good as what the user's own profiles have collected,
 which is why a minimum sample size is enforced — a "median" of two listings
 would just be noise presented as insight.
 """
+import logging
+from datetime import date
 from statistics import median
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Property
+from ..models import PricingSnapshot, Property
+
+logger = logging.getLogger(__name__)
 
 # below this many comparable listings the median is not meaningful
 MIN_SAMPLE = 3
@@ -97,3 +101,93 @@ def annotate_market_position(db: Session, props: list[Property]) -> None:
         p.area_median_sqm_price = round(med, 2)
         p.area_median_scope = scope
         p.sqm_price_delta_pct = round((own - med) / med * 100, 1)
+
+
+# --- Historical snapshots ----------------------------------------------------
+
+def capture_snapshots(db: Session, today: date | None = None) -> int:
+    """Persists today's median €/sqm for every area with enough comparables.
+
+    At most one set of rows per day: the instantaneous median drifts as scans
+    add listings through the day, and a single reading per day is all a trend
+    line needs (the same once-per-day logic as backup.maybe_backup). Returns the
+    number of rows written (0 if today is already captured or nothing qualifies).
+    """
+    today = today or date.today()
+    already = db.scalar(
+        select(PricingSnapshot.id).where(PricingSnapshot.captured_on == today)
+    )
+    if already is not None:
+        return 0
+    zone_medians, city_medians = compute_sqm_price_medians(db)
+    rows = 0
+    for (city, contract), (med, n) in city_medians.items():
+        db.add(PricingSnapshot(captured_on=today, city=city, zone="",
+                               contract=contract, median_sqm_price=round(med, 2),
+                               sample_count=n))
+        rows += 1
+    for (city, zone, contract), (med, n) in zone_medians.items():
+        db.add(PricingSnapshot(captured_on=today, city=city, zone=zone,
+                               contract=contract, median_sqm_price=round(med, 2),
+                               sample_count=n))
+        rows += 1
+    if rows:
+        db.commit()
+    return rows
+
+
+def maybe_snapshot(db: Session) -> int:
+    """Fail-open wrapper around capture_snapshots for the scan/scheduler paths:
+    a snapshot is a nice-to-have, never worth taking a scan or startup down."""
+    try:
+        return capture_snapshots(db)
+    except Exception:
+        logger.exception("pricing snapshot failed")
+        db.rollback()
+        return 0
+
+
+def get_trends(db: Session, city: str, zone: str, contract: str) -> dict:
+    """Time series of median €/sqm for one area, oldest point first.
+
+    City/zone are normalized to match how snapshots were stored. An empty zone
+    asks for the whole-city aggregate (zone == "")."""
+    city_norm = (city or "").strip().lower()
+    zone_norm = (zone or "").strip().lower()
+    rows = db.execute(
+        select(PricingSnapshot.captured_on,
+               PricingSnapshot.median_sqm_price,
+               PricingSnapshot.sample_count)
+        .where(PricingSnapshot.city == city_norm,
+               PricingSnapshot.zone == zone_norm,
+               PricingSnapshot.contract == contract)
+        .order_by(PricingSnapshot.captured_on)
+    ).all()
+    return {
+        "city": city_norm, "zone": zone_norm, "contract": contract,
+        "points": [
+            {"captured_on": d, "median_sqm_price": m, "sample_count": n}
+            for d, m, n in rows
+        ],
+    }
+
+
+def list_trend_areas(db: Session, contract: str) -> list[dict]:
+    """Areas that have at least two snapshot points for the given contract —
+    a single point is not yet a trend. Whole-city aggregates first, then zones,
+    each ordered by how much history backs it."""
+    rows = db.execute(
+        select(PricingSnapshot.city, PricingSnapshot.zone,
+               PricingSnapshot.contract)
+        .where(PricingSnapshot.contract == contract)
+    ).all()
+    counts: dict[tuple[str, str, str], int] = {}
+    for city, zone, ctr in rows:
+        counts[(city, zone, ctr)] = counts.get((city, zone, ctr), 0) + 1
+    areas = [
+        {"city": city, "zone": zone, "contract": ctr, "point_count": n}
+        for (city, zone, ctr), n in counts.items() if n >= 2
+    ]
+    # whole-city aggregates first, then most-observed
+    areas.sort(key=lambda a: (a["zone"] != "", -a["point_count"], a["city"]))
+    return areas

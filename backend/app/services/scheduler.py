@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..database import SessionLocal
 from ..models import SearchProfile
-from . import backup, email_import
+from . import backup, email_import, pricing_stats
 from .scanner import run_scan
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,19 @@ _scheduler = BackgroundScheduler()
 JOB_ID = "auto-scan"
 BACKUP_JOB_ID = "auto-backup"
 EMAIL_IMPORT_JOB_ID = "auto-email-import"
+SNAPSHOT_JOB_ID = "pricing-snapshot"
+
+
+def _snapshot_job() -> None:
+    """Daily/startup capture of the pricing medians for the trend charts.
+    A scan usually beats it to today's snapshot (both are idempotent per day);
+    this job covers long stretches with no scan and the moment right after
+    startup, same reasoning as the backup freshness check."""
+    db = SessionLocal()
+    try:
+        pricing_stats.maybe_snapshot(db)
+    finally:
+        db.close()
 
 # An interval trigger first fires one *full interval* after startup — and on a
 # PC that is switched on occasionally that moment may never come: with an
@@ -77,6 +90,11 @@ def start_scheduler():
         max_instances=1, coalesce=True,
     )
     _configure_email_import(load_settings())
+    _snapshot_job()  # capture today's medians at startup if not done yet
+    _scheduler.add_job(
+        _snapshot_job, "interval", hours=24, id=SNAPSHOT_JOB_ID,
+        max_instances=1, coalesce=True,
+    )
     _scheduler.start()
     logger.info("Scheduler started: scan every %s minutes", interval)
 

@@ -117,6 +117,11 @@ phone without any of this. The dashboard is for browsing and triaging.
   it. Only the wishes you fill in count, numbers you leave at 0 are ignored, and
   the scoring is entirely local. Sort the grid by **🎯 Best match** to bring your
   closest fits to the top.
+* **Price trends**: a chart of how the median €/sqm has moved over time in each
+  area you track. The app records one median per area per day, so the line starts
+  after a couple of days of scans and grows more useful the longer it runs. It
+  reflects *your* sample — the listings this app was watching each day — not the
+  whole market, which the panel states plainly.
 * **Market velocity**: how long listings survive before disappearing, broken down
   by zone and agency. It is built from properties that have actually vanished, so
   it becomes meaningful after a few months of scanning.

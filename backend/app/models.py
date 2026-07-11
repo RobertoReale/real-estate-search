@@ -1,8 +1,8 @@
 """ORM Models: Property (deduplicated real estate property), Listing (portal ad),
 PriceHistory (price variations), SearchProfile (monitored search URL)."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -141,6 +141,29 @@ class ImportedListing(Base):
     # previous value rather than condemning a listing on no evidence.
     is_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PricingSnapshot(Base):
+    """One daily median €/sqm reading for an area, kept so the dashboard can
+    plot how prices move over time.
+
+    `pricing_stats` computes medians *instantaneously* from the current active
+    listings — nothing in the DB remembers what the median was last month. This
+    table is that memory: at most one row per (day, city, zone, contract),
+    written when a scan completes (or by the daily scheduler job). `zone=""`
+    holds the whole-city aggregate. City/zone are stored normalized (lowercased)
+    exactly as the median keys are, so the trends query matches without guessing.
+    """
+    __tablename__ = "pricing_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    captured_on: Mapped[date] = mapped_column(Date, index=True)
+    city: Mapped[str] = mapped_column(String, index=True)
+    zone: Mapped[str] = mapped_column(String, default="")  # "" = whole city
+    contract: Mapped[str] = mapped_column(String, default="sale")
+    median_sqm_price: Mapped[float] = mapped_column(Float)
+    sample_count: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

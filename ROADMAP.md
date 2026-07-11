@@ -45,11 +45,7 @@ Agencies frequently bury critical legal or structural drawbacks in lengthy text 
 
 ## Easy — existing infrastructure, no new unknowns
 
-### 1. Historical Price Trends
-- Display interactive charts showing median price-per-square-meter changes over time for specific cities or neighborhoods.
-- `services/pricing_stats.py` already computes the historical medians; this is mostly a frontend chart consuming data that exists.
-
-### 2. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
+### 1. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
 - Allow one-click export of curated shortlists (favorites), specific property cards with full price-drop history and TCO/Deal Score, or entire search profile results into a self-contained, interactive offline HTML dossier (or clean Markdown/CSV report).
 - Can be sent easily via Telegram, WhatsApp, or email to partners, family members, or real estate advisors without exposing the local dashboard or SQLite database to the network.
 

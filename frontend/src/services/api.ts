@@ -4,8 +4,9 @@
 import type {
   AssistantResult, EmailScanParams, EmailScanProgress, EmailScanSummary,
   ImportCheckProgress, ImportCheckSummary, ImportedListing,
-  ImportFilters, MarketVelocity, Property, PropertyFilters, ScanStatus,
-  SearchBuilderParams, SearchBuilderUrls, SearchProfile, Settings,
+  ImportFilters, MarketVelocity, PricingTrend, Property, PropertyFilters,
+  ScanStatus, SearchBuilderParams, SearchBuilderUrls, SearchProfile, Settings,
+  TrendArea,
 } from "../types";
 
 const BASE = "/api";
@@ -106,6 +107,17 @@ export const api = {
     const params = new URLSearchParams({ contract });
     if (city) params.set("city", city);
     return request(`/market-velocity?${params}`);
+  },
+
+  /** Areas that have enough daily snapshots to plot a price trend. */
+  getTrendAreas(contract: string): Promise<TrendArea[]> {
+    return request(`/pricing-trends/areas?${new URLSearchParams({ contract })}`);
+  },
+  /** Median €/sqm over time for one area (empty zone = whole city). */
+  getPricingTrends(contract: string, city: string, zone = ""): Promise<PricingTrend> {
+    const params = new URLSearchParams({ contract, city });
+    if (zone) params.set("zone", zone);
+    return request(`/pricing-trends?${params}`);
   },
 
   /** Immediately launch an asynchronous scrape across all active search profiles. */

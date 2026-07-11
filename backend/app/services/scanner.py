@@ -10,7 +10,7 @@ from ..config import load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper
-from . import notifier
+from . import notifier, pricing_stats
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
 
@@ -105,6 +105,10 @@ def run_scan(profile_id: int | None = None) -> dict:
                 else:
                     summary["gone"] = _mark_vanished_properties(db)
                     db.commit()
+                # Record today's median €/sqm for the trend charts. Idempotent
+                # (one per day) and fail-open, so it is safe to call on every
+                # full scan regardless of whether this one was clean.
+                pricing_stats.maybe_snapshot(db)
         finally:
             db.close()
     except Exception as e:

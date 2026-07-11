@@ -20,7 +20,9 @@ from .services import email_import, notifier, scheduler
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import annotate_match_scores
-from .services.pricing_stats import annotate_market_position
+from .services.pricing_stats import (
+    annotate_market_position, get_trends, list_trend_areas,
+)
 from .services.query_parser import parse_query
 from .services.scanner import run_scan, scan_state
 from .services.search_builder import build_search_urls
@@ -455,6 +457,30 @@ def market_velocity(
     behavior. Values are computed from local scan history only, so they are
     meaningful once the database has been accumulating for a few weeks."""
     return compute_market_velocity(db, contract=contract, city=city)
+
+
+# --- Historical price trends ---
+
+@app.get("/api/pricing-trends/areas", response_model=list[schemas.TrendAreaOut])
+def pricing_trend_areas(
+    db: Session = Depends(get_db),
+    contract: str = Query("sale", pattern="^(sale|rent)$"),
+):
+    """Areas with at least two daily snapshots — the ones worth charting."""
+    return list_trend_areas(db, contract)
+
+
+@app.get("/api/pricing-trends", response_model=schemas.PricingTrendOut)
+def pricing_trends(
+    db: Session = Depends(get_db),
+    city: str = Query(..., min_length=1),
+    zone: str = "",
+    contract: str = Query("sale", pattern="^(sale|rent)$"),
+):
+    """Median €/sqm over time for one area (empty zone = whole city). The series
+    is built from daily snapshots (pricing_snapshots), so it only starts saying
+    something after the app has run for several days."""
+    return get_trends(db, city=city, zone=zone, contract=contract)
 
 
 # --- Scan ---
