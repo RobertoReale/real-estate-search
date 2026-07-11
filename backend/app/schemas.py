@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ListingOut(BaseModel):
+    """API response model representing a single portal ad linked to a Property."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -20,6 +21,7 @@ class ListingOut(BaseModel):
 
 
 class PriceHistoryOut(BaseModel):
+    """API response model recording a historical price variation of a Property."""
     model_config = ConfigDict(from_attributes=True)
 
     old_price: float | None
@@ -28,6 +30,8 @@ class PriceHistoryOut(BaseModel):
 
 
 class PropertyOut(BaseModel):
+    """Comprehensive API response model for a deduplicated physical property,
+    including its associated listings, price changes, and transient market statistics."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -66,6 +70,7 @@ class PropertyPatch(BaseModel):
 
 
 class SearchProfileIn(BaseModel):
+    """Input payload for creating or modifying a monitored portal search profile."""
     name: str
     search_url: str
     excluded_keywords: str = ""
@@ -84,6 +89,7 @@ class SearchProfileIn(BaseModel):
 
 
 class SearchProfileOut(BaseModel):
+    """API response model detailing a search profile along with its execution diagnostics."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -100,6 +106,7 @@ class SearchProfileOut(BaseModel):
 
 
 class SettingsIn(BaseModel):
+    """Input payload representing user-configurable application preferences."""
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_enabled: bool | None = None
@@ -222,6 +229,7 @@ class EmailImportScanIn(BaseModel):
 
 
 class ImportedListingOut(BaseModel):
+    """API response model representing a listing extracted from an alert email."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -247,6 +255,7 @@ class ImportedListingOut(BaseModel):
 
 
 class ImportBulkIn(BaseModel):
+    """Payload for bulk acceptance or rejection of email-staged listings."""
     ids: list[int]
     action: str  # accept | discard
 
@@ -266,6 +275,7 @@ class ImportCheckIn(BaseModel):
 
 
 class AreaVelocityOut(BaseModel):
+    """Aggregated market speed metrics for a specific neighborhood or city."""
     city: str
     zone: str
     scope: str            # "zone" | "city"
@@ -278,6 +288,7 @@ class AreaVelocityOut(BaseModel):
 
 
 class AgencyBehaviorOut(BaseModel):
+    """Aggregated pricing and discounting behavior metrics for a real estate agency."""
     agency: str
     sample: int
     price_drop_pct: float
@@ -289,6 +300,7 @@ class AgencyBehaviorOut(BaseModel):
 
 
 class MarketVelocityOut(BaseModel):
+    """Comprehensive API response detailing area velocities and agency pricing signatures."""
     contract: str
     city: str
     generated_at: datetime

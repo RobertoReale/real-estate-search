@@ -1,3 +1,6 @@
+/** REST API client layer communicating with the local FastAPI backend via `/api`.
+ *  In local development (`start.bat`), Vite proxies requests from port 5173 to 8000.
+ *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
 import type {
   AssistantResult, EmailScanParams, EmailScanProgress, EmailScanSummary,
   ImportCheckProgress, ImportCheckSummary, ImportedListing,
@@ -7,6 +10,7 @@ import type {
 
 const BASE = "/api";
 
+/** Execute an HTTP request against the backend REST endpoint, throwing formatted JSON errors on failure. */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -20,6 +24,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  /** Fetch a filtered and sorted list of properties (`active`, `filtered`, `gone`, `hidden`, or `all`). */
   getProperties(filters: PropertyFilters): Promise<Property[]> {
     const params = new URLSearchParams();
     params.set("status", filters.status);
@@ -34,35 +39,43 @@ export const api = {
     if (filters.only_favorites) params.set("only_favorites", "true");
     return request(`/properties?${params}`);
   },
+  /** Hide a property from active views (moves status to `hidden`). */
   deleteProperty(id: number) {
     return request(`/properties/${id}`, { method: "DELETE" });
   },
+  /** Restore a previously hidden property back to `active` status. */
   restoreProperty(id: number) {
     return request<{ ok: boolean }>(`/properties/${id}/restore`, { method: "POST" });
   },
+  /** Patch user-curated property metadata (`is_favorite` flag or custom `notes`). */
   updateProperty(id: number, data: { is_favorite?: boolean; notes?: string }) {
     return request<Property>(`/properties/${id}`, {
       method: "PATCH", body: JSON.stringify(data),
     });
   },
 
+  /** Retrieve all configured search profiles along with diagnostic failure counts. */
   getProfiles(): Promise<SearchProfile[]> {
     return request("/search-profiles");
   },
+  /** Create a new portal search profile. */
   createProfile(data: Partial<SearchProfile>) {
     return request<SearchProfile>("/search-profiles", {
       method: "POST", body: JSON.stringify(data),
     });
   },
+  /** Update configuration or notification toggles for an existing search profile. */
   updateProfile(id: number, data: Partial<SearchProfile>) {
     return request<SearchProfile>(`/search-profiles/${id}`, {
       method: "PUT", body: JSON.stringify(data),
     });
   },
+  /** Delete a search profile (`DELETE /api/search-profiles/{id}`). */
   deleteProfile(id: number) {
     return request(`/search-profiles/${id}`, { method: "DELETE" });
   },
 
+  /** Generate native search URLs from structured criteria (`city`, `rooms`, `price`). */
   buildSearchUrls(params: SearchBuilderParams): Promise<SearchBuilderUrls> {
     // empty strings become nulls the backend understands as "no filter"
     const body = {
@@ -81,56 +94,69 @@ export const api = {
     });
   },
 
+  /** Parse a natural-language search query offline into structured parameters. */
   askAssistant(query: string): Promise<AssistantResult> {
     return request("/search-assistant", {
       method: "POST", body: JSON.stringify({ query }),
     });
   },
 
+  /** Compute area days-on-market velocities and agency pricing behavior. */
   getMarketVelocity(contract: string, city?: string): Promise<MarketVelocity> {
     const params = new URLSearchParams({ contract });
     if (city) params.set("city", city);
     return request(`/market-velocity?${params}`);
   },
 
+  /** Immediately launch an asynchronous scrape across all active search profiles. */
   triggerScan(): Promise<{ status: string }> {
     return request("/scrapers/trigger", { method: "POST" });
   },
+  /** Poll the status, progress, and next scheduled run time of the scraper background task. */
   getScanStatus(): Promise<ScanStatus> {
     return request("/scrapers/status");
   },
 
+  /** Load current user preferences and API credentials. */
   getSettings(): Promise<Settings> {
     return request("/settings");
   },
+  /** Persist modified application settings to `settings.json`. */
   updateSettings(data: Partial<Settings>) {
     return request<Settings>("/settings", {
       method: "PUT", body: JSON.stringify(data),
     });
   },
+  /** Send a test broadcast message to verify Telegram bot credentials. */
   telegramTest() {
     return request("/settings/telegram-test", { method: "POST" });
   },
+  /** Trigger an automated DataDome cookie refresh via local browser if Playwright is installed. */
   datadomeRefresh(portal: "immobiliare" | "idealista" = "immobiliare") {
     return request<{ ok: boolean; portal: string; updated_at: string; cookie_preview: string }>(
       `/settings/datadome-refresh?portal=${portal}`, { method: "POST" },
     );
   },
+  /** Send a test notification message to verify SMTP email settings. */
   emailTest() {
     return request("/settings/email-test", { method: "POST" });
   },
 
+  /** Verify IMAP connection and authentication against the mail server. */
   imapTest(): Promise<{ ok: boolean; detail: string }> {
     return request("/email-import/test", { method: "POST" });
   },
+  /** Launch a read-only IMAP search across the inbox for portal alert emails. */
   emailImportScan(params: EmailScanParams): Promise<EmailScanSummary> {
     return request("/email-import/scan", {
       method: "POST", body: JSON.stringify(params),
     });
   },
+  /** Poll current progress metrics of an active IMAP inbox scan. */
   emailImportProgress(): Promise<EmailScanProgress> {
     return request("/email-import/progress");
   },
+  /** Query listings extracted from alert emails staged for user review. */
   getImportedListings(filters: Partial<ImportFilters>): Promise<ImportedListing[]> {
     const params = new URLSearchParams();
     if (filters.profile_id) params.set("profile_id", filters.profile_id);
@@ -142,27 +168,33 @@ export const api = {
     if (filters.q) params.set("q", filters.q);
     return request(`/email-import?${params}`);
   },
+  /** Accept a staged listing into the active database (`upsert_listing`). */
   acceptImported(id: number): Promise<{ ok: boolean; property_id: number }> {
     return request(`/email-import/${id}/accept`, { method: "POST" });
   },
+  /** Discard an unwanted staged listing (retained to prevent re-importing on future scans). */
   discardImported(id: number) {
     return request(`/email-import/${id}/discard`, { method: "POST" });
   },
+  /** Bulk accept or discard multiple staged listings. */
   bulkImported(ids: number[], action: "accept" | "discard") {
     return request<{ ok: boolean; processed: number }>("/email-import/bulk", {
       method: "POST", body: JSON.stringify({ ids, action }),
     });
   },
+  /** Probe portals (`AdProbe`) to check if staged listings are still online. */
   checkImported(ids: number[]): Promise<ImportCheckSummary> {
     return request("/email-import/check", {
       method: "POST", body: JSON.stringify({ ids }),
     });
   },
+  /** Poll live progress of an ongoing portal availability check (`AdProbe`). */
   importCheckProgress(): Promise<ImportCheckProgress> {
     return request("/email-import/check-progress");
   },
 };
 
+/** Format numeric values into human-readable Euro strings (`€350,000` or `€1,200/month`). */
 export function formatPrice(
   value: number | null | undefined,
   contract: "sale" | "rent" = "sale",

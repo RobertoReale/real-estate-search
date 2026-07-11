@@ -33,8 +33,10 @@ Every design choice here is deliberate:
 """
 import logging
 import threading
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from ..config import BASE_DIR, load_settings, save_settings
 
@@ -88,7 +90,7 @@ def is_available() -> bool:
         return False
 
 
-def _pick_datadome(cookies: list[dict]) -> str | None:
+def _pick_datadome(cookies: Sequence[Mapping[str, Any]]) -> str | None:
     """Return the value of the `datadome` cookie from a Playwright cookie list,
     or None. Kept pure so the selection rule is unit-testable without a browser.
 
@@ -98,7 +100,7 @@ def _pick_datadome(cookies: list[dict]) -> str | None:
     """
     for c in cookies:
         if c.get("name") == "datadome":
-            value = (c.get("value") or "").strip()
+            value = str(c.get("value") or "").strip()
             if len(value) >= 8:
                 return value
     return None

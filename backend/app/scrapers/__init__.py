@@ -1,8 +1,14 @@
+"""Portal scraper registry and URL detection utilities.
+
+Provides a unified factory to instantiate the appropriate scraper instance
+and detect the target portal from a search URL.
+"""
 from .immobiliare import ImmobiliareScraper
 from .idealista import IdealistaScraper
 
 
 def get_scraper(portal: str):
+    """Instantiate and return the scraper corresponding to the given portal name."""
     if portal == "immobiliare":
         return ImmobiliareScraper()
     if portal == "idealista":
@@ -11,6 +17,7 @@ def get_scraper(portal: str):
 
 
 def detect_portal(url: str) -> str:
+    """Identify the portal ('immobiliare' or 'idealista') from a listing or search URL."""
     if "immobiliare.it" in url:
         return "immobiliare"
     if "idealista.it" in url:

@@ -1,3 +1,7 @@
+/** Root application dashboard component orchestrating global layout and state.
+ *  Manages live property listings, search filters, view modes (Grid / Map),
+ *  search profile diagnostics, email import pipelines, and modal dialogues.
+ *  Uses a monotonic sequence ref (`refreshSeq`) to prevent race conditions during rapid filter keystrokes. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import EmailImport from "./components/EmailImport";
 import FiltersBar from "./components/FiltersBar";
