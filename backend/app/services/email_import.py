@@ -565,10 +565,51 @@ MIN_PROBE_DELAY = {"immobiliare": 6.0, "idealista": 8.0}
 # an answer: stop, and tell the user why the batch ended early.
 BLOCK_STREAK_ABORT = 3
 
+# When the user opted into automatic cookie refresh, a block streak is not
+# necessarily the end: a fresh DataDome cookie is the one lever left after the
+# probe's own TLS rotation has already failed. But it is bounded — a couple of
+# browser grabs per batch at most — because insisting past that just re-earns
+# the block on the residential IP (invariant 16).
+MAX_COOKIE_REFRESHES_PER_CHECK = 2
+
 
 def get_check_progress() -> dict:
     """Snapshot of the running availability check, for the UI to poll."""
     return dict(_check_progress)
+
+
+def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> bool:
+    """Recover from a block during the availability check by minting a fresh
+    DataDome cookie in a headless browser and rebuilding the probe's session
+    around it, so the batch can carry on instead of giving up.
+
+    Opt-in (`datadome_auto_refresh`) and best-effort: a missing browser, a
+    CAPTCHA it cannot pass headless, or a refresh failure all return False and
+    the caller aborts as before. This is the *same* mechanism the scanner runs
+    before a scan (invariant 18) — here it fires reactively, on a block, which
+    is exactly when the cookie has demonstrably burned.
+    """
+    if not settings.get("datadome_auto_refresh"):
+        return False
+    from . import cookie_harvester
+    if not cookie_harvester.is_available():
+        return False
+    logger.info("email-import: portal blocking; grabbing a fresh DataDome cookie")
+    try:
+        result = cookie_harvester.refresh_into_settings(portal, headless=True)
+    except Exception:
+        logger.exception("email-import: cookie recovery failed")
+        return False
+    if not result.get("ok"):
+        return False
+    # Rebuild the probe around the new cookie, back to the preferred handshake,
+    # and force a re-warm of the homepage so the fresh cookie is carried in.
+    probe._imp_index = 0
+    probe.session = probe._new_session()
+    probe._warmed_hosts = set()
+    probe.was_blocked = False
+    summary["cookie_refreshed"] = summary.get("cookie_refreshed", 0) + 1
+    return True
 
 
 def check_availability(db: Session, items: list[ImportedListing]) -> dict:
@@ -596,10 +637,11 @@ def check_availability(db: Session, items: list[ImportedListing]) -> dict:
     ])
     probe = AdProbe(delay_seconds=delay)
     summary = {"checked": 0, "gone": 0, "online": 0, "unknown": 0,
-               "aborted": False, "last_error": None}
+               "aborted": False, "last_error": None, "cookie_refreshed": 0}
     _check_progress.update(active=True, done=0, total=len(items), gone=0)
     try:
         block_streak = 0
+        refreshes_used = 0
         for index, item in enumerate(items):
             # If the dashboard already tracks this listing, resolve it from
             # the database — but only in the safe direction: a property still
@@ -644,6 +686,13 @@ def check_availability(db: Session, items: list[ImportedListing]) -> dict:
 
             block_streak = block_streak + 1 if probe.was_blocked else 0
             if block_streak >= BLOCK_STREAK_ABORT:
+                if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
+                        and _try_cookie_recovery(
+                            probe, item.portal, settings, summary)):
+                    # a fresh cookie earned: reset and carry on rather than quit
+                    refreshes_used += 1
+                    block_streak = 0
+                    continue
                 logger.warning(
                     "email-import: portal blocking the availability check, "
                     "stopping after %s listings", summary["checked"],

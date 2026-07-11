@@ -555,6 +555,17 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
                 <>, {checkSummary.unknown} the portal would not answer for
                   (blocked or unreachable — they keep whatever was known)</>
               )}.
+              {checkSummary.cookie_refreshed
+                ? (
+                  <span className="block mt-1">
+                    🔄 Grabbed a fresh DataDome cookie{" "}
+                    {checkSummary.cookie_refreshed === 1
+                      ? "once"
+                      : `${checkSummary.cookie_refreshed} times`}{" "}
+                    mid-check to get past a block.
+                  </span>
+                )
+                : null}
               {checkSummary.last_error && (
                 <span className="text-rose-600 dark:text-rose-400 block mt-1">
                   ❌ Detail on last failure: {checkSummary.last_error}

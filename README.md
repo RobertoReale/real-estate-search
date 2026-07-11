@@ -319,7 +319,11 @@ You can provide that cookie in three ways, from most to least automatic:
   cookie, and saves it for you — no copy/paste. A window may briefly appear; if
   the portal shows a CAPTCHA, solve it once and it is remembered for next time.
   You can also tick **"Refresh automatically before each scan"** so a scheduled
-  scan always starts with a live cookie. This needs a one-time install of the
+  scan always starts with a live cookie. With that option on, the app *also*
+  grabs a fresh cookie **on the fly if the "Check if still online" button gets
+  blocked** mid-run — it swaps in a new cookie and keeps going instead of
+  stopping (bounded to a couple of attempts, so it never turns into hammering).
+  This needs a one-time install of the
   browser engine, run **inside the backend's virtual environment** — not a
   system-wide `pip` — since that is the Python the app actually runs on:
   ```bash

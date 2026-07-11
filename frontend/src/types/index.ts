@@ -217,6 +217,9 @@ export interface ImportCheckSummary {
   // the portal refused three times in a row and the batch stopped early
   aborted: boolean;
   last_error?: string | null;
+  // how many times a fresh DataDome cookie was grabbed mid-check to recover
+  // from a block (only when automatic cookie refresh is enabled)
+  cookie_refreshed?: number;
 }
 
 export interface ImportCheckProgress {

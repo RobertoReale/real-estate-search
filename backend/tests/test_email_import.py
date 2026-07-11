@@ -314,7 +314,7 @@ def test_check_marks_gone_listings_and_leaves_the_live_ones(db, monkeypatch):
 
     summary = check_availability(db, [alive])   # one at a time: no polite_sleep
     assert summary == {"checked": 1, "gone": 0, "online": 1, "unknown": 0,
-                       "aborted": False, "last_error": None}
+                       "aborted": False, "last_error": None, "cookie_refreshed": 0}
     assert alive.is_available is True and alive.last_checked_at is not None
 
     summary = check_availability(db, [dead])
@@ -365,6 +365,91 @@ def test_the_check_gives_up_once_the_portal_starts_refusing(db, monkeypatch):
     assert summary["aborted"] is True
     assert summary["checked"] == 3          # not 6: it stopped knocking
     assert all(i.is_available is None for i in items)
+    assert summary["cookie_refreshed"] == 0  # opt-in off: no browser was launched
+
+
+def test_a_cookie_refresh_recovers_a_blocked_check_when_opted_in(db, monkeypatch):
+    """When the user enabled automatic cookie refresh, a block streak is not the
+    end: the check mints a fresh DataDome cookie (headless), rebuilds the probe
+    around it, and carries on instead of aborting. This is the reactive side of
+    the same mechanism the scanner runs before a scan (invariant 18)."""
+    items = [_staged(db, str(700 + n)) for n in range(6)]
+
+    class RecoverableProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+            self.last_error = None
+            self._warmed_hosts: set = set()
+            self._refreshed = False
+
+        def check(self, url):
+            # blocks until a fresh cookie is minted, then answers cleanly
+            if not self._refreshed:
+                self.was_blocked = True
+                return None
+            self.was_blocked = False
+            return True
+
+        def _new_session(self):
+            # the recovery rebuilds the session after a successful cookie grab
+            self._refreshed = True
+            return object()
+
+        def polite_sleep(self):
+            pass
+
+    monkeypatch.setattr(email_import, "AdProbe", RecoverableProbe)
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"request_delay_seconds": 0,
+                                 "datadome_auto_refresh": True})
+    from app.services import cookie_harvester
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(
+        cookie_harvester, "refresh_into_settings",
+        lambda portal="immobiliare", headless=True: {"ok": True},
+    )
+
+    summary = check_availability(db, items)
+
+    assert summary["aborted"] is False
+    assert summary["cookie_refreshed"] == 1
+    # the three probed before the refresh were "unknown"; the three after got
+    # a clean answer through the fresh cookie
+    assert summary["unknown"] == 3
+    assert summary["online"] == 3
+
+
+def test_cookie_recovery_is_skipped_when_not_opted_in(db, monkeypatch):
+    """The recovery must stay opt-in: even with a browser available, a block
+    aborts the batch unless `datadome_auto_refresh` is on — a scan must never
+    launch a browser the user did not ask for (invariant 18)."""
+    items = [_staged(db, str(710 + n)) for n in range(4)]
+
+    class BlockingProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+
+        def check(self, url):
+            self.was_blocked = True
+            return None
+
+        def polite_sleep(self):
+            pass
+
+    monkeypatch.setattr(email_import, "AdProbe", BlockingProbe)
+    monkeypatch.setattr(email_import, "load_settings",
+                        lambda: {"datadome_auto_refresh": False})
+    from app.services import cookie_harvester
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    called = []
+    monkeypatch.setattr(cookie_harvester, "refresh_into_settings",
+                        lambda *a, **k: called.append(True) or {"ok": True})
+
+    summary = check_availability(db, items)
+
+    assert summary["aborted"] is True
+    assert summary["cookie_refreshed"] == 0
+    assert called == []  # no browser launched
 
 
 def test_a_slow_portal_sets_the_pace_for_the_whole_batch(db, monkeypatch):
