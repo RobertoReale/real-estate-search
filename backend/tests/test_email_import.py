@@ -4,6 +4,7 @@ Everything runs offline: a fake IMAP client serves handcrafted alert emails,
 mirroring the real structure of portal notifications (HTML cards, every link
 wrapped in a click-tracking redirect that percent-encodes the target URL).
 """
+from datetime import datetime, timezone
 from email.message import EmailMessage
 
 import pytest
@@ -869,4 +870,33 @@ def test_auto_scan_is_fail_open(monkeypatch):
 
     monkeypatch.setattr(email_import, "scan_inbox", _unexpected_boom)
     email_import.auto_scan_job()  # any Exception: must not propagate either
+
+
+def test_smart_skip_recently_checked_listings(db, monkeypatch):
+    """When running a batch availability check, items already verified within
+    the skip window (`skip_recent_hours`) are skipped instead of re-probed over HTTP."""
+    items = [_staged(db, str(900 + n)) for n in range(3)]
+    now = datetime.now(timezone.utc)
+    items[0].is_available = True
+    items[0].last_checked_at = now
+    items[1].is_available = False
+    items[1].last_checked_at = now
+
+    calls = []
+    class MockProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+        def check(self, url):
+            calls.append(url)
+            return True
+        def polite_sleep(self):
+            pass
+
+    monkeypatch.setattr(email_import, "AdProbe", MockProbe)
+    summary = check_availability(db, items, skip_recent_hours=6.0)
+    # Only item[2] should be probed over HTTP; item[0] and item[1] are skipped
+    assert len(calls) == 1
+    assert summary["online"] == 2
+    assert summary["gone"] == 1
+    assert summary["checked"] == 3
 

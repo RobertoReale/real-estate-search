@@ -667,7 +667,7 @@ def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> b
     return True
 
 
-def check_availability(db: Session, items: list[ImportedListing]) -> dict:
+def check_availability(db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0) -> dict:
     """Asks each portal whether these ads still exist, one at a time.
 
     This is the only place the import touches the portals, and only because
@@ -721,6 +721,14 @@ def check_availability(db: Session, items: list[ImportedListing]) -> dict:
                 summary["online"] += 1
                 summary["checked"] += 1
                 db.commit()
+                _check_progress.update(done=index + 1, gone=summary["gone"])
+                continue
+
+            from .availability_check import _is_recently_checked
+            if (skip_recent_hours > 0 and len(items) > 1 and item.is_available is not None
+                    and _is_recently_checked(item.last_checked_at, skip_recent_hours)):
+                summary["gone" if item.is_available is False else "online"] += 1
+                summary["checked"] += 1
                 _check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
 

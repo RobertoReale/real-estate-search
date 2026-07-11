@@ -41,7 +41,15 @@ def get_prop_check_progress() -> dict:
     return dict(_prop_check_progress)
 
 
-def check_properties_availability(db: Session, properties: list[Property]) -> dict:
+def _is_recently_checked(dt, hours: float = 6.0) -> bool:
+    if dt is None or hours <= 0:
+        return False
+    now = datetime.now(timezone.utc)
+    dt_tz = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return (now - dt_tz).total_seconds() < hours * 3600
+
+
+def check_properties_availability(db: Session, properties: list[Property], skip_recent_hours: float = 6.0) -> dict:
     """Checks whether the given properties (`Property`) are still online on their portals.
 
     For each property, `AdProbe` checks all its associated `listings`.
@@ -73,6 +81,14 @@ def check_properties_availability(db: Session, properties: list[Property]) -> di
         for index, prop in enumerate(properties):
             if not prop.listings:
                 # No portal listings attached: nothing to check
+                _prop_check_progress.update(done=index + 1, gone=summary["gone"])
+                continue
+
+            if (skip_recent_hours > 0 and len(properties) > 1 and prop.listings
+                    and all(_is_recently_checked(l.last_seen_at, skip_recent_hours) for l in prop.listings)
+                    and prop.status in ("active", "filtered", "hidden")):
+                summary["online"] += 1
+                summary["checked"] += 1
                 _prop_check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
 
