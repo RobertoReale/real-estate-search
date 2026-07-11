@@ -3,12 +3,14 @@
  *  search profile diagnostics, email import pipelines, and modal dialogues.
  *  Uses a monotonic sequence ref (`refreshSeq`) to prevent race conditions during rapid filter keystrokes. */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useProgressPoll } from "./hooks/useProgressPoll";
 import EmailImport from "./components/EmailImport";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
 import Navbar from "./components/Navbar";
 import PriceTrends from "./components/PriceTrends";
+import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
 import PropertyModal from "./components/PropertyModal";
 import SearchProfiles from "./components/SearchProfiles";
@@ -130,21 +132,14 @@ export default function App() {
     });
   }
 
-  useEffect(() => {
-    if (!checkingBatch) return;
-    let cancelled = false;
-    async function tick() {
-      try {
-        const prog = await api.propertiesCheckProgress();
-        if (!cancelled && prog.active) setBatchProgress(prog);
-      } catch {
-        /* ignore poll errors */
-      }
-    }
-    tick();
-    const timer = setInterval(tick, 800);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [checkingBatch]);
+  useProgressPoll(
+    checkingBatch,
+    api.propertiesCheckProgress,
+    (prog) => {
+      if (prog.active) setBatchProgress(prog);
+    },
+    800,
+  );
 
   async function checkSelectedProperties() {
     const ids = [...selectedIds];
@@ -296,24 +291,16 @@ export default function App() {
             </div>
 
             {checkingBatch && (
-              <div className="space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-700/50" role="status" aria-live="polite">
-                <div className="h-1.5 w-full rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
-                  <div
-                    className="h-full bg-blue-500 transition-[width] duration-300"
-                    style={{
-                      width: batchProgress && batchProgress.total > 0
-                        ? `${Math.round((batchProgress.done / batchProgress.total) * 100)}%`
-                        : "0%",
-                    }}
-                  />
-                </div>
-                <p className="text-xs t-muted">
-                  {batchProgress
-                    ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.gone} rilevati come rimossi/venduti`
-                    : "Avvio verifica in corso…"}
-                  {" "}Pausa di sicurezza attiva tra una richiesta e l'altra per proteggere l'IP da blocchi DataDome.
-                </p>
-              </div>
+              <ProgressBar
+                className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50"
+                done={batchProgress?.done ?? 0}
+                total={batchProgress?.total ?? 0}
+                indeterminate={!batchProgress || batchProgress.total <= 0}>
+                {batchProgress
+                  ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.gone} rilevati come rimossi/venduti`
+                  : "Avvio verifica in corso…"}{" "}
+                Pausa di sicurezza attiva tra una richiesta e l'altra per proteggere l'IP da blocchi DataDome.
+              </ProgressBar>
             )}
 
             {batchSummary && !checkingBatch && (
