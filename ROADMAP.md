@@ -71,6 +71,10 @@ whether newly staged items should notify or wait silently in the review queue.
 - Periodically rotate and update `curl_cffi` impersonation versions (e.g., `safari184`, `chrome131_android`) to match real browser evolution and prevent DataDome blocks.
 - Recurring maintenance on an already-proven pattern, not new design.
 
+### 6. Shareable Dossiers & Shortlist Export (Offline HTML/Markdown/CSV Reports)
+- Allow one-click export of curated shortlists (favorites), specific property cards with full price-drop history and TCO/Deal Score, or entire search profile results into a self-contained, interactive offline HTML dossier (or clean Markdown/CSV report).
+- Can be sent easily via Telegram, WhatsApp, or email to partners, family members, or real estate advisors without exposing the local dashboard or SQLite database to the network.
+
 ---
 
 ## Medium — doable, but with real unknowns
@@ -98,6 +102,10 @@ amenities, noise, transit) and never a proxy for the ethnic, racial, religious
 or national composition of a neighborhood's residents — filtering housing
 search results on that basis is housing discrimination and out of scope for
 this project, not just unimplemented.
+
+### 4. Read-Only Guest Mode & Tokenized Share Links via Tailscale
+- When sharing the live dashboard over LAN or Tailscale (`serve.bat lan` / `serve.bat tailscale`), today any connected device gets unauthenticated full read-write access (`CLAUDE.md` invariant 14), meaning guests can delete profiles, hide properties, or alter settings.
+- Introduce an optional read-only guest scope (`/shared/dossier/{token}` or a read-only middleware switch): visitors with the link can explore interactive maps, view photos, and check price charts of specifically shared properties/shortlists, while all mutation endpoints (`POST/PATCH/DELETE` on properties, profiles, settings, and scans) return `403 Forbidden`.
 
 ---
 
