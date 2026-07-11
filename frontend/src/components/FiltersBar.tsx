@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api } from "../services/api";
 import type { PropertyFilters, ViewMode } from "../types";
 
@@ -12,6 +13,13 @@ interface Props {
 export default function FiltersBar({
   filters, onChange, count, view, onViewChange,
 }: Props) {
+  const [repairing, setRepairing] = useState(false);
+  const [repairResult, setRepairResult] = useState<{
+    properties_fixed: number;
+    listings_fixed: number;
+    images_recovered: number;
+  } | null>(null);
+
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
   const isRent = filters.contract === "rent";
@@ -136,13 +144,25 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium t-muted">Manutenzione</label>
           <button
-            className="px-3 py-2 text-sm font-medium rounded-lg transition bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1 shadow-sm"
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
+              repairing
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
+                : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
+            }`}
+            disabled={repairing}
             title="Ripara istantaneamente titoli, zone e foto mancanti degli annunci importati in passato"
             onClick={async () => {
-              await api.repairListings();
-              onChange({ ...filters });
+              setRepairing(true);
+              setRepairResult(null);
+              try {
+                const res = await api.repairListings();
+                setRepairResult(res);
+                onChange({ ...filters });
+              } finally {
+                setRepairing(false);
+              }
             }}>
-            🛠️ Ripara Dati
+            {repairing ? "⏳ Riparazione in corso..." : "🛠️ Ripara Dati"}
           </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
@@ -187,6 +207,40 @@ export default function FiltersBar({
           </div>
         </div>
       </div>
+
+      {repairResult && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+          <div className="space-y-1">
+            {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 ? (
+              <>
+                <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
+                  <span>✅</span> Riparazione completata con successo!
+                </p>
+                <p>
+                  Aggiornati i dati di <strong>{repairResult.properties_fixed} immobili</strong>,{" "}
+                  <strong>{repairResult.listings_fixed} annunci</strong> e ripristinate{" "}
+                  <strong>{repairResult.images_recovered} foto</strong>.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-1.5">
+                  <span>✨</span> Tutto in ordine e perfettamente sincronizzato!
+                </p>
+                <p>
+                  Il controllo ha verificato il database: non è stato trovato nessun immobile o annuncio con dati, città (`Location N/A`) o foto mancanti da riparare. Tutti gli annunci sono già allineati e completi.
+                </p>
+              </>
+            )}
+          </div>
+          <button
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            onClick={() => setRepairResult(null)}
+            title="Chiudi">
+            ✕
+          </button>
+        </div>
+      )}
     </section>
   );
 }
