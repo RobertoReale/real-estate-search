@@ -1,3 +1,4 @@
+import { api } from "../services/api";
 import type { PropertyFilters, ViewMode } from "../types";
 
 interface Props {
@@ -14,6 +15,19 @@ export default function FiltersBar({
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
   const isRent = filters.contract === "rent";
+
+  function exportAs(fmt: "html" | "markdown" | "csv") {
+    const what = filters.only_favorites ? "Favorites" : isRent ? "Rentals" : "Properties";
+    const title = filters.city ? `${what} in ${filters.city}` : what;
+    // A file download (Content-Disposition attachment): navigating to it starts
+    // the download without leaving the page, so a transient anchor is enough.
+    const a = document.createElement("a");
+    a.href = api.exportUrl(filters, fmt, title);
+    a.rel = "noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 
   return (
     // Two columns on a phone, free-flowing row from `sm` up. The `col-span-*`
@@ -119,6 +133,27 @@ export default function FiltersBar({
 
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
         <span className="text-sm t-muted pb-2">{count} properties</span>
+        {/* Export the filtered set as a shareable offline file (no server, no
+            DB) — see services/exporter.py */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs t-muted">Export {count > 0 && `(${count})`}</label>
+          <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+            {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"]] as const).map(
+              ([fmt, label]) => (
+                <button key={fmt}
+                  className="px-3 py-2 text-sm font-medium transition bg-white
+                    text-slate-500 hover:text-slate-800 dark:bg-slate-800/80
+                    dark:text-slate-400 dark:hover:text-slate-200
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={count === 0}
+                  title={`Download the ${count} filtered properties as ${label}`}
+                  onClick={() => exportAs(fmt)}>
+                  {label}
+                </button>
+              ),
+            )}
+          </div>
+        </div>
         {/* view switch: the map only shows geolocated listings, so the grid
             stays the authoritative view (see MapView's "without coordinates") */}
         <div className="flex flex-col gap-1">

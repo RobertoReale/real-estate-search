@@ -136,6 +136,14 @@ phone without any of this. The dashboard is for browsing and triaging.
   it becomes meaningful after a few months of scanning.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
+* **Share a shortlist**: the **Export** buttons on the filter bar download the
+  properties currently on screen — apply the filters or tick *Favorites* first —
+  as a self-contained **HTML dossier**, a clean **Markdown** report, or a **CSV**
+  spreadsheet. Each includes prices, price-drop history, and the Deal/Match
+  scores. It is a single offline file you can send to a partner, family member,
+  or agent over chat or email, without giving anyone access to your dashboard or
+  database. (The HTML dossier's thumbnails load from the portals, so those need
+  a connection; everything else works fully offline.)
 * **Email inbox import**: if the portals already mail you their alerts, point the
   app at your mailbox (IMAP) and it collects the listing links from those emails.
   Your mailbox is opened **strictly read-only** — nothing is deleted, and messages

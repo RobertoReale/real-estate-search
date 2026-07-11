@@ -24,21 +24,38 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return resp.json();
 }
 
+/** The current filters as query params — shared by the grid fetch and the
+ *  export download so a dossier holds exactly the filtered set on screen. */
+function propertyParams(filters: PropertyFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("status", filters.status);
+  params.set("contract", filters.contract);
+  params.set("sort", filters.sort);
+  if (filters.city) params.set("city", filters.city);
+  if (filters.min_price) params.set("min_price", filters.min_price);
+  if (filters.max_price) params.set("max_price", filters.max_price);
+  if (filters.min_sqm) params.set("min_sqm", filters.min_sqm);
+  if (filters.rooms) params.set("rooms", filters.rooms);
+  if (filters.only_price_drops) params.set("only_price_drops", "true");
+  if (filters.only_favorites) params.set("only_favorites", "true");
+  return params;
+}
+
 export const api = {
   /** Fetch a filtered and sorted list of properties (`active`, `filtered`, `gone`, `hidden`, or `all`). */
   getProperties(filters: PropertyFilters): Promise<Property[]> {
-    const params = new URLSearchParams();
-    params.set("status", filters.status);
-    params.set("contract", filters.contract);
-    params.set("sort", filters.sort);
-    if (filters.city) params.set("city", filters.city);
-    if (filters.min_price) params.set("min_price", filters.min_price);
-    if (filters.max_price) params.set("max_price", filters.max_price);
-    if (filters.min_sqm) params.set("min_sqm", filters.min_sqm);
-    if (filters.rooms) params.set("rooms", filters.rooms);
-    if (filters.only_price_drops) params.set("only_price_drops", "true");
-    if (filters.only_favorites) params.set("only_favorites", "true");
-    return request(`/properties?${params}`);
+    return request(`/properties?${propertyParams(filters)}`);
+  },
+
+  /** Direct URL to download the filtered shortlist as a dossier. Not fetched
+   *  as JSON: it returns a file (Content-Disposition attachment), so the caller
+   *  navigates to it to trigger the browser download. */
+  exportUrl(filters: PropertyFilters, fmt: "html" | "markdown" | "csv",
+            title: string): string {
+    const params = propertyParams(filters);
+    params.set("fmt", fmt);
+    if (title) params.set("title", title);
+    return `${BASE}/properties/export?${params}`;
   },
   /** Hide a property from active views (moves status to `hidden`). */
   deleteProperty(id: number) {

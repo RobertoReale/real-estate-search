@@ -3,10 +3,12 @@ scans, and settings."""
 import logging
 import threading
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -16,7 +18,7 @@ from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
 from .models import ImportedListing, Property, SearchProfile
 from .scrapers import detect_portal
-from .services import email_import, notifier, scheduler
+from .services import email_import, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
@@ -67,25 +69,15 @@ app.add_middleware(
 
 # --- Properties ---
 
-@app.get("/api/properties", response_model=list[schemas.PropertyOut])
-def list_properties(
-    db: Session = Depends(get_db),
-    # validated like `contract`/`sort`: a typo'd status would otherwise return
-    # an empty list, indistinguishable from "no matches" — a silent failure
-    status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
-    contract: str | None = Query(None, pattern="^(sale|rent)$"),
-    city: str | None = None,
-    min_price: float | None = None,
-    max_price: float | None = None,
-    min_sqm: float | None = None,
-    rooms: int | None = None,
-    only_price_drops: bool = False,
-    only_favorites: bool = False,
-    sort: str = Query(
-        "newest",
-        pattern="^(newest|price_asc|price_desc|sqm_price|match)$",
-    ),
-):
+def _select_properties(
+    db: Session, *, status: str, contract: str | None, city: str | None,
+    min_price: float | None, max_price: float | None, min_sqm: float | None,
+    rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
+) -> list[Property]:
+    """Shared property selection + annotation for the grid and the exports, so
+    a dossier holds exactly what the dashboard is showing under the same
+    filters. Match scores are annotated before the sort (compatibility ranking
+    needs them); market position and deal score are order-independent."""
     query = select(Property).options(
         selectinload(Property.listings), selectinload(Property.price_history)
     )
@@ -118,8 +110,6 @@ def list_properties(
             if p.first_price and p.current_min_price
             and p.current_min_price < p.first_price
         ]
-    # Match scores are needed before the sort when ranking by compatibility;
-    # market position is display-only, so it stays after (order-independent).
     annotate_match_scores(props, load_settings())
     if sort == "newest":
         props.sort(key=lambda p: p.first_seen_at, reverse=True)
@@ -139,6 +129,78 @@ def list_properties(
     annotate_market_position(db, props)
     annotate_deal_scores(db, props)
     return props
+
+
+@app.get("/api/properties", response_model=list[schemas.PropertyOut])
+def list_properties(
+    db: Session = Depends(get_db),
+    # validated like `contract`/`sort`: a typo'd status would otherwise return
+    # an empty list, indistinguishable from "no matches" — a silent failure
+    status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
+    contract: str | None = Query(None, pattern="^(sale|rent)$"),
+    city: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_sqm: float | None = None,
+    rooms: int | None = None,
+    only_price_drops: bool = False,
+    only_favorites: bool = False,
+    sort: str = Query(
+        "newest",
+        pattern="^(newest|price_asc|price_desc|sqm_price|match)$",
+    ),
+):
+    return _select_properties(
+        db, status=status, contract=contract, city=city, min_price=min_price,
+        max_price=max_price, min_sqm=min_sqm, rooms=rooms,
+        only_price_drops=only_price_drops, only_favorites=only_favorites,
+        sort=sort,
+    )
+
+
+@app.get("/api/properties/export")
+def export_properties(
+    db: Session = Depends(get_db),
+    fmt: str = Query("html", pattern="^(html|markdown|csv)$"),
+    title: str = "Property shortlist",
+    status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
+    contract: str | None = Query(None, pattern="^(sale|rent)$"),
+    city: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_sqm: float | None = None,
+    rooms: int | None = None,
+    only_price_drops: bool = False,
+    only_favorites: bool = False,
+    sort: str = Query(
+        "newest", pattern="^(newest|price_asc|price_desc|sqm_price|match)$"),
+):
+    """Download the currently-filtered shortlist as a self-contained dossier.
+
+    Same selection as the grid, so the file mirrors what the user sees. Returned
+    as an attachment (no server, no DB) that can be shared over chat or email —
+    the reason the export exists rather than sharing the live dashboard."""
+    props = _select_properties(
+        db, status=status, contract=contract, city=city, min_price=min_price,
+        max_price=max_price, min_sqm=min_sqm, rooms=rooms,
+        only_price_drops=only_price_drops, only_favorites=only_favorites,
+        sort=sort,
+    )
+    clean_title = (title or "Property shortlist").strip()[:120] or "Property shortlist"
+    if fmt == "csv":
+        body = exporter.properties_to_csv(props)
+        media, ext = "text/csv; charset=utf-8", "csv"
+    elif fmt == "markdown":
+        body = exporter.properties_to_markdown(props, clean_title)
+        media, ext = "text/markdown; charset=utf-8", "md"
+    else:
+        body = exporter.properties_to_html(props, clean_title)
+        media, ext = "text/html; charset=utf-8", "html"
+    filename = f"dossier-{datetime.now(timezone.utc):%Y%m%d}.{ext}"
+    return Response(
+        content=body, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/properties/{property_id}", response_model=schemas.PropertyOut)
