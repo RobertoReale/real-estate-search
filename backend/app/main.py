@@ -626,6 +626,33 @@ def repair_listings_endpoint(db: Session = Depends(get_db)):
     return repair_empty_listings_locally(db)
 
 
+# --- Logs ---
+
+LOG_PATH = BASE_DIR / "app.log"
+
+
+@app.get("/api/logs/tail")
+def logs_tail(lines: int = 200):
+    """Last N lines of the running backend's own log file, for the dashboard's
+    log viewer: without this, "is the check actually doing anything?" could
+    only be answered by opening app.log in a text editor. Reads the whole
+    current file rather than seeking from the end, which is fine at the
+    1 MB `RotatingFileHandler` cap this project uses.
+
+    Plain default (not `Query(..., ge=1, le=2000)`): this module's tests call
+    endpoint functions directly rather than through TestClient (invariant-free
+    of the real scheduler that the app lifespan would start), and a `Query`
+    sentinel only resolves to a value through FastAPI's own dependency
+    injection.
+    """
+    lines = max(1, min(lines, 2000))
+    if not LOG_PATH.exists():
+        return {"lines": [], "path": str(LOG_PATH)}
+    with open(LOG_PATH, encoding="utf-8", errors="replace") as f:
+        all_lines = f.read().splitlines()
+    return {"lines": all_lines[-lines:], "path": str(LOG_PATH)}
+
+
 # --- Settings ---
 
 @app.get("/api/settings")

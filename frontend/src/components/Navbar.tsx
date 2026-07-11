@@ -5,9 +5,10 @@ interface Props {
   scanStatus: ScanStatus | null;
   onScanNow: () => void;
   onOpenSettings: () => void;
+  onOpenLogs: () => void;
 }
 
-export default function Navbar({ scanStatus, onScanNow, onOpenSettings }: Props) {
+export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLogs }: Props) {
   const running = scanStatus?.running ?? false;
   // light is the default; dark only if the user chose it before
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
@@ -65,6 +66,10 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings }: Props)
         title={dark ? "Switch to light theme" : "Switch to dark theme"}
         aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}>
         {dark ? "☀️" : "🌙"}
+      </button>
+      <button className="btn-ghost shrink-0 px-3 sm:px-4" onClick={onOpenLogs}
+        title="View backend log" aria-label="View backend log">
+        📜
       </button>
       <button className="btn-ghost shrink-0 px-3 sm:px-4" onClick={onOpenSettings}
         title="Settings" aria-label="Settings">

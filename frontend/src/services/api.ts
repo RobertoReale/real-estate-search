@@ -4,7 +4,7 @@
 import type {
   AssistantResult, EmailScanParams, EmailScanProgress, EmailScanSummary,
   ImportCheckProgress, ImportCheckSummary, ImportedListing,
-  ImportFilters, MarketVelocity, PricingTrend, Property, PropertyFilters,
+  ImportFilters, LogTail, MarketVelocity, PricingTrend, Property, PropertyFilters,
   ScanStatus, SearchBuilderParams, SearchBuilderUrls, SearchProfile, Settings,
   TrendArea,
 } from "../types";
@@ -239,6 +239,10 @@ export const api = {
   /** Poll live progress of an ongoing dashboard properties availability check. */
   propertiesCheckProgress(): Promise<ImportCheckProgress> {
     return request("/properties/check-progress");
+  },
+  /** Last N lines of the backend's own app.log, for the in-app log viewer. */
+  logsTail(lines = 200): Promise<LogTail> {
+    return request(`/logs/tail?lines=${lines}`);
   },
 };
 

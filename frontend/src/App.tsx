@@ -8,6 +8,7 @@ import EmailImport from "./components/EmailImport";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
+import LogViewer from "./components/LogViewer";
 import Navbar from "./components/Navbar";
 import PriceTrends from "./components/PriceTrends";
 import { ProgressBar } from "./components/ProgressBar";
@@ -41,6 +42,7 @@ export default function App() {
   const [batchProgress, setBatchProgress] = useState<ImportCheckProgress | null>(null);
   const [batchSummary, setBatchSummary] = useState<ImportCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   // monotonic id per refresh: typing in a filter fires overlapping requests,
@@ -177,6 +179,7 @@ export default function App() {
         scanStatus={scanStatus}
         onScanNow={scanNow}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenLogs={() => setShowLogs(true)}
       />
 
       <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -412,6 +415,7 @@ export default function App() {
           }}
         />
       )}
+      {showLogs && <LogViewer onClose={() => setShowLogs(false)} />}
     </div>
   );
 }

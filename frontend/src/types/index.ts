@@ -1,5 +1,11 @@
 /** Core TypeScript data definitions matching backend REST API payloads and Pydantic schemas. */
 
+/** Tail of the backend's own app.log, for the in-app log viewer. */
+export interface LogTail {
+  lines: string[];
+  path: string;
+}
+
 /** Single portal ad associated with a deduplicated Property. */
 export interface Listing {
   id: number;
