@@ -88,6 +88,7 @@ export default function FiltersBar({
           <option value="price_asc">Price ascending</option>
           <option value="price_desc">Price descending</option>
           <option value="sqm_price">Lowest €/sqm</option>
+          <option value="match">🎯 Best match</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">

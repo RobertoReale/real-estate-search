@@ -48,6 +48,19 @@ DEFAULT_SETTINGS = {
     "email_import_auto_scan": False,
     "email_import_auto_scan_interval_hours": 24,
     "scan_interval_minutes": 60,
+    # Smart Match Score ("dream home"): an offline, weighted compatibility
+    # percentage shown on each card. Off by default — with nothing configured
+    # there is nothing to score against, so no badge appears. Every numeric
+    # preference uses 0 to mean "no constraint" (a None would be unclearable,
+    # since the settings PUT drops None-valued fields). Keywords are desired
+    # features matched in the listing text; zones are preferred city/zone names.
+    "match_score_enabled": False,
+    "dream_max_price": 0,
+    "dream_min_rooms": 0,
+    "dream_min_sqm": 0,
+    "dream_min_floor": 0,
+    "dream_keywords": [],
+    "dream_zones": [],
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,
     "max_pages_per_search": 10,

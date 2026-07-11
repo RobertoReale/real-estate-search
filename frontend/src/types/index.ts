@@ -45,6 +45,7 @@ export interface Property {
   area_median_sqm_price: number | null;
   area_median_scope: "zone" | "city" | null;
   sqm_price_delta_pct: number | null;
+  match_score: number | null;
   first_seen_at: string;
   last_seen_at: string;
   listings: Listing[];
@@ -88,6 +89,13 @@ export interface Settings {
   email_import_auto_scan?: boolean;
   email_import_auto_scan_interval_hours?: number;
   scan_interval_minutes: number;
+  match_score_enabled?: boolean;
+  dream_max_price?: number;
+  dream_min_rooms?: number;
+  dream_min_sqm?: number;
+  dream_min_floor?: number;
+  dream_keywords?: string[];
+  dream_zones?: string[];
   excluded_keywords: string[];
   request_delay_seconds: number;
   max_pages_per_search: number;

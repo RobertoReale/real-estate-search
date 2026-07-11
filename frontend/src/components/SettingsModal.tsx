@@ -58,6 +58,13 @@ export default function SettingsModal({ onClose }: Props) {
   const [interval, setIntervalMin] = useState(60);
   const [healthAfter, setHealthAfter] = useState(3);
   const [keywords, setKeywords] = useState("");
+  const [matchEnabled, setMatchEnabled] = useState(false);
+  const [dreamMaxPrice, setDreamMaxPrice] = useState(0);
+  const [dreamMinRooms, setDreamMinRooms] = useState(0);
+  const [dreamMinSqm, setDreamMinSqm] = useState(0);
+  const [dreamMinFloor, setDreamMinFloor] = useState(0);
+  const [dreamKeywords, setDreamKeywords] = useState("");
+  const [dreamZones, setDreamZones] = useState("");
   const [proxyUrl, setProxyUrl] = useState("");
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -87,6 +94,13 @@ export default function SettingsModal({ onClose }: Props) {
     setIntervalMin(s.scan_interval_minutes);
     setHealthAfter(s.health_alert_after_failures);
     setKeywords(s.excluded_keywords.join(", "));
+    setMatchEnabled(s.match_score_enabled ?? false);
+    setDreamMaxPrice(s.dream_max_price ?? 0);
+    setDreamMinRooms(s.dream_min_rooms ?? 0);
+    setDreamMinSqm(s.dream_min_sqm ?? 0);
+    setDreamMinFloor(s.dream_min_floor ?? 0);
+    setDreamKeywords((s.dream_keywords ?? []).join(", "));
+    setDreamZones((s.dream_zones ?? []).join(", "));
     setProxyUrl(s.proxy_url || "");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     // Secrets are write-only: the server never returns them, so the inputs go
@@ -116,6 +130,13 @@ export default function SettingsModal({ onClose }: Props) {
       scan_interval_minutes: interval,
       health_alert_after_failures: healthAfter,
       excluded_keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+      match_score_enabled: matchEnabled,
+      dream_max_price: dreamMaxPrice,
+      dream_min_rooms: dreamMinRooms,
+      dream_min_sqm: dreamMinSqm,
+      dream_min_floor: dreamMinFloor,
+      dream_keywords: dreamKeywords.split(",").map((k) => k.trim()).filter(Boolean),
+      dream_zones: dreamZones.split(",").map((k) => k.trim()).filter(Boolean),
       proxy_url: proxyUrl,
       datadome_auto_refresh: autoRefresh,
     };
@@ -444,6 +465,63 @@ export default function SettingsModal({ onClose }: Props) {
         </p>
         <textarea className="input w-full h-20 resize-none"
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+
+        <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
+          🎯 Smart Match Score (dream home)
+        </h3>
+        <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
+          <input type="checkbox" checked={matchEnabled}
+            onChange={(e) => setMatchEnabled(e.target.checked)} />
+          Show a compatibility % on each card, scored against the wishes below
+        </label>
+        <p className="text-xs t-dim mt-1 mb-2">
+          Every field is optional — leave a number at 0 to ignore it. Only the
+          wishes you fill in count towards the score. Nothing leaves your PC.
+        </p>
+        {matchEnabled && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <label className="text-xs t-muted col-span-2 sm:col-span-1">
+                Max price (€)
+                <input className="input w-full mt-1" type="number" min={0}
+                  value={dreamMaxPrice}
+                  onChange={(e) => setDreamMaxPrice(Number(e.target.value))} />
+              </label>
+              <label className="text-xs t-muted">
+                Min rooms
+                <input className="input w-full mt-1" type="number" min={0}
+                  value={dreamMinRooms}
+                  onChange={(e) => setDreamMinRooms(Number(e.target.value))} />
+              </label>
+              <label className="text-xs t-muted">
+                Min sqm
+                <input className="input w-full mt-1" type="number" min={0}
+                  value={dreamMinSqm}
+                  onChange={(e) => setDreamMinSqm(Number(e.target.value))} />
+              </label>
+              <label className="text-xs t-muted">
+                Min floor
+                <input className="input w-full mt-1" type="number" min={0}
+                  value={dreamMinFloor}
+                  onChange={(e) => setDreamMinFloor(Number(e.target.value))} />
+              </label>
+            </div>
+            <div>
+              <label className="text-xs t-muted block mb-1">
+                Desired features (comma-separated, e.g. balcone, ascensore, terrazzo)
+              </label>
+              <input className="input w-full" value={dreamKeywords}
+                onChange={(e) => setDreamKeywords(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs t-muted block mb-1">
+                Preferred zones or cities (comma-separated)
+              </label>
+              <input className="input w-full" value={dreamZones}
+                onChange={(e) => setDreamZones(e.target.value)} />
+            </div>
+          </div>
+        )}
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
           🛡️ Advanced Scraping & Bypass

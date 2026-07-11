@@ -111,6 +111,12 @@ phone without any of this. The dashboard is for browsing and triaging.
   and sale and rental prices are never mixed — until your database has enough
   history, cards simply show nothing rather than a number invented from two
   samples.
+* **Smart Match Score**: define your "dream home" once in **Settings** — a budget,
+  minimum rooms, surface or floor, must-have features (e.g. *balcone, ascensore*),
+  and preferred zones — and every card shows a **compatibility %** scored against
+  it. Only the wishes you fill in count, numbers you leave at 0 are ignored, and
+  the scoring is entirely local. Sort the grid by **🎯 Best match** to bring your
+  closest fits to the top.
 * **Market velocity**: how long listings survive before disappearing, broken down
   by zone and agency. It is built from properties that have actually vanished, so
   it becomes meaningful after a few months of scanning.

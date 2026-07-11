@@ -64,11 +64,13 @@ class Property(Base):
     )
 
     # Transient, request-scoped fields set by pricing_stats.annotate_market_position()
-    # and read by PropertyOut: never persisted, so plain attributes rather than
-    # mapped columns.
+    # and match_score.annotate_match_scores(), read by PropertyOut: never
+    # persisted, so plain attributes rather than mapped columns.
     area_median_sqm_price: float | None = None
     area_median_scope: str | None = None
     sqm_price_delta_pct: float | None = None
+    # Smart Match Score: compatibility % vs the user's "dream home" (None = off)
+    match_score: int | None = None
 
 
 class Listing(Base):

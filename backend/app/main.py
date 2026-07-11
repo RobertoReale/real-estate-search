@@ -19,6 +19,7 @@ from .scrapers import detect_portal
 from .services import email_import, notifier, scheduler
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
+from .services.match_score import annotate_match_scores
 from .services.pricing_stats import annotate_market_position
 from .services.query_parser import parse_query
 from .services.scanner import run_scan, scan_state
@@ -77,7 +78,10 @@ def list_properties(
     rooms: int | None = None,
     only_price_drops: bool = False,
     only_favorites: bool = False,
-    sort: str = Query("newest", pattern="^(newest|price_asc|price_desc|sqm_price)$"),
+    sort: str = Query(
+        "newest",
+        pattern="^(newest|price_asc|price_desc|sqm_price|match)$",
+    ),
 ):
     query = select(Property).options(
         selectinload(Property.listings), selectinload(Property.price_history)
@@ -111,6 +115,9 @@ def list_properties(
             if p.first_price and p.current_min_price
             and p.current_min_price < p.first_price
         ]
+    # Match scores are needed before the sort when ranking by compatibility;
+    # market position is display-only, so it stays after (order-independent).
+    annotate_match_scores(props, load_settings())
     if sort == "newest":
         props.sort(key=lambda p: p.first_seen_at, reverse=True)
     elif sort == "price_asc":
@@ -122,6 +129,10 @@ def list_properties(
             key=lambda p: (p.current_min_price / p.sqm)
             if p.current_min_price and p.sqm else 1e12
         )
+    elif sort == "match":
+        # best matches first; unscored (None) sink to the bottom
+        props.sort(key=lambda p: p.match_score if p.match_score is not None else -1,
+                   reverse=True)
     annotate_market_position(db, props)
     return props
 
@@ -132,6 +143,7 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
     if not prop:
         raise HTTPException(404, "Property not found")
     annotate_market_position(db, [prop])
+    annotate_match_scores([prop], load_settings())
     return prop
 
 
@@ -150,6 +162,7 @@ def patch_property(
     db.commit()
     db.refresh(prop)
     annotate_market_position(db, [prop])
+    annotate_match_scores([prop], load_settings())
     return prop
 
 

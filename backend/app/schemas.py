@@ -57,6 +57,8 @@ class PropertyOut(BaseModel):
     area_median_sqm_price: float | None = None
     area_median_scope: str | None = None  # "zone" | "city"
     sqm_price_delta_pct: float | None = None
+    # Smart Match Score: 0–100 compatibility vs "dream home" (None when off)
+    match_score: int | None = None
     first_seen_at: datetime
     last_seen_at: datetime
     listings: list[ListingOut] = []
@@ -124,6 +126,13 @@ class SettingsIn(BaseModel):
     email_import_auto_scan: bool | None = None
     email_import_auto_scan_interval_hours: int | None = None
     scan_interval_minutes: int | None = None
+    match_score_enabled: bool | None = None
+    dream_max_price: int | None = None
+    dream_min_rooms: int | None = None
+    dream_min_sqm: int | None = None
+    dream_min_floor: int | None = None
+    dream_keywords: list[str] | None = None
+    dream_zones: list[str] | None = None
     excluded_keywords: list[str] | None = None
     request_delay_seconds: float | None = None
     max_pages_per_search: int | None = None
@@ -145,6 +154,15 @@ class SettingsIn(BaseModel):
     def import_interval_at_least_hourly(cls, v: int | None) -> int | None:
         if v is not None and v < 1:
             raise ValueError("must be >= 1 hour")
+        return v
+
+    @field_validator("dream_max_price", "dream_min_rooms", "dream_min_sqm",
+                     "dream_min_floor")
+    @classmethod
+    def dream_fields_not_negative(cls, v: int | None) -> int | None:
+        # 0 is the "no constraint" sentinel; a negative is a client bug
+        if v is not None and v < 0:
+            raise ValueError("must be >= 0 (0 means no constraint)")
         return v
 
 

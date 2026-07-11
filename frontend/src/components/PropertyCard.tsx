@@ -31,6 +31,20 @@ export function MarketBadge({ property: p }: { property: Property }) {
   );
 }
 
+/** "🎯 92% match" badge: compatibility with the user's "dream home" settings.
+ *  Only rendered when the Smart Match Score feature is on (score is non-null).
+ *  Colour tracks the score so a strong match reads at a glance. */
+export function MatchBadge({ score }: { score: number | null }) {
+  if (score === null || score === undefined) return null;
+  const chip = score >= 80 ? "chip-emerald" : score >= 50 ? "chip-amber" : "chip-slate";
+  return (
+    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${chip}`}
+      title="Compatibility with your dream-home settings">
+      🎯 {score}% match
+    </span>
+  );
+}
+
 export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite,
 }: Props) {
@@ -135,6 +149,7 @@ export default function PropertyCard({
           )}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
+          <MatchBadge score={p.match_score} />
           <MarketBadge property={p} />
         </div>
         <h3 className="font-medium text-sm mt-1 line-clamp-2 min-h-[2.5rem]">
