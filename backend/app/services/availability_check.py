@@ -90,11 +90,14 @@ def check_properties_availability(db: Session, properties: list[Property]) -> di
                             listing.image_url = str(og_img["content"]).strip()[:500]
                     if not prop.image_url and listing.image_url:
                         prop.image_url = listing.image_url
-                    if prop.title in ("Appartamento in vendita", "N/A", "") or not prop.title:
+                    from .repair_listings import is_bad_title
+                    if is_bad_title(prop.title):
                         og_title = soup.find("meta", property="og:title")
                         if og_title and og_title.get("content"):
                             from .email_import import _clean_title
-                            prop.title = _clean_title(str(og_title["content"]))
+                            clean_og = _clean_title(str(og_title["content"]))
+                            if clean_og and not is_bad_title(clean_og):
+                                prop.title = clean_og
                 if res is None and getattr(probe, "last_error", None):
                     summary["last_error"] = probe.last_error
 
@@ -103,6 +106,18 @@ def check_properties_availability(db: Session, properties: list[Property]) -> di
                     if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
                             and _try_cookie_recovery(
                                 probe, listing.portal, settings, summary)):
+                        refreshes_used += 1
+                        block_streak = 0
+                        continue
+                    if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
+                        import time
+                        logger.info("availability_check: portal rate limit / block streak reached, sleeping 12s and rotating session")
+                        time.sleep(12.0)
+                        probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
+                        if hasattr(probe, "_new_session"):
+                            probe.session = probe._new_session()
+                        probe._warmed_hosts = set()
+                        probe.was_blocked = False
                         refreshes_used += 1
                         block_streak = 0
                         continue

@@ -256,10 +256,17 @@ class BaseScraper:
         return session
 
     def _rotate_session(self) -> bool:
-        """Switch to the next impersonation profile. False if all exhausted."""
+        """Switch to the next impersonation profile. False if all exhausted (or wrap around for ad-probe)."""
         if self._imp_index + 1 >= len(self.impersonations):
-            return False
-        self._imp_index += 1
+            if self.portal == "ad-probe" and len(self.impersonations) > 1:
+                import time
+                logger.info("ad-probe: impersonation cycle completed, resting 4s and wrapping around to %s", self.impersonations[0])
+                time.sleep(4.0)
+                self._imp_index = 0
+            else:
+                return False
+        else:
+            self._imp_index += 1
         logger.info(
             "%s: switching impersonation -> %s",
             self.portal, self.impersonations[self._imp_index],

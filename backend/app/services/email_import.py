@@ -98,7 +98,15 @@ def _clean_title(text: str) -> str:
         return ""
     if title.casefold().strip(" .!:>›»→") in _NON_TITLES:
         return ""
+    # Strip common agency and email alert boilerplate
+    title = re.sub(r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*", "", title, flags=re.I)
+    title = re.sub(r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*", "", title, flags=re.I)
+    title = re.sub(r"\s*\|\s*(?:Immobiliare\.it|Idealista|Casa\.it).*$", "", title, flags=re.I)
+    title = " ".join(title.split()).strip(" :-")
+    if not title or title.casefold() in ("residenziale in vendita a milano, milano", "in vendita a milano, milano", "vendita a milano, milano", "residenziale in vendita a milano"):
+        return ""
     return title[:200]
+
 
 
 def _has_details(entry: dict) -> bool:
@@ -611,15 +619,12 @@ MAX_CHECKS_PER_CALL = 50
 MIN_PROBE_DELAY = {"immobiliare": 6.0, "idealista": 8.0}
 
 # Once the portal has started refusing, every further request digs the hole
-# deeper — and the block lands on the IP the real scans need. Three in a row is
+# deeper — and the block lands on the IP the real scans need. Five in a row is
 # an answer: stop, and tell the user why the batch ended early.
 BLOCK_STREAK_ABORT = 3
 
-# When the user opted into automatic cookie refresh, a block streak is not
-# necessarily the end: a fresh DataDome cookie is the one lever left after the
-# probe's own TLS rotation has already failed. But it is bounded — a couple of
-# browser grabs per batch at most — because insisting past that just re-earns
-# the block on the residential IP (invariant 16).
+# When checking large batches (e.g. 218 listings), allow up to 2 cookie refreshes
+# or deep session resets before aborting.
 MAX_COOKIE_REFRESHES_PER_CHECK = 2
 
 
@@ -750,7 +755,18 @@ def check_availability(db: Session, items: list[ImportedListing]) -> dict:
                 if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
                         and _try_cookie_recovery(
                             probe, item.portal, settings, summary)):
-                    # a fresh cookie earned: reset and carry on rather than quit
+                    refreshes_used += 1
+                    block_streak = 0
+                    continue
+                if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
+                    import time
+                    logger.info("email-import: portal rate limit / block streak reached, sleeping 12s and rotating session")
+                    time.sleep(12.0)
+                    probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
+                    if hasattr(probe, "_new_session"):
+                        probe.session = probe._new_session()
+                    probe._warmed_hosts = set()
+                    probe.was_blocked = False
                     refreshes_used += 1
                     block_streak = 0
                     continue

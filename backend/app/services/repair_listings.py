@@ -40,33 +40,48 @@ def _detect_city(text: str) -> str:
     return ""
 
 
+def is_bad_title(title: str) -> bool:
+    if not title:
+        return True
+    tl = title.casefold().strip(" .-")
+    if tl in ("appartamento in vendita", "n/a", "", "in vendita a milano, milano", "vendita a milano, milano", "residenziale in vendita a milano, milano", "residenziale in vendita a milano", "immobile residenziale in vendita"):
+        return True
+    if any(k in tl for k in ("ti propone un immobile", "ti propone:", "affiliato ", "gabetti ", "tempocasa ", "studio quattro", "strategie immobiliari", "dhome real estate", "cosetta fiori")):
+        return True
+    return False
+
+
 def _extract_zone_and_title(subject: str, city: str, orig_title: str) -> tuple[str, str]:
-    if not subject:
-        return "", orig_title
+    raw = subject if subject and len(subject) > len(orig_title) else (orig_title or subject or "")
+    # Remove agency / alert email prefixes
+    cleaned = re.sub(r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*", "", raw, flags=re.I)
+    cleaned = re.sub(r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*\|\s*(?:Immobiliare\.it|Idealista|Casa\.it).*$", "", cleaned, flags=re.I)
     
-    lines = [line.strip() for line in re.split(r"(\r?\n|:)", subject) if line.strip() and line.strip() != ":"]
-    if len(lines) >= 2 and "ti propone" in lines[0].lower():
-        detail = lines[-1].strip()
-        if detail and detail.lower() not in ("appartamento in vendita", "residenziale in vendita a milano", "residenziale in affitto a milano"):
-            parts = [p.strip() for p in re.split(r"[-–—]", detail) if p.strip()]
-            if len(parts) >= 2:
-                if any(w in parts[-1].lower() for w in ("locale", "attico", "villa", "loft", "casa")):
-                    zone = parts[0]
-                    title = f"{parts[-1]} - {parts[0]}, {city or 'Italia'}"
-                    return zone, title
-                elif any(w in parts[0].lower() for w in ("locale", "attico", "villa", "loft", "casa")):
-                    zone = parts[-1]
-                    title = f"{parts[0]} - {parts[-1]}, {city or 'Italia'}"
-                    return zone, title
-            return detail[:50], f"{detail}, {city or 'Italia'}"
+    lines = [l.strip() for l in re.split(r"[\r\n]+", cleaned) if l.strip()]
+    detail = lines[-1] if lines else cleaned
+    detail = " ".join(detail.split()).strip(" :-")
     
-    if orig_title in ("Appartamento in vendita", "N/A", "") and subject:
-        clean_subj = re.sub(r"\b(ti propone un immobile per la tua ricerca)\b", "", subject, flags=re.I).strip(" :-\r\n")
-        clean_subj = " ".join(clean_subj.split())
-        if clean_subj and len(clean_subj) > 5:
-            return "", f"{clean_subj}, {city or 'Italia'}"[:120]
+    zone = ""
+    title = orig_title
+    if detail and detail.casefold() not in ("appartamento in vendita", "residenziale in vendita a milano", "residenziale in affitto a milano", "in vendita a milano", "vendita a milano"):
+        parts = [p.strip() for p in re.split(r"[-–—]", detail) if p.strip()]
+        if len(parts) >= 2:
+            if any(w in parts[-1].casefold() for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")):
+                zone = parts[0]
+                title = f"{parts[-1]} - {parts[0]}, {city or 'Italia'}"
+            elif any(w in parts[0].casefold() for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")):
+                zone = parts[-1]
+                title = f"{parts[0]} - {parts[-1]}, {city or 'Italia'}"
+            else:
+                title = f"{detail}, {city or 'Italia'}"
+        else:
+            title = f"{detail}, {city or 'Italia'}"
             
-    return "", orig_title
+    if is_bad_title(title):
+        title = f"Immobile residenziale - {zone or city or 'Milano'}"
+        
+    return zone[:100], title[:150]
 
 
 def repair_empty_listings_locally(db: Session) -> dict:
@@ -104,15 +119,22 @@ def repair_empty_listings_locally(db: Session) -> dict:
                 changed = True
 
         # 2. Recover zone & title
-        if prop.title in ("Appartamento in vendita", "N/A", "") or not prop.zone or prop.zone == "":
+        if is_bad_title(prop.title) or not prop.zone or prop.zone == "" or prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):
             subj = imp.email_subject if imp else ""
             zone, new_title = _extract_zone_and_title(subj, prop.city, prop.title)
-            if zone and not prop.zone:
+            if zone and (not prop.zone or prop.zone.casefold() in ("in vendita a milano", "vendita a milano", "")):
                 prop.zone = zone
                 changed = True
-            if new_title and new_title != prop.title and prop.title in ("Appartamento in vendita", "N/A", ""):
-                prop.title = new_title
+            elif prop.zone and prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):
+                prop.zone = ""
                 changed = True
+            if new_title and (is_bad_title(prop.title) or new_title != prop.title):
+                if not is_bad_title(new_title):
+                    prop.title = new_title
+                    changed = True
+                elif is_bad_title(prop.title):
+                    prop.title = f"Immobile residenziale - {prop.zone or prop.city or 'Milano'}"
+                    changed = True
 
         # 3. Recover image_url across property, listings, and imported_listings
         for listing in prop.listings:
