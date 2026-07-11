@@ -626,6 +626,31 @@ def repair_listings_endpoint(db: Session = Depends(get_db)):
     return repair_empty_listings_locally(db)
 
 
+# Scoped, irreversible data resets (Settings → Data management). Each is a
+# distinct deliberate choice, so they are separate scopes rather than flags on
+# one call. `factory` and `dashboard` delete rows a running scan is writing, so
+# they refuse while one is in flight; `factory` snapshots the DB first.
+_RESET_SCOPES = ("email-import", "dashboard", "pricing-snapshots", "factory")
+
+
+@app.post("/api/maintenance/reset/{scope}")
+def maintenance_reset(scope: str, db: Session = Depends(get_db)):
+    if scope not in _RESET_SCOPES:
+        raise HTTPException(400, f"Unknown reset scope: {scope}")
+    if scope in ("dashboard", "factory") and scan_state["running"]:
+        raise HTTPException(
+            409, "A scan is running: wait for it to finish before resetting"
+        )
+    from .services import data_reset
+    fn = {
+        "email-import": data_reset.reset_email_import,
+        "dashboard": data_reset.clear_dashboard,
+        "pricing-snapshots": data_reset.clear_pricing_snapshots,
+        "factory": data_reset.factory_reset,
+    }[scope]
+    return fn(db)
+
+
 # --- Logs ---
 
 LOG_PATH = BASE_DIR / "app.log"

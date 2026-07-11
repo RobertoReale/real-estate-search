@@ -131,10 +131,11 @@ progetto/
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
 │   │       ├── repair_listings.py # local data repair (titles, images) + live enrichment
+│   │       ├── data_reset.py      # scoped irreversible data wipes (Settings -> Data management)
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 281 tests
+│   ├── tests/                    # 290 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -171,7 +172,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (206, `pytest`)
+### Automated Tests (290, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

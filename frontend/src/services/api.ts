@@ -149,6 +149,12 @@ export const api = {
   repairListings(): Promise<{ properties_fixed: number; listings_fixed: number; images_recovered: number }> {
     return request("/maintenance/repair-listings", { method: "POST" });
   },
+  /** Irreversibly wipe a scope of stored data (Settings → Data management). */
+  resetData(scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory"): Promise<{
+    scope: string; deleted: Record<string, number>; backup?: string | null;
+  }> {
+    return request(`/maintenance/reset/${scope}`, { method: "POST" });
+  },
 
   /** Load current user preferences and API credentials. */
   getSettings(): Promise<Settings> {

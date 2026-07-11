@@ -26,11 +26,14 @@ BACKUP_EVERY = timedelta(hours=24)
 BACKUP_KEEP = 14
 
 
-def maybe_backup(db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR) -> Path | None:
+def maybe_backup(db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR,
+                 force: bool = False) -> Path | None:
     """Copies the database unless a recent backup already exists.
 
     Returns the new backup file, or None when skipped. Never raises: a failed
-    backup round must not take down the scheduler (or startup) with it.
+    backup round must not take down the scheduler (or startup) with it. `force`
+    bypasses the once-per-day throttle — used right before a destructive reset,
+    where a snapshot must be taken no matter how recently one was.
     """
     try:
         if not db_path.exists():
@@ -40,7 +43,7 @@ def maybe_backup(db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR) -> Path
         existing = sorted(
             backup_dir.glob("case-*.db"), key=lambda p: p.stat().st_mtime
         )
-        if existing:
+        if existing and not force:
             newest = datetime.fromtimestamp(
                 existing[-1].stat().st_mtime, tz=timezone.utc
             )

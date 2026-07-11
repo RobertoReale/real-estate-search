@@ -7,7 +7,7 @@ interface Props {
 }
 
 /** Which section a success/error message belongs to, so it can render there. */
-type Section = "telegram" | "email" | "imap" | "global";
+type Section = "telegram" | "email" | "imap" | "global" | "data";
 
 interface Feedback {
   where: Section;
@@ -208,6 +208,31 @@ export default function SettingsModal({ onClose }: Props) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
       setGrabbing(false);
+    }
+  }
+
+  /** Irreversible data reset. Confirmed in the browser (a second time for the
+   * factory wipe), then the page reloads so the dashboard reflects the change. */
+  async function runReset(
+    scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory",
+    confirmText: string,
+    doubleConfirm = false,
+  ) {
+    if (!window.confirm(confirmText)) return;
+    if (doubleConfirm && !window.confirm(
+      "Last chance: this erases everything and cannot be undone. Continue?")) return;
+    setBusy("data");
+    setFeedback(null);
+    try {
+      const r = await api.resetData(scope);
+      const removed = Object.entries(r.deleted)
+        .map(([k, v]) => `${v} ${k.replace(/_/g, " ")}`).join(", ");
+      setFeedback({ where: "data", ok: true,
+        text: `Done — removed ${removed || "nothing"}${r.backup ? ` · backup saved: ${r.backup}` : ""}. Reloading…` });
+      setTimeout(() => window.location.reload(), 1600);
+    } catch (e) {
+      setFeedback({ where: "data", ok: false, text: errorText(e) });
+      setBusy(null);
     }
   }
 
@@ -610,6 +635,71 @@ export default function SettingsModal({ onClose }: Props) {
         </div>
 
         <Result where="global" />
+
+        <div className="mt-8 pt-5 border-t border-rose-300/40 dark:border-rose-800/40">
+          <h3 className="font-semibold text-sm uppercase text-rose-600 dark:text-rose-400 mb-1">
+            🧹 Data management
+          </h3>
+          <p className="text-xs t-dim mb-3">
+            Irreversible. Your notification and login settings are always kept.
+          </p>
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex-1 text-xs t-body">
+                <span className="font-medium">Reset email imports</span> — clear
+                every listing found in your inbox so you can import again from
+                scratch (also forgets discarded ones).
+              </div>
+              <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
+                disabled={anyBusy}
+                onClick={() => runReset("email-import",
+                  "Delete ALL imported email listings? You can re-run the inbox import afterwards.")}>
+                Reset imports
+              </button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex-1 text-xs t-body">
+                <span className="font-medium">Clear dashboard</span> — delete all
+                found properties and price history. Your search profiles stay; the
+                next scan rebuilds the grid silently.
+              </div>
+              <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
+                disabled={anyBusy}
+                onClick={() => runReset("dashboard",
+                  "Delete ALL properties and their price history? Search profiles are kept and the next scan will rebuild the dashboard.")}>
+                Clear dashboard
+              </button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex-1 text-xs t-body">
+                <span className="font-medium">Clear price trends</span> — remove
+                the daily median history behind the trend charts, without touching
+                any listing.
+              </div>
+              <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
+                disabled={anyBusy}
+                onClick={() => runReset("pricing-snapshots",
+                  "Delete the stored price-trend history? The charts will start over from the next scan.")}>
+                Clear trends
+              </button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex-1 text-xs t-body">
+                <span className="font-medium">Factory reset</span> — wipe
+                everything (dashboard, profiles, imports, trends) back to a fresh
+                install. A backup of the database is saved first.
+              </div>
+              <button className="btn-ghost w-full sm:w-auto text-white bg-rose-600 hover:bg-rose-700 border-rose-600"
+                disabled={anyBusy}
+                onClick={() => runReset("factory",
+                  "Factory reset: this deletes the dashboard, ALL search profiles, imports and trends. A backup is saved first. Continue?",
+                  true)}>
+                Factory reset
+              </button>
+            </div>
+          </div>
+          <Result where="data" />
+        </div>
 
         <div className="flex justify-end gap-2 mt-6">
           <button className="btn-ghost" onClick={onClose}>Close</button>
