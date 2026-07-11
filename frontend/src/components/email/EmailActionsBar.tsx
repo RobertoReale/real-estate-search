@@ -181,6 +181,11 @@ export function EmailActionsBar({
               ⚠️ Il portale ha iniziato a bloccare le richieste, quindi la verifica è stata interrotta per proteggere l'IP di rete. Inserisci un nuovo cookie DataDome oppure riprova più tardi.
             </p>
           )}
+          {checkSummary.capped && !checkSummary.aborted && (
+            <p className="t-dim">
+              Limite di richieste per esecuzione raggiunto: rilancia la verifica per continuare dai rimanenti.
+            </p>
+          )}
         </div>
       )}
     </div>

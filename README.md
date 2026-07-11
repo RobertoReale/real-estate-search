@@ -183,8 +183,10 @@ phone without any of this. The dashboard is for browsing and triaging.
   the app's traffic through a proxy configured in **Settings**.
 
   The check is deliberately slow: it visits the portal's homepage first (as a
-  browser would), then one ad page every 6–8 seconds, at most 50 per click. Same
-  pace as a normal scan, and one tenth of its volume. If the portal starts
+  browser would), then one ad page every 6–8 seconds, at most 50 live page
+  visits per click — selecting hundreds is fine, the already-verified ones skip
+  for free, so pressing the button again continues where the last run stopped.
+  Same pace as a normal scan, and one tenth of its volume. If the portal starts
   refusing anyway, the check **stops after three refusals in a row** and says so:
   insisting would only deepen the block, and the block would land on the same
   home connection your scheduled scans need. In that case, wait and retry later.

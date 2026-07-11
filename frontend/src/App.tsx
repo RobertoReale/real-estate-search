@@ -305,9 +305,14 @@ export default function App() {
                 total={batchProgress?.total ?? 0}
                 indeterminate={!batchProgress || batchProgress.total <= 0}>
                 {batchProgress
-                  ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.gone} rilevati come rimossi/venduti`
+                  ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.online ?? 0} online, ${batchProgress.gone} rimossi/venduti${(batchProgress.unknown ?? 0) > 0 ? `, ${batchProgress.unknown} non verificabili` : ""}`
                   : "Avvio verifica in corso…"}{" "}
                 Pausa di sicurezza attiva tra una richiesta e l'altra per proteggere l'IP da blocchi DataDome.
+                {batchProgress?.last_error && (
+                  <span className="block opacity-75 font-normal">
+                    Ultimo problema dal portale: {batchProgress.last_error}
+                  </span>
+                )}
               </ProgressBar>
             )}
 
@@ -318,6 +323,16 @@ export default function App() {
                   <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} rimossi o venduti (spostati in Gone)</span> |{" "}
                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} ancora online</span>
                   {batchSummary.unknown > 0 && ` (${batchSummary.unknown} non verificabili dal portale)`}
+                  {batchSummary.aborted && (
+                    <span className="block text-amber-600 dark:text-amber-400">
+                      ⚠️ Il portale ha bloccato le richieste: verifica interrotta per proteggere l'IP. Riprova più tardi.
+                    </span>
+                  )}
+                  {batchSummary.capped && !batchSummary.aborted && (
+                    <span className="block">
+                      Limite di richieste per esecuzione raggiunto: rilancia la verifica per continuare dai rimanenti.
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"

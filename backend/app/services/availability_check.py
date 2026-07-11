@@ -10,6 +10,7 @@ on demand. It features:
 """
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -61,7 +62,13 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
         raise AvailabilityCheckError(
             "A property availability check is already running: wait for it to finish"
         )
+    try:
+        return _check_properties_availability_inner(db, properties, skip_recent_hours)
+    finally:
+        _prop_check_run_lock.release()
 
+
+def _check_properties_availability_inner(db: Session, properties: list[Property], skip_recent_hours: float = 6.0) -> dict:
     settings = load_settings()
     configured = float(settings.get("request_delay_seconds") or 6.0)
     # The slowest portal among the listings sets the delay floor
@@ -71,18 +78,33 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
 
     summary = {
         "checked": 0, "gone": 0, "online": 0, "unknown": 0,
-        "aborted": False, "last_error": None, "cookie_refreshed": 0,
+        "aborted": False, "capped": False, "last_error": None,
+        "cookie_refreshed": 0,
     }
-    _prop_check_progress.update(active=True, done=0, total=len(properties), gone=0)
+    _prop_check_progress.update(active=True, done=0, total=len(properties),
+                                gone=0, online=0, unknown=0, last_error=None)
+    logger.info("availability_check: starting batch of %d properties (delay=%.1fs, skip_recent_hours=%.1f)",
+                len(properties), delay, skip_recent_hours)
 
     try:
         block_streak = 0
         refreshes_used = 0
+        probes_used = 0
         for index, prop in enumerate(properties):
             if not prop.listings:
                 # No portal listings attached: nothing to check
                 _prop_check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
+
+            if probes_used >= MAX_CHECKS_PER_CALL:
+                # The cap bounds portal fetches, not selection size: recently
+                # verified properties skip for free, so a "select all" batch
+                # advances by up to MAX_CHECKS_PER_CALL live probes per run
+                # and the next run resumes past them (smart resume).
+                summary["capped"] = True
+                logger.info("availability_check: probe budget (%d) spent, "
+                            "stopping after %d properties", MAX_CHECKS_PER_CALL, index)
+                break
 
             if (skip_recent_hours > 0 and len(properties) > 1 and prop.listings
                     and all(_is_recently_checked(l.last_seen_at, skip_recent_hours) for l in prop.listings)
@@ -94,6 +116,7 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
 
             results = []
             for listing in prop.listings:
+                probes_used += 1
                 res = probe.check(listing.url)
                 if res is not None:
                     listing.last_seen_at = datetime.now(timezone.utc)
@@ -127,7 +150,6 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
                         block_streak = 0
                         continue
                     if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
-                        import time
                         logger.info("availability_check: portal rate limit / block streak reached, sleeping 12s and rotating session")
                         time.sleep(12.0)
                         probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
@@ -138,6 +160,19 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
                         refreshes_used += 1
                         block_streak = 0
                         continue
+                    if (hasattr(probe, "start_browser_session")
+                            and not getattr(probe, "_browser_ctx", None)
+                            and probe.start_browser_session()):
+                        # Last resort, opt-in (invariant 18): carry the batch
+                        # on through the persistent browser instead of
+                        # hammering a TLS session the portal already refused.
+                        logger.info("availability_check: curl_cffi blocked repeatedly, switching to persistent browser session")
+                        time.sleep(6.0)
+                        block_streak = 0
+                        continue
+                    # Every lever tried: insisting past here only deepens the
+                    # block on the IP the scheduled scans depend on
+                    # (invariant 16) — stop and tell the user why.
                     logger.warning(
                         "availability_check: portal blocking, stopping after %s properties",
                         summary["checked"],
@@ -166,16 +201,24 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
             else:
                 summary["unknown"] += 1
 
+            logger.info("availability_check: [%d/%d] property %s -> %s (online=%d, gone=%d, unknown=%d)",
+                        index + 1, len(properties), prop.id, prop.status,
+                        summary["online"], summary["gone"], summary["unknown"])
             summary["checked"] += 1
             prop.last_seen_at = datetime.now(timezone.utc)
             db.commit()
-            _prop_check_progress.update(done=index + 1, gone=summary["gone"])
+            _prop_check_progress.update(done=index + 1, gone=summary["gone"],
+                                        online=summary["online"],
+                                        unknown=summary["unknown"],
+                                        last_error=summary["last_error"])
 
             if index + 1 < len(properties):
                 probe.polite_sleep()
     finally:
+        # hasattr: tests swap in fake probes without the browser machinery
+        if hasattr(probe, "close_browser_session"):
+            probe.close_browser_session()
         _prop_check_progress.update(active=False)
-        _prop_check_run_lock.release()
 
     logger.info("availability_check: completed %s", summary)
     return summary

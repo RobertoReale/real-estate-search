@@ -390,8 +390,9 @@ def _probe(response=None, raises=None) -> AdProbe:
     class _Session:
         def __init__(self):
             self.urls = []
+            self.headers = {}
 
-        def get(self, url, allow_redirects=True):
+        def get(self, url, **kwargs):
             self.urls.append(url)
             if raises is not None:
                 raise raises
@@ -474,6 +475,51 @@ def test_only_a_refusal_sets_was_blocked():
     live = _probe(_Response())
     live.check("https://www.immobiliare.it/annunci/129244060/")
     assert live.was_blocked is False
+
+
+def test_browser_fallback_stays_opt_in(monkeypatch):
+    """A blocked probe may fall back to a real (headless) browser, but only
+    when `datadome_auto_refresh` is on: no batch may launch a browser the user
+    did not ask for (invariant 18). With the flag off, a block stays a plain
+    "unknown" and still counts towards the abort streak."""
+    from app import config
+    from app.services import cookie_harvester
+
+    launched = []
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(cookie_harvester, "_launch",
+                        lambda *a, **k: launched.append(True))
+    monkeypatch.setattr(config, "load_settings",
+                        lambda: {"datadome_auto_refresh": False})
+
+    probe = _probe(_Response(status_code=403))
+    assert probe.check("https://www.immobiliare.it/annunci/1/") is None
+    assert probe.was_blocked is True
+    assert launched == []
+
+
+def test_browser_session_starts_when_opted_in(monkeypatch):
+    """The same flag flipped on authorises the persistent fallback session
+    (the launch itself is headless — that lives in the inner helper, faked
+    here to keep the test browser-free)."""
+    from app import config
+    from app.services import cookie_harvester
+
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(config, "load_settings",
+                        lambda: {"datadome_auto_refresh": True})
+
+    seen = {}
+
+    def fake_inner(self):
+        seen["started"] = True
+        return True
+
+    monkeypatch.setattr(AdProbe, "_start_browser_session_inner", fake_inner)
+    probe = _probe(_Response(status_code=403))
+    assert probe.start_browser_session() is True
+    assert seen == {"started": True}
+    probe.close_browser_session()
 
 
 def test_rotation_stops_when_profiles_are_exhausted():

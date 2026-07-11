@@ -232,6 +232,11 @@ class BaseScraper:
         session.headers.update({
             "Accept-Language": "it-IT,it;q=0.9,en;q=0.6",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
         })
         from ..config import load_settings
         settings = load_settings()
@@ -421,6 +426,12 @@ class AdProbe(BaseScraper):
         self.was_blocked = False
         self.last_error: str | None = None
         self.last_soup: typing.Any = None
+        # Persistent Playwright fallback (opt-in, see start_browser_session).
+        self._pw_pool: typing.Any = None
+        self._pw: typing.Any = None
+        self._browser_ctx: typing.Any = None
+        self._browser_page: typing.Any = None
+        self._browser_warmed_hosts: set[str] = set()
 
     def warm_host(self, url: str) -> None:
         """Picks up the portal's DataDome cookie from its homepage first.
@@ -446,6 +457,81 @@ class AdProbe(BaseScraper):
         for host in hosts:
             self.warm_host(f"https://{host}/")
 
+    def _ensure_pw_pool(self):
+        """Every Playwright call funnels through this one dedicated thread:
+        the sync API refuses to run on a thread that owns an asyncio loop, and
+        its objects are greenlet-bound to the thread that created them — so
+        creating the context on one thread and driving it from another crashes.
+        """
+        if self._pw_pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._pw_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="adprobe_pw")
+        return self._pw_pool
+
+    def _start_browser_session_inner(self) -> bool:
+        from playwright.sync_api import sync_playwright
+        from ..services import cookie_harvester
+        self._pw = sync_playwright().start()
+        # Headless: this launch is unattended (mid-batch, nobody watching), and
+        # invariant 18 reserves the visible browser for the manual grab where
+        # the user is present to solve a CAPTCHA.
+        self._browser_ctx = cookie_harvester._launch(self._pw, headless=True)
+        self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
+        self._browser_warmed_hosts = set()
+        return True
+
+    def start_browser_session(self) -> bool:
+        """Opens a persistent Playwright context reused across ad checks.
+
+        Opt-in via `datadome_auto_refresh` — the same switch that authorises
+        every other unattended browser launch (invariant 18). Disabled or
+        unavailable, it reports False and the caller aborts the batch as
+        before, instead of launching a browser the user never asked for.
+        """
+        if self._browser_ctx:
+            return True
+        try:
+            from ..services import cookie_harvester
+            if not cookie_harvester.is_available():
+                return False
+            from ..config import load_settings
+            if not load_settings().get("datadome_auto_refresh"):
+                return False
+            return self._ensure_pw_pool().submit(self._start_browser_session_inner).result()
+        except Exception as e:
+            logger.warning("ad-probe: start_browser_session failed: %s", e)
+            self.close_browser_session()
+            return False
+
+    def close_browser_session(self) -> None:
+        """Closes any persistent Playwright context used by this probe."""
+        try:
+            if self._pw_pool is not None:
+                try:
+                    self._pw_pool.submit(self._close_browser_session_inner).result()
+                finally:
+                    self._pw_pool.shutdown(wait=False)
+                    self._pw_pool = None
+            else:
+                self._close_browser_session_inner()
+        except Exception:
+            pass
+
+    def _close_browser_session_inner(self) -> None:
+        if self._browser_ctx:
+            try:
+                self._browser_ctx.close()
+            except Exception:
+                pass
+            self._browser_ctx = None
+        if self._pw:
+            try:
+                self._pw.stop()
+            except Exception:
+                pass
+            self._pw = None
+        self._browser_page = None
+
     def check(self, url: str) -> bool | None:
         """True = still online, False = gone, None = could not tell."""
         self.was_blocked = False
@@ -453,9 +539,17 @@ class AdProbe(BaseScraper):
         self.last_soup = None
         self.warm_host(url)
         path = urlparse(url).path.rstrip("/")
+        host = urlparse(url).netloc
+        referer = f"https://{host}/"
         resp = None
         for attempt in (0, 1):
             try:
+                # An ad page reached with no Referer at all is a bot tell; the
+                # homepage is what a human arriving from the portal would carry.
+                try:
+                    self.session.headers["Referer"] = referer
+                except Exception:
+                    pass
                 resp = self.session.get(url, allow_redirects=True)
             except Exception as e:  # DNS, TLS, timeout: says nothing about the ad
                 logger.info("ad-probe: %s -> unknown (%s)", url, e)
@@ -495,49 +589,65 @@ class AdProbe(BaseScraper):
         return is_online
 
     def _browser_check(self, url: str) -> bool | None:
-        """Fallback to checking the ad URL using the persistent AutomationControlled Playwright context."""
+        """Fallback to checking the ad URL in the persistent Playwright context.
+
+        Gated behind `start_browser_session` (opt-in) and always executed on
+        the probe's dedicated Playwright thread.
+        """
         try:
-            from ..services import cookie_harvester
-            if not cookie_harvester.is_available():
+            if not self.start_browser_session():
                 return None
-            from playwright.sync_api import sync_playwright
+            return self._ensure_pw_pool().submit(self._browser_check_inner, url).result()
+        except Exception as e:
+            logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
+            return None
+
+    def _browser_check_inner(self, url: str) -> bool | None:
+        try:
+            page = self._browser_page
+            if page is None:
+                return None
             host = urlparse(url).netloc
-            with sync_playwright() as p:
-                # Try headful first for maximum DataDome bypass reliability
-                ctx = cookie_harvester._launch(p, headless=False)
+            if host not in self._browser_warmed_hosts:
+                # domcontentloaded, not networkidle: ad-tech keeps portal
+                # homepages busy forever, so networkidle just burns the timeout.
+                home = f"https://{host}/"
+                resp_home = page.goto(home, wait_until="domcontentloaded", timeout=25000)
+                if resp_home and resp_home.status not in (403, 429):
+                    self._browser_warmed_hosts.add(host)
+                page.wait_for_timeout(3000)
+
+            home_ref = f"https://{host}/"
+            resp = page.goto(url, referer=home_ref, wait_until="domcontentloaded", timeout=25000)
+            if not resp:
+                return None
+            if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
+                page.wait_for_timeout(5000)
+                if "captcha" in page.content()[:4000].lower():
+                    return None
+            path = urlparse(url).path.rstrip("/")
+            if resp.status in (404, 410):
+                return False
+            if resp.status >= 400:
+                return None
+            if path and path not in urlparse(str(page.url)).path:
+                return False
+            content = page.content().lower()
+            is_online = not any(marker in content for marker in AD_GONE_MARKERS)
+            if is_online:
                 try:
-                    if not hasattr(self, "_browser_warmed_hosts"):
-                        self._browser_warmed_hosts = set()
-                    page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                    if host not in self._browser_warmed_hosts:
-                        home = f"https://{host}/"
-                        resp_home = page.goto(home, wait_until="domcontentloaded", timeout=20000)
-                        if resp_home and resp_home.status not in (403, 429):
-                            self._browser_warmed_hosts.add(host)
-                        page.wait_for_timeout(1000)
-                    resp = page.goto(url, wait_until="domcontentloaded", timeout=25000)
-                    if not resp:
-                        return None
-                    if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
-                        return None
-                    path = urlparse(url).path.rstrip("/")
-                    if resp.status in (404, 410):
-                        return False
-                    if resp.status >= 400:
-                        return None
-                    if path and path not in urlparse(str(page.url)).path:
-                        return False
-                    content = page.content().lower()
-                    is_online = not any(marker in content for marker in AD_GONE_MARKERS)
-                    if is_online:
-                        try:
-                            from bs4 import BeautifulSoup
-                            self.last_soup = BeautifulSoup(page.content(), "html.parser")
-                        except Exception:
-                            pass
-                    return is_online
-                finally:
-                    ctx.close()
+                    from bs4 import BeautifulSoup
+                    self.last_soup = BeautifulSoup(page.content(), "html.parser")
+                except Exception:
+                    pass
+            try:
+                cookies = self._browser_ctx.cookies(home_ref)
+                dd = [c["value"] for c in cookies if c["name"] == "datadome"]
+                if dd and hasattr(self, "session") and self.session:
+                    self.session.cookies.set("datadome", dd[0], domain=f".{host}")
+            except Exception:
+                pass
+            return is_online
         except Exception as e:
             logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
             return None

@@ -217,6 +217,8 @@ export interface ImportCheckSummary {
   unknown: number;
   // the portal refused three times in a row and the batch stopped early
   aborted: boolean;
+  // the per-run live-fetch budget ran out: re-run to continue where it left off
+  capped?: boolean;
   last_error?: string | null;
   // how many times a fresh DataDome cookie was grabbed mid-check to recover
   // from a block (only when automatic cookie refresh is enabled)
@@ -228,6 +230,9 @@ export interface ImportCheckProgress {
   done: number;
   total: number;
   gone: number;
+  online?: number;
+  unknown?: number;
+  last_error?: string | null;
 }
 
 export interface EmailScanParams {

@@ -129,10 +129,12 @@ progetto/
 │   │       ├── query_parser.py   # offline natural-language search assistant
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
+│   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
+│   │       ├── repair_listings.py # local data repair (titles, images) + live enrichment
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 268 tests
+│   ├── tests/                    # 277 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4

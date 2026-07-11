@@ -333,7 +333,8 @@ def test_check_marks_gone_listings_and_leaves_the_live_ones(db, monkeypatch):
 
     summary = check_availability(db, [alive])   # one at a time: no polite_sleep
     assert summary == {"checked": 1, "gone": 0, "online": 1, "unknown": 0,
-                       "aborted": False, "last_error": None, "cookie_refreshed": 0}
+                       "aborted": False, "capped": False, "last_error": None,
+                       "cookie_refreshed": 0}
     assert alive.is_available is True and alive.last_checked_at is not None
 
     summary = check_availability(db, [dead])
@@ -469,6 +470,33 @@ def test_cookie_recovery_is_skipped_when_not_opted_in(db, monkeypatch):
     assert summary["aborted"] is True
     assert summary["cookie_refreshed"] == 0
     assert called == []  # no browser launched
+
+
+def test_the_probe_budget_caps_live_fetches_not_the_selection(db, monkeypatch):
+    """The cap bounds portal fetches per run (invariant 16). It used to slice
+    the ids in the endpoint instead, which combined with smart resume meant a
+    "select all" batch re-spent every run on the same first fifty rows."""
+    items = [_staged(db, str(900 + n))
+             for n in range(email_import.MAX_CHECKS_PER_CALL + 5)]
+
+    class FastProbe:
+        def __init__(self, delay_seconds=6.0):
+            self.was_blocked = False
+
+        def check(self, url):
+            return True
+
+        def polite_sleep(self):
+            pass
+
+    monkeypatch.setattr(email_import, "AdProbe", FastProbe)
+    summary = check_availability(db, items)
+
+    assert summary["capped"] is True
+    assert summary["checked"] == email_import.MAX_CHECKS_PER_CALL
+    assert summary["aborted"] is False
+    # the rows past the budget were left for the next run
+    assert items[-1].is_available is None
 
 
 def test_a_slow_portal_sets_the_pace_for_the_whole_batch(db, monkeypatch):

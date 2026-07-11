@@ -30,6 +30,7 @@ import imaplib
 import logging
 import re
 import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 from email.header import decode_header, make_header
 from email.message import Message
@@ -684,6 +685,13 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
         raise ImapError(
             "An availability check is already running: wait for it to finish"
         )
+    try:
+        return _check_availability_inner(db, items, skip_recent_hours)
+    finally:
+        _check_run_lock.release()
+
+
+def _check_availability_inner(db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0) -> dict:
     settings = load_settings()
     configured = float(settings.get("request_delay_seconds") or 6.0)
     # the slowest portal in the batch sets the pace for all of it
@@ -692,12 +700,24 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
     ])
     probe = AdProbe(delay_seconds=delay)
     summary = {"checked": 0, "gone": 0, "online": 0, "unknown": 0,
-               "aborted": False, "last_error": None, "cookie_refreshed": 0}
-    _check_progress.update(active=True, done=0, total=len(items), gone=0)
+               "aborted": False, "capped": False, "last_error": None,
+               "cookie_refreshed": 0}
+    _check_progress.update(active=True, done=0, total=len(items), gone=0,
+                           online=0, unknown=0, last_error=None)
     try:
         block_streak = 0
         refreshes_used = 0
+        probes_used = 0
         for index, item in enumerate(items):
+            if probes_used >= MAX_CHECKS_PER_CALL:
+                # The cap bounds portal fetches, not selection size: rows
+                # resolved from the dashboard or recently checked skip for
+                # free, so re-running the batch resumes past them instead of
+                # re-spending the budget on the same first fifty ids.
+                summary["capped"] = True
+                logger.info("email-import: probe budget (%d) spent, stopping "
+                            "after %d listings", MAX_CHECKS_PER_CALL, index)
+                break
             # If the dashboard already tracks this listing, resolve it from
             # the database — but only in the safe direction: a property still
             # seen by scans is certainly online. A "gone" status is NOT proof
@@ -732,6 +752,7 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
                 _check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
 
+            probes_used += 1
             available = probe.check(item.url)
             item.last_checked_at = datetime.now(timezone.utc)
             if available is None:
@@ -756,7 +777,10 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
             # each answer cost seconds of polite pacing: commit it now, so a
             # crash halfway through the batch does not throw the rest away
             db.commit()
-            _check_progress.update(done=index + 1, gone=summary["gone"])
+            _check_progress.update(done=index + 1, gone=summary["gone"],
+                                   online=summary["online"],
+                                   unknown=summary["unknown"],
+                                   last_error=summary["last_error"])
 
             block_streak = block_streak + 1 if probe.was_blocked else 0
             if block_streak >= BLOCK_STREAK_ABORT:
@@ -767,7 +791,6 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
                     block_streak = 0
                     continue
                 if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
-                    import time
                     logger.info("email-import: portal rate limit / block streak reached, sleeping 12s and rotating session")
                     time.sleep(12.0)
                     probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
@@ -776,6 +799,16 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
                     probe._warmed_hosts = set()
                     probe.was_blocked = False
                     refreshes_used += 1
+                    block_streak = 0
+                    continue
+                if (hasattr(probe, "start_browser_session")
+                        and not getattr(probe, "_browser_ctx", None)
+                        and probe.start_browser_session()):
+                    # Last resort, opt-in (invariant 18): carry on through the
+                    # persistent browser instead of hammering a TLS session the
+                    # portal already refused.
+                    logger.info("email-import: curl_cffi blocked repeatedly, switching to persistent browser session")
+                    time.sleep(6.0)
                     block_streak = 0
                     continue
                 logger.warning(
@@ -787,8 +820,10 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
             if index + 1 < len(items):
                 probe.polite_sleep()
     finally:
+        # hasattr: tests swap in fake probes without the browser machinery
+        if hasattr(probe, "close_browser_session"):
+            probe.close_browser_session()
         _check_progress.update(active=False)
-        _check_run_lock.release()
     logger.info("email-import: availability check %s", summary)
     return summary
 

@@ -44,6 +44,9 @@ logging.basicConfig(
         ),
     ],
 )
+# Alembic's plugin-setup chatter at INFO floods app.log on every startup and
+# buries the scan/probe lines the file exists to preserve.
+logging.getLogger("alembic").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -268,9 +271,14 @@ def properties_check_progress():
 
 @app.post("/api/properties/check")
 def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db)):
-    """Runs live availability check (`AdProbe`) across multiple dashboard properties."""
-    ids = data.ids[:email_import.MAX_CHECKS_PER_CALL]
-    props = [p for p in (db.get(Property, x) for x in ids) if p]
+    """Runs live availability check (`AdProbe`) across multiple dashboard properties.
+
+    The whole selection is accepted: the service itself caps live portal
+    fetches per run (invariant 16) and skips recently verified properties, so
+    a "select all" batch progresses across repeated runs instead of re-probing
+    the same first slice.
+    """
+    props = [p for p in (db.get(Property, x) for x in data.ids) if p]
     if not props:
         raise HTTPException(400, "No properties to check")
     try:
@@ -525,9 +533,10 @@ def email_import_check(data: schemas.ImportCheckIn, db: Session = Depends(get_db
 
     Sync `def` for the same reason as the scan (invariant 15): FastAPI runs it
     in a threadpool, so /email-import/check-progress can answer while it works.
+    The service caps live portal fetches per run (invariant 16); rows resolved
+    without a fetch don't consume that budget, so repeat runs make progress.
     """
-    ids = data.ids[:email_import.MAX_CHECKS_PER_CALL]
-    items = [i for i in (db.get(ImportedListing, x) for x in ids) if i]
+    items = [i for i in (db.get(ImportedListing, x) for x in data.ids) if i]
     if not items:
         raise HTTPException(400, "No listing to check")
     try:

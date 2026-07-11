@@ -159,19 +159,7 @@ def _launch(p, headless: bool):
     raise last_error
 
 
-def harvest(portal: str = "immobiliare", headless: bool = True,
-            timeout_seconds: int = HEADLESS_TIMEOUT_SECONDS) -> HarvestResult:
-    """Launch a browser, load the portal home, and read its `datadome` cookie.
-
-    Returns a HarvestResult; `cookie` is None on any failure, with a
-    human-readable `error`. Never raises for an expected failure (missing
-    Playwright, timeout, CAPTCHA) — only truly unexpected errors propagate as a
-    logged error turned into a result.
-    """
-    if not is_available():
-        return HarvestResult(error=UNAVAILABLE_MESSAGE)
-    if not _harvest_lock.acquire(blocking=False):
-        return HarvestResult(error="A cookie grab is already running.")
+def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> HarvestResult:
     home = PORTAL_HOMES.get(portal, PORTAL_HOMES["immobiliare"])
     try:
         from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
@@ -201,6 +189,27 @@ def harvest(portal: str = "immobiliare", headless: bool = True,
     except Exception as e:  # unexpected: a browser crash, a Playwright bug
         logger.exception("cookie-harvest failed")
         return HarvestResult(error=f"{type(e).__name__}: {e}")
+
+
+def harvest(portal: str = "immobiliare", headless: bool = True,
+            timeout_seconds: float = HEADLESS_TIMEOUT_SECONDS) -> HarvestResult:
+    """Launch a browser, load the portal home, and read its `datadome` cookie.
+
+    Returns a HarvestResult; `cookie` is None on any failure, with a
+    human-readable `error`. Never raises for an expected failure (missing
+    Playwright, timeout, CAPTCHA) — only truly unexpected errors propagate as a
+    logged error turned into a result.
+
+    Every caller is a sync `def` endpoint or a scheduler thread, so the
+    Playwright sync API can run right here: no thread with an asyncio loop
+    ever reaches this function.
+    """
+    if not is_available():
+        return HarvestResult(error=UNAVAILABLE_MESSAGE)
+    if not _harvest_lock.acquire(blocking=False):
+        return HarvestResult(error="A cookie grab is already running.")
+    try:
+        return _harvest_inner(portal, headless, timeout_seconds)
     finally:
         _harvest_lock.release()
 
