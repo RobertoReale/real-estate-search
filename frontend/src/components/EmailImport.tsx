@@ -209,6 +209,18 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
   const setFilter = (patch: Partial<ImportFilters>) =>
     setFilters((f) => ({ ...f, ...patch }));
 
+  /** Clear the whole review queue in one click (respecting the active filters),
+   *  so the user can start a fresh scan. Discards are remembered, so nothing
+   *  here comes back on a later scan. Guarded by a confirm — it can be many. */
+  async function discardAllShown() {
+    if (items.length === 0) return;
+    const ok = window.confirm(
+      `Discard all ${items.length} listing${items.length === 1 ? "" : "s"} `
+      + "shown here? They won't come back on future scans.",
+    );
+    if (ok) await act(items.map((i) => i.id), "discard");
+  }
+
   // Listings whose email never carried a price (or a surface) cannot be ranked
   // by it; they sink to the bottom rather than pretending to be the cheapest.
   const sortedItems = useMemo(() => {
@@ -456,6 +468,12 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
               <button className="btn-ghost text-xs" disabled={busy || selected.size === 0}
                 onClick={() => act([...selected], "discard")}>
                 ✕ Discard selected
+              </button>
+              <button className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
+                disabled={busy || items.length === 0}
+                title="Discard every listing currently shown (the filters above still apply). Discards are remembered, so a re-scan won't bring them back — clear the queue, then scan again fresh."
+                onClick={discardAllShown}>
+                🗑 Discard all ({items.length})
               </button>
               <div className="flex items-center gap-1 border border-slate-200 dark:border-slate-800 rounded-lg p-1 bg-slate-50 dark:bg-slate-900/50">
                 <input
