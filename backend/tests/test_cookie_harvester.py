@@ -197,6 +197,72 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
     assert res.cookie == "clearanceCookieAfterSolving12345"
 
 
+def test_harvest_inner_stops_promptly_when_cancelled(monkeypatch):
+    """Regression: not every hard block page has a solvable widget -- a static
+    "access is temporarily restricted" wall never stops mentioning "captcha"
+    in its own resource URLs, so a headful grab facing one used to poll for
+    the full timeout with no way to stop it from the UI, leaving the visible
+    browser window stuck open. `request_cancel_harvest` must be picked up
+    within one poll instead of running out the clock."""
+    class FakeResp:
+        status = 403
+
+    class FakePage:
+        def goto(self, url, **kwargs):
+            return FakeResp()
+
+        def content(self):
+            return "geo.captcha-delivery.com blocked captcha"
+
+        def title(self):
+            return "captcha"
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    class FakeCtx:
+        def __init__(self):
+            self.pages = [FakePage()]
+
+        def cookies(self):
+            return []
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ch, "_launch", lambda p, headless: FakeCtx())
+    ch.request_cancel_harvest()
+    try:
+        import time
+        start = time.monotonic()
+        res = ch._harvest_inner("immobiliare", headless=False, timeout_seconds=5.0)
+        elapsed = time.monotonic() - start
+
+        assert res.error == "Cancelled."
+        assert elapsed < 1.0
+    finally:
+        ch._harvest_cancel_event.clear()
+
+
+def test_harvest_clears_a_stale_cancel_flag_before_running(monkeypatch):
+    """A cancel from a previous (already-finished) grab must not silently
+    cancel the next one."""
+    ch._harvest_cancel_event.set()
+    monkeypatch.setattr(ch, "is_available", lambda: True)
+
+    seen = {}
+
+    def fake_inner(portal, headless, timeout_seconds):
+        seen["cancel_set"] = ch._harvest_cancel_event.is_set()
+        return ch.HarvestResult(cookie="abc123token")
+
+    monkeypatch.setattr(ch, "_harvest_inner", fake_inner)
+    result = ch.harvest()
+
+    assert seen["cancel_set"] is False
+    assert result.cookie == "abc123token"
+
+
 def test_use_camoufox_respects_the_engine_setting(monkeypatch):
     """`browser_engine` picks the engine: "camoufox" forces it, "chromium" pins
     the old behaviour, and "auto" (default) follows whether the package is

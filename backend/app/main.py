@@ -901,6 +901,17 @@ def datadome_refresh(
     return result
 
 
+@app.post("/api/settings/datadome-refresh/cancel")
+def cancel_datadome_refresh():
+    """Stops a running "Grab a fresh cookie now" at its next poll (a hard
+    block page with no solvable widget otherwise polls for the full headful
+    timeout with the visible window stuck open, invariant 16/18). A no-op if
+    nothing is running."""
+    from .services import cookie_harvester
+    cookie_harvester.request_cancel_harvest()
+    return {"ok": True}
+
+
 @app.post("/api/settings/install-harvester")
 def install_harvester():
     """Install Playwright package and download Chromium binary into the active virtual environment."""

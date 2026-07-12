@@ -75,6 +75,20 @@ HEADFUL_TIMEOUT_SECONDS = 240
 # error. Same non-blocking-lock discipline as the scanner and inbox scan.
 _harvest_lock = threading.Lock()
 
+# Cooperative cancellation for a headful grab: the wait loop below only
+# early-exits on a block when headless (see `_harvest_inner`), so a headful
+# run facing a hard block page with no solvable widget -- not every "Access
+# is temporarily restricted" wall is a CAPTCHA a click can clear -- used to
+# poll for the full HEADFUL_TIMEOUT_SECONDS with no way to stop it from the
+# UI, leaving the visible browser window open the whole time.
+_harvest_cancel_event = threading.Event()
+
+
+def request_cancel_harvest() -> None:
+    """Signals a running cookie grab to stop at its next poll. A no-op when
+    nothing is running."""
+    _harvest_cancel_event.set()
+
 
 def _ensure_browsers_path() -> None:
     """Automatically discover and configure PLAYWRIGHT_BROWSERS_PATH when running as a
@@ -382,6 +396,9 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
                              timeout=timeout_seconds * 1000)
             deadline = time.monotonic() + timeout_seconds
             while time.monotonic() < deadline:
+                if _harvest_cancel_event.is_set():
+                    logger.info("cookie-harvest: cancelled by user")
+                    return HarvestResult(error="Cancelled.")
                 blocked = _is_page_blocked(page)
                 if headless and (blocked or (resp and resp.status in (403, 429))):
                     return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
@@ -421,6 +438,7 @@ def harvest(portal: str = "immobiliare", headless: bool = True,
         return HarvestResult(error=UNAVAILABLE_MESSAGE)
     if not _harvest_lock.acquire(blocking=False):
         return HarvestResult(error="A cookie grab is already running.")
+    _harvest_cancel_event.clear()
     try:
         return _harvest_inner(portal, headless, timeout_seconds)
     finally:

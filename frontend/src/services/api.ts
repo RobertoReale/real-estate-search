@@ -186,6 +186,10 @@ export const api = {
       `/settings/datadome-refresh?portal=${portal}`, { method: "POST" },
     );
   },
+  /** Stops a running cookie grab at its next poll (a no-op if nothing is running). */
+  cancelDatadomeRefresh() {
+    return request<{ ok: boolean }>("/settings/datadome-refresh/cancel", { method: "POST" });
+  },
   /** Install Playwright and Chromium into the active backend environment. */
   installHarvester() {
     return request<{ ok: boolean; message: string }>("/settings/install-harvester", { method: "POST" });

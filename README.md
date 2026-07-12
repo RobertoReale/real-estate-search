@@ -403,6 +403,9 @@ You can provide that cookie in three ways, from most to least automatic:
   **"Grab a fresh cookie now"**. The app opens a local browser, earns the
   cookie, and saves it for you — no copy/paste. A window may briefly appear; if
   the portal shows a CAPTCHA, solve it once and it is remembered for next time.
+  Not every block page has anything to solve, though — a hard "access
+  restricted" wall just sits there — so a **⏹ Stop** button appears next to it
+  while it runs, in case you'd rather give up than wait out the full timeout.
   You can also tick **"Refresh automatically before each scan"** so a scheduled
   scan always starts with a live cookie. With that option on, the app *also*
   grabs a fresh cookie **on the fly if the "Check if still online" button gets

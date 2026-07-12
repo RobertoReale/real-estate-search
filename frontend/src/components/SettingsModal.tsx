@@ -73,6 +73,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [browserHeadful, setBrowserHeadful] = useState(false);
   const [browserEngine, setBrowserEngine] = useState("auto");
   const [grabbing, setGrabbing] = useState(false);
+  const [stoppingGrab, setStoppingGrab] = useState(false);
   const [installingHarvester, setInstallingHarvester] = useState(false);
   const [installingCamoufox, setInstallingCamoufox] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -209,6 +210,7 @@ export default function SettingsModal({ onClose }: Props) {
    * hint. Re-hydrates so the saved-timestamp and placeholder update. */
   async function grabCookie() {
     setGrabbing(true);
+    setStoppingGrab(false);
     setFeedback(null);
     try {
       const r = await api.datadomeRefresh("immobiliare");
@@ -219,7 +221,18 @@ export default function SettingsModal({ onClose }: Props) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
       setGrabbing(false);
+      setStoppingGrab(false);
     }
+  }
+
+  // Not every block page this meets is a solvable CAPTCHA -- a hard "access
+  // restricted" wall with no widget otherwise leaves the visible browser
+  // stuck open for the full headful timeout with nothing to click. This asks
+  // the running grab to stop at its next poll (a few seconds), same as the
+  // availability check's Stop button.
+  function stopGrabbingCookie() {
+    setStoppingGrab(true);
+    api.cancelDatadomeRefresh().catch(() => {});
   }
 
   async function installHarvester() {
@@ -657,10 +670,18 @@ export default function SettingsModal({ onClose }: Props) {
                   copy/paste. A window may open: if the portal shows a CAPTCHA,
                   solve it once and it is remembered next time.
                 </p>
-                <button className="btn-ghost" onClick={grabCookie}
-                  disabled={grabbing || anyBusy}>
-                  {grabbing ? "Opening browser…" : "🔄 Grab a fresh cookie now"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button className="btn-ghost" onClick={grabCookie}
+                    disabled={grabbing || anyBusy}>
+                    {grabbing ? "Opening browser…" : "🔄 Grab a fresh cookie now"}
+                  </button>
+                  {grabbing && (
+                    <button className="btn-ghost" onClick={stopGrabbingCookie}
+                      disabled={stoppingGrab}>
+                      {stoppingGrab ? "⏳ Stopping…" : "⏹ Stop"}
+                    </button>
+                  )}
+                </div>
                 <label className="flex items-center gap-2 text-xs t-body cursor-pointer pt-1">
                   <input type="checkbox" checked={autoRefresh}
                     onChange={(e) => setAutoRefresh(e.target.checked)} />

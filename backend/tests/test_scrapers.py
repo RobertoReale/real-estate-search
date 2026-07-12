@@ -647,6 +647,30 @@ def test_wait_for_human_solve_gives_up_when_ignored():
     assert probe._wait_for_human_solve(StuckPage()) is False
 
 
+def test_wait_for_human_solve_stops_promptly_when_cancelled():
+    """Regression: a hard "temporarily restricted" block page has no solvable
+    widget and never stops mentioning "captcha" in its own resource URLs, so
+    this used to poll for the full (here shrunk) timeout with no way to stop
+    it -- clicking "Stop" on the batch had no effect until it expired, and the
+    visible browser window stayed open the whole time. A cancel event must be
+    picked up within one poll instead."""
+    import threading
+
+    cancel_event = threading.Event()
+    probe = AdProbe(cancel_event=cancel_event)
+    probe._HEADFUL_SOLVE_TIMEOUT_MS = 60_000  # would hang the test if not cancelled
+
+    class StuckPage:
+        def wait_for_timeout(self, _ms):
+            pass
+
+        def content(self):
+            return "captcha challenge still here"
+
+    cancel_event.set()
+    assert probe._wait_for_human_solve(StuckPage()) is False
+
+
 def test_rotation_stops_when_profiles_are_exhausted():
     """Rotation must report exhaustion rather than wrap around: the caller
     turns a False into a 'blocked' scan status, and a wrapping list would

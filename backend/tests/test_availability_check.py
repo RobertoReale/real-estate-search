@@ -51,7 +51,7 @@ class _FakeProbe:
     """Offline stand-in: no browser machinery on purpose, so these tests also
     prove the services guard those calls with hasattr (fake probes predate
     the persistent browser session)."""
-    def __init__(self, delay_seconds=6.0):
+    def __init__(self, delay_seconds=6.0, cancel_event=None):
         self.was_blocked = False
         self.calls = 0
 
@@ -110,8 +110,8 @@ def test_recently_verified_properties_skip_without_spending_budget(db, monkeypat
     probes = []
 
     class CountingProbe(_FakeProbe):
-        def __init__(self, delay_seconds=6.0):
-            super().__init__(delay_seconds)
+        def __init__(self, delay_seconds=6.0, **kwargs):
+            super().__init__(delay_seconds, **kwargs)
             probes.append(self)
 
     monkeypatch.setattr(availability_check, "AdProbe", CountingProbe)
@@ -149,8 +149,8 @@ def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, mo
     props = [_property(db, str(600 + n)) for n in range(10)]
 
     class BlockedBrowserProbe(_FakeProbe):
-        def __init__(self, delay_seconds=6.0):
-            super().__init__(delay_seconds)
+        def __init__(self, delay_seconds=6.0, **kwargs):
+            super().__init__(delay_seconds, **kwargs)
             self._browser_primary = True
 
         def check(self, url) -> bool | None:
@@ -192,17 +192,19 @@ def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, mo
     assert all(p.status == "active" for p in props)
 
 
-def test_cancel_stops_the_batch_after_the_current_property(db, monkeypatch):
+def test_cancel_stops_the_batch_after_the_current_listing(db, monkeypatch):
     """A user-triggered stop (the dashboard's "Stop" button) has no way to
     interrupt an in-flight portal request from another thread, so it must land
-    at the same per-property checkpoint as the probe budget cap: the property
-    already being checked finishes, the rest of the selection is left alone."""
+    at the same checkpoint used for the block-streak recovery levers: right
+    after the listing already in flight finishes, before its property is even
+    evaluated -- not just between properties, since a single property's check
+    can itself run for minutes (a headful CAPTCHA wait)."""
     props = [_property(db, str(700 + n)) for n in range(5)]
 
     class CancellingProbe(_FakeProbe):
         def check(self, url) -> bool | None:
             self.calls += 1
-            # Simulates the user clicking "Stop" while this property's
+            # Simulates the user clicking "Stop" while this listing's
             # request is in flight.
             availability_check.request_cancel()
             return True
@@ -212,8 +214,11 @@ def test_cancel_stops_the_batch_after_the_current_property(db, monkeypatch):
 
     assert summary["cancelled"] is True
     assert summary["aborted"] is False
-    assert summary["checked"] == 1
-    assert summary["online"] == 1
+    # Cancellation is noticed right after the in-flight listing, before its
+    # own property is counted -- not merely before starting the next one.
+    assert summary["checked"] == 0
+    assert summary["online"] == 0
+    assert all(p.status == "active" for p in props)
 
 
 def test_cancel_is_a_noop_when_nothing_is_running(db, monkeypatch):
@@ -233,8 +238,8 @@ def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatc
     prop = _property(db, "500")
 
     class BrowserProbe(_FakeProbe):
-        def __init__(self, delay_seconds=6.0):
-            super().__init__(delay_seconds)
+        def __init__(self, delay_seconds=6.0, **kwargs):
+            super().__init__(delay_seconds, **kwargs)
             self._browser_primary = False
             self.started_browser = False
 

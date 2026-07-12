@@ -425,12 +425,17 @@ class AdProbe(BaseScraper):
     # unattended window ends the batch instead of hanging the check forever.
     _HEADFUL_SOLVE_TIMEOUT_MS: int = 180_000
 
-    def __init__(self, delay_seconds: float = 6.0):
+    def __init__(self, delay_seconds: float = 6.0, cancel_event: typing.Any = None):
         super().__init__(delay_seconds=delay_seconds)
         self._warmed_hosts: set[str] = set()
         self.was_blocked = False
         self.last_error: str | None = None
         self.last_soup: typing.Any = None
+        # Optional threading.Event the caller sets to request an early stop.
+        # Only consulted inside long, unbounded waits (the headful CAPTCHA
+        # poll below) -- everywhere else the caller's own batch loop is
+        # already the checkpoint, so there is nothing here to interrupt.
+        self._cancel_event = cancel_event
         # Persistent Playwright fallback (opt-in, see start_browser_session).
         self._pw_pool: typing.Any = None
         self._pw: typing.Any = None
@@ -761,12 +766,24 @@ class AdProbe(BaseScraper):
         through it anyway, and the FastAPI worker that drives the check is a
         threadpool `def`, so the progress endpoint keeps answering (invariant
         15). Returns True once the challenge markup is gone.
+
+        Not every block that lands here is a solvable widget: a hard
+        "temporarily restricted" wall (no puzzle, just static text) never
+        stops mentioning "captcha" in its own script tags, so without a way
+        out this polls the full window on every one of them — and a user
+        clicking "Stop" on the batch had no effect until it expired, since
+        this loop is the one place a single property's check can run for
+        minutes. `_cancel_event` is checked on the same cadence so a stop
+        request lands within one poll instead of up to 180s later.
         """
         import time as _time
         deadline = _time.monotonic() + self._HEADFUL_SOLVE_TIMEOUT_MS / 1000.0
         logger.info("ad-probe: headful CAPTCHA — waiting up to %ds for the user to solve it",
                     int(self._HEADFUL_SOLVE_TIMEOUT_MS / 1000))
         while _time.monotonic() < deadline:
+            if self._cancel_event is not None and self._cancel_event.is_set():
+                logger.info("ad-probe: headful CAPTCHA wait cancelled by the user")
+                return False
             page.wait_for_timeout(3000)
             try:
                 if "captcha" not in page.content()[:4000].lower():

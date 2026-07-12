@@ -88,7 +88,7 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
     # The slowest portal among the listings sets the delay floor
     all_portals = [l.portal for p in properties for l in p.listings]
     delay = max([configured] + [MIN_PROBE_DELAY.get(portal, 0.0) for portal in all_portals])
-    probe = AdProbe(delay_seconds=delay)
+    probe = AdProbe(delay_seconds=delay, cancel_event=_prop_check_cancel_event)
 
     summary = {
         "checked": 0, "gone": 0, "online": 0, "unknown": 0,
@@ -178,6 +178,17 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                     summary["last_error"] = probe.last_error
 
                 block_streak = block_streak + 1 if probe.was_blocked else 0
+
+                if _prop_check_cancel_event.is_set():
+                    # Same priority as the browser-primary short-circuit below:
+                    # none of the recovery levers (cookie refresh, TLS
+                    # rotation, switching to the browser) are worth running
+                    # once the user has asked to stop.
+                    summary["cancelled"] = True
+                    logger.info("availability_check: cancelled by user mid-property after %d properties",
+                                summary["checked"])
+                    break
+
                 if block_streak >= BLOCK_STREAK_ABORT:
                     if getattr(probe, "_browser_primary", False):
                         # Already running through the persistent headless
@@ -239,7 +250,7 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                     summary["aborted"] = True
                     break
 
-            if summary["aborted"]:
+            if summary["aborted"] or summary["cancelled"]:
                 break
 
             # Evaluate property status based on all its listings
