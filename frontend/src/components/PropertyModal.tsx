@@ -22,6 +22,7 @@ export default function PropertyModal({
   const [checkingOnline, setCheckingOnline] = useState(false);
   const [checkResult, setCheckResult] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [imgBroken, setImgBroken] = useState(false);
   const notesDirty = notes !== p.notes;
 
   async function checkIfOnline() {
@@ -67,8 +68,9 @@ export default function PropertyModal({
           last row (Hide/Restore) would sit under the chrome, unreachable. */}
       <div className="glass rounded-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
-        {p.image_url && (
-          <img src={p.image_url} alt={p.title} className="w-full h-40 sm:h-56 object-cover" />
+        {p.image_url && !imgBroken && (
+          <img src={p.image_url} alt={p.title} className="w-full h-40 sm:h-56 object-cover"
+            onError={() => setImgBroken(true)} />
         )}
         <div className="p-4 sm:p-6">
           <div className="flex items-start justify-between gap-2 sm:gap-4">

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatPrice } from "../services/api";
 import { PortalBadge } from "./PortalBadge";
 import type { Property } from "../types";
@@ -76,6 +77,10 @@ export default function PropertyCard({
   const sqmPrice =
     p.current_min_price && p.sqm ? Math.round(p.current_min_price / p.sqm) : null;
   const portals = [...new Set(p.listings.map((l) => l.portal))];
+  // portal image URLs are often signed/expiring CDN links: a stale one fails
+  // to load, and the browser's broken-image icon renders the alt text right
+  // under the absolutely-positioned badges instead of the placeholder icon
+  const [imgBroken, setImgBroken] = useState(false);
 
   return (
     <article
@@ -84,8 +89,9 @@ export default function PropertyCard({
         selected ? "ring-2 ring-blue-500 border-blue-500" : ""
       }`}>
       <div className="relative h-44 bg-slate-200 dark:bg-slate-800 overflow-hidden">
-        {p.image_url ? (
+        {p.image_url && !imgBroken ? (
           <img src={p.image_url} alt={p.title} loading="lazy"
+            onError={() => setImgBroken(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl text-slate-400 dark:text-slate-600">
