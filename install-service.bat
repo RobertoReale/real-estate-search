@@ -74,6 +74,13 @@ rem NSSM restarts the process automatically if it exits; log to a rotating file
 "%NSSM%" set %SVC% AppRotateFiles 1
 "%NSSM%" set %SVC% AppRotateBytes 5000000
 
+rem Point NSSM service (LocalSystem) to the Chromium browser cache if already installed
+if exist "%~dp0backend\browser_binaries" (
+    "%NSSM%" set %SVC% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%~dp0backend\browser_binaries"
+) else if exist "%USERPROFILE%\AppData\Local\ms-playwright" (
+    "%NSSM%" set %SVC% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%USERPROFILE%\AppData\Local\ms-playwright"
+)
+
 "%NSSM%" start %SVC%
 
 echo.

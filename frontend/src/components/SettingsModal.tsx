@@ -71,6 +71,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
   const [grabbing, setGrabbing] = useState(false);
+  const [installingHarvester, setInstallingHarvester] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<Section | null>(null);
 
@@ -211,6 +212,21 @@ export default function SettingsModal({ onClose }: Props) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
       setGrabbing(false);
+    }
+  }
+
+  async function installHarvester() {
+    setInstallingHarvester(true);
+    setFeedback(null);
+    try {
+      const r = await api.installHarvester();
+      hydrate(await api.getSettings());
+      setFeedback({ where: "global", ok: true,
+        text: r.message || "Playwright & Chromium installed successfully!" });
+    } catch (e) {
+      setFeedback({ where: "global", ok: false, text: errorText(e) });
+    } finally {
+      setInstallingHarvester(false);
     }
   }
 
@@ -639,13 +655,21 @@ export default function SettingsModal({ onClose }: Props) {
                 </label>
               </>
             ) : (
-              <p className="text-xs t-dim">
-                Not available yet. Install it once from a terminal:{" "}
-                <code className="px-1 rounded bg-black/10 dark:bg-white/10">
-                  pip install playwright &amp;&amp; playwright install chromium
-                </code>
-                , then reopen Settings.
-              </p>
+              <div className="space-y-2.5 pt-1">
+                <p className="text-xs t-dim">
+                  Not installed yet in this Python environment. You can install Playwright and Chromium automatically with one click:
+                </p>
+                <button className="btn-ghost text-xs w-full sm:w-auto" onClick={installHarvester}
+                  disabled={installingHarvester || anyBusy}>
+                  {installingHarvester ? "⚡ Installing Playwright & Chromium (~1-2 min)…" : "⚡ One-Click Install Playwright & Chromium"}
+                </button>
+                <p className="text-[11px] t-muted pt-1">
+                  Or install manually from terminal using `install-playwright.bat` inside the project folder, or run:{" "}
+                  <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 select-all">
+                    backend\.venv\Scripts\pip install playwright &amp;&amp; backend\.venv\Scripts\playwright install chromium
+                  </code>
+                </p>
+              </div>
             )}
           </div>
         </div>

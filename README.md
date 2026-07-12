@@ -266,6 +266,12 @@ whether logged on or not", stop if idle, …).
    auto-restart), and starts it.
 3. Open **http://localhost:8000**.
 
+**Using Playwright / Automatic Cookie Grab with NSSM Service:**
+When running as a Windows Service at boot (`LocalSystem` account), the service automatically searches for your installed Chromium binaries across user profiles (`C:\Users\<YourUser>\AppData\Local\ms-playwright`) and inside `backend/browser_binaries`.
+If Playwright or Chromium is not yet installed:
+* Open **http://localhost:8000** → **Settings** and click **⚡ One-Click Install Playwright & Chromium**, *OR*
+* Double-click **`install-playwright.bat`** in the project root. It installs Playwright into `backend\.venv`, downloads Chromium, and automatically restarts the `RealEstateSearch` service so it finds Chromium immediately upon boot.
+
 Manage it from an admin terminal: `nssm restart RealEstateSearch` (after
 updating the code), `nssm stop RealEstateSearch`, `nssm edit RealEstateSearch`
 (GUI). To remove it, run **`uninstall-service.bat`** as administrator — your
@@ -273,9 +279,7 @@ database and settings are left untouched.
 
 > Notes for all three: don't run `start.bat` at the same time (both use port
 > 8000 — stop the autostart first). After changing the code, rebuild the
-> frontend and restart. The optional browser-based DataDome cookie grab is
-> interactive, so it won't work headless from a service — paste the cookie by
-> hand instead; normal scans are unaffected.
+> frontend and restart. The automatic DataDome cookie grab runs headless (`maybe_auto_refresh`) cleanly in the background right when needed. For solving a headful CAPTCHA interactive challenge, you can open Settings from your browser window or paste the cookie once.
 
 ---
 

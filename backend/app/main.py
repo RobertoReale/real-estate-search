@@ -887,6 +887,51 @@ def datadome_refresh(
     return result
 
 
+@app.post("/api/settings/install-harvester")
+def install_harvester():
+    """Install Playwright package and download Chromium binary into the active virtual environment."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    from .services import cookie_harvester
+
+    if cookie_harvester.is_available():
+        return {"ok": True, "message": "Playwright is already installed and available."}
+
+    try:
+        # 1. Install playwright pip package into current Python environment (.venv)
+        subprocess.run([sys.executable, "-m", "pip", "install", "playwright"], check=True)
+
+        # 2. Configure where to install browser binary (use user profile or project folder)
+        browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+        if not browsers_path:
+            if os.name == "nt":
+                users_dir = Path("C:/Users")
+                if users_dir.exists():
+                    for u in users_dir.iterdir():
+                        if u.is_dir() and u.name not in ("Public", "Default", "Default User", "All Users"):
+                            if (u / "AppData" / "Local" / "ms-playwright").exists():
+                                browsers_path = str(u / "AppData" / "Local" / "ms-playwright")
+                                break
+            if not browsers_path:
+                from .config import BASE_DIR
+                browsers_path = str(BASE_DIR / "browser_binaries")
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
+        env = os.environ.copy()
+        if browsers_path:
+            env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True, env=env)
+
+        cookie_harvester._ensure_browsers_path()
+        return {"ok": True, "message": "Successfully installed Playwright and Chromium."}
+    except Exception as e:
+        logger.exception("Failed to install playwright/chromium")
+        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}")
+
+
 @app.post("/api/settings/telegram-test")
 def telegram_test():
     ok = notifier.send_test_message("telegram")

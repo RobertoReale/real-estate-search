@@ -32,10 +32,12 @@ Every design choice here is deliberate:
     the same fail-open discipline as the availability probe (invariant 16).
 """
 import logging
+import os
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from ..config import BASE_DIR, load_settings, save_settings
@@ -74,6 +76,71 @@ HEADFUL_TIMEOUT_SECONDS = 240
 _harvest_lock = threading.Lock()
 
 
+def _ensure_browsers_path() -> None:
+    """Automatically discover and configure PLAYWRIGHT_BROWSERS_PATH when running as a
+    Windows Service (e.g. NSSM under LocalSystem / NT AUTHORITY\\SYSTEM).
+
+    When an admin user installs `playwright install chromium` in a terminal, the browser
+    binaries go into C:\\Users\\<Admin>\\AppData\\Local\\ms-playwright. At PC startup, when
+    LocalSystem runs the service, its profile is C:\\Windows\\System32\\config\\systemprofile
+    where ms-playwright does not exist. This helper finds the installed Chromium in any
+    user profile or in `BASE_DIR / browser_binaries` and sets PLAYWRIGHT_BROWSERS_PATH."""
+    current_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if current_path and Path(current_path).exists():
+        return
+
+    candidates: list[Path] = [
+        BASE_DIR / "browser_binaries",
+        BASE_DIR.parent / "browser_binaries",
+    ]
+    user_home = Path(os.path.expanduser("~"))
+    default_cache = user_home / "AppData" / "Local" / "ms-playwright"
+    if default_cache.exists():
+        candidates.append(default_cache)
+
+    if os.name == "nt":
+        users_dir = Path("C:/Users")
+        if users_dir.exists():
+            for user_folder in users_dir.iterdir():
+                if (
+                    user_folder.is_dir()
+                    and user_folder.name
+                    not in ("Public", "Default", "Default User", "All Users")
+                ):
+                    ms_pw = user_folder / "AppData" / "Local" / "ms-playwright"
+                    if ms_pw.exists():
+                        candidates.append(ms_pw)
+
+    for candidate in candidates:
+        if candidate.exists() and any(candidate.iterdir()):
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(candidate)
+            logger.info("cookie-harvest: auto-configured PLAYWRIGHT_BROWSERS_PATH to %s", candidate)
+            return
+
+
+def _find_chromium_executable() -> str | None:
+    """Locate the explicit path to chrome.exe inside PLAYWRIGHT_BROWSERS_PATH or known profiles."""
+    _ensure_browsers_path()
+    pw_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    search_dirs = [Path(pw_path)] if pw_path else []
+
+    if os.name == "nt":
+        users_dir = Path("C:/Users")
+        if users_dir.exists():
+            for u in users_dir.iterdir():
+                if u.is_dir() and u.name not in ("Public", "Default", "Default User", "All Users"):
+                    search_dirs.append(u / "AppData" / "Local" / "ms-playwright")
+
+    for d in search_dirs:
+        if d.exists():
+            for folder in sorted(d.iterdir(), reverse=True):
+                if folder.is_dir() and "chromium" in folder.name.lower():
+                    chrome_exe = folder / "chrome-win" / "chrome.exe"
+                    if chrome_exe.exists():
+                        return str(chrome_exe)
+    return None
+
+
 @dataclass
 class HarvestResult:
     cookie: str | None = None
@@ -83,6 +150,7 @@ class HarvestResult:
 def is_available() -> bool:
     """True when Playwright can be imported. Cheap and side-effect free, so the
     UI and the scanner can gate on it without paying for a browser launch."""
+    _ensure_browsers_path()
     try:
         import playwright.sync_api  # type: ignore[import-not-found] # noqa: F401
         return True
@@ -129,6 +197,7 @@ def _launch(p, headless: bool):
     (Chrome, then Edge) over the bundled Chromium: a real browser carries a far
     less bot-like fingerprint, which is the whole point against DataDome. Falls
     back to bundled Chromium when neither is installed."""
+    _ensure_browsers_path()
     PROFILE_DIR.mkdir(exist_ok=True)
     last_error: Exception | None = None
     args = [
@@ -147,6 +216,10 @@ def _launch(p, headless: bool):
             }
             if channel:
                 kwargs["channel"] = channel
+            else:
+                exe_path = _find_chromium_executable()
+                if exe_path:
+                    kwargs["executable_path"] = exe_path
             ctx = p.chromium.launch_persistent_context(**kwargs)
             try:
                 ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")

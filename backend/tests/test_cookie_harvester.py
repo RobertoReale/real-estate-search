@@ -108,3 +108,19 @@ def test_harvest_fails_open_when_playwright_absent(monkeypatch):
     result = ch.harvest()
     assert result.cookie is None
     assert "Playwright" in result.error
+
+
+def test_ensure_browsers_path_and_find_chromium(monkeypatch, tmp_path):
+    import os
+    # simulate a fake browser path candidate
+    fake_candidate = tmp_path / "browser_binaries"
+    fake_candidate.mkdir()
+    fake_chrome_dir = fake_candidate / "chromium-1234" / "chrome-win"
+    fake_chrome_dir.mkdir(parents=True)
+    fake_exe = fake_chrome_dir / "chrome.exe"
+    fake_exe.write_text("fake binary")
+
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(fake_candidate))
+    found = ch._find_chromium_executable()
+    assert found == str(fake_exe)
+
