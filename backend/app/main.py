@@ -376,11 +376,18 @@ def hide_property(property_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/properties/{property_id}/restore")
 def restore_property(property_id: int, db: Session = Depends(get_db)):
-    """Restores a manually hidden property back to active status."""
+    """Restores a manually hidden property back to active status.
+
+    Also used to correct a property wrongly marked "gone" by the
+    availability check (invariant 16 is fail-open by design, but a portal
+    redirect or block misread as removal can still slip through) — so this
+    clears `gone_at` too, matching the availability check's own "reappeared
+    online" handling, instead of leaving a stale date behind."""
     prop = db.get(Property, property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
     prop.status = "active"
+    prop.gone_at = None
     db.commit()
     return {"ok": True}
 
@@ -400,6 +407,7 @@ def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db))
             prop.filtered_reason = ""
         elif data.action == "restore":
             prop.status = "active"
+            prop.gone_at = None
         elif data.action == "favorite":
             prop.is_favorite = True
         elif data.action == "unfavorite":

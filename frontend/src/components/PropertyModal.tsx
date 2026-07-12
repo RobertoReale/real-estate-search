@@ -253,11 +253,18 @@ export default function PropertyModal({
                 </span>
               )}
             </div>
-            {p.status === "hidden" ? (
+            {p.status === "hidden" || p.status === "gone" ? (
               <button
                 className="accent-good hover:opacity-80 text-sm transition"
                 onClick={async () => {
-                  if (confirm("Restore this property? It will appear in active lists again.")) {
+                  // The availability check fails open (invariant 16), but a
+                  // portal redirect or block it misread as removal can still
+                  // mark a live listing "gone" — this is the way back for
+                  // both that case and a manual "Hide".
+                  const msg = p.status === "gone"
+                    ? "Restore this property? Use this if the availability check marked it \"no longer available\" by mistake."
+                    : "Restore this property? It will appear in active lists again.";
+                  if (confirm(msg)) {
                     try {
                       await api.restoreProperty(p.id);
                       onDeleted(); // refresh the parent state

@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import schemas
 from app.database import Base
-from app.main import _select_properties, bulk_properties
+from app.main import _select_properties, bulk_properties, restore_property
 from app.models import SearchProfile
 from app.scrapers.base import RawListing
 from app.services.deduplicator import upsert_listing
@@ -256,6 +256,26 @@ def test_bulk_hide_and_restore(db):
     bulk_properties(schemas.PropertyBulkIn(ids=[scan.id], action="restore"), db)
     db.refresh(scan)
     assert scan.status == "active"
+
+
+def test_restore_clears_gone_at(db):
+    """The availability check is fail-open by design (invariant 16), but a
+    portal redirect or block it misreads as removal can still mark a live
+    listing "gone" (seen for real: a wrongly-"gone" property with a stale
+    `gone_at` after being restored). `restore` is the only way back for that
+    case, so it must clear `gone_at` too instead of leaving a stale date that
+    would corrupt days-on-market stats if the property goes "gone" again
+    later (the availability check only sets `gone_at` `if ... is None`)."""
+    from datetime import datetime, timezone
+    scan, _ = _seed_mixed(db)
+    scan.status = "gone"
+    scan.gone_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    db.commit()
+
+    restore_property(scan.id, db)
+    db.refresh(scan)
+    assert scan.status == "active"
+    assert scan.gone_at is None
 
 
 def test_bulk_favorite(db):

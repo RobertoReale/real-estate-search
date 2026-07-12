@@ -225,6 +225,7 @@ def _launch_camoufox(headless: bool) -> Any:
     engine label attached for teardown/diagnostics, or None on any failure so
     the caller falls back to Chromium — Camoufox must never break a working
     check (its browser binary may simply not be fetched yet)."""
+    cam = None
     try:
         from camoufox.sync_api import Camoufox
         # no_viewport=True is required against a newer Playwright (1.5x+): its
@@ -245,6 +246,23 @@ def _launch_camoufox(headless: bool) -> Any:
         return ctx
     except Exception as e:
         logger.warning("cookie-harvest: Camoufox launch failed (%s), falling back to Chromium", e)
+        # Camoufox.__enter__ calls PlaywrightContextManager.__enter__ (which
+        # starts its own Playwright driver) *before* launching the browser
+        # itself — so a failure past that point (e.g. the browser hanging
+        # until its 180s launch timeout) leaves that driver instance running,
+        # never reached by the `cam.__enter__()` call that raised. Camoufox's
+        # own __exit__ is safe to call here: `self.browser` is still None
+        # (never set on this failure path), so it skips closing a browser and
+        # only stops the leftover Playwright instance. Skipping this leaves
+        # the thread marked as "already hosting a Playwright sync API
+        # session", so the very next launch on it — even the plain Chromium
+        # fallback right below — fails with the misleading "Sync API inside
+        # the asyncio loop" error instead of actually trying Chromium.
+        if cam is not None:
+            try:
+                cam.__exit__(type(e), e, e.__traceback__)
+            except Exception:
+                pass
         return None
 
 
