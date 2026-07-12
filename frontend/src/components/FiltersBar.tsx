@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { PropertyFilters, SearchProfile, ViewMode } from "../types";
 
@@ -9,10 +9,15 @@ interface Props {
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
   profiles: SearchProfile[];
+  // "Best match" ranks by the Smart Match Score, which is off unless the user
+  // configured a dream home. Offering the sort while it is disabled is a dead
+  // option: the backend has no score to order by and silently leaves the grid
+  // unsorted (see main.py `sort == "match"`).
+  matchEnabled: boolean;
 }
 
 export default function FiltersBar({
-  filters, onChange, count, view, onViewChange, profiles,
+  filters, onChange, count, view, onViewChange, profiles, matchEnabled,
 }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<{
@@ -26,6 +31,14 @@ export default function FiltersBar({
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
   const isRent = filters.contract === "rent";
+
+  // Turning the dream home off (or never setting it up) must not strand the
+  // grid on a "Best match" sort that no longer does anything: fall back to
+  // Newest so the list stays in a defined order and the select has a match.
+  useEffect(() => {
+    if (!matchEnabled && filters.sort === "match") set({ sort: "newest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchEnabled, filters.sort]);
 
   function exportAs(fmt: "html" | "markdown" | "csv") {
     const what = filters.only_favorites ? "Favorites" : isRent ? "Rentals" : "Properties";
@@ -146,7 +159,7 @@ export default function FiltersBar({
           <option value="price_asc">Price ascending</option>
           <option value="price_desc">Price descending</option>
           <option value="sqm_price">Lowest €/sqm</option>
-          <option value="match">🎯 Best match</option>
+          {matchEnabled && <option value="match">🎯 Best match</option>}
         </select>
       </div>
       <div className="flex flex-col gap-1">
@@ -178,11 +191,15 @@ export default function FiltersBar({
           rules that keep scans clean can prune email imports too. */}
       {profiles.length > 0 && (
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">Match a search</label>
+          {/* This is a FILTER, not a sort: it narrows the grid to what one of
+              your saved searches would keep (its city, contract and excluded
+              keywords), imports included. The label used to read "Match a
+              search", which was mistaken for a "best match" ranking. */}
+          <label className="text-xs t-muted">Limit to a search</label>
           <select className="input w-full sm:w-44" value={filters.profile_id}
-            title="Overlay a saved search on the whole grid: applies its city, contract and excluded keywords (useful to prune email imports the scan filter never saw)"
+            title="Filter the grid down to what a saved search would keep: applies its city, contract and excluded keywords (useful to prune email imports the scan filter never saw). This narrows the list — it does not reorder it."
             onChange={(e) => set({ profile_id: e.target.value })}>
-            <option value="">— none —</option>
+            <option value="">All searches</option>
             {profiles.map((p) => (
               <option key={p.id} value={String(p.id)}>{p.name}</option>
             ))}

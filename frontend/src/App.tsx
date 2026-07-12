@@ -240,7 +240,8 @@ export default function App() {
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
-          view={view} onViewChange={setView} profiles={profiles} />
+          view={view} onViewChange={setView} profiles={profiles}
+          matchEnabled={settings?.match_score_enabled ?? false} />
 
         {properties.length === 0 && !loadError && (
           <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
