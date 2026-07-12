@@ -370,7 +370,15 @@ export default function App() {
                   {batchSummary.aborted && (
                     <span className="block text-amber-600 dark:text-amber-400">
                       ⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.
-                      {batchSummary.transport && !batchSummary.transport.includes("window") && (
+                      {batchSummary.transport && batchSummary.transport.includes("forced") && (
+                        <span className="block font-normal opacity-90">
+                          Ran via {batchSummary.transport}. The browser window setting is on, but a
+                          background Windows service has no desktop to show a window on. To solve a
+                          CAPTCHA yourself, stop the service and run the app normally (start.bat /
+                          serve.bat) for this check.
+                        </span>
+                      )}
+                      {batchSummary.transport && !batchSummary.transport.includes("window") && !batchSummary.transport.includes("forced") && (
                         <span className="block font-normal opacity-90">
                           Ran via {batchSummary.transport}. To solve a CAPTCHA yourself, enable
                           both "Run the check through the browser" and "Show the browser window"

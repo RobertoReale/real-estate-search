@@ -447,6 +447,12 @@ class AdProbe(BaseScraper):
         # start_browser_session. When set, the persistent context launches
         # VISIBLE so the watching user can solve a CAPTCHA by hand.
         self._browser_headful = False
+        # Set when the user asked for a visible window (`availability_browser_headful`)
+        # but it got downgraded to headless because the process has no desktop
+        # to draw one in (running as the NSSM service, Session 0). Distinct from
+        # `_browser_headful=False` meaning "headful was never requested" — this
+        # one needs a different, non-misleading message in browser_status.
+        self._headful_forced_off = False
         # Human-readable diagnostic of the browser session's fate, surfaced to
         # the availability-check UI so "why didn't the window open?" is not a
         # mystery: engine missing, no browser option enabled, headless, headful…
@@ -513,8 +519,12 @@ class AdProbe(BaseScraper):
         self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
         self._browser_warmed_hosts = set()
         engine = getattr(self._browser_ctx, "_engine_label", "browser")
-        self.browser_status = (f"{engine} (visible window)" if self._browser_headful
-                               else f"{engine} (headless)")
+        if self._browser_headful:
+            self.browser_status = f"{engine} (visible window)"
+        elif self._headful_forced_off:
+            self.browser_status = f"{engine} (headless — forced: running as a Windows service, no desktop to show a window on)"
+        else:
+            self.browser_status = f"{engine} (headless)"
         logger.info("ad-probe: browser session started — %s", self.browser_status)
         return True
 
@@ -547,8 +557,10 @@ class AdProbe(BaseScraper):
             # Headful only where a human can actually see the window: a Windows
             # service runs in session 0 with no interactive desktop, so a
             # visible browser would hang invisibly — fall back to headless.
-            self._browser_headful = (bool(s.get("availability_browser_headful"))
-                                     and not cookie_harvester._is_session_zero_nt())
+            headful_requested = bool(s.get("availability_browser_headful"))
+            session_zero = cookie_harvester._is_session_zero_nt()
+            self._browser_headful = headful_requested and not session_zero
+            self._headful_forced_off = headful_requested and session_zero
             return self._ensure_pw_pool().submit(self._start_browser_session_inner).result()
         except Exception as e:
             logger.warning("ad-probe: start_browser_session failed: %s", e)

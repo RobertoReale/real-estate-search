@@ -578,6 +578,38 @@ def test_wait_for_human_solve_returns_once_the_captcha_clears():
     assert probe._wait_for_human_solve(ClearingPage()) is True
 
 
+def test_browser_status_names_the_service_when_headful_is_forced_off(monkeypatch):
+    """When the user turned on `availability_browser_headful` but the process
+    is running as the NSSM service (session 0, no desktop), `start_browser_session`
+    silently downgrades to headless — correct, but the old browser_status just
+    said "(headless)", which reads identically to "headful was never asked
+    for". That made a real block (portal challenge, headless run) look
+    indistinguishable from a misconfiguration, and the UI told the user to
+    'enable' settings that were already on. The status must name the actual
+    cause so the fix (run interactively instead of as a service) is reachable."""
+    from app import config
+    from app.services import cookie_harvester
+
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(config, "load_settings",
+                        lambda: {"availability_browser_headful": True})
+    monkeypatch.setattr(cookie_harvester, "_is_session_zero_nt", lambda: True)
+
+    class FakeCtx:
+        _engine_label = "camoufox"
+        pages: list = []
+        def new_page(self):
+            return object()
+
+    monkeypatch.setattr(cookie_harvester, "_launch", lambda p_factory, headless: FakeCtx())
+
+    probe = _probe(_Response(status_code=403))
+    assert probe.start_browser_session() is True
+    assert "forced" in probe.browser_status
+    assert "Windows service" in probe.browser_status
+    probe.close_browser_session()
+
+
 def test_browser_status_explains_why_no_window_opened(monkeypatch):
     """Diagnostic surfaced to the UI: when the browser does not take over, the
     probe records WHY (engine missing, no option enabled) so "why didn't the
