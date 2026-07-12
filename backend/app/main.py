@@ -126,12 +126,20 @@ def _select_properties(
         # one field.
         for term in q.split():
             like = f"%{term}%"
+            # floor holds short values ("1", "17", "T") and occasionally a
+            # two-word phrase ("piano terra"): a plain substring match makes
+            # "1" match "17", "21"... it needs a word-boundary match instead,
+            # anchored at the start/end of the field or a surrounding space
+            # (mirrors filter_engine's word-boundary keyword matching).
             query = query.where(or_(
                 Property.title.ilike(like),
                 Property.zone.ilike(like),
                 Property.address.ilike(like),
                 Property.city.ilike(like),
-                Property.floor.ilike(like),
+                Property.floor.ilike(term),
+                Property.floor.ilike(f"{term} %"),
+                Property.floor.ilike(f"% {term}"),
+                Property.floor.ilike(f"% {term} %"),
                 Property.listings.any(or_(
                     Listing.agency.ilike(like), Listing.description.ilike(like),
                 )),

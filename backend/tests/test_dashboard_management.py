@@ -176,6 +176,25 @@ def test_q_matches_floor(db):
     assert [p.id for p in list_properties(db=db, q="piano terra")] == [ground.id]
 
 
+def test_q_floor_term_does_not_match_as_substring(db):
+    """A bare floor query like "1" must not match "17" or "21": floor search
+    needs word-boundary matching, not substring (same class of bug invariant 4
+    forbids for keywords: "asta" must not match inside "Castanese")."""
+    first = upsert_listing(db, _raw(portal_id="1", floor="1"))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        floor="17", latitude=45.99, longitude=9.99, address="Via Altra, 9",
+    ))
+    upsert_listing(db, _raw(
+        portal="immobiliare", portal_id="3",
+        url="https://www.immobiliare.it/annunci/3/",
+        floor="21", latitude=45.50, longitude=9.50, address="Via Terza, 9",
+    ))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, q="1")] == [first.id]
+
+
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 def test_profile_overlay_applies_contract_city_and_keywords(db):
