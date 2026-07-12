@@ -854,17 +854,13 @@ def update_settings(data: schemas.SettingsIn):
         values.pop("imap_password")
     if values.get("datadome_cookie") == "***":
         values.pop("datadome_cookie")
-    settings = save_settings(values)
+    save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
     if ("email_import_auto_scan" in values
             or "email_import_auto_scan_interval_hours" in values):
         scheduler.reschedule_email_import()
-    settings["telegram_bot_token"] = "***" if settings.get("telegram_bot_token") else ""
-    settings["smtp_password"] = "***" if settings.get("smtp_password") else ""
-    settings["imap_password"] = "***" if settings.get("imap_password") else ""
-    settings["datadome_cookie"] = "***" if settings.get("datadome_cookie") else ""
-    return settings
+    return get_settings()
 
 
 @app.post("/api/settings/datadome-refresh")

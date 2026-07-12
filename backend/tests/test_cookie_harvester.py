@@ -124,3 +124,18 @@ def test_ensure_browsers_path_and_find_chromium(monkeypatch, tmp_path):
     found = ch._find_chromium_executable()
     assert found == str(fake_exe)
 
+
+def test_update_settings_preserves_harvester_flag(monkeypatch):
+    from app.main import get_settings, update_settings
+    from app import schemas
+
+    monkeypatch.setattr(ch, "is_available", lambda: True)
+
+    # get_settings should return datadome_harvester_available: true
+    get_resp = get_settings()
+    assert get_resp.get("datadome_harvester_available") is True
+
+    # update_settings should also return datadome_harvester_available: true
+    put_resp = update_settings(schemas.SettingsIn(datadome_auto_refresh=True))
+    assert put_resp.get("datadome_harvester_available") is True
+
