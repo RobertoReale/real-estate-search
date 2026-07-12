@@ -195,6 +195,25 @@ def test_q_floor_term_does_not_match_as_substring(db):
     assert [p.id for p in list_properties(db=db, q="1")] == [first.id]
 
 
+def test_q_floor_phrase_does_not_leak_into_other_fields(db):
+    """"1 piano"/"piano 1" is an Italian floor query: pairing a digit with
+    "piano" must filter on the floor field alone. Treating "1" and "piano" as
+    two independent AND terms (each matchable in any field) let a floor-17
+    listing through: "1" matched a street number in the address and "piano"
+    matched the listing description, even though the floor itself was 17."""
+    ground = upsert_listing(db, _raw(portal_id="1", floor="1"))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        floor="17", address="Viale Fulvio Testi 110",
+        description="Ultimo piano, vista panoramica",
+        latitude=45.99, longitude=9.99,
+    ))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, q="1 piano")] == [ground.id]
+    assert [p.id for p in list_properties(db=db, q="piano 1")] == [ground.id]
+
+
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 def test_profile_overlay_applies_contract_city_and_keywords(db):

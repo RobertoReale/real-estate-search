@@ -124,22 +124,60 @@ def _select_properties(
         # a property whose title says "attico" and whose zone says "Navigli",
         # which a single substring never would. Each term may still match any
         # one field.
-        for term in q.split():
-            like = f"%{term}%"
+        def _floor_match(term: str):
             # floor holds short values ("1", "17", "T") and occasionally a
             # two-word phrase ("piano terra"): a plain substring match makes
             # "1" match "17", "21"... it needs a word-boundary match instead,
             # anchored at the start/end of the field or a surrounding space
             # (mirrors filter_engine's word-boundary keyword matching).
+            return or_(
+                Property.floor.ilike(term),
+                Property.floor.ilike(f"{term} %"),
+                Property.floor.ilike(f"% {term}"),
+                Property.floor.ilike(f"% {term} %"),
+            )
+
+        tokens = q.split()
+        # "1 piano" / "piano 1" is a floor query in Italian, not two
+        # independent words: "piano" here names the field rather than text to
+        # find elsewhere, and requiring it as a literal word in the title or
+        # description would return nothing (or the wrong listings, since a
+        # bare digit alone still needs restricting below). Pair a digit with
+        # an adjacent "piano" up front and search only the floor field for it.
+        floor_terms: list[str] = []
+        rest: list[str] = []
+        skip_next = False
+        for i, t in enumerate(tokens):
+            if skip_next:
+                skip_next = False
+                continue
+            nxt = tokens[i + 1] if i + 1 < len(tokens) else None
+            if t.isdigit() and nxt and nxt.lower() == "piano":
+                floor_terms.append(t)
+                skip_next = True
+            elif t.lower() == "piano" and nxt and nxt.isdigit():
+                floor_terms.append(nxt)
+                skip_next = True
+            else:
+                rest.append(t)
+
+        for term in floor_terms:
+            query = query.where(_floor_match(term))
+        for term in rest:
+            if term.isdigit():
+                # a bare number with no "piano" nearby is still almost always
+                # about the floor: matching it against address/description too
+                # would catch street numbers and prices instead ("via Fulvio
+                # Testi 110" for "1").
+                query = query.where(_floor_match(term))
+                continue
+            like = f"%{term}%"
             query = query.where(or_(
                 Property.title.ilike(like),
                 Property.zone.ilike(like),
                 Property.address.ilike(like),
                 Property.city.ilike(like),
-                Property.floor.ilike(term),
-                Property.floor.ilike(f"{term} %"),
-                Property.floor.ilike(f"% {term}"),
-                Property.floor.ilike(f"% {term} %"),
+                _floor_match(term),
                 Property.listings.any(or_(
                     Listing.agency.ilike(like), Listing.description.ilike(like),
                 )),
