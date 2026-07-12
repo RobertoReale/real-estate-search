@@ -6,6 +6,8 @@ opt-in gating. Those are the parts that would silently misbehave, so those are
 the parts covered here."""
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.services import cookie_harvester as ch
 
 
@@ -291,4 +293,36 @@ def test_launch_does_not_start_plain_playwright_before_trying_camoufox(monkeypat
     ctx = ch._launch(p_factory, headless=True)
     assert factory_calls == []
     assert getattr(ctx, "_engine_label", None) == "camoufox"
+
+
+def test_launch_stops_playwright_when_every_channel_fails(monkeypatch, tmp_path):
+    """Regression: when chrome/msedge/bundled Chromium all fail to launch (e.g.
+    the Windows service runs as LocalSystem, whose profile has no browser
+    binaries), `_launch` used to raise without stopping the plain Playwright
+    instance it had just started. That leftover instance kept the calling
+    thread marked as 'already hosting a Playwright sync API' — the next launch
+    attempt on the same (often reused) thread then failed with the misleading
+    'Sync API inside the asyncio loop' error, even for Camoufox, which starts
+    its own separate instance. `_launch` must stop what it started before
+    propagating the failure."""
+    monkeypatch.setattr(ch, "_ensure_browsers_path", lambda: None)
+    monkeypatch.setattr(ch, "PROFILE_DIR", tmp_path)
+    monkeypatch.setattr(ch, "_use_camoufox", lambda: False)
+    monkeypatch.setattr(ch, "_find_chromium_executable", lambda: None)
+
+    stopped = []
+
+    class FakeChromium:
+        def launch_persistent_context(self, **kwargs):
+            raise RuntimeError("Executable doesn't exist")
+
+    class FakeP:
+        chromium = FakeChromium()
+
+        def stop(self):
+            stopped.append(1)
+
+    with pytest.raises(RuntimeError):
+        ch._launch(lambda: FakeP(), headless=True)
+    assert stopped == [1]
 

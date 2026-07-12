@@ -318,6 +318,16 @@ def _launch(p_factory, headless: bool) -> Any:
         except Exception as e:  # channel not installed, etc.
             last_error = e
     assert last_error is not None
+    # Every channel failed: `p` never became a browser context, so nothing
+    # else will ever stop it. Left running, it pins this thread as "already
+    # hosting a Playwright sync instance" — the next launch attempt on the
+    # same (often pooled/reused) thread then fails with the misleading
+    # "Sync API inside the asyncio loop" error, even for Camoufox, which
+    # starts its own separate instance and collides with the leftover one.
+    try:
+        p.stop()
+    except Exception:
+        pass
     raise last_error
 
 

@@ -135,7 +135,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 323 tests
+│   ├── tests/                    # 324 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -174,7 +174,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (323, `pytest`)
+### Automated Tests (324, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
