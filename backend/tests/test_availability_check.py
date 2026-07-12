@@ -137,3 +137,35 @@ def test_all_listings_gone_marks_the_property_gone(db, monkeypatch):
     assert summary["gone"] == 1
     assert prop.status == "gone"
     assert prop.gone_at is not None
+
+
+def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatch):
+    prop = _property(db, "500")
+
+    class BrowserProbe(_FakeProbe):
+        def __init__(self, delay_seconds=6.0):
+            super().__init__(delay_seconds)
+            self._browser_primary = False
+            self.started_browser = False
+
+        def start_browser_session(self):
+            self.started_browser = True
+            return True
+
+        def close_browser_session(self):
+            pass
+
+    probe_instances = []
+    def fake_ad_probe(*args, **kwargs):
+        p = BrowserProbe(*args, **kwargs)
+        probe_instances.append(p)
+        return p
+
+    monkeypatch.setattr(availability_check, "AdProbe", fake_ad_probe)
+    monkeypatch.setattr(availability_check, "load_settings", lambda: {"availability_browser_first": True})
+
+    summary = check_properties_availability(db, [prop])
+    assert summary["checked"] == 1
+    assert len(probe_instances) == 1
+    assert probe_instances[0].started_browser is True
+    assert probe_instances[0]._browser_primary is True

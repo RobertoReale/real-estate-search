@@ -87,6 +87,13 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                 len(properties), delay, skip_recent_hours)
 
     try:
+        if settings.get("availability_browser_first") and hasattr(
+                probe, "start_browser_session"):
+            if probe.start_browser_session():
+                probe._browser_primary = True
+                logger.info("availability_check: running browser-first (curl_cffi bypassed)")
+            else:
+                logger.info("availability_check: browser-first requested but the browser is unavailable; using curl_cffi")
         block_streak = 0
         refreshes_used = 0
         probes_used = 0
