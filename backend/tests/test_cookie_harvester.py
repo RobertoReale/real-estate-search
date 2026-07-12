@@ -140,3 +140,56 @@ def test_update_settings_preserves_harvester_flag(monkeypatch):
     assert put_resp.get("datadome_harvester_available") is True
     assert put_resp.get("availability_browser_first") is True
 
+
+def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
+    class FakeResp:
+        status = 403
+
+    class FakePage:
+        def __init__(self):
+            self.title_val = "geo.captcha-delivery.com"
+            self.checks = 0
+
+        def goto(self, url, **kwargs):
+            return FakeResp()
+
+        def title(self):
+            self.checks += 1
+            if self.checks > 2:
+                self.title_val = "Immobiliare.it - Annunci immobiliari"
+            return self.title_val
+
+        def content(self):
+            return self.title_val
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    class FakeCtx:
+        pages = []
+        def new_page(self):
+            return FakePage()
+        def cookies(self):
+            if hasattr(self, "_page") and self._page.checks > 2:
+                return [{"name": "datadome", "value": "clearanceCookieAfterSolving12345"}]
+            return []
+        def close(self):
+            pass
+
+    fake_ctx = FakeCtx()
+    fake_ctx._page = FakePage()
+    fake_ctx.pages = [fake_ctx._page]
+
+    class FakePW:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", lambda: FakePW())
+    monkeypatch.setattr(ch, "_launch", lambda p, headless: fake_ctx)
+
+    res = ch._harvest_inner("immobiliare", headless=False, timeout_seconds=5.0)
+    assert not res.error
+    assert res.cookie == "clearanceCookieAfterSolving12345"
+

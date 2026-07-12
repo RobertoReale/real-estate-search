@@ -232,6 +232,19 @@ def _launch(p, headless: bool):
     raise last_error
 
 
+def _is_page_blocked(page) -> bool:
+    try:
+        title = (page.title() or "").lower()
+        if any(w in title for w in ("captcha", "blocked", "attention required", "datadome")):
+            return True
+        content = page.content()[:4000].lower()
+        if "geo.captcha-delivery.com" in content or ("datadome" in content and "captcha" in content):
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> HarvestResult:
     home = PORTAL_HOMES.get(portal, PORTAL_HOMES["immobiliare"])
     try:
@@ -246,18 +259,21 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
                                  timeout=timeout_seconds * 1000)
                 deadline = time.monotonic() + timeout_seconds
                 while time.monotonic() < deadline:
-                    if resp and resp.status in (403, 429):
+                    blocked = _is_page_blocked(page)
+                    if headless and (blocked or (resp and resp.status in (403, 429))):
                         return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
-                    cookie = _pick_datadome(ctx.cookies())
-                    if cookie:
-                        logger.info("cookie-harvest: got datadome from %s", portal)
-                        return HarvestResult(cookie=cookie)
+                    if not blocked:
+                        cookie = _pick_datadome(ctx.cookies())
+                        if cookie:
+                            logger.info("cookie-harvest: got datadome from %s", portal)
+                            return HarvestResult(cookie=cookie)
                     page.wait_for_timeout(1500)
                 return HarvestResult(error=(
                     "No datadome cookie appeared before timeout. A CAPTCHA may "
                     "be blocking — try the visible-browser grab and solve it once."
                 ))
             finally:
+
                 ctx.close()
     except Exception as e:  # unexpected: a browser crash, a Playwright bug
         logger.exception("cookie-harvest failed")
