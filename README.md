@@ -216,9 +216,21 @@ phone without any of this. The dashboard is for browsing and triaging.
   appears, solve it once in the window and the run continues on its own — that
   single solve earns a real cookie the rest of the batch reuses, so you are not
   asked again. The window waits a few minutes for you; if you ignore it, the
-  check falls back to stopping rather than hanging. (This option does nothing
-  when the app runs as a background Windows service, which has no desktop to
-  show a window on — there, grab the cookie manually first.)
+  check falls back to stopping rather than hanging.
+
+  **This option shows nothing when the app runs as the NSSM Windows service**
+  (see *Running it 24/7 on Windows* below): a Windows service has no desktop of its own
+  (Session 0), so there is no screen to open a window on, and the check just
+  runs headless regardless of the tick box. If a run under the service gets
+  blocked, don't wait on a window that will never appear — instead click
+  **"Grab a fresh cookie now"** (same Settings page, under *Automatic cookie
+  grab*) first. That button *does* pop a real, visible window even with the
+  service running, because it specifically relaunches the browser inside your
+  own logged-in desktop session rather than the service's; solve the CAPTCHA
+  there once. It shares the same on-disk browser profile as the availability
+  check, so the fresh, unblocked session it earns carries over to the next
+  "Check online availability" run automatically — you don't need to run
+  anything interactively for this to work.
 
   To be challenged less in the first place, switch the **Browser engine** (same
   Settings section) to **Camoufox** — a stealth Firefox that hides the automation
@@ -299,7 +311,16 @@ database and settings are left untouched.
 
 > Notes for all three: don't run `start.bat` at the same time (both use port
 > 8000 — stop the autostart first). After changing the code, rebuild the
-> frontend and restart. The automatic DataDome cookie grab runs headless (`maybe_auto_refresh`) cleanly in the background right when needed. For solving a headful CAPTCHA interactive challenge, you can open Settings from your browser window or paste the cookie once.
+> frontend and restart. The automatic DataDome cookie grab runs headless
+> (`maybe_auto_refresh`) cleanly in the background right when needed. Any
+> **interactive** browser step (solving a CAPTCHA by hand) still works under
+> the service: **"Grab a fresh cookie now"** in Settings relaunches the browser
+> inside your own desktop session instead of the service's invisible one, so a
+> real window opens for you to solve it in. The availability check's own
+> **"Show the browser window during the check"** option cannot do this — it
+> runs the browser in the service itself, so under the service it is always
+> headless no matter the setting (see the *Checking if listings are still
+> online* section above for the workaround: run "Grab a fresh cookie now" first).
 
 ---
 
