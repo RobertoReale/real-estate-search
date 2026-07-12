@@ -309,6 +309,13 @@ updating the code), `nssm stop RealEstateSearch`, `nssm edit RealEstateSearch`
 (GUI). To remove it, run **`uninstall-service.bat`** as administrator — your
 database and settings are left untouched.
 
+Double-click helpers for the same actions: **`restart-services.bat`** (restart
+after updating the code) and **`stop-service.bat`** (stop it so you can run
+`start.bat`/`serve.bat` normally — e.g. to solve a CAPTCHA by hand during the
+availability check, since a service has no desktop to show that window on).
+Both self-elevate via UAC. Remember to start the service again afterwards
+(`restart-services.bat`, or `nssm start RealEstateSearch`).
+
 > Notes for all three: don't run `start.bat` at the same time (both use port
 > 8000 — stop the autostart first). After changing the code, rebuild the
 > frontend and restart. The automatic DataDome cookie grab runs headless
