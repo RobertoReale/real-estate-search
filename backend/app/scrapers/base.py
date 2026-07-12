@@ -488,9 +488,19 @@ class AdProbe(BaseScraper):
         return self._pw_pool
 
     def _start_browser_session_inner(self) -> bool:
-        from playwright.sync_api import sync_playwright
         from ..services import cookie_harvester
-        self._pw = sync_playwright().start()
+        # `p_factory` is called lazily by `_launch` — only if Camoufox is
+        # skipped or fails. Starting a plain Playwright sync instance up front
+        # (before Camoufox gets a turn) trips Camoufox's own "nested sync API"
+        # guard and made it fail this way on every single launch.
+        pw_holder: dict = {}
+
+        def make_p():
+            from playwright.sync_api import sync_playwright
+            pw = sync_playwright().start()
+            pw_holder["pw"] = pw
+            return pw
+
         # Headless by default: the launch is normally unattended (mid-batch,
         # nobody watching), and invariant 18 reserves the visible browser for
         # moments the user is present. The exception is the availability check's
@@ -498,7 +508,8 @@ class AdProbe(BaseScraper):
         # "check online" and is watching the progress bar, so a window they can
         # solve a CAPTCHA in is legitimate — one solve primes the shared
         # persistent profile and the rest of the batch flows unchallenged.
-        self._browser_ctx = cookie_harvester._launch(self._pw, headless=not self._browser_headful)
+        self._browser_ctx = cookie_harvester._launch(make_p, headless=not self._browser_headful)
+        self._pw = pw_holder.get("pw")
         self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
         self._browser_warmed_hosts = set()
         engine = getattr(self._browser_ctx, "_engine_label", "browser")

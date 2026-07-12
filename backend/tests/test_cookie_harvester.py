@@ -260,7 +260,35 @@ def test_launch_falls_back_to_chromium_when_camoufox_fails(monkeypatch, tmp_path
     class FakeP:
         chromium = FakeChromium()
 
-    ctx = ch._launch(FakeP(), headless=True)
+    ctx = ch._launch(lambda: FakeP(), headless=True)
     assert made["headless"] is True
     assert getattr(ctx, "_engine_label", None) == "chromium"
+
+
+def test_launch_does_not_start_plain_playwright_before_trying_camoufox(monkeypatch, tmp_path):
+    """Regression: `_launch` used to receive an already-started plain Playwright
+    sync instance from its caller. But Camoufox is itself built on Playwright's
+    sync API, which refuses a second instance in a thread that already has one
+    running — so that pre-started instance made Camoufox fail its own launch
+    on every single check, with 'Sync API inside the asyncio loop', silently
+    degrading to Chromium every time despite being installed and selected. The
+    fix: `p_factory` must not be called at all when Camoufox succeeds."""
+    monkeypatch.setattr(ch, "_ensure_browsers_path", lambda: None)
+    monkeypatch.setattr(ch, "PROFILE_DIR", tmp_path)
+    monkeypatch.setattr(ch, "_use_camoufox", lambda: True)
+
+    class FakeCamoufoxCtx:
+        _engine_label = "camoufox"
+
+    monkeypatch.setattr(ch, "_launch_camoufox", lambda headless: FakeCamoufoxCtx())
+
+    factory_calls = []
+
+    def p_factory():
+        factory_calls.append(1)
+        raise AssertionError("plain Playwright must not be started when Camoufox succeeds")
+
+    ctx = ch._launch(p_factory, headless=True)
+    assert factory_calls == []
+    assert getattr(ctx, "_engine_label", None) == "camoufox"
 

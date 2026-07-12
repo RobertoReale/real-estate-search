@@ -264,13 +264,21 @@ def _close_ctx(ctx) -> None:
         pass
 
 
-def _launch(p, headless: bool) -> Any:
+def _launch(p_factory, headless: bool) -> Any:
     """Open a persistent browser context. Prefers Camoufox (stealth Firefox)
     when selected — it hides the automation signals DataDome fingerprints — then
     a real installed browser (Chrome, then Edge) over the bundled Chromium: a
     real browser carries a far less bot-like fingerprint, which is the whole
     point against DataDome. Falls back to bundled Chromium when neither is
-    installed."""
+    installed.
+
+    `p_factory` is a zero-arg callable that starts and returns a plain
+    Playwright sync instance, called lazily — only once Camoufox has been
+    skipped or has failed. Camoufox is itself built on Playwright's sync API,
+    which refuses to start a second instance in a thread that already has one
+    running ("Sync API inside the asyncio loop"); starting the plain instance
+    up front, before Camoufox gets a turn, made Camoufox fail this guard on
+    every single launch and silently fall back to Chromium every time."""
     _ensure_browsers_path()
     PROFILE_DIR.mkdir(exist_ok=True)
     if _use_camoufox():
@@ -278,6 +286,7 @@ def _launch(p, headless: bool) -> Any:
         if ctx is not None:
             return ctx
         # Camoufox wanted but unavailable/failed: carry on with Chromium below.
+    p = p_factory()
     last_error: Exception | None = None
     args = [
         "--disable-blink-features=AutomationControlled",
@@ -328,32 +337,40 @@ def _is_page_blocked(page) -> bool:
 def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> HarvestResult:
     home = PORTAL_HOMES.get(portal, PORTAL_HOMES["immobiliare"])
     try:
-        from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
         import time
 
-        with sync_playwright() as p:
-            ctx = _launch(p, headless)
-            try:
-                page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                resp = page.goto(home, wait_until="domcontentloaded",
-                                 timeout=timeout_seconds * 1000)
-                deadline = time.monotonic() + timeout_seconds
-                while time.monotonic() < deadline:
-                    blocked = _is_page_blocked(page)
-                    if headless and (blocked or (resp and resp.status in (403, 429))):
-                        return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
-                    if not blocked:
-                        cookie = _pick_datadome(ctx.cookies())
-                        if cookie:
-                            logger.info("cookie-harvest: got datadome from %s", portal)
-                            return HarvestResult(cookie=cookie)
-                    page.wait_for_timeout(1500)
-                return HarvestResult(error=(
-                    "No datadome cookie appeared before timeout. A CAPTCHA may "
-                    "be blocking — try the visible-browser grab and solve it once."
-                ))
-            finally:
-                _close_ctx(ctx)
+        pw_holder: dict = {}
+
+        def make_p():
+            from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+            pw = sync_playwright().start()
+            pw_holder["pw"] = pw
+            return pw
+
+        ctx = _launch(make_p, headless)
+        try:
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            resp = page.goto(home, wait_until="domcontentloaded",
+                             timeout=timeout_seconds * 1000)
+            deadline = time.monotonic() + timeout_seconds
+            while time.monotonic() < deadline:
+                blocked = _is_page_blocked(page)
+                if headless and (blocked or (resp and resp.status in (403, 429))):
+                    return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
+                if not blocked:
+                    cookie = _pick_datadome(ctx.cookies())
+                    if cookie:
+                        logger.info("cookie-harvest: got datadome from %s", portal)
+                        return HarvestResult(cookie=cookie)
+                page.wait_for_timeout(1500)
+            return HarvestResult(error=(
+                "No datadome cookie appeared before timeout. A CAPTCHA may "
+                "be blocking — try the visible-browser grab and solve it once."
+            ))
+        finally:
+            _close_ctx(ctx)
+            if "pw" in pw_holder:
+                pw_holder["pw"].stop()
     except Exception as e:  # unexpected: a browser crash, a Playwright bug
         logger.exception("cookie-harvest failed")
         return HarvestResult(error=f"{type(e).__name__}: {e}")
