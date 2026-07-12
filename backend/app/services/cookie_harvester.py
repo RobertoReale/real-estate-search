@@ -192,13 +192,92 @@ def cookie_is_stale(updated_at: str | None, ttl_minutes: int,
     return now - saved >= timedelta(minutes=max(ttl_minutes, 1))
 
 
-def _launch(p, headless: bool):
-    """Open a persistent browser context, preferring a real installed browser
-    (Chrome, then Edge) over the bundled Chromium: a real browser carries a far
-    less bot-like fingerprint, which is the whole point against DataDome. Falls
-    back to bundled Chromium when neither is installed."""
+def is_camoufox_available() -> bool:
+    """True when the Camoufox package can be imported. Camoufox is a stealth
+    Firefox build that hides the automation signals DataDome fingerprints, so a
+    check running through it is challenged far less often. Optional and heavier
+    than Chromium (its own ~150 MB browser, fetched once), so it is gated
+    exactly like Playwright: importable → offer it, absent → stay on Chromium."""
+    try:
+        import camoufox.sync_api  # type: ignore[import-not-found] # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def _use_camoufox() -> bool:
+    """Whether this launch should use Camoufox. `browser_engine` picks it
+    explicitly ("camoufox"), pins Chromium ("chromium"), or "auto" (default)
+    uses Camoufox when it is installed and falls back otherwise — so installing
+    the package is itself the opt-in."""
+    from ..config import load_settings
+    engine = str(load_settings().get("browser_engine") or "auto").lower()
+    if engine == "chromium":
+        return False
+    if engine == "camoufox":
+        return True
+    return is_camoufox_available()
+
+
+def _launch_camoufox(headless: bool) -> Any:
+    """Start a persistent Camoufox (stealth Firefox) context on the shared
+    profile. Returns a Playwright BrowserContext with the Camoufox owner and an
+    engine label attached for teardown/diagnostics, or None on any failure so
+    the caller falls back to Chromium — Camoufox must never break a working
+    check (its browser binary may simply not be fetched yet)."""
+    try:
+        from camoufox.sync_api import Camoufox
+        # no_viewport=True is required against a newer Playwright (1.5x+): its
+        # launch_persistent_context sends a `viewport.isMobile` field that the
+        # Firefox build Camoufox bundles (older juggler protocol) rejects with
+        # "Browser.setDefaultViewport … not described in this scheme", failing
+        # the launch. Skipping the default viewport sidesteps it; Camoufox sizes
+        # its own window from its fingerprint anyway.
+        cam = Camoufox(persistent_context=True, user_data_dir=str(PROFILE_DIR),
+                       headless=headless, no_viewport=True)
+        ctx = cam.__enter__()  # start now; teardown is via _close_ctx below
+        try:
+            setattr(ctx, "_camoufox_owner", cam)  # keep launcher alive for teardown
+            setattr(ctx, "_engine_label", "camoufox")
+        except Exception:
+            pass
+        logger.info("cookie-harvest: launched Camoufox (stealth Firefox) persistent context")
+        return ctx
+    except Exception as e:
+        logger.warning("cookie-harvest: Camoufox launch failed (%s), falling back to Chromium", e)
+        return None
+
+
+def _close_ctx(ctx) -> None:
+    """Close a context from either engine. A Camoufox context owns its own
+    Playwright, torn down through the launcher's __exit__; a Chromium context is
+    closed directly (its Playwright is stopped by the caller)."""
+    if ctx is None:
+        return
+    owner = getattr(ctx, "_camoufox_owner", None)
+    try:
+        if owner is not None:
+            owner.__exit__(None, None, None)
+        else:
+            ctx.close()
+    except Exception:
+        pass
+
+
+def _launch(p, headless: bool) -> Any:
+    """Open a persistent browser context. Prefers Camoufox (stealth Firefox)
+    when selected — it hides the automation signals DataDome fingerprints — then
+    a real installed browser (Chrome, then Edge) over the bundled Chromium: a
+    real browser carries a far less bot-like fingerprint, which is the whole
+    point against DataDome. Falls back to bundled Chromium when neither is
+    installed."""
     _ensure_browsers_path()
     PROFILE_DIR.mkdir(exist_ok=True)
+    if _use_camoufox():
+        ctx = _launch_camoufox(headless)
+        if ctx is not None:
+            return ctx
+        # Camoufox wanted but unavailable/failed: carry on with Chromium below.
     last_error: Exception | None = None
     args = [
         "--disable-blink-features=AutomationControlled",
@@ -223,6 +302,7 @@ def _launch(p, headless: bool):
             ctx = p.chromium.launch_persistent_context(**kwargs)
             try:
                 ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+                setattr(ctx, "_engine_label", "chromium")
             except Exception:
                 pass
             return ctx
@@ -273,8 +353,7 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
                     "be blocking — try the visible-browser grab and solve it once."
                 ))
             finally:
-
-                ctx.close()
+                _close_ctx(ctx)
     except Exception as e:  # unexpected: a browser crash, a Playwright bug
         logger.exception("cookie-harvest failed")
         return HarvestResult(error=f"{type(e).__name__}: {e}")

@@ -839,6 +839,7 @@ def get_settings():
     # the "grab it for me" button instead of a paste-only field
     from .services import cookie_harvester
     settings["datadome_harvester_available"] = cookie_harvester.is_available()
+    settings["camoufox_available"] = cookie_harvester.is_camoufox_available()
     return settings
 
 
@@ -924,7 +925,27 @@ def install_harvester():
         cookie_harvester._ensure_browsers_path()
         return {"ok": True, "message": "Successfully installed Playwright and Chromium."}
     except Exception as e:
-        logger.exception("Failed to install playwright/chromium")
+        logging.getLogger(__name__).exception("Failed to install playwright/chromium")
+        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}")
+
+
+@app.post("/api/settings/install-camoufox")
+def install_camoufox():
+    """Install Camoufox (stealth Firefox) and fetch its browser binary into the
+    active virtual environment. Optional upgrade over Chromium: it hides the
+    automation signals DataDome fingerprints, so the check is challenged less."""
+    import subprocess
+    import sys
+    from .services import cookie_harvester
+
+    try:
+        if not cookie_harvester.is_camoufox_available():
+            subprocess.run([sys.executable, "-m", "pip", "install", "camoufox"], check=True)
+        # Downloads the patched Firefox (~150 MB) once; a no-op if already present.
+        subprocess.run([sys.executable, "-m", "camoufox", "fetch"], check=True)
+        return {"ok": True, "message": "Successfully installed Camoufox. Set the engine to auto or camoufox in Settings."}
+    except Exception as e:
+        logging.getLogger(__name__).exception("Failed to install camoufox")
         raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}")
 
 

@@ -578,6 +578,27 @@ def test_wait_for_human_solve_returns_once_the_captcha_clears():
     assert probe._wait_for_human_solve(ClearingPage()) is True
 
 
+def test_browser_status_explains_why_no_window_opened(monkeypatch):
+    """Diagnostic surfaced to the UI: when the browser does not take over, the
+    probe records WHY (engine missing, no option enabled) so "why didn't the
+    window open?" is answerable instead of a silent fall back to curl."""
+    from app import config
+    from app.services import cookie_harvester
+
+    # Engine present, but no browser option is on
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(config, "load_settings", lambda: {})
+    probe = _probe(_Response(status_code=403))
+    assert probe.start_browser_session() is False
+    assert "no browser option" in probe.browser_status
+
+    # Engine not installed at all
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: False)
+    probe2 = _probe(_Response(status_code=403))
+    assert probe2.start_browser_session() is False
+    assert "not installed" in probe2.browser_status
+
+
 def test_wait_for_human_solve_gives_up_when_ignored():
     """An unattended/ignored window must not hang the batch forever: past the
     (here shrunk) deadline the wait reports failure and the caller blocks."""

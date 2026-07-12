@@ -123,6 +123,10 @@ export interface Settings {
   datadome_cookie_ttl_minutes?: number;
   datadome_cookie_updated_at?: string;
   datadome_harvester_available?: boolean;
+  // "auto" | "chromium" | "camoufox" — which browser engine the optional
+  // browser paths use; auto prefers Camoufox when installed
+  browser_engine?: string;
+  camoufox_available?: boolean;
 }
 
 /** Status and timing details of background scan execution. */
@@ -238,6 +242,9 @@ export interface ImportCheckSummary {
   // how many times a fresh DataDome cookie was grabbed mid-check to recover
   // from a block (only when automatic cookie refresh is enabled)
   cookie_refreshed?: number;
+  // human-readable transport diagnostic: "fast requests (curl)",
+  // "chromium (visible window)", "browser off: no option enabled", …
+  transport?: string;
 }
 
 export interface ImportCheckProgress {
@@ -248,6 +255,7 @@ export interface ImportCheckProgress {
   online?: number;
   unknown?: number;
   last_error?: string | null;
+  transport?: string;
 }
 
 export interface EmailScanParams {

@@ -190,6 +190,7 @@ class SettingsIn(BaseModel):
     datadome_cookie_ttl_minutes: int | None = None
     availability_browser_first: bool | None = None
     availability_browser_headful: bool | None = None
+    browser_engine: str | None = None
     tls_impersonations: list[str] | None = None
 
     @field_validator("health_alert_after_failures")

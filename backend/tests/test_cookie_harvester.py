@@ -166,7 +166,8 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
             pass
 
     class FakeCtx:
-        pages = []
+        pages: list = []
+        _page: FakePage
         def new_page(self):
             return FakePage()
         def cookies(self):
@@ -192,4 +193,74 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
     res = ch._harvest_inner("immobiliare", headless=False, timeout_seconds=5.0)
     assert not res.error
     assert res.cookie == "clearanceCookieAfterSolving12345"
+
+
+def test_use_camoufox_respects_the_engine_setting(monkeypatch):
+    """`browser_engine` picks the engine: "camoufox" forces it, "chromium" pins
+    the old behaviour, and "auto" (default) follows whether the package is
+    installed — so `pip install camoufox` is itself the opt-in."""
+    monkeypatch.setattr(ch, "is_camoufox_available", lambda: True)
+    monkeypatch.setattr("app.config.load_settings", lambda: {"browser_engine": "chromium"})
+    assert ch._use_camoufox() is False
+    monkeypatch.setattr("app.config.load_settings", lambda: {"browser_engine": "camoufox"})
+    assert ch._use_camoufox() is True
+    monkeypatch.setattr("app.config.load_settings", lambda: {"browser_engine": "auto"})
+    assert ch._use_camoufox() is True
+    monkeypatch.setattr(ch, "is_camoufox_available", lambda: False)
+    assert ch._use_camoufox() is False
+
+
+def test_close_ctx_prefers_the_camoufox_owner():
+    """A Camoufox context owns its own Playwright and must be torn down through
+    its launcher's __exit__; a Chromium context is closed directly."""
+    events = []
+
+    class Owner:
+        def __exit__(self, *_a):
+            events.append("owner_exit")
+
+    class Ctx:
+        _camoufox_owner: object = None
+
+        def close(self):
+            events.append("close")
+
+    chromium_ctx = Ctx()
+    ch._close_ctx(chromium_ctx)
+    assert events == ["close"]
+
+    events.clear()
+    camoufox_ctx = Ctx()
+    camoufox_ctx._camoufox_owner = Owner()
+    ch._close_ctx(camoufox_ctx)
+    assert events == ["owner_exit"]
+
+
+def test_launch_falls_back_to_chromium_when_camoufox_fails(monkeypatch, tmp_path):
+    """Camoufox must never break a working check: if its launch fails (its
+    browser binary may simply not be fetched yet), `_launch` carries on with
+    Chromium and tags the context so diagnostics still read right."""
+    monkeypatch.setattr(ch, "_ensure_browsers_path", lambda: None)
+    monkeypatch.setattr(ch, "PROFILE_DIR", tmp_path)
+    monkeypatch.setattr(ch, "_use_camoufox", lambda: True)
+    monkeypatch.setattr(ch, "_launch_camoufox", lambda headless: None)  # simulate failure
+    monkeypatch.setattr(ch, "_find_chromium_executable", lambda: None)
+
+    made = {}
+
+    class FakeCtx:
+        def add_init_script(self, _s):
+            pass
+
+    class FakeChromium:
+        def launch_persistent_context(self, **kwargs):
+            made["headless"] = kwargs.get("headless")
+            return FakeCtx()
+
+    class FakeP:
+        chromium = FakeChromium()
+
+    ctx = ch._launch(FakeP(), headless=True)
+    assert made["headless"] is True
+    assert getattr(ctx, "_engine_label", None) == "chromium"
 

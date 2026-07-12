@@ -220,6 +220,16 @@ phone without any of this. The dashboard is for browsing and triaging.
   when the app runs as a background Windows service, which has no desktop to
   show a window on — there, grab the cookie manually first.)
 
+  To be challenged less in the first place, switch the **Browser engine** (same
+  Settings section) to **Camoufox** — a stealth Firefox that hides the automation
+  signals DataDome looks for, so it is flagged far less often than plain
+  Chromium. It is a one-click install (~150 MB, one time); leave the engine on
+  **Auto** and it is used automatically once installed, falling back to Chromium
+  if anything goes wrong. While a check runs, a **Transport** line under the
+  progress bar tells you exactly what it is using — "camoufox (visible window)",
+  "fast requests (curl)", or "browser off: no option enabled" — so you can see at
+  a glance why a run behaved the way it did instead of guessing.
+
   **Only ads hosted on Immobiliare.it or Idealista.it can be imported**, since
   the app identifies a listing by its portal ID. An agency that mails you its
   own proposals (Tecnocasa, a local agency, …) is imported only if the email

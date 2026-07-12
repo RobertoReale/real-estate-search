@@ -423,7 +423,7 @@ class AdProbe(BaseScraper):
     # giving up and treating the ad as blocked. Generous — solving a DataDome
     # slider/puzzle by hand takes a few tries — but bounded, so an ignored or
     # unattended window ends the batch instead of hanging the check forever.
-    _HEADFUL_SOLVE_TIMEOUT_MS = 180_000
+    _HEADFUL_SOLVE_TIMEOUT_MS: int = 180_000
 
     def __init__(self, delay_seconds: float = 6.0):
         super().__init__(delay_seconds=delay_seconds)
@@ -447,6 +447,10 @@ class AdProbe(BaseScraper):
         # start_browser_session. When set, the persistent context launches
         # VISIBLE so the watching user can solve a CAPTCHA by hand.
         self._browser_headful = False
+        # Human-readable diagnostic of the browser session's fate, surfaced to
+        # the availability-check UI so "why didn't the window open?" is not a
+        # mystery: engine missing, no browser option enabled, headless, headful…
+        self.browser_status = ""
 
     def warm_host(self, url: str) -> None:
         """Picks up the portal's DataDome cookie from its homepage first.
@@ -497,8 +501,10 @@ class AdProbe(BaseScraper):
         self._browser_ctx = cookie_harvester._launch(self._pw, headless=not self._browser_headful)
         self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
         self._browser_warmed_hosts = set()
-        logger.info("ad-probe: browser session started (%s)",
-                    "headful" if self._browser_headful else "headless")
+        engine = getattr(self._browser_ctx, "_engine_label", "browser")
+        self.browser_status = (f"{engine} (visible window)" if self._browser_headful
+                               else f"{engine} (headless)")
+        logger.info("ad-probe: browser session started — %s", self.browser_status)
         return True
 
     def start_browser_session(self) -> bool:
@@ -514,6 +520,7 @@ class AdProbe(BaseScraper):
         try:
             from ..services import cookie_harvester
             if not cookie_harvester.is_available():
+                self.browser_status = "unavailable: browser engine not installed"
                 return False
             from ..config import load_settings
             s = load_settings()
@@ -524,6 +531,7 @@ class AdProbe(BaseScraper):
             if not (s.get("datadome_auto_refresh")
                     or s.get("availability_browser_first")
                     or s.get("availability_browser_headful")):
+                self.browser_status = "off: no browser option enabled in Settings"
                 return False
             # Headful only where a human can actually see the window: a Windows
             # service runs in session 0 with no interactive desktop, so a
@@ -533,6 +541,7 @@ class AdProbe(BaseScraper):
             return self._ensure_pw_pool().submit(self._start_browser_session_inner).result()
         except Exception as e:
             logger.warning("ad-probe: start_browser_session failed: %s", e)
+            self.browser_status = f"failed to launch: {type(e).__name__}"
             self.close_browser_session()
             return False
 
@@ -552,8 +561,11 @@ class AdProbe(BaseScraper):
 
     def _close_browser_session_inner(self) -> None:
         if self._browser_ctx:
+            # engine-aware teardown: a Camoufox context owns its own Playwright
+            # and must be closed through its launcher, not just .close()
             try:
-                self._browser_ctx.close()
+                from ..services import cookie_harvester
+                cookie_harvester._close_ctx(self._browser_ctx)
             except Exception:
                 pass
             self._browser_ctx = None

@@ -151,7 +151,7 @@ export default function App() {
     800,
   );
 
-  function bulkAction(action: "hide" | "favorite") {
+  function bulkAction(action: "hide" | "favorite" | "unfavorite") {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     if (action === "hide" && !confirm(
@@ -321,6 +321,13 @@ export default function App() {
                   </button>
                   <button
                     type="button"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    disabled={checkingBatch}
+                    onClick={() => bulkAction("unfavorite")}>
+                    ❌ Remove from favorites
+                  </button>
+                  <button
+                    type="button"
                     className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={checkSelectedProperties}>
@@ -340,6 +347,11 @@ export default function App() {
                   ? `Checking listing ${batchProgress.done} of ${batchProgress.total} — ${batchProgress.online ?? 0} online, ${batchProgress.gone} removed/sold${(batchProgress.unknown ?? 0) > 0 ? `, ${batchProgress.unknown} not verifiable` : ""}`
                   : "Starting check…"}{" "}
                 A safety pause runs between requests to protect the IP from DataDome blocks.
+                {batchProgress?.transport && (
+                  <span className="block opacity-75 font-normal">
+                    Transport: {batchProgress.transport}
+                  </span>
+                )}
                 {batchProgress?.last_error && (
                   <span className="block opacity-75 font-normal">
                     Last issue from the portal: {batchProgress.last_error}
@@ -358,6 +370,13 @@ export default function App() {
                   {batchSummary.aborted && (
                     <span className="block text-amber-600 dark:text-amber-400">
                       ⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.
+                      {batchSummary.transport && !batchSummary.transport.includes("window") && (
+                        <span className="block font-normal opacity-90">
+                          Ran via {batchSummary.transport}. To solve a CAPTCHA yourself, enable
+                          both "Run the check through the browser" and "Show the browser window"
+                          in Settings (needs the browser engine installed).
+                        </span>
+                      )}
                     </span>
                   )}
                   {batchSummary.capped && !batchSummary.aborted && (

@@ -79,10 +79,11 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
     summary = {
         "checked": 0, "gone": 0, "online": 0, "unknown": 0,
         "aborted": False, "capped": False, "last_error": None,
-        "cookie_refreshed": 0,
+        "cookie_refreshed": 0, "transport": "fast requests (curl)",
     }
     _prop_check_progress.update(active=True, done=0, total=len(properties),
-                                gone=0, online=0, unknown=0, last_error=None)
+                                gone=0, online=0, unknown=0, last_error=None,
+                                transport=summary["transport"])
     logger.info("availability_check: starting batch of %d properties (delay=%.1fs, skip_recent_hours=%.1f)",
                 len(properties), delay, skip_recent_hours)
 
@@ -91,9 +92,17 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                 probe, "start_browser_session"):
             if probe.start_browser_session():
                 probe._browser_primary = True
-                logger.info("availability_check: running browser-first (curl_cffi bypassed)")
+                summary["transport"] = getattr(probe, "browser_status", "") or "browser"
+                logger.info("availability_check: running browser-first (curl_cffi bypassed) — %s",
+                            summary["transport"])
             else:
-                logger.info("availability_check: browser-first requested but the browser is unavailable; using curl_cffi")
+                # Surface WHY the browser did not take over (engine missing,
+                # option off, session-0…) so the UI can explain instead of
+                # silently falling back to the curl path that gets blocked.
+                why = getattr(probe, "browser_status", "") or "unavailable"
+                summary["transport"] = f"fast requests (curl) — browser {why}"
+                logger.info("availability_check: browser-first requested but %s; using curl_cffi", why)
+        _prop_check_progress.update(transport=summary["transport"])
         block_streak = 0
         refreshes_used = 0
         probes_used = 0
@@ -193,7 +202,10 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                         # streak hits the short-circuit above and aborts instead
                         # of re-running these curl-only levers forever.
                         probe._browser_primary = True
-                        logger.info("availability_check: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session")
+                        summary["transport"] = getattr(probe, "browser_status", "") or "browser"
+                        _prop_check_progress.update(transport=summary["transport"])
+                        logger.info("availability_check: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session — %s",
+                                    summary["transport"])
                         time.sleep(6.0)
                         block_streak = 0
                         continue

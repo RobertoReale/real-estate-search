@@ -71,8 +71,10 @@ export default function SettingsModal({ onClose }: Props) {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
   const [browserHeadful, setBrowserHeadful] = useState(false);
+  const [browserEngine, setBrowserEngine] = useState("auto");
   const [grabbing, setGrabbing] = useState(false);
   const [installingHarvester, setInstallingHarvester] = useState(false);
+  const [installingCamoufox, setInstallingCamoufox] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<Section | null>(null);
 
@@ -110,6 +112,7 @@ export default function SettingsModal({ onClose }: Props) {
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     setBrowserFirst(s.availability_browser_first ?? false);
     setBrowserHeadful(s.availability_browser_headful ?? false);
+    setBrowserEngine(s.browser_engine ?? "auto");
     // Secrets are write-only: the server never returns them, so the inputs go
     // back to their "already saved" placeholder rather than showing stale dots.
     setToken("");
@@ -149,6 +152,7 @@ export default function SettingsModal({ onClose }: Props) {
       datadome_auto_refresh: autoRefresh,
       availability_browser_first: browserFirst,
       availability_browser_headful: browserHeadful,
+      browser_engine: browserEngine,
     };
     // An empty secret field means "keep the stored one", never "erase it".
     // Pasted app passwords keep their display spaces; save_settings strips them.
@@ -230,6 +234,21 @@ export default function SettingsModal({ onClose }: Props) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
       setInstallingHarvester(false);
+    }
+  }
+
+  async function installCamoufox() {
+    setInstallingCamoufox(true);
+    setFeedback(null);
+    try {
+      const r = await api.installCamoufox();
+      hydrate(await api.getSettings());
+      setFeedback({ where: "global", ok: true,
+        text: r.message || "Camoufox installed successfully!" });
+    } catch (e) {
+      setFeedback({ where: "global", ok: false, text: errorText(e) });
+    } finally {
+      setInstallingCamoufox(false);
     }
   }
 
@@ -666,6 +685,32 @@ export default function SettingsModal({ onClose }: Props) {
                     the app runs as a background Windows service.
                   </span>
                 </label>
+
+                <div className="pt-2 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 space-y-1.5">
+                  <label className="flex items-center gap-2 text-xs t-body">
+                    <span className="whitespace-nowrap">Browser engine:</span>
+                    <select className="input py-1 w-full sm:w-auto"
+                      value={browserEngine}
+                      onChange={(e) => setBrowserEngine(e.target.value)}>
+                      <option value="auto">Auto (Camoufox if installed, else Chromium)</option>
+                      <option value="camoufox">Camoufox (stealth Firefox)</option>
+                      <option value="chromium">Chromium</option>
+                    </select>
+                  </label>
+                  <p className="text-[11px] t-muted">
+                    Camoufox is a stealth Firefox that hides the automation signals
+                    DataDome looks for, so the check is challenged far less often.{" "}
+                    {settings.camoufox_available
+                      ? "Installed ✓"
+                      : "Not installed — one-click adds it (~150 MB, one time):"}
+                  </p>
+                  {!settings.camoufox_available && (
+                    <button className="btn-ghost text-xs w-full sm:w-auto" onClick={installCamoufox}
+                      disabled={installingCamoufox || anyBusy}>
+                      {installingCamoufox ? "⚡ Installing Camoufox (~1-3 min)…" : "⚡ One-Click Install Camoufox"}
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="space-y-2.5 pt-1">

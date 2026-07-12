@@ -190,6 +190,10 @@ export const api = {
   installHarvester() {
     return request<{ ok: boolean; message: string }>("/settings/install-harvester", { method: "POST" });
   },
+  /** Install Camoufox (stealth Firefox) + its browser binary into the backend. */
+  installCamoufox() {
+    return request<{ ok: boolean; message: string }>("/settings/install-camoufox", { method: "POST" });
+  },
   /** Send a test notification message to verify SMTP email settings. */
   emailTest() {
     return request("/settings/email-test", { method: "POST" });

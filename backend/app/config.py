@@ -105,6 +105,14 @@ DEFAULT_SETTINGS = {
     # flows without further challenges. Ignored when running as a Windows service
     # (session 0 has no interactive desktop): it degrades to headless.
     "availability_browser_headful": False,
+    # Which browser engine the optional browser paths (cookie grab, availability
+    # check) use. "auto" (default) prefers Camoufox — a stealth Firefox build
+    # that hides the automation signals DataDome fingerprints, so it is
+    # challenged far less often — when the package is installed, and falls back
+    # to Chromium otherwise (so installing Camoufox is itself the opt-in).
+    # "chromium" pins the current behaviour; "camoufox" forces it (and still
+    # falls back to Chromium if the launch fails, e.g. its browser is unfetched).
+    "browser_engine": "auto",
 }
 
 
