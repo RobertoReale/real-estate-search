@@ -16,7 +16,7 @@ from app.database import Base
 from app.models import Listing, Property
 from app.services import availability_check
 from app.services.availability_check import check_properties_availability
-from app.services.email_import import MAX_CHECKS_PER_CALL
+from app.services.email_import import BLOCK_STREAK_ABORT, MAX_CHECKS_PER_CALL
 
 
 @pytest.fixture
@@ -137,6 +137,59 @@ def test_all_listings_gone_marks_the_property_gone(db, monkeypatch):
     assert summary["gone"] == 1
     assert prop.status == "gone"
     assert prop.gone_at is not None
+
+
+def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, monkeypatch):
+    """Regression: a browser-first check whose headless browser is *itself*
+    CAPTCHA-challenged used to grind for minutes with the progress bar frozen.
+    On a block streak the code fell into the curl_cffi recovery levers — cookie
+    refresh (relaunches a browser), TLS rotation (12s sleeps) — none of which
+    can clear a browser CAPTCHA and none of which browser-primary check() even
+    uses. It must abort straight on the streak (invariant 16)."""
+    props = [_property(db, str(600 + n)) for n in range(10)]
+
+    class BlockedBrowserProbe(_FakeProbe):
+        def __init__(self, delay_seconds=6.0):
+            super().__init__(delay_seconds)
+            self._browser_primary = True
+
+        def check(self, url) -> bool | None:
+            self.calls += 1
+            self.was_blocked = True
+            self.last_error = "Blocked by DataDome (browser CAPTCHA)"
+            return None
+
+        def start_browser_session(self):
+            return True
+
+        def close_browser_session(self):
+            pass
+
+    probes = []
+
+    def make_probe(*args, **kwargs):
+        p = BlockedBrowserProbe(*args, **kwargs)
+        probes.append(p)
+        return p
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError(
+            "curl_cffi cookie recovery must not run in browser-primary mode")
+
+    monkeypatch.setattr(availability_check, "AdProbe", make_probe)
+    monkeypatch.setattr(availability_check, "_try_cookie_recovery", fail_if_called)
+    monkeypatch.setattr(availability_check, "load_settings",
+                        lambda: {"availability_browser_first": True})
+
+    summary = check_properties_availability(db, props, skip_recent_hours=0)
+
+    assert summary["aborted"] is True
+    # Stops the instant the streak trips: exactly BLOCK_STREAK_ABORT probes,
+    # no grinding past it (the old code kept fetching for many more properties
+    # while cycling the useless curl levers).
+    assert probes[0].calls == BLOCK_STREAK_ABORT
+    assert summary["checked"] < len(props)
+    assert all(p.status == "active" for p in props)
 
 
 def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatch):

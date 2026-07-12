@@ -810,6 +810,19 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
 
             block_streak = block_streak + 1 if probe.was_blocked else 0
             if block_streak >= BLOCK_STREAK_ABORT:
+                if getattr(probe, "_browser_primary", False):
+                    # Browser-primary and still blocked: the portal is
+                    # challenging the headless browser itself (invariant 16).
+                    # The curl_cffi levers below cannot clear a browser CAPTCHA
+                    # and only grind an already-lost batch (a fresh cookie
+                    # relaunches a browser, TLS rotation sleeps 12s, and check()
+                    # never touches curl in this mode). Stop now.
+                    logger.warning(
+                        "email-import: browser session also blocked, stopping "
+                        "after %s listings", summary["checked"],
+                    )
+                    summary["aborted"] = True
+                    break
                 if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
                         and _try_cookie_recovery(
                             probe, item.portal, settings, summary)):

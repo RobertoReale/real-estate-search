@@ -150,6 +150,21 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
 
                 block_streak = block_streak + 1 if probe.was_blocked else 0
                 if block_streak >= BLOCK_STREAK_ABORT:
+                    if getattr(probe, "_browser_primary", False):
+                        # Already running through the persistent headless
+                        # browser and STILL blocked: the portal is challenging
+                        # the browser itself (invariant 16). The curl_cffi levers
+                        # below cannot clear a browser CAPTCHA — a fresh cookie
+                        # relaunches a headless browser, TLS rotation sleeps 12s,
+                        # and check() never even touches curl in this mode. That
+                        # is exactly the grind that freezes the progress bar for
+                        # minutes on an already-lost batch. Stop now.
+                        logger.warning(
+                            "availability_check: browser session also blocked, stopping after %s properties",
+                            summary["checked"],
+                        )
+                        summary["aborted"] = True
+                        break
                     if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
                             and _try_cookie_recovery(
                                 probe, listing.portal, settings, summary)):
@@ -168,12 +183,17 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                         block_streak = 0
                         continue
                     if (hasattr(probe, "start_browser_session")
-                            and not getattr(probe, "_browser_ctx", None)
+                            and not getattr(probe, "_browser_primary", False)
                             and probe.start_browser_session()):
-                        # Last resort, opt-in (invariant 18): carry the batch
-                        # on through the persistent browser instead of
+                        # Last resort, opt-in (invariant 18): switch the rest of
+                        # the batch to the persistent browser instead of
                         # hammering a TLS session the portal already refused.
-                        logger.info("availability_check: curl_cffi blocked repeatedly, switching to persistent browser session")
+                        # Sticky (invariant 16): mark browser-primary so every
+                        # remaining ad routes through it — and so the next block
+                        # streak hits the short-circuit above and aborts instead
+                        # of re-running these curl-only levers forever.
+                        probe._browser_primary = True
+                        logger.info("availability_check: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session")
                         time.sleep(6.0)
                         block_streak = 0
                         continue
