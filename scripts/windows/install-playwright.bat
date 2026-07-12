@@ -7,21 +7,21 @@ rem  and downloads Chromium so the Windows Service (NSSM) or local platform
 rem  can find and run it automatically at startup without any manual path setup.
 rem ============================================================================
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 title Install Playwright & Chromium
 
 echo ============================================================================
 echo   Installing Playwright & Chromium into backend virtual environment
 echo ============================================================================
 
-set "PY=%~dp0backend\.venv\Scripts\python.exe"
+set "PY=%~dp0..\..\backend\.venv\Scripts\python.exe"
 if not exist "%PY%" (
     echo [SETUP] Creating Python virtual environment...
     python -m venv backend\.venv
 )
 
 echo [1/3] Installing playwright package into backend\.venv ...
-"%~dp0backend\.venv\Scripts\pip.exe" install playwright
+"%~dp0..\..\backend\.venv\Scripts\pip.exe" install playwright
 if errorlevel 1 (
     echo [ERROR] Failed to install playwright. Check internet connection.
     pause
@@ -34,10 +34,10 @@ if not defined PLAYWRIGHT_BROWSERS_PATH (
     if exist "%USERPROFILE%\AppData\Local\ms-playwright" (
         set "PLAYWRIGHT_BROWSERS_PATH=%USERPROFILE%\AppData\Local\ms-playwright"
     ) else (
-        set "PLAYWRIGHT_BROWSERS_PATH=%~dp0backend\browser_binaries"
+        set "PLAYWRIGHT_BROWSERS_PATH=%~dp0..\..\backend\browser_binaries"
     )
 )
-"%~dp0backend\.venv\Scripts\playwright.exe" install chromium
+"%~dp0..\..\backend\.venv\Scripts\playwright.exe" install chromium
 if errorlevel 1 (
     echo [ERROR] Failed to download Chromium binary.
     pause

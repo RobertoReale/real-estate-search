@@ -10,11 +10,13 @@
 '  Prerequisite: build the dashboard once so the backend serves it on port 8000
 '  (run serve.bat once, or: cd frontend && npm run build).
 ' ============================================================================
-Dim sh, root, pyw
+Dim sh, fso, root, pyw
 Set sh = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
 
-' Folder this script lives in (the project root), with trailing backslash.
-root = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\"))
+' This script now lives two levels below the project root (scripts\windows\),
+' so climb back up: scripts\windows -> scripts -> project root.
+root = fso.GetParentFolderName(fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))) & "\"
 
 ' pythonw.exe runs Python without a console window (unlike python.exe).
 pyw = root & "backend\.venv\Scripts\pythonw.exe"

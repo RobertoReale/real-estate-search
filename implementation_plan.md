@@ -135,7 +135,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 322 tests
+│   ├── tests/                    # 323 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -147,8 +147,10 @@ progetto/
 │       │                         # ErrorBoundary
 │       ├── services/api.ts
 │       └── types/index.ts
-├── start.bat                     # double click: backend + frontend + browser
-├── serve.bat                     # single port 8000: built dashboard + API, for phones
+├── scripts/
+│   ├── windows/                  # start/serve/install-service/uninstall-service/
+│   │                             # restart-services/stop-service/install-playwright/run-hidden
+│   └── linux/                    # start.sh (Linux / Raspberry Pi)
 └── README.md
 ```
 
@@ -172,7 +174,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (322, `pytest`)
+### Automated Tests (323, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
@@ -180,7 +182,7 @@ cd backend
 Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the read-only IMAP inbox import (against a fake IMAP client), the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety).
 
 ### Manual Verification
-1. Double click `start.bat`.
+1. Double click `scripts\windows\start.bat`.
 2. On `http://localhost:5173`, paste one search URL from Immobiliare.it and one from Idealista.
 3. Click **"▶ Start Scan Now"**: the grid populates with unified property cards.
 4. ⚙️ Settings → bot token and Chat ID → **"Send test message"**.

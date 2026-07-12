@@ -1,6 +1,6 @@
 @echo off
 title Real Estate Search - Startup
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 echo ============================================
 echo   Real Estate Search - Starting Platform
@@ -20,10 +20,10 @@ if not exist "frontend\node_modules" (
 )
 
 echo [1/2] Starting backend on http://localhost:8000 ...
-start "Backend - FastAPI" cmd /k "cd /d %~dp0backend && set APP_RELOAD=1&& .venv\Scripts\python run.py"
+start "Backend - FastAPI" cmd /k "cd /d %~dp0..\..\backend && set APP_RELOAD=1&& .venv\Scripts\python run.py"
 
 echo [2/2] Starting frontend on http://localhost:5173 ...
-start "Frontend - Vite" cmd /k "cd /d %~dp0frontend && npm run dev"
+start "Frontend - Vite" cmd /k "cd /d %~dp0..\..\frontend && npm run dev"
 
 timeout /t 4 /nobreak >nul
 start http://localhost:5173

@@ -13,7 +13,7 @@ rem    2. From the zip, copy win64\nssm.exe next to THIS script (or put it on PA
 rem    3. Right-click this file -> "Run as administrator".
 rem ============================================================================
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 title Install Real Estate Search service
 
 rem --- must be elevated: creating a service needs admin -----------------------
@@ -38,7 +38,7 @@ if errorlevel 1 (
     )
 )
 
-set "PY=%~dp0backend\.venv\Scripts\python.exe"
+set "PY=%~dp0..\..\backend\.venv\Scripts\python.exe"
 if not exist "%PY%" (
     echo [ERROR] Backend virtual environment missing: %PY%
     echo         Run start.bat once first so it creates backend\.venv.
@@ -47,7 +47,7 @@ if not exist "%PY%" (
 )
 
 rem --- build the dashboard so the backend serves it on the single port 8000 ---
-if not exist "%~dp0frontend\dist\index.html" (
+if not exist "%~dp0..\..\frontend\dist\index.html" (
     echo [1/2] Building the frontend once...
     pushd frontend
     call npm run build
@@ -64,19 +64,19 @@ set "SVC=RealEstateSearch"
 echo [2/2] Registering the "%SVC%" service...
 
 "%NSSM%" install %SVC% "%PY%" run.py
-"%NSSM%" set %SVC% AppDirectory "%~dp0backend"
+"%NSSM%" set %SVC% AppDirectory "%~dp0..\..\backend"
 "%NSSM%" set %SVC% DisplayName "Real Estate Search"
 "%NSSM%" set %SVC% Description "Local real estate monitor (Immobiliare.it + Idealista) + scheduler"
 "%NSSM%" set %SVC% Start SERVICE_AUTO_START
 rem NSSM restarts the process automatically if it exits; log to a rotating file
-"%NSSM%" set %SVC% AppStdout "%~dp0backend\service.log"
-"%NSSM%" set %SVC% AppStderr "%~dp0backend\service.log"
+"%NSSM%" set %SVC% AppStdout "%~dp0..\..\backend\service.log"
+"%NSSM%" set %SVC% AppStderr "%~dp0..\..\backend\service.log"
 "%NSSM%" set %SVC% AppRotateFiles 1
 "%NSSM%" set %SVC% AppRotateBytes 5000000
 
 rem Point NSSM service (LocalSystem) to the Chromium browser cache if already installed
-if exist "%~dp0backend\browser_binaries" (
-    "%NSSM%" set %SVC% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%~dp0backend\browser_binaries"
+if exist "%~dp0..\..\backend\browser_binaries" (
+    "%NSSM%" set %SVC% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%~dp0..\..\backend\browser_binaries"
 ) else if exist "%USERPROFILE%\AppData\Local\ms-playwright" (
     "%NSSM%" set %SVC% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%USERPROFILE%\AppData\Local\ms-playwright"
 )

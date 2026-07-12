@@ -18,16 +18,19 @@ Real estate portals erase history and hide metrics to protect listing agencies. 
 ## Quick Start
 
 ### Windows
-Double-click on **`start.bat`**: 
+Double-click on **`scripts\windows\start.bat`**:
 - Installs all dependencies on first run (requires Python 3.11+ and Node.js 18+).
 - Starts the backend server (http://localhost:8000) and the frontend dashboard (http://localhost:5173).
 - Automatically opens the web interface in your default browser.
 
+All Windows-only helpers (service install/uninstall, restart, stop, hidden
+autostart) live in `scripts\windows\` — see *Running it 24/7 on Windows* below.
+
 ### Linux / Raspberry Pi
 Open a terminal inside the project directory and run:
 ```bash
-chmod +x start.sh
-./start.sh
+chmod +x scripts/linux/start.sh
+./scripts/linux/start.sh
 ```
 - Installs dependencies and starts both services concurrently.
 - Makes the dashboard accessible from any device on your local network at `http://<IP_OF_YOUR_PI>:5173`.
@@ -40,7 +43,7 @@ The scraper stays on the PC — portals trust residential IPs and block cloud on
 (see *Technical Architecture*) — but the dashboard can be used from an Android
 or iOS browser, and installed as an app icon.
 
-Run **`serve.bat`** instead of `start.bat`. It builds the frontend and serves the
+Run **`scripts\windows\serve.bat`** instead of `start.bat`. It builds the frontend and serves the
 dashboard *and* the API from a single port (8000), so there is nothing to
 configure on the phone: open the URL the script prints, then use the browser's
 **"Add to home screen"** to get a standalone app icon.
@@ -52,14 +55,14 @@ stretching the page.
 
 **Reaching the PC from outside the house**: install [Tailscale](https://tailscale.com)
 on both the PC and the phone and log into the same account. It is free, needs no
-port forwarding, and no public IP. `serve.bat` detects the Tailscale address
+port forwarding, and no public IP. `serve.bat` (in `scripts\windows\`) detects the Tailscale address
 automatically and binds only to it, so the dashboard is reachable from your own
 devices anywhere and from nothing else.
 
 > Note: **The API has no password.** Anything that can reach port 8000 can read your
 > database and change your settings, so the address matters:
 > - *(default)* Tailscale address — only your own logged-in devices.
-> - `serve.bat lan` — **every device on your Wi-Fi**, guests included. Convenient
+> - `scripts\windows\serve.bat lan` — **every device on your Wi-Fi**, guests included. Convenient
 >   at home, but do not use it on a network you do not control.
 > - Never forward port 8000 on your router.
 
@@ -268,9 +271,11 @@ phone without any of this. The dashboard is for browsing and triaging.
 Don't have a Raspberry Pi yet? You can make the app run in the background on
 Windows, with no console window. Whichever option you pick, **build the
 dashboard once first** so the backend serves it on a single port — run
-`serve.bat` once (Ctrl+C after "Building the frontend"), or `cd frontend && npm
+`scripts\windows\serve.bat` once (Ctrl+C after "Building the frontend"), or `cd frontend && npm
 run build`. Then open **http://localhost:8000** and bookmark it. Everything
 stays on `127.0.0.1` — the API has no password, so it must not be exposed.
+
+All the scripts below live in **`scripts\windows\`**.
 
 Three options, from simplest to most robust:
 
@@ -282,18 +287,18 @@ Three options, from simplest to most robust:
 
 **Option A — Start at login.** Press `Win+R`, type `shell:startup`, Enter. In
 the folder that opens, right-click → *New → Shortcut*, and point it at
-`run-hidden.vbs` in the project folder. Done — it launches silently at every
+`scripts\windows\run-hidden.vbs`. Done — it launches silently at every
 login. (To stop it, delete the shortcut and end `pythonw.exe` in Task Manager.)
 
 **Option B — Task Scheduler.** Open *Task Scheduler* → *Create Task* → trigger
 *At log on*, action *Start a program* → `wscript.exe` with argument the full path
-to `run-hidden.vbs`. This gives you options A doesn't (delay after login, "run
+to `scripts\windows\run-hidden.vbs`. This gives you options A doesn't (delay after login, "run
 whether logged on or not", stop if idle, …).
 
 **Option C — Windows Service (recommended).**
 1. Download **NSSM** from <https://nssm.cc/download>, and copy `win64\nssm.exe`
-   into the project folder (next to `install-service.bat`).
-2. Right-click **`install-service.bat`** → *Run as administrator*. It builds the
+   into `scripts\windows\` (next to `install-service.bat`).
+2. Right-click **`scripts\windows\install-service.bat`** → *Run as administrator*. It builds the
    frontend if needed, registers the `RealEstateSearch` service (auto-start,
    auto-restart), and starts it.
 3. Open **http://localhost:8000**.
@@ -302,7 +307,7 @@ whether logged on or not", stop if idle, …).
 When running as a Windows Service at boot (`LocalSystem` account), the service automatically searches for your installed Chromium binaries across user profiles (`C:\Users\<YourUser>\AppData\Local\ms-playwright`) and inside `backend/browser_binaries`.
 If Playwright or Chromium is not yet installed:
 * Open **http://localhost:8000** → **Settings** and click **⚡ One-Click Install Playwright & Chromium**, *OR*
-* Double-click **`install-playwright.bat`** in the project root. It installs Playwright into `backend\.venv`, downloads Chromium, and automatically restarts the `RealEstateSearch` service so it finds Chromium immediately upon boot.
+* Double-click **`scripts\windows\install-playwright.bat`**. It installs Playwright into `backend\.venv`, downloads Chromium, and automatically restarts the `RealEstateSearch` service so it finds Chromium immediately upon boot.
 
 Manage it from an admin terminal: `nssm restart RealEstateSearch` (after
 updating the code), `nssm stop RealEstateSearch`, `nssm edit RealEstateSearch`

@@ -1,6 +1,6 @@
 @echo off
 title Real Estate Search - Phone access
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 echo ============================================
 echo   Real Estate Search - Serving to the phone
