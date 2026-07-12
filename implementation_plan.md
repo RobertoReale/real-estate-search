@@ -130,12 +130,12 @@ progetto/
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
-│   │       ├── repair_listings.py # local data repair (titles, images) + live enrichment
+│   │       ├── repair_listings.py # local data repair (titles, images) + duplicate-card merge by listing URL
 │   │       ├── data_reset.py      # scoped irreversible data wipes (Settings -> Data management)
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 330 tests
+│   ├── tests/                    # 331 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4

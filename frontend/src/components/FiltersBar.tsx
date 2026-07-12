@@ -19,6 +19,8 @@ export default function FiltersBar({
     properties_fixed: number;
     listings_fixed: number;
     images_recovered: number;
+    properties_merged: number;
+    duplicate_listings_removed: number;
   } | null>(null);
 
   const set = (patch: Partial<PropertyFilters>) =>
@@ -272,7 +274,7 @@ export default function FiltersBar({
       {repairResult && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
-            {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 ? (
+            {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 || repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0 ? (
               <>
                 <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
                   <span>✅</span> Repair completed successfully!
@@ -281,6 +283,13 @@ export default function FiltersBar({
                   Updated <strong>{repairResult.properties_fixed} properties</strong>,{" "}
                   <strong>{repairResult.listings_fixed} listings</strong> and recovered{" "}
                   <strong>{repairResult.images_recovered} photos</strong>.
+                  {(repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0) && (
+                    <>
+                      {" "}Merged <strong>{repairResult.properties_merged} duplicate cards</strong>{" "}
+                      and removed <strong>{repairResult.duplicate_listings_removed} duplicate listings</strong>{" "}
+                      pointing at the same ad.
+                    </>
+                  )}
                 </p>
               </>
             ) : (
@@ -289,7 +298,7 @@ export default function FiltersBar({
                   <span>✨</span> Everything is in order and fully in sync!
                 </p>
                 <p>
-                  The check scanned the database: no property or listing with missing data, city (`Location N/A`) or photos was found to repair. Every listing is already complete and aligned.
+                  The check scanned the database: no property or listing with missing data, city (`Location N/A`), photos, or duplicate ad links was found to repair. Every listing is already complete and aligned.
                 </p>
               </>
             )}

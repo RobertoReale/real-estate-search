@@ -155,8 +155,14 @@ export const api = {
   getScanStatus(): Promise<ScanStatus> {
     return request("/scrapers/status");
   },
-  /** Instantly repair existing dashboard properties lacking city, zone, title, or photos. */
-  repairListings(): Promise<{ properties_fixed: number; listings_fixed: number; images_recovered: number }> {
+  /** Instantly repair existing dashboard properties lacking city, zone, title, or photos, and merge duplicate cards sharing the same listing URL. */
+  repairListings(): Promise<{
+    properties_fixed: number;
+    listings_fixed: number;
+    images_recovered: number;
+    properties_merged: number;
+    duplicate_listings_removed: number;
+  }> {
     return request("/maintenance/repair-listings", { method: "POST" });
   },
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
