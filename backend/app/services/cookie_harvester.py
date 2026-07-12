@@ -303,10 +303,122 @@ def harvest(portal: str = "immobiliare", headless: bool = True,
         _harvest_lock.release()
 
 
+def _is_session_zero_nt() -> bool:
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        session_id = ctypes.c_uint()
+        ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(session_id))
+        return session_id.value == 0
+    except Exception:
+        return False
+
+
+def _refresh_via_active_session_nt(portal: str) -> dict:
+    import ctypes
+    from ctypes import wintypes
+    import subprocess
+    import sys
+
+    wtsapi32 = ctypes.windll.wtsapi32
+    kernel32 = ctypes.windll.kernel32
+    advapi32 = ctypes.windll.advapi32
+
+    session_id = kernel32.WTSGetActiveConsoleSessionId()
+    if session_id == 0xFFFFFFFF:
+        return {"ok": False, "error": "No active user desktop session found to display the browser window."}
+
+    h_token = wintypes.HANDLE()
+    if not wtsapi32.WTSQueryUserToken(session_id, ctypes.byref(h_token)):
+        return {"ok": False, "error": f"Failed to get user session token (Win32 error {kernel32.GetLastError()})."}
+
+    try:
+        class STARTUPINFOW(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("lpReserved", wintypes.LPWSTR),
+                ("lpDesktop", wintypes.LPWSTR),
+                ("lpTitle", wintypes.LPWSTR),
+                ("dwX", wintypes.DWORD),
+                ("dwY", wintypes.DWORD),
+                ("dwXSize", wintypes.DWORD),
+                ("dwYSize", wintypes.DWORD),
+                ("dwXCountChars", wintypes.DWORD),
+                ("dwYCountChars", wintypes.DWORD),
+                ("dwFillAttribute", wintypes.DWORD),
+                ("dwFlags", wintypes.DWORD),
+                ("wShowWindow", wintypes.WORD),
+                ("cbReserved2", wintypes.WORD),
+                ("lpReserved2", ctypes.POINTER(ctypes.c_byte)),
+                ("hStdInput", wintypes.HANDLE),
+                ("hStdOutput", wintypes.HANDLE),
+                ("hStdError", wintypes.HANDLE),
+            ]
+
+        class PROCESS_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("hProcess", wintypes.HANDLE),
+                ("hThread", wintypes.HANDLE),
+                ("dwProcessId", wintypes.DWORD),
+                ("dwThreadId", wintypes.DWORD),
+            ]
+
+        si = STARTUPINFOW()
+        si.cb = ctypes.sizeof(STARTUPINFOW)
+        si.lpDesktop = "winsta0\\default"
+
+        pi = PROCESS_INFORMATION()
+
+        cmd = [sys.executable, "-m", "app.services.cookie_harvester", "--portal", portal, "--refresh-headful"]
+        cmd_buf = ctypes.create_unicode_buffer(subprocess.list2cmdline(cmd))
+
+        # CREATE_NEW_CONSOLE = 0x00000010
+        success = advapi32.CreateProcessAsUserW(
+            h_token,
+            None,
+            cmd_buf,
+            None,
+            None,
+            False,
+            0x00000010,
+            None,
+            str(BASE_DIR),
+            ctypes.byref(si),
+            ctypes.byref(pi),
+        )
+        if not success:
+            err = kernel32.GetLastError()
+            return {"ok": False, "error": f"Failed to launch browser inside interactive session (Win32 error {err})."}
+
+        # Wait up to 5 minutes (300,000 ms) for the user to finish in the popup window
+        kernel32.WaitForSingleObject(pi.hProcess, 300_000)
+        exit_code = wintypes.DWORD()
+        kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(exit_code))
+        kernel32.CloseHandle(pi.hProcess)
+        kernel32.CloseHandle(pi.hThread)
+
+        if exit_code.value == 0:
+            settings = load_settings()
+            cookie = settings.get("datadome_cookie")
+            if cookie:
+                return {
+                    "ok": True,
+                    "portal": portal,
+                    "updated_at": settings.get("datadome_cookie_updated_at"),
+                    "cookie_preview": str(cookie)[:6] + "…",
+                }
+        return {"ok": False, "error": "Browser window closed or timed out before saving a fresh cookie."}
+    finally:
+        kernel32.CloseHandle(h_token)
+
+
 def refresh_into_settings(portal: str = "immobiliare",
                           headless: bool = True) -> dict:
     """Harvest a cookie and, on success, persist it (with a timestamp) into
     settings.json so the scrapers pick it up on their next session."""
+    if not headless and _is_session_zero_nt():
+        return _refresh_via_active_session_nt(portal)
     timeout = HEADLESS_TIMEOUT_SECONDS if headless else HEADFUL_TIMEOUT_SECONDS
     result = harvest(portal, headless=headless, timeout_seconds=timeout)
     if not result.cookie:
@@ -342,3 +454,20 @@ def maybe_auto_refresh(settings: dict) -> bool:
     except Exception:
         logger.exception("cookie-harvest: auto-refresh failed")
         return False
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(description="Automated DataDome cookie harvesting CLI")
+    parser.add_argument("--portal", default="immobiliare", choices=["immobiliare", "idealista"])
+    parser.add_argument("--refresh-headful", action="store_true", help="Run headful refresh_into_settings directly")
+    args = parser.parse_args()
+    if args.refresh_headful:
+        res = refresh_into_settings(args.portal, headless=False)
+        if not res.get("ok"):
+            print(f"Harvest failed: {res.get('error')}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Successfully harvested and saved cookie for {args.portal}")
+        sys.exit(0)
+
