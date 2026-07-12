@@ -324,6 +324,7 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
     wtsapi32 = ctypes.windll.wtsapi32
     kernel32 = ctypes.windll.kernel32
     advapi32 = ctypes.windll.advapi32
+    userenv = ctypes.windll.userenv
 
     session_id = kernel32.WTSGetActiveConsoleSessionId()
     if session_id == 0xFFFFFFFF:
@@ -332,6 +333,11 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
     h_token = wintypes.HANDLE()
     if not wtsapi32.WTSQueryUserToken(session_id, ctypes.byref(h_token)):
         return {"ok": False, "error": f"Failed to get user session token (Win32 error {kernel32.GetLastError()})."}
+
+    lpEnv = ctypes.c_void_p()
+    if not userenv.CreateEnvironmentBlock(ctypes.byref(lpEnv), h_token, False):
+        kernel32.CloseHandle(h_token)
+        return {"ok": False, "error": f"Failed to create user environment block (Win32 error {kernel32.GetLastError()})."}
 
     try:
         class STARTUPINFOW(ctypes.Structure):
@@ -373,7 +379,7 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
         cmd = [sys.executable, "-m", "app.services.cookie_harvester", "--portal", portal, "--refresh-headful"]
         cmd_buf = ctypes.create_unicode_buffer(subprocess.list2cmdline(cmd))
 
-        # CREATE_NEW_CONSOLE = 0x00000010
+        # CREATE_UNICODE_ENVIRONMENT (0x00000400) | CREATE_NO_WINDOW (0x08000000) = 0x08000400
         success = advapi32.CreateProcessAsUserW(
             h_token,
             None,
@@ -381,8 +387,8 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
             None,
             None,
             False,
-            0x00000010,
-            None,
+            0x08000400,
+            lpEnv,
             str(BASE_DIR),
             ctypes.byref(si),
             ctypes.byref(pi),
@@ -410,7 +416,10 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
                 }
         return {"ok": False, "error": "Browser window closed or timed out before saving a fresh cookie."}
     finally:
+        if lpEnv:
+            userenv.DestroyEnvironmentBlock(lpEnv)
         kernel32.CloseHandle(h_token)
+
 
 
 def refresh_into_settings(portal: str = "immobiliare",
