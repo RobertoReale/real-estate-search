@@ -135,7 +135,8 @@ def test_update_settings_preserves_harvester_flag(monkeypatch):
     get_resp = get_settings()
     assert get_resp.get("datadome_harvester_available") is True
 
-    # update_settings should also return datadome_harvester_available: true
-    put_resp = update_settings(schemas.SettingsIn(datadome_auto_refresh=True))
+    # update_settings should also return datadome_harvester_available: true and save availability_browser_first
+    put_resp = update_settings(schemas.SettingsIn(datadome_auto_refresh=True, availability_browser_first=True))
     assert put_resp.get("datadome_harvester_available") is True
+    assert put_resp.get("availability_browser_first") is True
 
