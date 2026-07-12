@@ -210,6 +210,16 @@ phone without any of this. The dashboard is for browsing and triaging.
   blocks. It is slower per listing, but it does not stop mid-run. This needs the
   optional browser engine installed (same one as the automatic cookie grab).
 
+  If DataDome still challenges even that browser with a CAPTCHA, tick **"Show the
+  browser window during the check"** right below it. Because you start the check
+  yourself and watch it run, the browser opens **visible**: when a CAPTCHA
+  appears, solve it once in the window and the run continues on its own — that
+  single solve earns a real cookie the rest of the batch reuses, so you are not
+  asked again. The window waits a few minutes for you; if you ignore it, the
+  check falls back to stopping rather than hanging. (This option does nothing
+  when the app runs as a background Windows service, which has no desktop to
+  show a window on — there, grab the cookie manually first.)
+
   **Only ads hosted on Immobiliare.it or Idealista.it can be imported**, since
   the app identifies a listing by its portal ID. An agency that mails you its
   own proposals (Tecnocasa, a local agency, …) is imported only if the email

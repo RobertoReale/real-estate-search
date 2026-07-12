@@ -97,6 +97,14 @@ DEFAULT_SETTINGS = {
     # browser launch (invariant 18); degrades to curl_cffi if Playwright is
     # absent. Slower per ad, but it does not get interrupted by blocks.
     "availability_browser_first": False,
+    # Availability check: open the browser VISIBLE so a CAPTCHA can be solved by
+    # hand. The check is user-triggered (they click "check online" and watch the
+    # progress bar), so unlike a scan a person is present — invariant 18's "every
+    # unattended launch is headless" still holds. One manual solve mints a real
+    # DataDome cookie in the shared persistent profile, so the rest of the batch
+    # flows without further challenges. Ignored when running as a Windows service
+    # (session 0 has no interactive desktop): it degrades to headless.
+    "availability_browser_headful": False,
 }
 
 

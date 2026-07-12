@@ -522,6 +522,78 @@ def test_browser_session_starts_when_opted_in(monkeypatch):
     probe.close_browser_session()
 
 
+def test_headful_availability_check_is_opt_in_and_desktop_only(monkeypatch):
+    """The availability check may open a VISIBLE browser so the watching user
+    can solve a CAPTCHA by hand (`availability_browser_headful`). It is opt-in
+    like every other launch (invariant 18) — and only where a human can see it:
+    a Windows service runs in session 0 with no interactive desktop, so a
+    visible window would hang invisibly and must fall back to headless."""
+    from app import config
+    from app.services import cookie_harvester
+
+    monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
+    monkeypatch.setattr(config, "load_settings",
+                        lambda: {"availability_browser_headful": True})
+
+    seen = {}
+
+    def fake_inner(self):
+        # the launch mode is decided before the (faked) browser opens
+        seen["headful"] = self._browser_headful
+        return True
+
+    monkeypatch.setattr(AdProbe, "_start_browser_session_inner", fake_inner)
+
+    # Opted in on an interactive desktop -> visible window
+    monkeypatch.setattr(cookie_harvester, "_is_session_zero_nt", lambda: False)
+    probe = _probe(_Response(status_code=403))
+    assert probe.start_browser_session() is True
+    assert seen["headful"] is True
+    probe.close_browser_session()
+
+    # Same opt-in, but running as a background service -> headless
+    monkeypatch.setattr(cookie_harvester, "_is_session_zero_nt", lambda: True)
+    probe2 = _probe(_Response(status_code=403))
+    assert probe2.start_browser_session() is True
+    assert seen["headful"] is False
+    probe2.close_browser_session()
+
+
+def test_wait_for_human_solve_returns_once_the_captcha_clears():
+    """The headful CAPTCHA wait polls the page until the challenge markup is
+    gone (the user solved it), then lets the caller re-read the ad."""
+    probe = AdProbe()
+
+    class ClearingPage:
+        def __init__(self):
+            self.polls = 0
+
+        def wait_for_timeout(self, _ms):
+            self.polls += 1
+
+        def content(self):
+            # challenged for the first two polls, then solved
+            return "please solve the captcha" if self.polls < 2 else "<html>the ad</html>"
+
+    assert probe._wait_for_human_solve(ClearingPage()) is True
+
+
+def test_wait_for_human_solve_gives_up_when_ignored():
+    """An unattended/ignored window must not hang the batch forever: past the
+    (here shrunk) deadline the wait reports failure and the caller blocks."""
+    probe = AdProbe()
+    probe._HEADFUL_SOLVE_TIMEOUT_MS = 30  # ms: don't wait 3 real minutes
+
+    class StuckPage:
+        def wait_for_timeout(self, _ms):
+            pass
+
+        def content(self):
+            return "captcha challenge still here"
+
+    assert probe._wait_for_human_solve(StuckPage()) is False
+
+
 def test_rotation_stops_when_profiles_are_exhausted():
     """Rotation must report exhaustion rather than wrap around: the caller
     turns a False into a 'blocked' scan status, and a wrapping list would

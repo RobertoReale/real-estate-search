@@ -119,6 +119,7 @@ export interface Settings {
   datadome_cookie_set?: boolean;
   datadome_auto_refresh?: boolean;
   availability_browser_first?: boolean;
+  availability_browser_headful?: boolean;
   datadome_cookie_ttl_minutes?: number;
   datadome_cookie_updated_at?: string;
   datadome_harvester_available?: boolean;

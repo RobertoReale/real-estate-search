@@ -70,6 +70,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
+  const [browserHeadful, setBrowserHeadful] = useState(false);
   const [grabbing, setGrabbing] = useState(false);
   const [installingHarvester, setInstallingHarvester] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -108,6 +109,7 @@ export default function SettingsModal({ onClose }: Props) {
     setProxyUrl(s.proxy_url || "");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     setBrowserFirst(s.availability_browser_first ?? false);
+    setBrowserHeadful(s.availability_browser_headful ?? false);
     // Secrets are write-only: the server never returns them, so the inputs go
     // back to their "already saved" placeholder rather than showing stale dots.
     setToken("");
@@ -146,6 +148,7 @@ export default function SettingsModal({ onClose }: Props) {
       proxy_url: proxyUrl,
       datadome_auto_refresh: autoRefresh,
       availability_browser_first: browserFirst,
+      availability_browser_headful: browserHeadful,
     };
     // An empty secret field means "keep the stored one", never "erase it".
     // Pasted app passwords keep their display spaces; save_settings strips them.
@@ -651,6 +654,16 @@ export default function SettingsModal({ onClose }: Props) {
                     Run the "still online?" check through the browser instead of
                     fast requests — slower per ad, but it holds a real cookie so
                     DataDome does not interrupt it with 403 blocks.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
+                  <input type="checkbox" checked={browserHeadful} className="mt-0.5"
+                    onChange={(e) => setBrowserHeadful(e.target.checked)} />
+                  <span>
+                    Show the browser window during the check so you can solve a
+                    CAPTCHA by hand if one appears — one solve unblocks the whole
+                    run. Works best together with the option above. Ignored when
+                    the app runs as a background Windows service.
                   </span>
                 </label>
               </>

@@ -419,6 +419,11 @@ class AdProbe(BaseScraper):
     those instead of hammering a portal that has already said no.
     """
     portal = "ad-probe"
+    # How long a headful CAPTCHA waits for the watching user to solve it before
+    # giving up and treating the ad as blocked. Generous — solving a DataDome
+    # slider/puzzle by hand takes a few tries — but bounded, so an ignored or
+    # unattended window ends the batch instead of hanging the check forever.
+    _HEADFUL_SOLVE_TIMEOUT_MS = 180_000
 
     def __init__(self, delay_seconds: float = 6.0):
         super().__init__(delay_seconds=delay_seconds)
@@ -438,6 +443,10 @@ class AdProbe(BaseScraper):
         # portal has already shown it will refuse the TLS session — every extra
         # 403 only tightens the block the real scans depend on (invariant 16).
         self._browser_primary = False
+        # Headful browser: opt-in (`availability_browser_headful`), decided in
+        # start_browser_session. When set, the persistent context launches
+        # VISIBLE so the watching user can solve a CAPTCHA by hand.
+        self._browser_headful = False
 
     def warm_host(self, url: str) -> None:
         """Picks up the portal's DataDome cookie from its homepage first.
@@ -478,12 +487,18 @@ class AdProbe(BaseScraper):
         from playwright.sync_api import sync_playwright
         from ..services import cookie_harvester
         self._pw = sync_playwright().start()
-        # Headless: this launch is unattended (mid-batch, nobody watching), and
-        # invariant 18 reserves the visible browser for the manual grab where
-        # the user is present to solve a CAPTCHA.
-        self._browser_ctx = cookie_harvester._launch(self._pw, headless=True)
+        # Headless by default: the launch is normally unattended (mid-batch,
+        # nobody watching), and invariant 18 reserves the visible browser for
+        # moments the user is present. The exception is the availability check's
+        # opt-in headful mode (`availability_browser_headful`): the user clicked
+        # "check online" and is watching the progress bar, so a window they can
+        # solve a CAPTCHA in is legitimate — one solve primes the shared
+        # persistent profile and the rest of the batch flows unchallenged.
+        self._browser_ctx = cookie_harvester._launch(self._pw, headless=not self._browser_headful)
         self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
         self._browser_warmed_hosts = set()
+        logger.info("ad-probe: browser session started (%s)",
+                    "headful" if self._browser_headful else "headless")
         return True
 
     def start_browser_session(self) -> bool:
@@ -502,12 +517,19 @@ class AdProbe(BaseScraper):
                 return False
             from ..config import load_settings
             s = load_settings()
-            # Either switch is an explicit opt-in to an unattended browser
-            # launch (invariant 18): the reactive cookie/refresh machinery, or
-            # the availability check's browser-first transport.
+            # Any of these switches is an explicit opt-in to a browser launch
+            # (invariant 18): the reactive cookie/refresh machinery, the
+            # availability check's browser-first transport, or its headful
+            # "let me solve the CAPTCHA myself" mode.
             if not (s.get("datadome_auto_refresh")
-                    or s.get("availability_browser_first")):
+                    or s.get("availability_browser_first")
+                    or s.get("availability_browser_headful")):
                 return False
+            # Headful only where a human can actually see the window: a Windows
+            # service runs in session 0 with no interactive desktop, so a
+            # visible browser would hang invisibly — fall back to headless.
+            self._browser_headful = (bool(s.get("availability_browser_headful"))
+                                     and not cookie_harvester._is_session_zero_nt())
             return self._ensure_pw_pool().submit(self._start_browser_session_inner).result()
         except Exception as e:
             logger.warning("ad-probe: start_browser_session failed: %s", e)
@@ -653,12 +675,22 @@ class AdProbe(BaseScraper):
             if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
                 page.wait_for_timeout(5000)
                 if "captcha" in page.content()[:4000].lower():
-                    # The browser too is being challenged: report it as a block
-                    # so a browser-first batch can abort on a streak instead of
-                    # grinding out an all-unknown run at ~25s per ad.
-                    self.was_blocked = True
-                    self.last_error = "Blocked by DataDome (browser CAPTCHA)"
-                    return None
+                    if self._browser_headful and self._wait_for_human_solve(page):
+                        # The user solved the challenge in the visible window:
+                        # the shared profile now holds a real DataDome cookie.
+                        # Re-navigate to read the ad through the cleared session.
+                        resp = page.goto(url, referer=home_ref,
+                                         wait_until="domcontentloaded", timeout=25000)
+                        if not resp:
+                            return None
+                    else:
+                        # Headless (or the headful window went unsolved): report
+                        # it as a block so a browser-first batch can abort on a
+                        # streak instead of grinding an all-unknown run at ~25s
+                        # per ad.
+                        self.was_blocked = True
+                        self.last_error = "Blocked by DataDome (browser CAPTCHA)"
+                        return None
             path = urlparse(url).path.rstrip("/")
             if resp.status in (404, 410):
                 return False
@@ -685,6 +717,32 @@ class AdProbe(BaseScraper):
         except Exception as e:
             logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
             return None
+
+    def _wait_for_human_solve(self, page) -> bool:
+        """Poll a visible CAPTCHA page until the user clears it, or time out.
+
+        Runs on the probe's dedicated Playwright thread (the caller already
+        does), so it may block that thread — the whole batch is single-file
+        through it anyway, and the FastAPI worker that drives the check is a
+        threadpool `def`, so the progress endpoint keeps answering (invariant
+        15). Returns True once the challenge markup is gone.
+        """
+        import time as _time
+        deadline = _time.monotonic() + self._HEADFUL_SOLVE_TIMEOUT_MS / 1000.0
+        logger.info("ad-probe: headful CAPTCHA — waiting up to %ds for the user to solve it",
+                    int(self._HEADFUL_SOLVE_TIMEOUT_MS / 1000))
+        while _time.monotonic() < deadline:
+            page.wait_for_timeout(3000)
+            try:
+                if "captcha" not in page.content()[:4000].lower():
+                    logger.info("ad-probe: headful CAPTCHA cleared by the user")
+                    return True
+            except Exception:
+                # A navigation is likely in flight right after a solve; the ad
+                # page reloads on its own, so keep polling rather than bail.
+                pass
+        logger.info("ad-probe: headful CAPTCHA not solved within the window")
+        return False
 
 
 def find_card_container(anchor, ad_path_re: re.Pattern):
