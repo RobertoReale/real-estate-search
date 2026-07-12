@@ -443,6 +443,52 @@ def test_probe_treats_a_bounce_to_the_search_list_as_gone():
     assert _probe(resp).check("https://www.idealista.it/immobile/555/") is False
 
 
+def test_probe_gone_page_wins_over_a_stray_captcha_mention():
+    """Regression: a removed-ad page still carries DataDome's anti-bot script,
+    whose URL mentions "captcha". Read the portal's own "no longer available"
+    copy BEFORE the block heuristic, or a plainly-gone ad gets diverted down the
+    blocked/None branch and reported "not verifiable" instead of "removed"."""
+    page = ("<script src='https://ct.captcha-delivery.com/c.js'></script>"
+            "La pagina che stai cercando non è più disponibile.")
+    assert _probe(_Response(text=page)).check(
+        "https://www.immobiliare.it/annunci/129424494/") is False
+
+
+def test_browser_check_reads_the_gone_page_over_a_captcha_script():
+    """Regression: the availability check opened a browser that rendered
+    Immobiliare's own "non più disponibile" page — a definitive gone signal —
+    yet reported "not verifiable" (0 removed). The rendered DOM also held
+    DataDome's anti-bot script, whose "captcha" substring tripped the block
+    heuristic before the gone copy was ever read. The gone signal must win."""
+    probe = AdProbe()
+    probe._browser_headful = False
+    probe._browser_warmed_hosts = {"www.immobiliare.it"}
+
+    class FakeResp:
+        status = 200
+
+    class FakePage:
+        url = "https://www.immobiliare.it/annunci/129424494/"
+
+        def goto(self, url, **kwargs):
+            return FakeResp()
+
+        def wait_for_timeout(self, _ms):
+            pass
+
+        def content(self):
+            # The real removed-ad page: the portal's "gone" copy AND DataDome's
+            # anti-bot script (which mentions "captcha") in the same document.
+            return ("<html><head><script src='https://ct.captcha-delivery.com/c.js'>"
+                    "</script></head><body>La pagina che stai cercando non è "
+                    "presente sul nostro sito o non è più disponibile.</body></html>")
+
+    setattr(probe, "_browser_page", FakePage())
+    assert probe._browser_check_inner(
+        "https://www.immobiliare.it/annunci/129424494/") is False
+    assert probe.was_blocked is False
+
+
 def test_probe_confirms_a_live_ad():
     assert _probe(_Response()).check(
         "https://www.immobiliare.it/annunci/129244060/"

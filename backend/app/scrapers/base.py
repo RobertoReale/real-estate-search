@@ -656,6 +656,15 @@ class AdProbe(BaseScraper):
                 logger.info("ad-probe: %s -> unknown (%s)", url, e)
                 self.last_error = f"Network error: {type(e).__name__}"
                 return None
+            # Definitive "gone" (404/410 or the portal's own "no longer
+            # available" copy) wins over the block heuristic below, for the same
+            # reason as the browser path: a removed-ad page can carry DataDome's
+            # anti-bot script, and "captcha" as a bare substring would otherwise
+            # divert a plainly-gone ad down the blocked/None branch instead of
+            # answering False. A real block carries neither signal.
+            if (resp.status_code in (404, 410)
+                    or any(m in resp.text.lower() for m in AD_GONE_MARKERS)):
+                return False
             blocked = (resp.status_code in (403, 429)
                        or "captcha" in resp.text[:4000].lower())
             if blocked and attempt == 0 and self._rotate_session():
@@ -738,6 +747,16 @@ class AdProbe(BaseScraper):
             resp = page.goto(url, referer=home_ref, wait_until="domcontentloaded", timeout=25000)
             if not resp:
                 return None
+            # A definitive "gone" answer (404/410 or the portal's own "no longer
+            # available" copy) is authoritative and must be read BEFORE the block
+            # heuristic below: a genuinely removed ad page still ships DataDome's
+            # anti-bot script, so the bare "captcha" substring test would
+            # otherwise misfile a plainly-gone ad as "not verifiable" — the
+            # window shows the "non più disponibile" page yet the batch reports
+            # 0 removed. A real CAPTCHA wall carries neither signal, so this
+            # cannot swallow a genuine block.
+            if self._page_says_gone(resp, page):
+                return False
             if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
                 page.wait_for_timeout(5000)
                 if "captcha" in page.content()[:4000].lower():
@@ -749,6 +768,8 @@ class AdProbe(BaseScraper):
                                          wait_until="domcontentloaded", timeout=25000)
                         if not resp:
                             return None
+                        if self._page_says_gone(resp, page):
+                            return False
                     else:
                         # Headless (or the headful window went unsolved): report
                         # it as a block so a browser-first batch can abort on a
@@ -791,6 +812,21 @@ class AdProbe(BaseScraper):
         except Exception as e:
             logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
             return None
+
+    @staticmethod
+    def _page_says_gone(resp, page) -> bool:
+        """A browser response that definitively means "ad gone": a 404/410
+        status or the portal's own "no longer available" copy in the rendered
+        page. Deliberately excludes the block heuristic (403/CAPTCHA) so callers
+        can consult it *before* that check — a removed-ad page can still carry
+        DataDome's anti-bot script, and only these signals are unambiguous."""
+        try:
+            if resp is not None and resp.status in (404, 410):
+                return True
+            content = page.content().lower()
+            return any(marker in content for marker in AD_GONE_MARKERS)
+        except Exception:
+            return False
 
     def _wait_for_human_solve(self, page) -> bool:
         """Poll a visible CAPTCHA page until the user clears it, or time out.
