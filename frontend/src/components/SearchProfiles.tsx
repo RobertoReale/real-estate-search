@@ -81,6 +81,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   const [keywords, setKeywords] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // set while editing an existing profile via the "url" form, so submitUrl
+  // knows whether to PUT over it instead of POSTing a new one
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // builder state
   const [params, setParams] = useState<SearchBuilderParams>(EMPTY_BUILDER);
@@ -129,7 +132,17 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setName(""); setUrl(""); setKeywords(""); setError("");
     setParams(EMPTY_BUILDER); setBuilt(null);
     setQuery(""); setAssistant(null); setMulti([]);
+    setEditingId(null);
     setMode("closed");
+  }
+
+  function editProfile(p: SearchProfile) {
+    setName(p.name);
+    setUrl(p.search_url);
+    setKeywords(p.excluded_keywords);
+    setEditingId(p.id);
+    setError("");
+    setMode("url");
   }
 
   function editInBuilder(search: AssistantSearch) {
@@ -189,12 +202,23 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setSaving(true);
     setError("");
     try {
-      await api.createProfile({
-        name: name || "Untitled search",
-        search_url: url,
-        excluded_keywords: keywords,
-        is_active: true,
-      });
+      if (editingId !== null) {
+        const current = profiles.find((p) => p.id === editingId);
+        await api.updateProfile(editingId, {
+          name: name || "Untitled search",
+          search_url: url,
+          excluded_keywords: keywords,
+          notify_channels: current?.notify_channels ?? "",
+          is_active: current?.is_active ?? true,
+        });
+      } else {
+        await api.createProfile({
+          name: name || "Untitled search",
+          search_url: url,
+          excluded_keywords: keywords,
+          is_active: true,
+        });
+      }
       resetForm();
       onChanged();
     } catch (e) {
@@ -248,15 +272,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         </h2>
         <div className="flex flex-wrap gap-2">
           <button className="btn-ghost"
-            onClick={() => setMode(mode === "assistant" ? "closed" : "assistant")}>
+            onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
             {mode === "assistant" ? "Cancel" : "💬 Just describe it"}
           </button>
           <button className="btn-ghost"
-            onClick={() => setMode(mode === "builder" ? "closed" : "builder")}>
+            onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
             {mode === "builder" ? "Cancel" : "🧭 Build a search"}
           </button>
           <button className="btn-ghost"
-            onClick={() => setMode(mode === "url" ? "closed" : "url")}>
+            onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
             {mode === "url" ? "Cancel" : "🔗 Paste a URL"}
           </button>
         </div>
@@ -414,7 +438,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             value={url} onChange={(e) => setUrl(e.target.value)} />
           {error && <p className="accent-bad text-xs">{error}</p>}
           <button className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
-            {saving ? "Saving…" : "Save profile"}
+            {saving ? "Saving…" : editingId !== null ? "Save changes" : "Save profile"}
           </button>
         </div>
       )}
@@ -618,6 +642,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   }} />
                 Active
               </label>
+              <button className="t-dim hover:opacity-70 transition text-sm btn-focus
+                  inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
+                  rounded-lg shrink-0"
+                title="Edit this search profile" aria-label="Edit this search profile"
+                onClick={() => editProfile(p)}>
+                ✏️
+              </button>
               <button className="t-dim hover:text-rose-500 transition text-sm btn-focus
                   inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
                   rounded-lg shrink-0"

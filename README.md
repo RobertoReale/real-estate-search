@@ -89,7 +89,7 @@ phone without any of this. The dashboard is for browsing and triaging.
      assistant and the **"Build a search"** form only cover the basics (city,
      price, rooms, surface); for any of the advanced filters above, set them on
      the portal and paste the URL.
-2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**.
+2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list.
 3. **Start Scanning**: Click **"Start Scan Now"** (or let the automatic scheduler scan in the background).
 4. **Browse Listings**: Merged listings will show a purple badge (e.g., *"2 merged listings"*), showing that duplicates across different portals or agencies have been successfully grouped together.
 5. **Curation (Hide & Discard)**:
