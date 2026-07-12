@@ -44,7 +44,18 @@ def is_bad_title(title: str) -> bool:
     if not title:
         return True
     tl = title.casefold().strip(" .-")
-    if tl in ("appartamento in vendita", "n/a", "", "in vendita a milano, milano", "vendita a milano, milano", "residenziale in vendita a milano, milano", "residenziale in vendita a milano", "immobile residenziale in vendita"):
+    if tl in (
+        "appartamento in vendita", "n/a", "",
+        "in vendita a milano, milano", "vendita a milano, milano",
+        "residenziale in vendita a milano, milano", "residenziale in vendita a milano",
+        "immobile residenziale in vendita",
+        # rent mirrors the sale placeholders above: the portal (and email
+        # alerts) generate the same kind of generic auto-title for affitto
+        "appartamento in affitto",
+        "in affitto a milano, milano", "affitto a milano, milano",
+        "residenziale in affitto a milano, milano", "residenziale in affitto a milano",
+        "immobile residenziale in affitto",
+    ):
         return True
     if any(k in tl for k in ("ti propone un immobile", "ti propone:", "affiliato ", "gabetti ", "tempocasa ", "studio quattro", "strategie immobiliari", "dhome real estate", "cosetta fiori")):
         return True
