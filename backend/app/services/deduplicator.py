@@ -17,7 +17,7 @@ A listing is merged into an existing Property only if **all** these
 conditions hold true:
   * compatible surface area (±5%) — mandatory;
   * same number of rooms (when known on both sides);
-  * price within ±5% of at least one already-merged listing (when known);
+  * price within ±5% of every already-merged listing (when known);
   * location proof: coordinates within 60 m **OR** exact same street and
     house number in the same municipality.
 """
@@ -100,19 +100,22 @@ def _same_coordinates(raw: RawListing, prop: Property) -> bool:
 
 
 def _price_compatible(raw: RawListing, prop: Property) -> bool:
-    """Price must be close to at least one already-merged listing.
+    """Price must be close to EVERY already-merged listing.
 
     Price is mandatory on both sides: without it, in a building of
     40 sqm studio apartments, every unit would look like the exact same one.
-    Furthermore, comparing against only the minimum of the Property would allow
-    progressive drift as more listings are merged.
+    Comparing against a single listing of the group (any anchor: the minimum,
+    the newest, "at least one") allows progressive drift — 100k merges 105k,
+    105k merges 110.25k, and the group walks away from its original price
+    band. Requiring compatibility with all members bounds the group's spread
+    to the tolerance itself.
     """
     if not raw.price:
         return False
     prices = [l.price for l in prop.listings if l.price]
     if not prices:
         return False
-    return any(_within(raw.price, p, PRICE_TOLERANCE) for p in prices)
+    return all(_within(raw.price, p, PRICE_TOLERANCE) for p in prices)
 
 
 def _floor_compatible(raw: RawListing, prop: Property) -> bool:
@@ -133,7 +136,7 @@ def _matches_property(raw: RawListing, prop: Property) -> bool:
     # 3. floor: if known on both sides, must match
     if not _floor_compatible(raw, prop):
         return False
-    # 4. price: known on both sides and consistent with an already-merged listing
+    # 4. price: known on both sides and consistent with every already-merged listing
     if not _price_compatible(raw, prop):
         return False
     # 5. location proof: nearby coordinates or exact same street + house number

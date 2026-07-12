@@ -20,7 +20,8 @@ from bs4 import BeautifulSoup
 
 from .base import (
     BaseScraper, BlockedError, RawListing, ScrapeResult, extract_json_ld_blocks,
-    find_card_container, parse_price, parse_rooms, parse_sqm, to_float, to_int,
+    find_card_container, parse_price, parse_rooms, parse_sqm, plausible_price,
+    to_float, to_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,10 @@ GEO_NAZIONE, GEO_REGIONE, GEO_PROVINCIA, GEO_COMUNE, GEO_MACROZONA = -1, 0, 1, 2
 
 class ImmobiliareScraper(BaseScraper):
     portal = "immobiliare"
-    # DataDome accepts Safari's TLS handshake on the homepage
-    impersonations = ["safari184", "chrome131_android", "safari180"]
+    # TLS profiles: inherited from BaseScraper (Safari-first, plus the newer
+    # rotation entries). No override here — a shorter local list once shadowed
+    # the base list's anti-block additions, leaving the real scans on exactly
+    # the three profiles DataDome had already started rejecting.
     # HTML search pages are blocked under any impersonation:
     # no point rotating, proceed directly to API fallback
     rotate_on_block = False
@@ -81,7 +84,9 @@ class ImmobiliareScraper(BaseScraper):
             portal_id=str(estate["id"]),
             url=seo_url or f"https://www.immobiliare.it/annunci/{estate['id']}/",
             title=estate.get("title", "") or "",
-            price=to_float(price_obj.get("value")),
+            # structured data carries "price on request" placeholders (0/1)
+            # and monthly instalments: same sanity gate as the scraped text
+            price=plausible_price(to_float(price_obj.get("value")), self.contract),
             sqm=parse_sqm(str(props.get("surface", ""))),
             # "rooms" can be a range ("2 - 4"): in that case it remains None
             rooms=to_int(props.get("rooms")),
@@ -139,7 +144,7 @@ class ImmobiliareScraper(BaseScraper):
             portal_id=m.group(1),
             url=url,
             title=item.get("name", ""),
-            price=to_float(offers.get("price")),
+            price=plausible_price(to_float(offers.get("price")), self.contract),
             sqm=to_float(floor_size.get("value")),
             rooms=to_int(item.get("numberOfRooms")),
             city=address.get("addressLocality", "") if isinstance(address, dict) else "",

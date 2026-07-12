@@ -156,6 +156,25 @@ def test_different_cities_are_not_merged(db):
     assert is_new is True
 
 
+def test_price_must_be_compatible_with_every_merged_listing(db):
+    """Regression: the ±5% check used to pass if the candidate matched *any*
+    one already-merged listing, so 100k merged 105k, then 105k anchored
+    110.25k (10.3% above the original 100k), and step by step the group
+    drifted arbitrarily far from its original price band. The tolerance must
+    hold against every member."""
+    upsert_listing(db, _raw(price=100_000.0))
+    _, second_new, _ = upsert_listing(db, _raw(
+        portal="idealista", portal_id="901", price=105_000.0,
+    ))
+    assert second_new is False  # within 5% of the only listing: merges
+
+    # within 5% of 105k but 10.3% above 100k: must NOT merge
+    _, third_new, _ = upsert_listing(db, _raw(
+        portal="idealista", portal_id="902", price=110_250.0,
+    ))
+    assert third_new is True
+
+
 # --- Price history ---------------------------------------------------------
 
 def test_revisiting_same_listing_updates_price_and_history(db):

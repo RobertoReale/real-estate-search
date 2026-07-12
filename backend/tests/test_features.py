@@ -379,3 +379,62 @@ def test_properties_status_param_rejects_typos():
 
     _, errors = status_param.validate("actve", {}, loc=("query", "status"))
     assert errors, "a typo'd status must be a 422, not an empty result set"
+
+
+def test_callable_default_columns_are_backfilled(tmp_path, monkeypatch):
+    """Regression: the additive migration only knew literal defaults, so a
+    new non-nullable datetime column (default=utcnow, a callable) left every
+    existing row NULL — and the first Pydantic read of an old row 500'd."""
+    from app import database
+
+    db_file = tmp_path / "old.db"
+    engine = create_engine(f"sqlite:///{db_file}")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
+            "fingerprint VARCHAR, title VARCHAR)"
+        ))
+        conn.execute(text(
+            "INSERT INTO properties (fingerprint, title) VALUES ('f', 't')"
+        ))
+    monkeypatch.setattr(database, "engine", engine)
+    database.init_db()
+
+    with engine.connect() as conn:
+        row = conn.execute(text(
+            "SELECT first_seen_at, last_seen_at FROM properties"
+        )).one()
+    assert row[0] is not None, "utcnow-defaulted column must be backfilled"
+    assert row[1] is not None
+
+
+def test_updating_a_profile_url_rearms_the_baseline(db):
+    """Regression (invariant 3): editing search_url left baseline_done=True
+    from the old search, so the next scan — effectively the first on the new
+    search — notified every single listing as "new"."""
+    from app import schemas
+    from app.main import update_profile
+    from app.models import SearchProfile
+    from datetime import datetime, timezone
+
+    profile = SearchProfile(
+        name="Test", portal="immobiliare",
+        search_url="https://www.immobiliare.it/vendita-case/milano/",
+        baseline_done=True, last_run_at=datetime.now(timezone.utc),
+        last_run_status="ok", consecutive_failures=2, health_alert_sent=True,
+    )
+    db.add(profile)
+    db.commit()
+
+    # same URL: baseline untouched
+    update_profile(profile.id, schemas.SearchProfileIn(
+        name="Renamed", search_url=profile.search_url), db)
+    assert profile.baseline_done is True
+
+    # new URL: a new search — the next scan must be a silent baseline
+    update_profile(profile.id, schemas.SearchProfileIn(
+        name="Renamed", search_url="https://www.immobiliare.it/vendita-case/torino/"), db)
+    assert profile.baseline_done is False
+    assert profile.last_run_at is None
+    assert profile.consecutive_failures == 0
+    assert profile.health_alert_sent is False

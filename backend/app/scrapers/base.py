@@ -8,7 +8,7 @@ import re
 import time
 import typing
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
@@ -60,14 +60,24 @@ class BlockedError(Exception):
 
 
 def detect_contract(search_url: str) -> str:
-    """"sale" or "rent", inferred from the search URL path.
+    """"sale" or "rent", inferred from the search URL.
 
     Both portals encode the contract in the first path segment
     ("vendita-case" / "affitto-case"); Immobiliare's api-next fallback
-    derives idContratto the same way.
+    derives idContratto the same way. Polygon/area searches
+    ("/search-list/?...") carry no such segment: there the contract lives
+    only in the `idContratto` query parameter (2 = rent), so a rental
+    polygon search must be read from the query or it gets mislabeled
+    "sale" — wrong Property.contract AND the sale price bounds applied to
+    monthly rents.
     """
-    path = (search_url or "").lower()
-    return "rent" if "affitto" in path else "sale"
+    url = search_url or ""
+    if "affitto" in url.lower():
+        return "rent"
+    qs = parse_qs(urlparse(url).query)
+    if (qs.get("idContratto") or [""])[0] == "2":
+        return "rent"
+    return "sale"
 
 
 @dataclass
@@ -118,7 +128,10 @@ class ScrapeResult:
 PRICE_RE = re.compile(r"€\s*([\d.,]+)|([\d.,]+)\s*€")
 # "3.990 €/m²" is the price per square meter, not the property price
 PRICE_PER_SQM_RE = re.compile(r"[\d.,]+\s*€\s*/\s*m", re.IGNORECASE)
-SQM_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*m[q²]", re.IGNORECASE)
+# Large plots write the surface with a thousands separator ("5.000 m²"):
+# the first alternative captures that form so it is not read as 5.0 sqm.
+SQM_RE = re.compile(r"(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d{1,2})?)\s*m[q²]",
+                    re.IGNORECASE)
 ROOMS_RE = re.compile(r"(\d+)\s*local[ei]", re.IGNORECASE)
 
 MIN_PRICE, MAX_PRICE = 10_000, 20_000_000
@@ -161,8 +174,11 @@ def parse_sqm(text: str) -> float | None:
     m = SQM_RE.search(text or "")
     if not m:
         return None
+    raw = m.group(1)
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw):
+        raw = raw.replace(".", "")  # "5.000" is five thousand, not five
     try:
-        return float(m.group(1).replace(",", "."))
+        return float(raw.replace(",", "."))
     except ValueError:
         return None
 
@@ -170,6 +186,18 @@ def parse_sqm(text: str) -> float | None:
 def parse_rooms(text: str) -> int | None:
     m = ROOMS_RE.search(text or "")
     return int(m.group(1)) if m else None
+
+
+def plausible_price(value: float | None, contract: str = "sale") -> float | None:
+    """The same plausibility gate parse_price applies to scraped text, for the
+    structured paths (JSON-LD, embedded state, api-next): a "price on request"
+    placeholder (0/1) or a monthly instalment in the portal's own data would
+    otherwise sail through unchecked while the identical value in card text
+    gets rejected."""
+    if value is None:
+        return None
+    lo, hi = (MIN_RENT, MAX_RENT) if contract == "rent" else (MIN_PRICE, MAX_PRICE)
+    return value if lo <= value <= hi else None
 
 
 def to_float(value) -> float | None:
@@ -240,11 +268,12 @@ class BaseScraper:
         })
         from ..config import load_settings
         settings = load_settings()
+        # A configured proxy that fails to apply means the user thinks traffic
+        # is proxied when it is not: that must not be silent, so no try here.
+        proxy_url = (settings.get("proxy_url") or "").strip()
+        if proxy_url:
+            session.proxies = {"http": proxy_url, "https": proxy_url}
         try:
-            proxy_url = (settings.get("proxy_url") or "").strip()
-            if proxy_url:
-                session.proxies = {"http": proxy_url, "https": proxy_url}
-
             # DataDome cookies are portal-specific: a cookie from one portal
             # is harmless on the other (the warm-up replaces it), but it will
             # not bypass anything there. The dot-prefix covers www. too.
@@ -253,11 +282,8 @@ class BaseScraper:
                 session.cookies.set("datadome", cookie_val, domain=".immobiliare.it")
                 session.cookies.set("datadome", cookie_val, domain=".idealista.it")
         except Exception as e:
-            # A configured proxy that fails to apply means the user thinks
-            # traffic is proxied when it is not: that must not be silent.
-            if (settings.get("proxy_url") or "").strip():
-                raise
-            logger.warning("BaseScraper: failed to apply cookie settings: %s", e)
+            # the cookie is best-effort (worst case: more blocks), unlike the proxy
+            logger.warning("BaseScraper: failed to apply datadome cookie: %s", e)
         return session
 
     def _rotate_session(self) -> bool:
@@ -731,6 +757,14 @@ class AdProbe(BaseScraper):
                         self.was_blocked = True
                         self.last_error = "Blocked by DataDome (browser CAPTCHA)"
                         return None
+                elif resp.status in (403, 429):
+                    # A soft 403 with no CAPTCHA markup is still the portal
+                    # refusing: stay fail-open (None, never False) but feed the
+                    # caller's block streak, or a repeated soft block would
+                    # never trigger the abort/recovery levers.
+                    self.was_blocked = True
+                    self.last_error = f"Blocked by DataDome (browser HTTP {resp.status})"
+                    return None
             path = urlparse(url).path.rstrip("/")
             if resp.status in (404, 410):
                 return False
@@ -797,6 +831,13 @@ class AdProbe(BaseScraper):
         return False
 
 
+# How many DOM levels the card-boundary climb may ascend before giving up.
+# Measured card depths on both portals sit at 3-5 levels; the margin absorbs a
+# few wrapper divs from a redesign. Shared with the email extractor's
+# identical climb so the two cannot drift apart.
+MAX_CARD_CLIMB = 8
+
+
 def find_card_container(anchor, ad_path_re: re.Pattern):
     """Climbs from the ad link up to its card container.
 
@@ -819,7 +860,7 @@ def find_card_container(anchor, ad_path_re: re.Pattern):
         return ids
 
     container = node = anchor
-    for _ in range(8):
+    for _ in range(MAX_CARD_CLIMB):
         parent = node.parent
         if parent is None or len(ad_ids(parent)) > 1:
             break

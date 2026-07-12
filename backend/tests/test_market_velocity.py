@@ -262,3 +262,19 @@ def test_empty_database_returns_an_empty_payload(db):
     assert result["total_properties"] == 0
     assert result["areas"] == [] and result["agencies"] == []
     assert result["tracking_since"] is None
+
+
+def test_agency_samples_merge_across_casing(db):
+    """Regression: agency names were raw dict keys, so "Acme Srl" on one
+    portal and "ACME SRL" on the other split the sample below MIN_SAMPLE and
+    the agency vanished from the behaviour table."""
+    _prop(db, agency="Acme Srl", first_price=300_000.0, price=270_000.0)
+    _prop(db, agency="ACME SRL", first_price=300_000.0, price=240_000.0)
+    _prop(db, agency="acme srl", first_price=300_000.0, price=300_000.0)
+    db.commit()
+
+    out = compute_market_velocity(db, contract="sale")
+    agencies = {r["agency"]: r for r in out["agencies"]}
+    assert len(agencies) == 1
+    row = next(iter(agencies.values()))
+    assert row["sample"] == 3

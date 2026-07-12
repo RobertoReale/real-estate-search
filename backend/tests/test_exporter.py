@@ -115,3 +115,22 @@ def test_export_endpoint_sets_attachment_headers(db):
     disposition = resp.headers["content-disposition"]
     assert disposition.startswith("attachment") and disposition.endswith('.csv"')
     assert b"Casa" in resp.body
+
+
+def test_markdown_escapes_scraped_html():
+    """Regression: title/location/agency went into the Markdown dossier raw.
+    Many renderers (VS Code preview, Obsidian) pass HTML through, so a scraped
+    title containing an <img onerror=…> became live markup on open."""
+    md = properties_to_markdown(
+        [_prop(title='<img src=x onerror=alert(1)>Attico')], "S")
+    assert "<img" not in md
+    assert "&lt;img" in md
+
+
+def test_csv_neutralizes_formula_injection():
+    """Regression: a scraped title starting with "=" executes as a formula
+    when the CSV is opened in Excel (CSV/formula injection). Text fields get
+    the conventional quote prefix."""
+    csv_text = properties_to_csv([_prop(title="=HYPERLINK(evil)")])
+    row = csv_text.strip().splitlines()[1]
+    assert "'=HYPERLINK" in row

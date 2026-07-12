@@ -40,6 +40,22 @@ def _sources(p: Property) -> str:
     return " | ".join(l.url for l in p.listings)
 
 
+# Scraped fields are untrusted in every export format. In Markdown, many
+# renderers (VS Code preview, Obsidian) pass raw HTML through, so a title
+# containing "<img onerror=…>" becomes live markup the moment the dossier is
+# opened; escaping like the HTML export already does closes that. In CSV,
+# a leading =, +, - or @ makes Excel execute the cell as a formula
+# (CSV/formula injection); the conventional defence is a quote prefix.
+
+def _md(value: str) -> str:
+    return html_lib.escape(value or "")
+
+
+def _csv_text(value: str) -> str:
+    s = value or ""
+    return f"'{s}" if s[:1] in ("=", "+", "-", "@") else s
+
+
 def properties_to_csv(props: list[Property]) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -50,11 +66,12 @@ def properties_to_csv(props: list[Property]) -> str:
     ])
     for p in props:
         writer.writerow([
-            p.title, p.city, p.zone, p.address, p.contract,
+            _csv_text(p.title), _csv_text(p.city), _csv_text(p.zone),
+            _csv_text(p.address), p.contract,
             p.current_min_price if p.current_min_price is not None else "",
             p.sqm if p.sqm is not None else "",
             p.rooms if p.rooms is not None else "",
-            p.floor, _sqm_price(p) or "", p.status,
+            _csv_text(p.floor), _sqm_price(p) or "", p.status,
             getattr(p, "deal_score", None) if getattr(p, "deal_score", None) is not None else "",
             getattr(p, "match_score", None) if getattr(p, "match_score", None) is not None else "",
             "yes" if p.is_favorite else "no",
@@ -70,8 +87,8 @@ def properties_to_markdown(props: list[Property], title: str) -> str:
              f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}_", ""]
     for p in props:
         sqm_price = _sqm_price(p)
-        lines.append(f"## {p.title or 'Untitled'}")
-        location = " · ".join(x for x in (p.city, p.zone, p.address) if x)
+        lines.append(f"## {_md(p.title) or 'Untitled'}")
+        location = " · ".join(_md(x) for x in (p.city, p.zone, p.address) if x)
         lines.append(f"- **Location:** {location or '—'}")
         price = _fmt_price(p.current_min_price, p.contract)
         if sqm_price:
@@ -83,7 +100,7 @@ def properties_to_markdown(props: list[Property], title: str) -> str:
         if p.sqm:
             facts.append(f"{p.sqm:.0f} sqm")
         if p.floor:
-            facts.append(f"floor {p.floor}")
+            facts.append(f"floor {_md(p.floor)}")
         if facts:
             lines.append(f"- **Details:** {', '.join(facts)}")
         deal = getattr(p, "deal_score", None)
@@ -101,8 +118,8 @@ def properties_to_markdown(props: list[Property], title: str) -> str:
             )
             lines.append(f"- **Price history:** {hist}")
         for l in p.listings:
-            agency = f" — {l.agency}" if l.agency else ""
-            lines.append(f"- **{l.portal}**{agency}: {l.url}")
+            agency = f" — {_md(l.agency)}" if l.agency else ""
+            lines.append(f"- **{_md(l.portal)}**{agency}: {l.url}")
         lines.append("")
     return "\n".join(lines)
 

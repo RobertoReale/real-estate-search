@@ -70,6 +70,25 @@ def compute_sqm_price_medians(
     return zone_medians, city_medians
 
 
+def lookup_area_median(
+    zone_medians: dict[ZoneKey, tuple[float, int]],
+    city_medians: dict[CityKey, tuple[float, int]],
+    city: str, zone: str, contract: str,
+) -> tuple[tuple[float, int] | None, str | None]:
+    """The zone median when available, falling back to the whole city.
+
+    One implementation of the fallback rule, shared by the market-position
+    annotation and market_velocity's agency deltas — two private copies of
+    this had already started to look different. Expects normalized
+    (lowercased, stripped) city/zone, like the median keys."""
+    if zone:
+        entry = zone_medians.get((city, zone, contract))
+        if entry is not None:
+            return entry, "zone"
+    entry = city_medians.get((city, contract))
+    return (entry, "city") if entry is not None else (None, None)
+
+
 def annotate_market_position(db: Session, props: list[Property]) -> None:
     """Attaches transient attributes read by PropertyOut:
 
@@ -89,11 +108,9 @@ def annotate_market_position(db: Session, props: list[Property]) -> None:
             continue
         city = (p.city or "").strip().lower()
         zone = (p.zone or "").strip().lower()
-        entry, scope = None, None
-        if zone and (city, zone, p.contract) in zone_medians:
-            entry, scope = zone_medians[(city, zone, p.contract)], "zone"
-        elif (city, p.contract) in city_medians:
-            entry, scope = city_medians[(city, p.contract)], "city"
+        entry, scope = lookup_area_median(
+            zone_medians, city_medians, city, zone, p.contract
+        )
         if entry is None:
             continue
         med, _n = entry

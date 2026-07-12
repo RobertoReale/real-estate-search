@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, formatPrice } from "../services/api";
+import { api, formatPrice, safeHref } from "../services/api";
 import type { Property } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
@@ -156,7 +156,7 @@ export default function PropertyModal({
           </h3>
           <div className="space-y-2">
             {p.listings.map((l) => (
-              <a key={l.id} href={l.url} target="_blank" rel="noreferrer"
+              <a key={l.id} href={safeHref(l.url)} target="_blank" rel="noreferrer"
                 className="flex items-center gap-3 p-3 rounded-xl panel hover:border-blue-500/50 transition">
                 <PortalBadge portal={l.portal} />
                 <div className="min-w-0 flex-1">

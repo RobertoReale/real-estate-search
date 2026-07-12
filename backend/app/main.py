@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -72,6 +72,15 @@ app.add_middleware(
 
 # --- Properties ---
 
+def _annotate(db: Session, props: list[Property]) -> None:
+    """The full transient annotation set for one or few properties (market
+    position first: the deal score reads it). One helper instead of the same
+    three calls repeated per endpoint."""
+    annotate_market_position(db, props)
+    annotate_match_scores(props, load_settings())
+    annotate_deal_scores(db, props)
+
+
 def _select_properties(
     db: Session, *, status: str, contract: str | None, city: str | None,
     min_price: float | None, max_price: float | None, min_sqm: float | None,
@@ -89,6 +98,10 @@ def _select_properties(
     profile's exclusion keywords (global + profile), so the same criteria that
     keep the scans clean can be applied retroactively to email imports too."""
     profile = db.get(SearchProfile, profile_id) if profile_id else None
+    if profile_id and profile is None:
+        # same answer list_imported gives for the same concept: a silent
+        # no-op here showed the unfiltered grid as if the overlay applied
+        raise HTTPException(404, "Profile not found")
     profile_keywords: list[str] = []
     if profile is not None:
         crit = email_import.profile_criteria(
@@ -333,9 +346,7 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
     prop = db.get(Property, property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
-    annotate_market_position(db, [prop])
-    annotate_match_scores([prop], load_settings())
-    annotate_deal_scores(db, [prop])
+    _annotate(db, [prop])
     return prop
 
 
@@ -353,9 +364,7 @@ def patch_property(
         prop.notes = data.notes
     db.commit()
     db.refresh(prop)
-    annotate_market_position(db, [prop])
-    annotate_match_scores([prop], load_settings())
-    annotate_deal_scores(db, [prop])
+    _annotate(db, [prop])
     return prop
 
 
@@ -453,9 +462,7 @@ def check_single_property(property_id: int, db: Session = Depends(get_db)):
         summary = availability_check.check_properties_availability(db, [prop])
     except availability_check.AvailabilityCheckError as e:
         raise HTTPException(400, str(e))
-    annotate_market_position(db, [prop])
-    annotate_match_scores([prop], load_settings())
-    annotate_deal_scores(db, [prop])
+    _annotate(db, [prop])
     return {
         "property": schemas.PropertyOut.model_validate(prop).model_dump(mode="json"),
         "summary": summary,
@@ -493,6 +500,16 @@ def update_profile(
     profile = db.get(SearchProfile, profile_id)
     if not profile:
         raise HTTPException(404, "Profile not found")
+    if data.search_url != profile.search_url:
+        # a new URL is a new search: the old baseline says nothing about it.
+        # Left armed, the next scan would notify every listing of the new
+        # search as "new" — the flood invariant 3 exists to prevent.
+        profile.baseline_done = False
+        profile.last_run_at = None
+        profile.last_run_status = ""
+        profile.last_run_detail = ""
+        profile.consecutive_failures = 0
+        profile.health_alert_sent = False
     profile.name = data.name
     profile.search_url = data.search_url
     profile.portal = detect_portal(data.search_url)
@@ -702,6 +719,15 @@ def email_import_check(data: schemas.ImportCheckIn, db: Session = Depends(get_db
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/email-import/check/cancel")
+def cancel_email_import_check():
+    """Stops the running email-import availability check after its current
+    listing — same semantics as the dashboard check's cancel. A no-op if
+    nothing is running."""
+    email_import.request_check_cancel()
+    return {"ok": True}
+
+
 @app.post("/api/email-import/bulk")
 def bulk_imported(data: schemas.ImportBulkIn, db: Session = Depends(get_db)):
     items = [i for i in (db.get(ImportedListing, x) for x in data.ids) if i]
@@ -804,7 +830,10 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
         "pricing-snapshots": data_reset.clear_pricing_snapshots,
         "factory": data_reset.factory_reset,
     }[scope]
-    return fn(db)
+    try:
+        return fn(db)
+    except data_reset.ResetError as e:
+        raise HTTPException(500, str(e))
 
 
 # --- Logs ---
@@ -912,8 +941,28 @@ def cancel_datadome_refresh():
     return {"ok": True}
 
 
+# pip + a browser download: minutes, not forever. A hung index/mirror must
+# not pin a threadpool worker for the process lifetime.
+_INSTALL_TIMEOUT_SECONDS = 900
+
+
+def _require_loopback(request: Request) -> None:
+    """The install endpoints run `pip install` and download browser binaries:
+    that is code execution on the host, and the API has no authentication.
+    On the loopback bind (the default) this is moot; under `serve.bat lan`
+    (0.0.0.0) or a Tailscale bind it would let any device on the network
+    install arbitrary packages into the venv with one POST — so these two
+    endpoints, alone, insist the caller is the local machine."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(
+            403, "Installation endpoints only work from the PC running the "
+                 "app (open the dashboard on http://127.0.0.1:8000)"
+        )
+
+
 @app.post("/api/settings/install-harvester")
-def install_harvester():
+def install_harvester(request: Request):
     """Install Playwright package and download Chromium binary into the active virtual environment."""
     import os
     import subprocess
@@ -921,24 +970,29 @@ def install_harvester():
     from pathlib import Path
     from .services import cookie_harvester
 
+    _require_loopback(request)
     if cookie_harvester.is_available():
         return {"ok": True, "message": "Playwright is already installed and available."}
 
     try:
         # 1. Install playwright pip package into current Python environment (.venv)
-        subprocess.run([sys.executable, "-m", "pip", "install", "playwright"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "playwright"],
+                       check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
 
-        # 2. Configure where to install browser binary (use user profile or project folder)
+        # 2. Configure where to install browser binary: the current user's
+        # existing ms-playwright cache when there is one (resolved via the
+        # environment, never by iterating C:/Users — on a multi-profile
+        # machine that picks whichever profile sorts first), else a
+        # project-local folder.
         browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
         if not browsers_path:
             if os.name == "nt":
-                users_dir = Path("C:/Users")
-                if users_dir.exists():
-                    for u in users_dir.iterdir():
-                        if u.is_dir() and u.name not in ("Public", "Default", "Default User", "All Users"):
-                            if (u / "AppData" / "Local" / "ms-playwright").exists():
-                                browsers_path = str(u / "AppData" / "Local" / "ms-playwright")
-                                break
+                local_appdata = os.environ.get("LOCALAPPDATA")
+                local = (Path(local_appdata) if local_appdata
+                         else Path.home() / "AppData" / "Local")
+                candidate = local / "ms-playwright"
+                if candidate.exists():
+                    browsers_path = str(candidate)
             if not browsers_path:
                 from .config import BASE_DIR
                 browsers_path = str(BASE_DIR / "browser_binaries")
@@ -948,7 +1002,8 @@ def install_harvester():
         if browsers_path:
             env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
-        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True, env=env)
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"],
+                       check=True, env=env, timeout=_INSTALL_TIMEOUT_SECONDS)
 
         cookie_harvester._ensure_browsers_path()
         return {"ok": True, "message": "Successfully installed Playwright and Chromium."}
@@ -958,7 +1013,7 @@ def install_harvester():
 
 
 @app.post("/api/settings/install-camoufox")
-def install_camoufox():
+def install_camoufox(request: Request):
     """Install Camoufox (stealth Firefox) and fetch its browser binary into the
     active virtual environment. Optional upgrade over Chromium: it hides the
     automation signals DataDome fingerprints, so the check is challenged less."""
@@ -966,11 +1021,14 @@ def install_camoufox():
     import sys
     from .services import cookie_harvester
 
+    _require_loopback(request)
     try:
         if not cookie_harvester.is_camoufox_available():
-            subprocess.run([sys.executable, "-m", "pip", "install", "camoufox"], check=True)
+            subprocess.run([sys.executable, "-m", "pip", "install", "camoufox"],
+                           check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
         # Downloads the patched Firefox (~150 MB) once; a no-op if already present.
-        subprocess.run([sys.executable, "-m", "camoufox", "fetch"], check=True)
+        subprocess.run([sys.executable, "-m", "camoufox", "fetch"],
+                       check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
         return {"ok": True, "message": "Successfully installed Camoufox. Set the engine to auto or camoufox in Settings."}
     except Exception as e:
         logging.getLogger(__name__).exception("Failed to install camoufox")

@@ -239,6 +239,11 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
 
     new_properties: list[Property] = []
     price_drops: list[tuple[Property, float, float]] = []
+    # (property, previous status) pairs that came back to life this scan:
+    # "filtered" whose keyword no longer applies, "gone" that reappeared on
+    # the portal. Without their own notification the transition was applied
+    # silently — a returned listing is exactly as actionable as a new one.
+    reactivated: list[tuple[Property, str]] = []
 
     for raw in result.listings:
         prop, is_new, price_changed = upsert_listing(db, raw)
@@ -260,6 +265,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
             # "filtered": keyword no longer present (or user removed it);
             # "gone": listing reappeared on portal.
             # "hidden" instead NEVER reactivates: it is a user choice.
+            reactivated.append((prop, prop.status))
             prop.status = "active"
             prop.filtered_reason = ""
             # back on the market: the previous "gone" date is void, otherwise
@@ -306,16 +312,21 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         pricing_stats.annotate_market_position(db, new_properties)
         deal_score.annotate_deal_scores(db, new_properties)
     summary["notified"] += _dispatch_notifications(
-        new_properties, price_drops, channels
+        new_properties, price_drops, reactivated, channels
     )
 
 
 def _dispatch_notifications(
     new_properties: list[Property],
     price_drops: list[tuple[Property, float, float]],
+    reactivated: list[tuple[Property, str]] | None = None,
     channels: list[str] | None = None,
 ) -> int:
-    """Dispatches notifications, capped to avoid flooding the channels."""
+    """Dispatches notifications, capped to avoid flooding the channels.
+
+    Every capped list announces its own overflow ("… and N more"): silently
+    dropping the tail would make a busy scan under-report exactly when the
+    most is happening."""
     sent = 0
     for prop in new_properties[:MAX_NOTIFICATIONS_PER_SCAN]:
         if notifier.notify_new_property(prop, channels):
@@ -332,4 +343,22 @@ def _dispatch_notifications(
     for prop, old_price, new_price in price_drops[:MAX_NOTIFICATIONS_PER_SCAN]:
         if notifier.notify_price_drop(prop, old_price, new_price, channels):
             sent += 1
+    remaining = len(price_drops) - MAX_NOTIFICATIONS_PER_SCAN
+    if remaining > 0:
+        notifier.broadcast(
+            f"… and <b>{remaining}</b> more price changes. "
+            "Open the dashboard to see them all.",
+            channels,
+        )
+
+    for prop, previous in (reactivated or [])[:MAX_NOTIFICATIONS_PER_SCAN]:
+        if notifier.notify_property_reactivated(prop, previous, channels):
+            sent += 1
+    remaining = len(reactivated or []) - MAX_NOTIFICATIONS_PER_SCAN
+    if remaining > 0:
+        notifier.broadcast(
+            f"… and <b>{remaining}</b> more properties back on the market. "
+            "Open the dashboard to see them all.",
+            channels,
+        )
     return sent

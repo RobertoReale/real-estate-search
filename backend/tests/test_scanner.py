@@ -74,6 +74,46 @@ def test_no_summary_if_below_cap(monkeypatch):
     assert summaries == []
 
 
+def test_price_drop_overflow_gets_its_own_summary(monkeypatch):
+    """Regression: the "… and N more" overflow message existed only for new
+    properties — price drops beyond the cap were dropped without a trace."""
+    dropped, summaries = [], []
+    monkeypatch.setattr(scanner.notifier, "notify_new_property",
+                        lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "notify_price_drop",
+                        lambda p, o, n, channels=None: dropped.append(p) or True)
+    monkeypatch.setattr(scanner.notifier, "broadcast",
+                        lambda text, channels=None, subject=None:
+                        summaries.append(text) or True)
+
+    drops = [(_prop(title=f"Casa {i}"), 300_000.0, 280_000.0) for i in range(20)]
+    scanner._dispatch_notifications([], drops)
+
+    assert len(dropped) == scanner.MAX_NOTIFICATIONS_PER_SCAN
+    assert len(summaries) == 1
+    assert "5" in summaries[0]  # 20 - 15 remaining price changes
+
+
+def test_reactivated_properties_are_notified(monkeypatch):
+    """Regression: a "gone" listing reappearing (or a "filtered" one whose
+    keyword no longer applies) was flipped back to active in silence — a
+    returned listing is exactly as actionable as a new one."""
+    reactivated = []
+    monkeypatch.setattr(scanner.notifier, "notify_new_property",
+                        lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "notify_property_reactivated",
+                        lambda p, previous, channels=None:
+                        reactivated.append((p.title, previous)) or True)
+    monkeypatch.setattr(scanner.notifier, "broadcast",
+                        lambda text, channels=None, subject=None: True)
+
+    sent = scanner._dispatch_notifications(
+        [], [], [(_prop(title="Tornato"), "gone")]
+    )
+    assert sent == 1
+    assert reactivated == [("Tornato", "gone")]
+
+
 # --- first scan: acquires without notifying --------------------------------
 
 @pytest.fixture

@@ -61,10 +61,13 @@ def _condition_adjustment(prop: Property) -> tuple[int, list[str]]:
 
 
 def _agency_signature(prop: Property, signatures: dict[str, dict]) -> dict | None:
-    """The richest agency signature among this property's listings, if any."""
+    """The richest agency signature among this property's listings, if any.
+
+    Lookup is casefolded to match how market_velocity keys its samples, so a
+    portal-to-portal casing difference cannot lose the signature."""
     best: dict | None = None
     for listing in prop.listings:
-        sig = signatures.get((listing.agency or "").strip())
+        sig = signatures.get((listing.agency or "").strip().casefold())
         if sig and (best is None or sig["sample"] > best["sample"]):
             best = sig
     return best
@@ -165,7 +168,7 @@ def _agency_signatures(db) -> dict[str, dict]:
         )
     ))
     rows = compute_agency_behavior(db, props, datetime.now(timezone.utc))
-    return {r["agency"]: r for r in rows}
+    return {r["agency"].casefold(): r for r in rows}
 
 
 def annotate_deal_scores(db, props: list[Property]) -> None:

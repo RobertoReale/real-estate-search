@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import type { MarketVelocity as Velocity } from "../types";
 
@@ -29,22 +29,34 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // monotonic id per request (like App.tsx's refreshSeq): `city` updates on
+  // every keystroke, and a slow response for "M" landing after the one for
+  // "Milano" would repaint the panel with stale statistics
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
-      setData(await api.getMarketVelocity(contract, city));
+      const res = await api.getMarketVelocity(contract, city);
+      if (seq !== loadSeq.current) return;
+      setData(res);
       setError("");
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setError(e instanceof Error ? e.message : "Could not load statistics");
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [contract, city]);
 
   // fetched only while the panel is open: these are aggregate queries over
-  // the whole table, and the dashboard already polls every 30 seconds
+  // the whole table, and the dashboard already polls every 30 seconds.
+  // Debounced like App.tsx's refresh, so typing a city fires one request
+  // when the typing pauses instead of one per letter.
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    const t = window.setTimeout(load, 250);
+    return () => window.clearTimeout(t);
   }, [open, load]);
 
   const empty = data && data.areas.length === 0 && data.agencies.length === 0;

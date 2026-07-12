@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 
 from .base import (
     BaseScraper, RawListing, extract_json_ld_blocks, find_card_container,
-    parse_price, parse_rooms, parse_sqm, to_float, to_int,
+    parse_price, parse_rooms, parse_sqm, plausible_price, to_float, to_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,9 @@ LISTA_RE = re.compile(r"/lista-\d+(?:\.htm)?")
 
 class IdealistaScraper(BaseScraper):
     portal = "idealista"
-    # only TLS profiles accepted by DataDome on the idealista.it domain
-    impersonations = ["safari184", "safari180", "chrome131_android"]
+    # TLS profiles: inherited from BaseScraper (Safari-first). No override —
+    # see ImmobiliareScraper: a local copy of the list silently missed the
+    # base rotation's newer profiles, which are the current anti-block fix.
 
     def __init__(self, delay_seconds: float = 10.0, max_pages: int = 10):
         # increased delay: DataDome is sensitive to request frequency
@@ -116,7 +117,9 @@ class IdealistaScraper(BaseScraper):
                     portal_id=m.group(1),
                     url=url,
                     title=item.get("name", ""),
-                    price=to_float(offers.get("price")),
+                    # structured data is not exempt from sanity: "price on
+                    # request" placeholders (0/1) live there too
+                    price=plausible_price(to_float(offers.get("price")), self.contract),
                     city=city,
                     description=item.get("description", ""),
                     image_url=image if isinstance(image, str) else "",
@@ -149,7 +152,7 @@ class IdealistaScraper(BaseScraper):
                     url=item.get("url")
                         or f"https://www.idealista.it/immobile/{ad_id}/",
                     title=item.get("title", "") or "",
-                    price=to_float(item.get("price")),
+                    price=plausible_price(to_float(item.get("price")), self.contract),
                     sqm=to_float(item.get("size")),
                     rooms=to_int(item.get("rooms")),
                     latitude=to_float(item.get("latitude")),
@@ -209,8 +212,14 @@ class IdealistaScraper(BaseScraper):
 
     @staticmethod
     def _address_from_title(title: str) -> str:
-        """"Trilocale in Via Volvinio, 26, Stadera, Milano" -> "Via Volvinio, 26"."""
-        m = re.search(r"\bin\s+(.+)", title or "")
+        """"Trilocale in Via Volvinio, 26, Stadera, Milano" -> "Via Volvinio, 26".
+
+        The most common Italian phrasing is "Trilocale in vendita in Via Roma,
+        12": matching the *first* "in" there captures "vendita in Via Roma"
+        as the street. Strip the contract phrase before looking for the
+        location "in"."""
+        cleaned = re.sub(r"\bin\s+(?:vendita|affitto)\b", "", title or "")
+        m = re.search(r"\bin\s+(.+)", cleaned)
         if not m:
             return ""
         parts = [p.strip() for p in m.group(1).split(",")]

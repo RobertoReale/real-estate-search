@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProgressPoll } from "../hooks/useProgressPoll";
 import { api } from "../services/api";
 import type {
@@ -16,8 +16,6 @@ import { EmailActionsBar, type SortKey } from "./email/EmailActionsBar";
 import { EmailListingCard, pricePerSqm } from "./email/EmailListingCard";
 import { EmailReviewFilters } from "./email/EmailReviewFilters";
 import { EmailScanForm } from "./email/EmailScanForm";
-
-const MAX_CHECKS = 50;
 
 const DEFAULT_SCAN: EmailScanParams = {
   mode: "portals",
@@ -75,18 +73,30 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
     settings?.imap_host && settings.imap_user && settings.imap_password_set,
   );
 
+  // monotonic id per load, same guard App.tsx uses (`refreshSeq`): the city/q
+  // filters change on every keystroke, and a slow response for "M" landing
+  // after the one for "Milano" would repaint the list with stale results
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
-      setItems(await api.getImportedListings(filters));
+      const res = await api.getImportedListings(filters);
+      if (seq !== loadSeq.current) return;
+      setItems(res);
       setSelected(new Set());
       setError("");
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setError(e instanceof Error ? e.message : "Unknown error");
     }
   }, [filters]);
 
+  // debounced like App.tsx's refresh: one request when typing pauses, not
+  // one per letter
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    const t = window.setTimeout(load, 250);
+    return () => window.clearTimeout(t);
   }, [open, load]);
 
   useProgressPoll(scanning, api.emailImportProgress, setProgress, 800);
@@ -138,7 +148,10 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
     setCheckSummary(null);
     setCheckProgress(null);
     try {
-      setCheckSummary(await api.checkImported(toCheck.slice(0, MAX_CHECKS)));
+      // the whole selection goes to the backend: it budgets the live portal
+      // fetches itself and answers `capped` (shown below) when a re-run is
+      // needed — a silent client-side slice hid which listings were skipped
+      setCheckSummary(await api.checkImported(toCheck));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");

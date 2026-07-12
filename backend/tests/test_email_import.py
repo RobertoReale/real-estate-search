@@ -333,8 +333,8 @@ def test_check_marks_gone_listings_and_leaves_the_live_ones(db, monkeypatch):
 
     summary = check_availability(db, [alive])   # one at a time: no polite_sleep
     assert summary == {"checked": 1, "gone": 0, "online": 1, "unknown": 0,
-                       "aborted": False, "capped": False, "last_error": None,
-                       "cookie_refreshed": 0}
+                       "aborted": False, "capped": False, "cancelled": False,
+                       "last_error": None, "cookie_refreshed": 0}
     assert alive.is_available is True and alive.last_checked_at is not None
 
     summary = check_availability(db, [dead])

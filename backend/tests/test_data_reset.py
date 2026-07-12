@@ -127,7 +127,7 @@ def test_clear_pricing_snapshots_leaves_listings(db):
     assert _count(db, Property) == 1   # untouched
 
 
-def test_factory_reset_empties_everything(db, monkeypatch):
+def test_factory_reset_empties_everything(db, monkeypatch, tmp_path):
     _seed_dashboard(db)
     _seed_profile(db)
     db.add(ImportedListing(portal="immobiliare", portal_id="1", url="u"))
@@ -136,9 +136,12 @@ def test_factory_reset_empties_everything(db, monkeypatch):
                            median_sqm_price=3500.0, sample_count=5))
     db.commit()
 
-    # no real DB file in this test: force the backup to a no-op
+    # no real DB file in this test: force the backup to a no-op, and point
+    # DB_PATH at a missing file so the "backup failed" guard reads this as
+    # the legitimate fresh-install case rather than a failed snapshot
     from app.services import backup
     monkeypatch.setattr(backup, "maybe_backup", lambda **k: None)
+    monkeypatch.setattr(data_reset, "DB_PATH", tmp_path / "missing.db")
 
     out = data_reset.factory_reset(db)
 
@@ -147,3 +150,22 @@ def test_factory_reset_empties_everything(db, monkeypatch):
         assert _count(db, model) == 0
     assert out["deleted"]["search_profiles"] == 1
     assert out["backup"] is None
+
+
+def test_factory_reset_aborts_when_the_backup_fails(db, monkeypatch, tmp_path):
+    """Regression: maybe_backup swallows failures and returns None, and the
+    wipe proceeded anyway — contradicting the "recoverable from backups"
+    promise. With a real DB file on disk and no snapshot, the reset must
+    refuse and leave every row in place."""
+    _seed_dashboard(db)
+    db.commit()
+
+    from app.services import backup
+    monkeypatch.setattr(backup, "maybe_backup", lambda **k: None)
+    real_db = tmp_path / "case.db"
+    real_db.write_bytes(b"not empty")
+    monkeypatch.setattr(data_reset, "DB_PATH", real_db)
+
+    with pytest.raises(data_reset.ResetError):
+        data_reset.factory_reset(db)
+    assert _count(db, Property) > 0  # nothing was wiped

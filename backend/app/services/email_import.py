@@ -44,8 +44,8 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..database import SessionLocal
 from ..models import ImportedListing, Listing, Property, SearchProfile
-from ..scrapers.base import AdProbe, RawListing, detect_contract, parse_price, \
-    parse_rooms, parse_sqm
+from ..scrapers.base import MAX_CARD_CLIMB, AdProbe, RawListing, \
+    detect_contract, parse_price, parse_rooms, parse_sqm
 from .deduplicator import upsert_listing
 from .filter_engine import parse_keywords_csv
 
@@ -296,7 +296,7 @@ def _extract_from_html(html_text: str, contract: str, found: dict) -> None:
         # ancestor that still references only this ad. One level further up
         # is the mail's listing grid, where prices of *other* ads live.
         container = node = anchor
-        for _ in range(8):
+        for _ in range(MAX_CARD_CLIMB):
             parent = node.parent
             if parent is None or len(ad_keys(parent)) > 1:
                 break
@@ -605,6 +605,18 @@ def auto_scan_job() -> None:
 # between listings, so a batch of fifty runs for minutes.
 _check_progress: dict = {"active": False, "done": 0, "total": 0, "gone": 0}
 
+# Cooperative cancellation, mirroring availability_check's event: the probe
+# consults it inside its long headful-CAPTCHA wait, and the batch loop checks
+# it between listings, so a stop lands within one property instead of at the
+# end of the batch.
+_check_cancel_event = threading.Event()
+
+
+def request_check_cancel() -> None:
+    """Signals a running email-import availability check to stop after its
+    current listing. A no-op when nothing is running."""
+    _check_cancel_event.set()
+
 # Serialized for a harsher reason than the scan: two concurrent batches double
 # the request rate to the portals, and the pacing, the block-streak abort and
 # the once-per-host warm-up all assume a single probe is talking to them.
@@ -685,6 +697,7 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
         raise ImapError(
             "An availability check is already running: wait for it to finish"
         )
+    _check_cancel_event.clear()
     try:
         return _check_availability_inner(db, items, skip_recent_hours)
     finally:
@@ -699,9 +712,12 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
         MIN_PROBE_DELAY.get(item.portal, 0.0) for item in items
     ])
     probe = AdProbe(delay_seconds=delay)
+    # attribute, not constructor kwarg: tests swap AdProbe for fakes whose
+    # __init__ only takes delay_seconds
+    probe._cancel_event = _check_cancel_event
     summary = {"checked": 0, "gone": 0, "online": 0, "unknown": 0,
-               "aborted": False, "capped": False, "last_error": None,
-               "cookie_refreshed": 0}
+               "aborted": False, "capped": False, "cancelled": False,
+               "last_error": None, "cookie_refreshed": 0}
     _check_progress.update(active=True, done=0, total=len(items), gone=0,
                            online=0, unknown=0, last_error=None)
     try:
@@ -733,6 +749,11 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
         refreshes_used = 0
         probes_used = 0
         for index, item in enumerate(items):
+            if _check_cancel_event.is_set():
+                summary["cancelled"] = True
+                logger.info("email-import: availability check cancelled by "
+                            "user after %d listings", summary["checked"])
+                break
             if probes_used >= MAX_CHECKS_PER_CALL:
                 # The cap bounds portal fetches, not selection size: rows
                 # resolved from the dashboard or recently checked skip for

@@ -11,10 +11,15 @@ import logging
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
+from ..config import DB_PATH
 from ..models import (ImportedListing, Listing, PriceHistory, PricingSnapshot,
                       Property, SearchProfile)
 
 logger = logging.getLogger(__name__)
+
+
+class ResetError(Exception):
+    """A reset could not proceed safely (e.g. the pre-wipe backup failed)."""
 
 
 def _count(db: Session, model) -> int:
@@ -90,6 +95,15 @@ def factory_reset(db: Session) -> dict:
     enforce the FKs, but a clean order keeps this correct if it ever does)."""
     from .backup import maybe_backup
     backup = maybe_backup(force=True)
+    if backup is None and DB_PATH.exists():
+        # maybe_backup swallows its own failures (disk full, locked file) and
+        # returns None; wiping anyway would contradict the "recoverable from
+        # backend/backups/" promise this function is built on. A fresh install
+        # (no DB file yet) is the only legitimate None.
+        raise ResetError(
+            "Pre-reset backup failed: the factory reset was NOT performed. "
+            "Check disk space/permissions for backend/backups/ and retry."
+        )
     counts = {
         "price_history": _count(db, PriceHistory),
         "listings": _count(db, Listing),

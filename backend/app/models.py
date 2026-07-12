@@ -60,8 +60,12 @@ class Property(Base):
     # back to last_seen_at for those).
     gone_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # ordered by id like price_history: the notifier and the exports read
+    # listings[0].url as "the primary listing", which without order_by is
+    # whatever the database happens to return
     listings: Mapped[list["Listing"]] = relationship(
-        back_populates="property", cascade="all, delete-orphan"
+        back_populates="property", cascade="all, delete-orphan",
+        order_by="Listing.id",
     )
     # ordered by id: the scanner reads price_history[-1] as the "latest
     # recorded change", and without order_by the order would not be guaranteed

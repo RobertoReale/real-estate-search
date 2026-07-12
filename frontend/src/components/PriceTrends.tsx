@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../services/api";
 import type { PricingTrend, TrendArea } from "../types";
 
@@ -71,10 +71,18 @@ export default function PriceTrends({ contract, city }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // monotonic ids per request (like App.tsx's refreshSeq): `city` changes on
+  // every keystroke, so a slow older response must never overwrite the state
+  // set by a newer one
+  const areasSeq = useRef(0);
+  const trendSeq = useRef(0);
+
   const loadAreas = useCallback(async () => {
+    const seq = ++areasSeq.current;
     setLoading(true);
     try {
       const list = await api.getTrendAreas(contract);
+      if (seq !== areasSeq.current) return;
       setAreas(list);
       setError("");
       // Prefer the whole-city aggregate of the city currently filtered, else
@@ -84,14 +92,18 @@ export default function PriceTrends({ contract, city }: Props) {
         ?? list[0];
       setSelected(match ? areaKey(match) : "");
     } catch (e) {
+      if (seq !== areasSeq.current) return;
       setError(e instanceof Error ? e.message : "Could not load trends");
     } finally {
-      setLoading(false);
+      if (seq === areasSeq.current) setLoading(false);
     }
   }, [contract, city]);
 
+  // debounced like App.tsx's refresh: one request when typing pauses
   useEffect(() => {
-    if (open) loadAreas();
+    if (!open) return;
+    const t = window.setTimeout(loadAreas, 250);
+    return () => window.clearTimeout(t);
   }, [open, loadAreas]);
 
   useEffect(() => {
@@ -101,9 +113,16 @@ export default function PriceTrends({ contract, city }: Props) {
     }
     const area = areas.find((a) => areaKey(a) === selected);
     if (!area) return;
+    const seq = ++trendSeq.current;
     api.getPricingTrends(contract, area.city, area.zone)
-      .then(setTrend)
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load trend"));
+      .then((t) => {
+        if (seq === trendSeq.current) setTrend(t);
+      })
+      .catch((e) => {
+        if (seq === trendSeq.current) {
+          setError(e instanceof Error ? e.message : "Could not load trend");
+        }
+      });
   }, [open, selected, areas, contract]);
 
   const stats = useMemo(() => {

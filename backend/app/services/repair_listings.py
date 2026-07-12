@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Property, Listing, ImportedListing, SearchProfile
+from .deduplicator import _refresh_min_price
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,10 @@ def _merge_property_into(db: Session, survivor: Property, dupe: Property) -> Non
     if _STATUS_RANK.get(dupe.status, 0) > _STATUS_RANK.get(survivor.status, 0):
         survivor.status = dupe.status
         survivor.filtered_reason = dupe.filtered_reason
+        if survivor.status != "gone":
+            # back among the living: a stale gone_at would keep truncating
+            # days-on-market (same clearing scanner.py does on reactivation)
+            survivor.gone_at = None
 
     db.delete(dupe)
 
@@ -141,11 +146,11 @@ def merge_duplicate_listings(db: Session) -> dict:
             _merge_property_into(db, survivor, dupe)
             summary["properties_merged"] += 1
         db.flush()
-        prices = [l.price for l in survivor.listings if l.price]
-        if prices:
-            survivor.current_min_price = min(prices)
-            if survivor.first_price is None:
-                survivor.first_price = survivor.current_min_price
+        db.refresh(survivor)
+        # same path the scanner uses: if the merge lowered the minimum, a
+        # PriceHistory row is recorded, keeping the "price_history[-1] is the
+        # latest change" contract intact for the notifier and trend charts
+        _refresh_min_price(db, survivor)
 
     # second pass: collapse redundant Listing rows left on the SAME property
     # (e.g. two portal_ids for the one ad that were already sharing a
@@ -303,11 +308,16 @@ def repair_empty_listings_locally(db: Session) -> dict:
             elif prop.zone and prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):
                 prop.zone = ""
                 changed = True
-            if new_title and (is_bad_title(prop.title) or new_title != prop.title):
-                if not is_bad_title(new_title):
+            # rewrite the title only when the current one is bad: "different
+            # from before" is not an improvement — the len(parts) < 2 branch of
+            # _extract_zone_and_title returns the existing title with the city
+            # appended, so writing on mere difference made every repair run
+            # append the city once more ("…, Milano, Milano, Milano")
+            if is_bad_title(prop.title):
+                if new_title and not is_bad_title(new_title):
                     prop.title = new_title
                     changed = True
-                elif is_bad_title(prop.title):
+                else:
                     prop.title = f"Immobile residenziale - {prop.zone or prop.city or 'Milano'}"
                     changed = True
 

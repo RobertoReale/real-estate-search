@@ -1,4 +1,4 @@
-import { formatPrice } from "../../services/api";
+import { formatPrice, safeHref } from "../../services/api";
 import type { ImportedListing } from "../../types";
 import { PortalBadge } from "../PortalBadge";
 
@@ -50,7 +50,7 @@ export function EmailListingCard({
 
       {/* Thumbnail clickable image */}
       <a
-        href={item.url}
+        href={safeHref(item.url)}
         target="_blank"
         rel="noreferrer"
         title="Open the original listing on the portal"
@@ -79,7 +79,7 @@ export function EmailListingCard({
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
           <a
-            href={item.url}
+            href={safeHref(item.url)}
             target="_blank"
             rel="noreferrer"
             className="font-semibold text-sm sm:text-base hover:text-blue-500 transition truncate"
@@ -161,7 +161,7 @@ export function EmailListingCard({
       {/* Actions */}
       <div className="flex items-center gap-1.5 shrink-0">
         <a
-          href={item.url}
+          href={safeHref(item.url)}
           target="_blank"
           rel="noreferrer"
           className="btn-ghost text-xs py-1.5 px-2.5"

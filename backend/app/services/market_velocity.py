@@ -33,7 +33,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models import Property
-from .pricing_stats import compute_sqm_price_medians
+from .pricing_stats import compute_sqm_price_medians, lookup_area_median
 
 # below this many observations a median is not reported (see module docstring)
 MIN_SAMPLE = 3
@@ -137,24 +137,31 @@ def compute_agency_behavior(
             return None
         city = (p.city or "").strip().lower()
         zone = (p.zone or "").strip().lower()
-        entry = zone_medians.get((city, zone, p.contract)) if zone else None
-        entry = entry or city_medians.get((city, p.contract))
+        entry, _scope = lookup_area_median(
+            zone_medians, city_medians, city, zone, p.contract
+        )
         if entry is None:
             return None
         med, _n = entry
         return ((p.current_min_price / p.sqm) - med) / med * 100.0
 
     # a Property merged across portals can carry several agencies; each one
-    # published it, so each one answers for its price — but only once
+    # published it, so each one answers for its price — but only once.
+    # Keyed casefolded (like city/zone normalization elsewhere): the same
+    # agency scraped with different casing across portals would otherwise
+    # split its sample below MIN_SAMPLE and vanish from the table.
     by_agency: dict[str, dict[int, Property]] = {}
+    display_name: dict[str, str] = {}
     for p in props:
         for listing in p.listings:
             agency = (listing.agency or "").strip()
             if agency:
-                by_agency.setdefault(agency, {})[p.id] = p
+                key = agency.casefold()
+                display_name.setdefault(key, agency)
+                by_agency.setdefault(key, {})[p.id] = p
 
     rows = []
-    for agency, props_by_id in by_agency.items():
+    for agency_key, props_by_id in by_agency.items():
         group = list(props_by_id.values())
         if len(group) < MIN_SAMPLE:
             continue
@@ -162,7 +169,7 @@ def compute_agency_behavior(
         deltas = [d for d in (sqm_delta_pct(p) for p in group) if d is not None]
         gone = [p for p in group if p.status == "gone"]
         rows.append({
-            "agency": agency,
+            "agency": display_name[agency_key],
             "sample": len(group),
             "price_drop_pct": round(len(drops) / len(group) * 100.0, 1),
             # median discount among the listings that *did* drop: mixing in

@@ -129,3 +129,13 @@ def test_annotate_none_when_settings_disabled():
     annotate_match_scores(props, {"match_score_enabled": False,
                                   "dream_max_price": 350_000})
     assert props[0].match_score is None
+
+
+def test_zone_matches_on_word_boundaries_not_substrings():
+    """Regression: `_zone_match` was the one containment test left in the
+    codebase — a preferred zone "Isola" silently matched "Isolabella" and
+    "Isolotto" addresses, inflating the score."""
+    prefs = _prefs(zones=["Isola"])
+    assert compute_match(_prop(zone="Isola"), prefs) == 100
+    assert compute_match(_prop(address="Via Isolabella 3"), prefs) == 0
+    assert compute_match(_prop(zone="Isolotto"), prefs) == 0

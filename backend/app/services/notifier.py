@@ -65,6 +65,9 @@ def send_email_message(text: str, subject: str | None = None) -> bool:
     if subject is None:
         # first line of the message, stripped of tags, works as a subject
         subject = re.sub(r"<[^>]+>", "", text.splitlines()[0]).strip() or "Notification"
+    # subjects carry scraped titles (untrusted): a newline in one would smuggle
+    # extra headers into the message (header injection under compat32)
+    subject = re.sub(r"[\r\n]+", " ", subject).strip()
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -186,6 +189,28 @@ def notify_price_drop(prop: Property, old_price: float, new_price: float,
         f'<a href="{html.escape(url)}">Open listing</a>'
     )
     subject = f"📉 Price change ({pct:+.1f}%): {prop.title or prop.city or 'listing'}"
+    return broadcast(text, channels, subject=subject)
+
+
+def notify_property_reactivated(prop: Property, previous_status: str,
+                                channels: list[str] | None = None) -> bool:
+    """A property that left the visible market came back: "gone" reappeared on
+    the portal, or "filtered" no longer matches an exclusion keyword. Without
+    this the transition happened silently, and a returned listing is exactly
+    as actionable as a new one."""
+    reason = (
+        "back on the market" if previous_status == "gone"
+        else "no longer excluded by your keywords"
+    )
+    url = prop.listings[0].url if prop.listings else ""
+    text = (
+        f"🔄 <b>Property {reason}</b>\n"
+        f"{html.escape(prop.title or 'Untitled')}\n"
+        f"📍 {html.escape(prop.city or '?')} {html.escape(prop.zone or '')}\n"
+        f"💰 <b>{_fmt_price(prop.current_min_price, prop.contract)}</b>\n"
+        f'<a href="{html.escape(url)}">Open listing</a>'
+    )
+    subject = f"🔄 Back on the market: {prop.title or prop.city or 'listing'}"
     return broadcast(text, channels, subject=subject)
 
 

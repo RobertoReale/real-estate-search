@@ -82,9 +82,11 @@ def _keyword_fraction(prop: Property, keywords: list[str]) -> float:
 
 
 def _zone_match(prop: Property, zones: list[str]) -> float:
-    haystack = _normalize(f"{prop.city} {prop.zone} {prop.address}")
-    return 1.0 if any(_normalize(z) in haystack for z in zones if _normalize(z)) \
-        else 0.0
+    """Word-boundary matching via the filter engine, like every other keyword
+    in the codebase: a bare substring test made a preferred zone "Isola"
+    silently match "Isolabella"/"Isolotto" addresses."""
+    texts = [prop.city, prop.zone, prop.address]
+    return 1.0 if find_excluded_keyword(texts, zones) is not None else 0.0
 
 
 def compute_match(prop: Property, prefs: dict) -> int | None:

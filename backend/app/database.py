@@ -1,5 +1,6 @@
 """SQLAlchemy connection to local SQLite database (case.db)."""
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
@@ -62,8 +63,32 @@ def _apply_additive_migrations() -> set[str]:
                 elif isinstance(default, (int, float)):
                     ddl += f" DEFAULT {default}"
                 elif isinstance(default, str):
-                    ddl += f" DEFAULT '{default}'"
+                    # doubled quotes, not raw interpolation: a default
+                    # containing an apostrophe must not break the DDL
+                    escaped = default.replace("'", "''")
+                    ddl += f" DEFAULT '{escaped}'"
                 conn.execute(text(ddl))
+                if callable(default):
+                    # callable defaults (e.g. utcnow) cannot become a DDL
+                    # literal, so existing rows just got NULL — which a
+                    # non-Optional model field / Pydantic schema would then
+                    # turn into 500s on every old row. Backfill once with a
+                    # value computed now, stored the way the ORM stores it
+                    # (naive UTC ISO string: SQLite drops tzinfo anyway).
+                    try:
+                        # SQLAlchemy wraps callables to take an execution
+                        # context; a plain zero-arg callable is also legal
+                        value = default(None)
+                    except TypeError:
+                        value = default()
+                    if isinstance(value, datetime):
+                        value = value.astimezone(timezone.utc).replace(
+                            tzinfo=None).isoformat(sep=" ")
+                    conn.execute(
+                        text(f"UPDATE {table.name} SET {column.name} = :v "
+                             f"WHERE {column.name} IS NULL"),
+                        {"v": value},
+                    )
                 added.add(f"{table.name}.{column.name}")
                 logger.info("DB migration: added %s.%s", table.name, column.name)
     return added

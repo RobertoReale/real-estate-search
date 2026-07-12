@@ -285,6 +285,13 @@ export const api = {
   },
 };
 
+/** Defence in depth for anchors built from scraped URLs: only http(s) may
+ *  become a clickable href — a `javascript:` scheme smuggled into a listing
+ *  URL must render inert, mirroring how MapView escapes its tooltip HTML. */
+export function safeHref(url: string | null | undefined): string {
+  return url && /^https?:\/\//i.test(url) ? url : "#";
+}
+
 /** Format numeric values into human-readable Euro strings (`€350,000` or `€1,200/month`). */
 export function formatPrice(
   value: number | null | undefined,

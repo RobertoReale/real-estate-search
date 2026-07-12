@@ -3,8 +3,8 @@
 Just like `services/email_import.py` checks `ImportedListing` rows against
 the portals one at a time, this module checks `Property` rows (`Listing` URLs)
 on demand. It features:
-- Lock-protected batch run (`_prop_check_run_lock`) with live progress polling
-  (`_prop_check_progress`).
+- Lock-protected batch run (email_import's shared `_check_run_lock`) with live
+  progress polling (`_prop_check_progress`).
 - Polite delay (`request_delay_seconds` & portal floors) between URL probes.
 - Automatic DataDome cookie recovery if the portal blocks mid-batch.
 """
@@ -23,6 +23,7 @@ from .email_import import (
     MAX_CHECKS_PER_CALL,
     MAX_COOKIE_REFRESHES_PER_CHECK,
     MIN_PROBE_DELAY,
+    _check_run_lock,
     _try_cookie_recovery,
 )
 
@@ -34,7 +35,11 @@ class AvailabilityCheckError(Exception):
 
 
 _prop_check_progress: dict = {"active": False, "done": 0, "total": 0, "gone": 0}
-_prop_check_run_lock = threading.Lock()
+# THE probe lock is email_import's `_check_run_lock`, shared on purpose: the
+# pacing/streak/warm-up model assumes a single probe is talking to the portals,
+# and two module-private locks let the dashboard check and the email-import
+# check run concurrently — doubling the request rate to the very hosts the
+# pacing exists to protect.
 # Cooperative cancellation: the batch loop only owns the portal connection on
 # its own thread, so there is no way to kill it from the outside. It polls
 # this flag at the same per-property checkpoint as the probe budget cap
@@ -71,15 +76,16 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
     - If ALL listings answer `False` (404/gone), `Property.status = "gone"` and `gone_at` is set.
     - If blocked or network error (`None`), the property status is untouched.
     """
-    if not _prop_check_run_lock.acquire(blocking=False):
+    if not _check_run_lock.acquire(blocking=False):
         raise AvailabilityCheckError(
-            "A property availability check is already running: wait for it to finish"
+            "An availability check is already running (dashboard or email "
+            "import): wait for it to finish"
         )
     _prop_check_cancel_event.clear()
     try:
         return _check_properties_availability_inner(db, properties, skip_recent_hours)
     finally:
-        _prop_check_run_lock.release()
+        _check_run_lock.release()
 
 
 def _check_properties_availability_inner(db: Session, properties: list[Property], skip_recent_hours: float = 6.0) -> dict:

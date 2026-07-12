@@ -45,6 +45,20 @@ function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
   };
 }
 
+/** Only the fields the backend's SearchProfileIn accepts: the inline toggles
+ *  used to PUT the whole profile object, server-computed fields included
+ *  (consecutive_failures, last_run_status…), which worked only because the
+ *  backend happened to ignore unknown keys. */
+function profileInput(p: SearchProfile) {
+  return {
+    name: p.name,
+    search_url: p.search_url,
+    excluded_keywords: p.excluded_keywords,
+    notify_channels: p.notify_channels,
+    is_active: p.is_active,
+  };
+}
+
 /** Auto-label for a profile created from a parsed search. */
 function searchLabel(search: AssistantSearch): string {
   const p = search.params;
@@ -627,7 +641,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 title="Where to send notifications for this search"
                 value={p.notify_channels}
                 onChange={async (e) => {
-                  await api.updateProfile(p.id, { ...p, notify_channels: e.target.value });
+                  await api.updateProfile(p.id, {
+                    ...profileInput(p), notify_channels: e.target.value,
+                  });
                   onChanged();
                 }}>
                 {channelOptions.map((o) => (
@@ -637,7 +653,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
                 <input type="checkbox" checked={p.is_active}
                   onChange={async () => {
-                    await api.updateProfile(p.id, { ...p, is_active: !p.is_active });
+                    await api.updateProfile(p.id, {
+                      ...profileInput(p), is_active: !p.is_active,
+                    });
                     onChanged();
                   }} />
                 Active

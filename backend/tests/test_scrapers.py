@@ -681,3 +681,80 @@ def test_rotation_stops_when_profiles_are_exhausted():
     for _ in range(len(s.impersonations) - 1):
         assert s._rotate_session() is True
     assert s._rotate_session() is False
+
+
+# --- Regressions from the July 2026 code review ------------------------------
+
+def test_detect_contract_reads_idcontratto_on_polygon_urls():
+    """Regression: polygon/area searches (/search-list/) have no
+    "affitto"/"vendita" path segment, so a rental polygon search was tagged
+    "sale" — wrong Property.contract (invariant 9) and sale price bounds
+    applied to monthly rents."""
+    from app.scrapers.base import detect_contract
+
+    assert detect_contract(
+        "https://www.immobiliare.it/search-list/?idContratto=2&idCategoria=1"
+    ) == "rent"
+    assert detect_contract(
+        "https://www.immobiliare.it/search-list/?idContratto=1&idCategoria=1"
+    ) == "sale"
+    # path segment still wins where present
+    assert detect_contract("https://www.immobiliare.it/affitto-case/milano/") == "rent"
+    assert detect_contract("https://www.immobiliare.it/vendita-case/milano/") == "sale"
+
+
+def test_parse_sqm_handles_thousands_separator():
+    """Regression: "5.000 m²" (large plots) parsed as 5.0 sqm."""
+    assert parse_sqm("terreno di 5.000 m²") == 5000.0
+    assert parse_sqm("90 m²") == 90.0
+    assert parse_sqm("45,5 mq") == 45.5
+
+
+def test_scrapers_inherit_the_full_tls_rotation():
+    """Regression: both scrapers overrode `impersonations` with the original
+    three-profile list, shadowing the newer anti-block profiles added to
+    BaseScraper — the fix was inactive exactly where it mattered (the real
+    scans; only AdProbe got it)."""
+    assert ImmobiliareScraper.impersonations is BaseScraper.impersonations
+    assert IdealistaScraper.impersonations is BaseScraper.impersonations
+    assert "firefox147" in BaseScraper.impersonations
+
+
+def test_structured_price_placeholders_are_rejected():
+    """Regression: JSON-LD / embedded-state prices skipped the plausibility
+    bounds parse_price applies to scraped text, so a "price on request"
+    placeholder (1 €) sailed into the dashboard."""
+    scraper = ImmobiliareScraper()
+    entry = {
+        "realEstate": {
+            "id": 42, "title": "Trilocale",
+            "price": {"value": 1},
+            "properties": [{"surface": "90 m²"}],
+        }
+    }
+    listing = scraper._entry_to_listing(entry)
+    assert listing is not None
+    assert listing.price is None
+
+    ld = json.dumps({
+        "@type": "ItemList",
+        "itemListElement": [{"item": {
+            "@type": "RealEstateListing",
+            "url": "https://www.immobiliare.it/annunci/777/",
+            "name": "Bilocale", "offers": {"price": "0"},
+        }}],
+    })
+    html = f'<html><head><script type="application/ld+json">{ld}</script></head></html>'
+    found = scraper.parse_json_ld(html, "https://www.immobiliare.it/vendita-case/milano/")
+    assert found and found[0].price is None
+
+
+def test_idealista_address_survives_in_vendita_in_phrasing():
+    """Regression: the most common Italian title, "Trilocale in vendita in
+    Via Roma, 12, Milano", matched the first "in" and produced the corrupted
+    address "vendita in Via Roma"."""
+    fn = IdealistaScraper._address_from_title
+    assert fn("Trilocale in vendita in Via Roma, 12, Milano") == "Via Roma, 12"
+    assert fn("Trilocale in Via Volvinio, 26, Stadera, Milano") == "Via Volvinio, 26"
+    assert fn("Appartamento in affitto in Corso Lodi, 3, Milano") == "Corso Lodi, 3"
+    assert fn("Villa unifamiliare") == ""
