@@ -192,6 +192,43 @@ def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, mo
     assert all(p.status == "active" for p in props)
 
 
+def test_cancel_stops_the_batch_after_the_current_property(db, monkeypatch):
+    """A user-triggered stop (the dashboard's "Stop" button) has no way to
+    interrupt an in-flight portal request from another thread, so it must land
+    at the same per-property checkpoint as the probe budget cap: the property
+    already being checked finishes, the rest of the selection is left alone."""
+    props = [_property(db, str(700 + n)) for n in range(5)]
+
+    class CancellingProbe(_FakeProbe):
+        def check(self, url) -> bool | None:
+            self.calls += 1
+            # Simulates the user clicking "Stop" while this property's
+            # request is in flight.
+            availability_check.request_cancel()
+            return True
+
+    monkeypatch.setattr(availability_check, "AdProbe", CancellingProbe)
+    summary = check_properties_availability(db, props, skip_recent_hours=0)
+
+    assert summary["cancelled"] is True
+    assert summary["aborted"] is False
+    assert summary["checked"] == 1
+    assert summary["online"] == 1
+
+
+def test_cancel_is_a_noop_when_nothing_is_running(db, monkeypatch):
+    """Clicking "Stop" after a batch already finished (a stale request racing
+    the UI) must not affect the next one."""
+    availability_check.request_cancel()
+    prop = _property(db, "710")
+
+    monkeypatch.setattr(availability_check, "AdProbe", _FakeProbe)
+    summary = check_properties_availability(db, [prop])
+
+    assert summary["cancelled"] is False
+    assert summary["checked"] == 1
+
+
 def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatch):
     prop = _property(db, "500")
 

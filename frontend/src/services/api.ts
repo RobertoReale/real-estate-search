@@ -264,6 +264,11 @@ export const api = {
   propertiesCheckProgress(): Promise<ImportCheckProgress> {
     return request("/properties/check-progress");
   },
+  /** Stops the running dashboard properties availability check after its
+   * current property (a no-op if nothing is running). */
+  cancelPropertiesCheck(): Promise<{ ok: boolean }> {
+    return request("/properties/check/cancel", { method: "POST" });
+  },
   /** Last N lines of the backend's own app.log, for the in-app log viewer. */
   logsTail(lines = 200): Promise<LogTail> {
     return request(`/logs/tail?lines=${lines}`);

@@ -434,6 +434,15 @@ def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/properties/check/cancel")
+def cancel_properties_check():
+    """Stops the running batch after its current property (invariant 16's
+    pacing means each one can take several seconds, so this is not instant).
+    A no-op if nothing is running."""
+    availability_check.request_cancel()
+    return {"ok": True}
+
+
 @app.post("/api/properties/{property_id}/check")
 def check_single_property(property_id: int, db: Session = Depends(get_db)):
     """Runs AdProbe live availability check on a single property."""

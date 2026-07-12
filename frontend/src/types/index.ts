@@ -238,6 +238,9 @@ export interface ImportCheckSummary {
   aborted: boolean;
   // the per-run live-fetch budget ran out: re-run to continue where it left off
   capped?: boolean;
+  // the user clicked "Stop": distinct from `aborted` (portal blocked the
+  // batch) so the UI does not show a block warning for a deliberate stop
+  cancelled?: boolean;
   last_error?: string | null;
   // how many times a fresh DataDome cookie was grabbed mid-check to recover
   // from a block (only when automatic cookie refresh is enabled)

@@ -205,6 +205,10 @@ phone without any of this. The dashboard is for browsing and triaging.
   refusing anyway, the check **stops after three refusals in a row** and says so:
   insisting would only deepen the block, and the block would land on the same
   home connection your scheduled scans need. In that case, wait and retry later.
+  You can also stop a run yourself at any time with the **⏹ Stop** button next to
+  the progress bar — it finishes whatever listing is already in flight (there is
+  no way to interrupt a live request mid-flight) and leaves the rest of the
+  selection unchecked; re-select it later to pick up where you left off.
 
   If DataDome keeps interrupting the check, turn on **"Run the check through the
   browser"** in **Settings** (under the automatic cookie section). The check then

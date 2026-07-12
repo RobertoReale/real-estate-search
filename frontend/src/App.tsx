@@ -39,6 +39,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkingBatch, setCheckingBatch] = useState(false);
+  const [cancellingBatch, setCancellingBatch] = useState(false);
   const [batchProgress, setBatchProgress] = useState<ImportCheckProgress | null>(null);
   const [batchSummary, setBatchSummary] = useState<ImportCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -170,6 +171,7 @@ export default function App() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     setCheckingBatch(true);
+    setCancellingBatch(false);
     setBatchSummary(null);
     setBatchProgress(null);
     setActionError("");
@@ -181,8 +183,22 @@ export default function App() {
       setActionError(e instanceof Error ? e.message : "Batch check failed");
     } finally {
       setCheckingBatch(false);
+      setCancellingBatch(false);
       setBatchProgress(null);
     }
+  }
+
+  // The running batch owns the portal connection on its own thread, so this
+  // can only ask it to stop after the property currently in flight -- there
+  // is no way to cancel a live socket call from here. `cancellingBatch` just
+  // disables the button so a second click can't fire a redundant request
+  // while the batch (still `checkingBatch`) winds down.
+  function stopCheckingProperties() {
+    setCancellingBatch(true);
+    api.cancelPropertiesCheck().catch(() => {
+      // best-effort: if this request itself fails, the batch simply keeps
+      // running to completion, same as if the button had never been clicked
+    });
   }
 
   const hasProfiles = profiles.length > 0;
@@ -333,6 +349,15 @@ export default function App() {
                     onClick={checkSelectedProperties}>
                     {checkingBatch ? "⏳ Checking…" : `🔎 Check online availability (${selectedIds.size})`}
                   </button>
+                  {checkingBatch && (
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
+                      disabled={cancellingBatch}
+                      onClick={stopCheckingProperties}>
+                      {cancellingBatch ? "⏳ Stopping…" : "⏹ Stop"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -367,7 +392,12 @@ export default function App() {
                   <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} removed or sold (moved to Gone)</span> |{" "}
                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} still online</span>
                   {batchSummary.unknown > 0 && ` (${batchSummary.unknown} not verifiable from the portal)`}
-                  {batchSummary.aborted && (
+                  {batchSummary.cancelled && (
+                    <span className="block">
+                      ⏹ Stopped — the rest of the selection was left unchecked. Select it again to resume.
+                    </span>
+                  )}
+                  {batchSummary.aborted && !batchSummary.cancelled && (
                     <span className="block text-amber-600 dark:text-amber-400">
                       ⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.
                       {batchSummary.transport && batchSummary.transport.includes("forced") && (
@@ -387,7 +417,7 @@ export default function App() {
                       )}
                     </span>
                   )}
-                  {batchSummary.capped && !batchSummary.aborted && (
+                  {batchSummary.capped && !batchSummary.aborted && !batchSummary.cancelled && (
                     <span className="block">
                       Per-run request limit reached: run the check again to continue with the rest.
                     </span>

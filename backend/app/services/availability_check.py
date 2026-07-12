@@ -35,11 +35,24 @@ class AvailabilityCheckError(Exception):
 
 _prop_check_progress: dict = {"active": False, "done": 0, "total": 0, "gone": 0}
 _prop_check_run_lock = threading.Lock()
+# Cooperative cancellation: the batch loop only owns the portal connection on
+# its own thread, so there is no way to kill it from the outside. It polls
+# this flag at the same per-property checkpoint as the probe budget cap
+# (`MAX_CHECKS_PER_CALL`), so a cancel lands within one property's requests
+# instead of needing to interrupt a live socket call.
+_prop_check_cancel_event = threading.Event()
 
 
 def get_prop_check_progress() -> dict:
     """Snapshot of the running dashboard properties availability check, for UI polling."""
     return dict(_prop_check_progress)
+
+
+def request_cancel() -> None:
+    """Signals a running batch to stop after its current property. A no-op
+    when nothing is running -- the event is cleared at the start of the next
+    batch regardless of whether a previous one ever consumed it."""
+    _prop_check_cancel_event.set()
 
 
 def _is_recently_checked(dt, hours: float = 6.0) -> bool:
@@ -62,6 +75,7 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
         raise AvailabilityCheckError(
             "A property availability check is already running: wait for it to finish"
         )
+    _prop_check_cancel_event.clear()
     try:
         return _check_properties_availability_inner(db, properties, skip_recent_hours)
     finally:
@@ -78,7 +92,7 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
 
     summary = {
         "checked": 0, "gone": 0, "online": 0, "unknown": 0,
-        "aborted": False, "capped": False, "last_error": None,
+        "aborted": False, "capped": False, "cancelled": False, "last_error": None,
         "cookie_refreshed": 0, "transport": "fast requests (curl)",
     }
     _prop_check_progress.update(active=True, done=0, total=len(properties),
@@ -107,6 +121,12 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
         refreshes_used = 0
         probes_used = 0
         for index, prop in enumerate(properties):
+            if _prop_check_cancel_event.is_set():
+                summary["cancelled"] = True
+                logger.info("availability_check: cancelled by user after %d properties",
+                            summary["checked"])
+                break
+
             if not prop.listings:
                 # No portal listings attached: nothing to check
                 _prop_check_progress.update(done=index + 1, gone=summary["gone"])
