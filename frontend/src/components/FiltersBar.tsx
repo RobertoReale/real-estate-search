@@ -50,10 +50,14 @@ export default function FiltersBar({
       <div className="col-span-2 w-full flex flex-col gap-1">
         <label className="text-xs t-muted">Search</label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 t-muted pointer-events-none">🔍</span>
+          {/* the magnifier is only an affordance for the empty field; once the
+              user is typing it is redundant (and the ✕ takes its place) */}
+          {!filters.q && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 t-muted pointer-events-none">🔍</span>
+          )}
           <input
-            className="input w-full pl-9"
-            placeholder="Cerca per zona, indirizzo, titolo o testo dell'annuncio…"
+            className={`input w-full ${filters.q ? "" : "pl-9"}`}
+            placeholder="Search by zone, address, title, floor or ad text…"
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
           />
@@ -174,6 +178,7 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted">Match a search</label>
           <select className="input w-full sm:w-44" value={filters.profile_id}
+            title="Overlay a saved search on the whole grid: applies its city, contract and excluded keywords (useful to prune email imports the scan filter never saw)"
             onChange={(e) => set({ profile_id: e.target.value })}>
             <option value="">— none —</option>
             {profiles.map((p) => (
@@ -198,7 +203,7 @@ export default function FiltersBar({
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
         <span className="text-sm t-muted pb-2">{count} properties</span>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium t-muted">Manutenzione</label>
+          <label className="text-xs font-medium t-muted">Maintenance</label>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               repairing
@@ -206,7 +211,7 @@ export default function FiltersBar({
                 : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
             }`}
             disabled={repairing}
-            title="Ripara istantaneamente titoli, zone e foto mancanti degli annunci importati in passato"
+            title="Instantly repair missing titles, zones and photos on previously imported listings"
             onClick={async () => {
               setRepairing(true);
               setRepairResult(null);
@@ -218,7 +223,7 @@ export default function FiltersBar({
                 setRepairing(false);
               }
             }}>
-            {repairing ? "⏳ Riparazione in corso..." : "🛠️ Ripara Dati"}
+            {repairing ? "⏳ Repairing…" : "🛠️ Repair data"}
           </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
@@ -270,21 +275,21 @@ export default function FiltersBar({
             {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 ? (
               <>
                 <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
-                  <span>✅</span> Riparazione completata con successo!
+                  <span>✅</span> Repair completed successfully!
                 </p>
                 <p>
-                  Aggiornati i dati di <strong>{repairResult.properties_fixed} immobili</strong>,{" "}
-                  <strong>{repairResult.listings_fixed} annunci</strong> e ripristinate{" "}
-                  <strong>{repairResult.images_recovered} foto</strong>.
+                  Updated <strong>{repairResult.properties_fixed} properties</strong>,{" "}
+                  <strong>{repairResult.listings_fixed} listings</strong> and recovered{" "}
+                  <strong>{repairResult.images_recovered} photos</strong>.
                 </p>
               </>
             ) : (
               <>
                 <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-1.5">
-                  <span>✨</span> Tutto in ordine e perfettamente sincronizzato!
+                  <span>✨</span> Everything is in order and fully in sync!
                 </p>
                 <p>
-                  Il controllo ha verificato il database: non è stato trovato nessun immobile o annuncio con dati, città (`Location N/A`) o foto mancanti da riparare. Tutti gli annunci sono già allineati e completi.
+                  The check scanned the database: no property or listing with missing data, city (`Location N/A`) or photos was found to repair. Every listing is already complete and aligned.
                 </p>
               </>
             )}
@@ -292,7 +297,7 @@ export default function FiltersBar({
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setRepairResult(null)}
-            title="Chiudi">
+            title="Close">
             ✕
           </button>
         </div>

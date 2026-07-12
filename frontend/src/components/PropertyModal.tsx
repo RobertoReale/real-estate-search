@@ -32,14 +32,14 @@ export default function PropertyModal({
       const { property: updated, summary } = await api.checkSingleProperty(p.id);
       onNotesSaved(updated);
       if (summary.gone > 0) {
-        setCheckResult("🔴 Rimosso / Gone (404)");
+        setCheckResult("🔴 Removed / Gone (404)");
       } else if (summary.online > 0) {
-        setCheckResult("🟢 Online (Verificato adesso)");
+        setCheckResult("🟢 Online (just verified)");
       } else {
-        setCheckResult("⚠️ Impossibile verificare (bloccato dal portale o timeout)");
+        setCheckResult("⚠️ Could not verify (blocked by the portal or timeout)");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Errore durante la verifica online");
+      setError(e instanceof Error ? e.message : "Error during the online check");
     } finally {
       setCheckingOnline(false);
     }
@@ -243,7 +243,7 @@ export default function PropertyModal({
                 disabled={checkingOnline || !p.listings.length}
                 onClick={checkIfOnline}
                 title="Probes the portal URL right now to verify if this listing is still online or removed (404)">
-                {checkingOnline ? "⏳ Verifica in corso..." : "🔎 Verifica se ancora online"}
+                {checkingOnline ? "⏳ Checking…" : "🔎 Check if still online"}
               </button>
               {checkResult && (
                 <span className="text-xs font-medium animate-fade-in">

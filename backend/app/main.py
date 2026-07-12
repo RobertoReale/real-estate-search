@@ -116,20 +116,26 @@ def _select_properties(
         query = query.where(Property.zone.ilike(f"%{zone}%"))
     if source in ("scan", "email"):
         query = query.where(Property.source == source)
-    if q:
-        # free-text search across the fields a user would actually type
+    if q and q.strip():
+        # Free-text search across the fields a user would actually type
         # (zone "San Siro", a street, "nuova costruzione" in the title or the
-        # listing's own description/agency). One term, matched anywhere.
-        like = f"%{q.strip()}%"
-        query = query.where(or_(
-            Property.title.ilike(like),
-            Property.zone.ilike(like),
-            Property.address.ilike(like),
-            Property.city.ilike(like),
-            Property.listings.any(or_(
-                Listing.agency.ilike(like), Listing.description.ilike(like),
-            )),
-        ))
+        # listing's own description/agency, "piano terra" in the floor).
+        # Split on whitespace and AND the terms: "attico navigli" then matches
+        # a property whose title says "attico" and whose zone says "Navigli",
+        # which a single substring never would. Each term may still match any
+        # one field.
+        for term in q.split():
+            like = f"%{term}%"
+            query = query.where(or_(
+                Property.title.ilike(like),
+                Property.zone.ilike(like),
+                Property.address.ilike(like),
+                Property.city.ilike(like),
+                Property.floor.ilike(like),
+                Property.listings.any(or_(
+                    Listing.agency.ilike(like), Listing.description.ilike(like),
+                )),
+            ))
     # "is not None" and not truthiness: 0 is a legitimate threshold
     if min_price is not None:
         query = query.where(Property.current_min_price >= min_price)

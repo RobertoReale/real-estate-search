@@ -14,8 +14,8 @@ export function formatSqmPrice(item: ImportedListing): string {
   const value = pricePerSqm(item);
   if (value === null) return "";
   return item.contract === "rent"
-    ? `${value.toLocaleString("it-IT")} €/m² per month`
-    : `${value.toLocaleString("it-IT")} €/m²`;
+    ? `${value.toLocaleString("en-IE")} €/m² per month`
+    : `${value.toLocaleString("en-IE")} €/m²`;
 }
 
 interface Props {
@@ -53,12 +53,12 @@ export function EmailListingCard({
         href={item.url}
         target="_blank"
         rel="noreferrer"
-        title="Apri annuncio originale sul portale"
+        title="Open the original listing on the portal"
         className="w-24 h-18 sm:w-28 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800 relative group shadow-sm block border border-slate-300/30 dark:border-slate-700/30">
         {item.image_url ? (
           <img
             src={item.image_url}
-            alt={item.title || "Foto annuncio"}
+            alt={item.title || "Listing photo"}
             loading="lazy"
             onError={(e) => {
               e.currentTarget.style.display = "none";
@@ -83,8 +83,8 @@ export function EmailListingCard({
             target="_blank"
             rel="noreferrer"
             className="font-semibold text-sm sm:text-base hover:text-blue-500 transition truncate"
-            title={item.title || item.email_subject || `Annuncio #${item.portal_id}`}>
-            {item.title || item.email_subject || `Annuncio #${item.portal_id}`}
+            title={item.title || item.email_subject || `Listing #${item.portal_id}`}>
+            {item.title || item.email_subject || `Listing #${item.portal_id}`}
           </a>
 
           {/* Status badges */}
@@ -95,7 +95,7 @@ export function EmailListingCard({
                   ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                   : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
               }`}>
-              {item.status === "accepted" ? "✅ Accettato" : "🗑️ Scartato"}
+              {item.status === "accepted" ? "✅ Accepted" : "🗑️ Discarded"}
             </span>
           )}
 
@@ -103,22 +103,22 @@ export function EmailListingCard({
           {item.is_available === true && (
             <span
               className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 flex items-center gap-1"
-              title="Il portale ha confermato che la pagina dell'annuncio è ancora online e raggiungibile">
-              🟢 Online sul portale
+              title="The portal confirmed the listing page is still online and reachable">
+              🟢 Online on the portal
             </span>
           )}
           {item.is_available === false && (
             <span
               className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0 flex items-center gap-1"
-              title="Il portale ha risposto 'pagina non trovata' (404/rimosso)">
-              🔴 Rimosso / Non disponibile
+              title="The portal answered 'page not found' (404/removed)">
+              🔴 Removed / Unavailable
             </span>
           )}
           {item.is_available === null && (
             <span
               className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-500/10 t-dim border border-slate-500/15 shrink-0 flex items-center gap-1"
-              title="Disponibilità non ancora verificata su portale. Usa 'Verifica se online'">
-              ⚪ Non verificato
+              title="Availability not checked on the portal yet. Use 'Check if online'">
+              ⚪ Not checked
             </span>
           )}
         </div>
@@ -128,11 +128,11 @@ export function EmailListingCard({
           {[
             formatPrice(item.price, item.contract),
             item.sqm ? `${item.sqm} m²` : "",
-            item.rooms ? `${item.rooms} locali` : "",
-            item.contract === "rent" ? "affitto" : "vendita",
+            item.rooms ? `${item.rooms} rooms` : "",
+            item.contract === "rent" ? "rent" : "sale",
             item.city ? item.city : "",
             item.email_date
-              ? `email del ${new Date(item.email_date).toLocaleDateString("it-IT")}`
+              ? `email of ${new Date(item.email_date).toLocaleDateString("en-IE")}`
               : "",
           ]
             .filter(Boolean)
@@ -143,7 +143,7 @@ export function EmailListingCard({
         {item.email_subject && (
           <p
             className="text-xs t-dim truncate opacity-75"
-            title={`${item.email_subject} — da ${item.email_from}`}>
+            title={`${item.email_subject} — from ${item.email_from}`}>
             ✉️ <span className="italic">{item.email_subject}</span> ({item.email_from})
           </p>
         )}
@@ -153,7 +153,7 @@ export function EmailListingCard({
       {sqmPriceStr && (
         <span
           className="text-xs font-semibold shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-500/10 border border-slate-500/15"
-          title="Prezzo al metro quadro calcolato dall'email">
+          title="Price per square meter computed from the email">
           {sqmPriceStr}
         </span>
       )}
@@ -165,26 +165,26 @@ export function EmailListingCard({
           target="_blank"
           rel="noreferrer"
           className="btn-ghost text-xs py-1.5 px-2.5"
-          title="Apri pagina originale sul portale">
-          Apri ↗
+          title="Open the original page on the portal">
+          Open ↗
         </a>
         {item.status !== "accepted" && (
           <button
             className="btn py-1.5 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition"
             disabled={busy}
-            title="Aggiungi al cruscotto principale (deduplicato automaticamente)"
+            title="Add to the main dashboard (automatically deduplicated)"
             onClick={onAccept}>
-            ✓ {item.status === "discarded" ? "Recupera / Accetta" : "Accetta"}
+            ✓ {item.status === "discarded" ? "Recover / Accept" : "Accept"}
           </button>
         )}
         {item.status !== "discarded" && (
           <button
             className="btn-ghost text-xs py-1.5 px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
             disabled={busy}
-            title="Scarta annuncio (non verrà ricaricato alle prossime scansioni)"
-            aria-label="Scarta annuncio"
+            title="Discard listing (it will not be re-loaded on future scans)"
+            aria-label="Discard listing"
             onClick={onDiscard}>
-            ✕ Scarta
+            ✕ Discard
           </button>
         )}
       </div>

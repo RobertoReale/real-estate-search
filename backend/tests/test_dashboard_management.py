@@ -144,6 +144,38 @@ def test_q_matches_listing_description(db):
     assert [p.id for p in list_properties(db=db, q="asta giudiziaria")] == [prop.id]
 
 
+def test_q_terms_are_anded_across_fields(db):
+    """Multi-word search ANDs the terms and each may match a different field:
+    "attico navigli" must find a property whose *title* says attico and whose
+    *zone* says Navigli — a single substring never would, since no one field
+    holds the whole phrase."""
+    hit = upsert_listing(db, _raw(portal_id="1", title="Attico ristrutturato", zone="Navigli"))[0]
+    # same zone but a different type: the "attico" term must exclude it
+    miss = upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        title="Bilocale economico", zone="Navigli",
+        latitude=45.99, longitude=9.99, address="Via Altra, 9",
+    ))[0]
+    db.commit()
+    out = [p.id for p in list_properties(db=db, q="attico navigli")]
+    assert out == [hit.id]
+    assert miss.id not in out
+
+
+def test_q_matches_floor(db):
+    """The floor is a field a user types ("piano terra"): searching it must
+    work, so a listing on the ground floor surfaces without scrolling."""
+    ground = upsert_listing(db, _raw(portal_id="1", floor="piano terra"))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        floor="3", latitude=45.99, longitude=9.99, address="Via Altra, 9",
+    ))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, q="piano terra")] == [ground.id]
+
+
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 def test_profile_overlay_applies_contract_city_and_keywords(db):

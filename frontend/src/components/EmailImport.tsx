@@ -129,7 +129,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
 
     if (toCheck.length === 0) {
       setError(
-        "Nessun annuncio da verificare. Scansiona le email o seleziona un annuncio specifico per forzare il ricalcolo.",
+        "No listings to check. Scan the emails or select a specific listing to force the recompute.",
       );
       return;
     }

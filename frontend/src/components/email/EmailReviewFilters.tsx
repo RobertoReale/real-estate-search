@@ -12,8 +12,8 @@ export function EmailReviewFilters({ filters, onFilterChange, profiles }: Props)
       <div className="flex flex-col gap-1">
         <label
           className="text-xs t-muted"
-          title="Scegli se mostrare annunci in attesa, scartati o già accettati">
-          Stato / Status
+          title="Choose whether to show pending, discarded or already accepted listings">
+          Status
         </label>
         <select
           className="input w-full sm:w-40 font-medium"
@@ -23,10 +23,10 @@ export function EmailReviewFilters({ filters, onFilterChange, profiles }: Props)
               status: e.target.value as ImportFilters["status"],
             })
           }>
-          <option value="pending">⏳ In attesa (Pending)</option>
-          <option value="discarded">🗑️ Scartati (Discarded)</option>
-          <option value="accepted">✅ Accettati (Accepted)</option>
-          <option value="all">📋 Tutti (All)</option>
+          <option value="pending">⏳ Pending</option>
+          <option value="discarded">🗑️ Discarded</option>
+          <option value="accepted">✅ Accepted</option>
+          <option value="all">📋 All</option>
         </select>
       </div>
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-1">

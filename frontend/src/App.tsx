@@ -155,8 +155,8 @@ export default function App() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     if (action === "hide" && !confirm(
-      `Nascondere ${ids.length} annunci? Spariranno da liste e notifiche ` +
-      `(recuperabili da 🙈 Scartati → Ripristina).`
+      `Hide ${ids.length} properties? They will disappear from lists and ` +
+      `notifications (recoverable from 🙈 Discarded → Restore).`
     )) return;
     return runAction(async () => {
       await api.bulkProperties(ids, action);
@@ -284,7 +284,7 @@ export default function App() {
                     setSelectionMode(!selectionMode);
                     if (selectionMode) setSelectedIds(new Set());
                   }}>
-                  {selectionMode ? "✕ Chiudi selezione multipla" : "☐ Selezione multipla annunci"}
+                  {selectionMode ? "✕ Close multi-select" : "☐ Select multiple properties"}
                 </button>
                 {selectionMode && (
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
@@ -299,7 +299,7 @@ export default function App() {
                         )
                       }
                     />
-                    Seleziona tutti ({selectedIds.size} di {properties.length})
+                    Select all ({selectedIds.size} of {properties.length})
                   </label>
                 )}
               </div>
@@ -310,21 +310,21 @@ export default function App() {
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("hide")}>
-                    🙈 Nascondi selezionati ({selectedIds.size})
+                    🙈 Hide selected ({selectedIds.size})
                   </button>
                   <button
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
-                    ⭐ Aggiungi ai preferiti
+                    ⭐ Add to favorites
                   </button>
                   <button
                     type="button"
                     className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={checkSelectedProperties}>
-                    {checkingBatch ? "⏳ Verifica in corso..." : `🔎 Verifica disponibilità online (${selectedIds.size})`}
+                    {checkingBatch ? "⏳ Checking…" : `🔎 Check online availability (${selectedIds.size})`}
                   </button>
                 </div>
               )}
@@ -337,12 +337,12 @@ export default function App() {
                 total={batchProgress?.total ?? 0}
                 indeterminate={!batchProgress || batchProgress.total <= 0}>
                 {batchProgress
-                  ? `Verifica annuncio ${batchProgress.done} di ${batchProgress.total} — ${batchProgress.online ?? 0} online, ${batchProgress.gone} rimossi/venduti${(batchProgress.unknown ?? 0) > 0 ? `, ${batchProgress.unknown} non verificabili` : ""}`
-                  : "Avvio verifica in corso…"}{" "}
-                Pausa di sicurezza attiva tra una richiesta e l'altra per proteggere l'IP da blocchi DataDome.
+                  ? `Checking listing ${batchProgress.done} of ${batchProgress.total} — ${batchProgress.online ?? 0} online, ${batchProgress.gone} removed/sold${(batchProgress.unknown ?? 0) > 0 ? `, ${batchProgress.unknown} not verifiable` : ""}`
+                  : "Starting check…"}{" "}
+                A safety pause runs between requests to protect the IP from DataDome blocks.
                 {batchProgress?.last_error && (
                   <span className="block opacity-75 font-normal">
-                    Ultimo problema dal portale: {batchProgress.last_error}
+                    Last issue from the portal: {batchProgress.last_error}
                   </span>
                 )}
               </ProgressBar>
@@ -351,18 +351,18 @@ export default function App() {
             {batchSummary && !checkingBatch && (
               <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 text-xs t-muted flex items-center justify-between">
                 <div>
-                  🔎 Controllati: <strong>{batchSummary.checked}</strong> |{" "}
-                  <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} rimossi o venduti (spostati in Gone)</span> |{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} ancora online</span>
-                  {batchSummary.unknown > 0 && ` (${batchSummary.unknown} non verificabili dal portale)`}
+                  🔎 Checked: <strong>{batchSummary.checked}</strong> |{" "}
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} removed or sold (moved to Gone)</span> |{" "}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} still online</span>
+                  {batchSummary.unknown > 0 && ` (${batchSummary.unknown} not verifiable from the portal)`}
                   {batchSummary.aborted && (
                     <span className="block text-amber-600 dark:text-amber-400">
-                      ⚠️ Il portale ha bloccato le richieste: verifica interrotta per proteggere l'IP. Riprova più tardi.
+                      ⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.
                     </span>
                   )}
                   {batchSummary.capped && !batchSummary.aborted && (
                     <span className="block">
-                      Limite di richieste per esecuzione raggiunto: rilancia la verifica per continuare dai rimanenti.
+                      Per-run request limit reached: run the check again to continue with the rest.
                     </span>
                   )}
                 </div>
