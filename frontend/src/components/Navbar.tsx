@@ -46,7 +46,13 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
         ) : (
           <>
             {scanStatus?.last_summary && <div>{scanStatus.last_summary}</div>}
-            {nextRun && <div>Next automatic scan: {nextRun}</div>}
+            {scanStatus?.paused ? (
+              <div className="text-amber-600 dark:text-amber-400">
+                ⏸ Automatic scans paused
+              </div>
+            ) : (
+              nextRun && <div>Next automatic scan: {nextRun}</div>
+            )}
           </>
         )}
       </div>

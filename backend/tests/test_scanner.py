@@ -416,6 +416,32 @@ def test_clean_full_scan_still_marks_gone(db, profile, monkeypatch):
     assert stale.status == "gone"
 
 
+def test_paused_skips_automatic_scan_but_manual_runs(db, profile, monkeypatch):
+    """The global pause stops the *scheduler* from touching the portals (to rest
+    the residential IP), but a user-triggered "Scan now" is explicit intent and
+    must run anyway. A scraper that raises when called proves the automatic run
+    never reached it."""
+    class _MustNotScrape:
+        delay_seconds = 0
+        max_pages = 1
+
+        def scrape(self, url):
+            raise AssertionError("paused automatic scan must not touch the portal")
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: _MustNotScrape())
+    monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
+    monkeypatch.setattr(scanner, "load_settings",
+                        lambda: {"excluded_keywords": [], "scanning_paused": True})
+
+    assert scanner.run_scan()["status"] == "paused"
+
+    # manual=True bypasses the pause: now the scraper is reached, and since it
+    # raises, the profile is recorded as an error (proving it was invoked)
+    result = scanner.run_scan(manual=True)
+    assert result["status"] == "done"
+    assert profile.last_run_status == "error"
+
+
 def test_second_scan_notifies_only_new(db, monkeypatch):
     profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
     db.add(profile)

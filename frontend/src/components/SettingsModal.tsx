@@ -56,6 +56,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [autoImport, setAutoImport] = useState(false);
   const [autoImportHours, setAutoImportHours] = useState(24);
   const [interval, setIntervalMin] = useState(60);
+  const [scanPaused, setScanPaused] = useState(false);
   const [healthAfter, setHealthAfter] = useState(3);
   const [keywords, setKeywords] = useState("");
   const [matchEnabled, setMatchEnabled] = useState(false);
@@ -93,6 +94,7 @@ export default function SettingsModal({ onClose }: Props) {
     setAutoImport(s.email_import_auto_scan ?? false);
     setAutoImportHours(s.email_import_auto_scan_interval_hours ?? 24);
     setIntervalMin(s.scan_interval_minutes);
+    setScanPaused(s.scanning_paused ?? false);
     setHealthAfter(s.health_alert_after_failures);
     setKeywords(s.excluded_keywords.join(", "));
     setMatchEnabled(s.match_score_enabled ?? false);
@@ -130,6 +132,7 @@ export default function SettingsModal({ onClose }: Props) {
       email_import_auto_scan: autoImport,
       email_import_auto_scan_interval_hours: autoImportHours,
       scan_interval_minutes: interval,
+      scanning_paused: scanPaused,
       health_alert_after_failures: healthAfter,
       excluded_keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
       match_score_enabled: matchEnabled,
@@ -462,6 +465,19 @@ export default function SettingsModal({ onClose }: Props) {
           <option value={240}>Every 4 hours</option>
           <option value={480}>Every 8 hours</option>
         </select>
+
+        <label className="flex items-start gap-2 mt-3 cursor-pointer">
+          <input type="checkbox" checked={scanPaused} className="mt-0.5"
+            onChange={(e) => setScanPaused(e.target.checked)} />
+          <span className="text-sm">
+            Pause automatic scans
+            <span className="block text-xs t-dim">
+              Stops scheduled scans from touching the portals — useful for
+              resting the connection while you are away. "Scan now" still works
+              on demand.
+            </span>
+          </span>
+        </label>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
           🚨 Scraper health alerts

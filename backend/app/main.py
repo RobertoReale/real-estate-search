@@ -689,14 +689,21 @@ def pricing_trends(
 def trigger_scan(profile_id: int | None = None):
     if scan_state["running"]:
         return {"status": "already_running"}
-    thread = threading.Thread(target=run_scan, args=(profile_id,), daemon=True)
+    # a user-triggered scan is explicit intent: it runs even while automatic
+    # scanning is paused (scanner.run_scan's `manual` flag)
+    thread = threading.Thread(
+        target=run_scan, args=(profile_id,), kwargs={"manual": True}, daemon=True)
     thread.start()
     return {"status": "started"}
 
 
 @app.get("/api/scrapers/status")
 def scraper_status():
-    return {**scan_state, "next_auto_run": scheduler.next_run_time()}
+    return {
+        **scan_state,
+        "next_auto_run": scheduler.next_run_time(),
+        "paused": bool(load_settings().get("scanning_paused")),
+    }
 
 
 @app.post("/api/maintenance/repair-listings")

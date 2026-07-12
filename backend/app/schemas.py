@@ -172,6 +172,7 @@ class SettingsIn(BaseModel):
     email_import_auto_scan: bool | None = None
     email_import_auto_scan_interval_hours: int | None = None
     scan_interval_minutes: int | None = None
+    scanning_paused: bool | None = None
     match_score_enabled: bool | None = None
     dream_max_price: int | None = None
     dream_min_rooms: int | None = None

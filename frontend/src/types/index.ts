@@ -102,6 +102,7 @@ export interface Settings {
   email_import_auto_scan?: boolean;
   email_import_auto_scan_interval_hours?: number;
   scan_interval_minutes: number;
+  scanning_paused?: boolean;
   match_score_enabled?: boolean;
   dream_max_price?: number;
   dream_min_rooms?: number;
@@ -130,6 +131,7 @@ export interface ScanStatus {
   last_finished_at: string | null;
   last_summary: string;
   next_auto_run: string | null;
+  paused?: boolean;
 }
 
 /** User-selected filter state for querying properties in the UI. */

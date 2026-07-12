@@ -48,6 +48,12 @@ DEFAULT_SETTINGS = {
     "email_import_auto_scan": False,
     "email_import_auto_scan_interval_hours": 24,
     "scan_interval_minutes": 60,
+    # Global pause for automatic (scheduled) scans. When on, the scheduler's
+    # scans return immediately without touching the portals — the point is to
+    # rest the residential IP DataDome watches (e.g. while away) without having
+    # to deactivate every profile one by one. A manual "Scan now" is explicit
+    # intent and bypasses it (see scanner.run_scan's `manual` flag).
+    "scanning_paused": False,
     # Smart Match Score ("dream home"): an offline, weighted compatibility
     # percentage shown on each card. Off by default — with nothing configured
     # there is nothing to score against, so no badge appears. Every numeric

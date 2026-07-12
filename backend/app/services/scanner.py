@@ -46,9 +46,17 @@ scan_state = {
 }
 
 
-def run_scan(profile_id: int | None = None) -> dict:
+def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     """Executes the scan of active profiles (or just one).
-    Thread-safe: only one scan running at any given time."""
+    Thread-safe: only one scan running at any given time.
+
+    `manual=True` marks a scan the user explicitly asked for ("Scan now"),
+    which bypasses the global `scanning_paused` switch: the pause is meant to
+    stop the *scheduler* from touching the portals on its own, not to veto an
+    explicit request. Scheduled runs call this with the default `manual=False`."""
+    if not manual and load_settings().get("scanning_paused"):
+        logger.info("Automatic scan skipped: scanning is paused")
+        return {"status": "paused"}
     if not _scan_lock.acquire(blocking=False):
         return {"status": "already_running"}
     scan_state["running"] = True
