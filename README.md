@@ -92,7 +92,7 @@ phone without any of this. The dashboard is for browsing and triaging.
      assistant and the **"Build a search"** form only cover the basics (city,
      price, rooms, surface); for any of the advanced filters above, set them on
      the portal and paste the URL.
-2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list.
+2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list. To remove one, click **🗑** — see *Deleting a search* below, since you get to decide what happens to the listings it found.
 3. **Start Scanning**: Click **"Start Scan Now"** (or let the automatic scheduler scan in the background).
 4. **Browse Listings**: Merged listings will show a purple badge (e.g., *"2 merged listings"*), showing that duplicates across different portals or agencies have been successfully grouped together.
 5. **Curation (Hide & Discard)**:
@@ -113,6 +113,30 @@ phone without any of this. The dashboard is for browsing and triaging.
      (or *Seleziona tutti*), and **hide** or **star** the whole selection at
      once — the fast way to clear a batch (e.g. every *nuova costruzione* the
      search above surfaced) without opening cards one by one.
+
+### Deleting a search: what happens to its listings
+
+Clicking **🗑** on a monitored search asks whether its results should go with
+it, and shows the numbers before you choose:
+
+* **Keep the results** — the search stops running; every property it found stays
+  in the dashboard, price history and all. They are simply no longer refreshed
+  by that search (after 7 unseen days they turn *gone*, as usual).
+* **Delete with N properties** — the properties that search alone produced are
+  deleted from the database. This is irreversible (unlike *Hide*, which is not),
+  and it is safe precisely because the search that would re-find them is going
+  away in the same breath.
+
+Two kinds of listing are never deleted this way, and the dialog says how many it
+is sparing:
+
+* those **another monitored search also found** — that search still covers them;
+* those you **starred or annotated** — hand-curated work a re-scan cannot rebuild.
+
+A property counts as "found by this search" only if a scan actually recorded it
+as such. Listings that predate this tracking (and that the search has not
+re-found since) are not attributable to anyone, so they are left alone — a
+search deleted before it has ever run therefore reports nothing to delete.
 
 ---
 

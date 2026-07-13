@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Listing, PriceHistory, Property
+from ..models import Listing, ListingProfile, PriceHistory, Property
 from ..scrapers.base import RawListing
 
 logger = logging.getLogger(__name__)
@@ -196,8 +196,24 @@ def _find_matching_property(db: Session, raw: RawListing) -> Property | None:
     return None
 
 
+def _link_to_profile(db: Session, listing_id: int, profile_id: int | None) -> None:
+    """Records that `profile_id` found this ad (ListingProfile), idempotently.
+
+    Called on every scan rather than only on first sighting: a search edited to
+    cover a listing another profile already tracks must show up as a finder of
+    its own, or deleting that other profile "with its results" would take the
+    listing down with it.
+    """
+    if profile_id is None:
+        return
+    existing = db.get(ListingProfile, (listing_id, profile_id))
+    if existing is None:
+        db.add(ListingProfile(listing_id=listing_id, profile_id=profile_id))
+
+
 def upsert_listing(
-    db: Session, raw: RawListing, *, source: str = "scan"
+    db: Session, raw: RawListing, *, source: str = "scan",
+    profile_id: int | None = None,
 ) -> tuple[Property, bool, bool]:
     """Inserts or updates a listing.
 
@@ -207,6 +223,12 @@ def upsert_listing(
     a monitored scan re-finds it, so "email" keeps meaning "only ever seen via
     the inbox" — never downgraded, so an email import merging into a
     scan-origin property leaves it "scan".
+
+    `profile_id` is the monitored search that found the ad on this pass (None
+    for an inbox import, which belongs to no search): it is recorded as a
+    ListingProfile link, the provenance the "delete a search with its results"
+    flow reads. Distinct from `source`, which is a one-off origin label on the
+    Property; the links accumulate, one per search that has ever found the ad.
 
     Returns (property, is_new_property, price_changed), where price_changed
     indicates that the *minimum* price of the Property changed (see
@@ -237,6 +259,7 @@ def upsert_listing(
             existing.image_url = raw.image_url
         existing.last_seen_at = now
         prop.last_seen_at = now
+        _link_to_profile(db, existing.id, profile_id)
         price_changed = _refresh_min_price(db, prop)
         db.flush()
         return prop, False, price_changed
@@ -299,6 +322,7 @@ def upsert_listing(
     )
     db.add(listing)
     db.flush()
+    _link_to_profile(db, listing.id, profile_id)
     db.refresh(prop)
     # if the newly merged listing is cheaper, the minimum drops:
     # the change goes into history and notification ("costs less elsewhere")

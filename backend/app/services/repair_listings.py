@@ -18,7 +18,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Property, Listing, ImportedListing, SearchProfile
+from ..models import Property, Listing, ListingProfile, ImportedListing, SearchProfile
 from .deduplicator import _refresh_min_price
 
 logger = logging.getLogger(__name__)
@@ -174,6 +174,17 @@ def merge_duplicate_listings(db: Session) -> dict:
                 keeper.description = listing.description
             keeper.first_seen_at = min(keeper.first_seen_at, listing.first_seen_at)
             keeper.last_seen_at = max(keeper.last_seen_at, listing.last_seen_at)
+            # the doomed row carries the provenance of the searches that found
+            # it: hand it to the keeper, or deleting one of those searches
+            # "with its results" would spare a listing it did produce
+            keeper_profiles = {link.profile_id for link in keeper.profile_links}
+            for link in list(listing.profile_links):
+                if link.profile_id not in keeper_profiles:
+                    db.add(ListingProfile(
+                        listing_id=keeper.id, profile_id=link.profile_id,
+                        first_seen_at=link.first_seen_at,
+                    ))
+                    keeper_profiles.add(link.profile_id)
             db.delete(listing)
             summary["duplicate_listings_removed"] += 1
 

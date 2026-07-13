@@ -80,6 +80,24 @@ export interface SearchProfile {
   consecutive_failures: number;
 }
 
+/** What a search has produced in the dashboard, and what deleting it would
+ *  take with it. `tracked` counts only properties whose provenance is recorded
+ *  (see the backend's ListingProfile): cards from before that tracking existed,
+ *  and any the search has not re-found since, are not attributable and stay. */
+export interface ProfileResults {
+  tracked: number;
+  deletable: number;
+  /** also found by another monitored search: it keeps them */
+  kept_shared: number;
+  /** favorited or annotated by hand: never deleted in bulk */
+  kept_curated: number;
+}
+
+export interface DeleteProfileResult {
+  ok: boolean;
+  results: (ProfileResults & { listings: number }) | null;
+}
+
 /** User-configurable application preferences persisted in settings.json. */
 export interface Settings {
   telegram_bot_token: string;

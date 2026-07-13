@@ -246,7 +246,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     reactivated: list[tuple[Property, str]] = []
 
     for raw in result.listings:
-        prop, is_new, price_changed = upsert_listing(db, raw)
+        prop, is_new, price_changed = upsert_listing(db, raw, profile_id=profile.id)
 
         if prop.status == "hidden":
             # manually hidden by user: data is updated (upsert already done)

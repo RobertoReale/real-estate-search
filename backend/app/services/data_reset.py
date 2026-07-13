@@ -12,8 +12,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from ..config import DB_PATH
-from ..models import (ImportedListing, Listing, PriceHistory, PricingSnapshot,
-                      Property, SearchProfile)
+from ..models import (ImportedListing, Listing, ListingProfile, PriceHistory,
+                      PricingSnapshot, Property, SearchProfile)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,89 @@ class ResetError(Exception):
 
 def _count(db: Session, model) -> int:
     return db.scalar(select(func.count()).select_from(model)) or 0
+
+
+def profile_results(db: Session, profile_id: int) -> dict:
+    """Classifies the properties a monitored search has produced, so deleting
+    the search can offer (and preview) "delete its results too".
+
+    Provenance comes from the ListingProfile links the scanner writes, never
+    from a guess at the search criteria: two searches on the same city overlap
+    heavily, and inferring ownership from city+contract would delete cards the
+    other one found. The consequence is that properties predating those links
+    (nothing has re-found them since the feature shipped) are invisible here —
+    deliberately, since "not attributable" must fail towards keeping data.
+
+    Three exclusions, each protecting something a re-scan cannot rebuild:
+      * `shared`: another search also found the ad. It stays; that search still
+        covers it, and deleting would throw away its price history only for the
+        next scan to re-create a blank card.
+      * `favorite` / `noted`: hand-curated (invariant 10), the one thing in the
+        dashboard that exists nowhere else.
+    Returns the counts plus the Property objects that are actually deletable.
+    """
+    mine = select(ListingProfile.listing_id).where(
+        ListingProfile.profile_id == profile_id
+    )
+    shared_property_ids = set(db.scalars(
+        select(Listing.property_id)
+        .join(ListingProfile, ListingProfile.listing_id == Listing.id)
+        .where(ListingProfile.profile_id != profile_id,
+               Listing.property_id.in_(
+                   select(Listing.property_id).where(Listing.id.in_(mine))
+               ))
+    ))
+    props = list(db.scalars(
+        select(Property).where(Property.id.in_(
+            select(Listing.property_id).where(Listing.id.in_(mine))
+        ))
+    ))
+
+    deletable: list[Property] = []
+    kept_shared = kept_curated = 0
+    for prop in props:
+        if prop.id in shared_property_ids:
+            kept_shared += 1
+        elif prop.is_favorite or (prop.notes or "").strip():
+            kept_curated += 1
+        else:
+            deletable.append(prop)
+
+    return {
+        "tracked": len(props),
+        "deletable": len(deletable),
+        "kept_shared": kept_shared,
+        "kept_curated": kept_curated,
+        "properties": deletable,
+    }
+
+
+def delete_profile_results(db: Session, profile_id: int) -> dict:
+    """Deletes the properties `profile_results` found to be this search's alone.
+
+    A physical delete, not the reversible "hide" of DELETE /api/properties/{id}
+    (invariant 5): that endpoint hides because a scan would re-find and
+    resurrect the ad, whereas here the search that produced these cards is
+    being deleted in the same breath — nothing is left to bring them back.
+    Does not commit: the caller deletes the profile in the same transaction, so
+    a failure cannot leave the results wiped and the search still monitoring.
+    """
+    summary = profile_results(db, profile_id)
+    props = summary.pop("properties")
+    listings = sum(len(p.listings) for p in props)
+    ids = [p.id for p in props]
+    if ids:
+        # accepted inbox imports point at these properties: drop the reference
+        # before the row goes, or the import stays wired to a ghost id
+        db.execute(update(ImportedListing)
+                   .where(ImportedListing.property_id.in_(ids))
+                   .values(property_id=None))
+    for prop in props:
+        db.delete(prop)  # cascades listings (and their links) + price history
+    db.flush()
+    summary["listings"] = listings
+    logger.info("Deleted results of search profile #%s: %s", profile_id, summary)
+    return summary
 
 
 def reset_email_import(db: Session) -> dict:
@@ -56,6 +139,8 @@ def clear_dashboard(db: Session) -> dict:
         "properties": _count(db, Property),
     }
     db.execute(delete(PriceHistory))
+    # a Core delete skips the ORM cascade that would clear these links
+    db.execute(delete(ListingProfile))
     db.execute(delete(Listing))
     # accepted imports pointed at properties we are about to delete: drop the
     # dangling reference so a later enrich/re-scan does not chase a ghost id
@@ -112,8 +197,8 @@ def factory_reset(db: Session) -> dict:
         "imported_listings": _count(db, ImportedListing),
         "search_profiles": _count(db, SearchProfile),
     }
-    for model in (PriceHistory, Listing, ImportedListing, PricingSnapshot,
-                  Property, SearchProfile):
+    for model in (PriceHistory, ListingProfile, Listing, ImportedListing,
+                  PricingSnapshot, Property, SearchProfile):
         db.execute(delete(model))
     db.commit()
     logger.info("data-reset: factory reset %s (backup=%s)", counts,

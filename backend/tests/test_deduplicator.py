@@ -1,10 +1,11 @@
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
+from app.models import ListingProfile, SearchProfile
 from app.scrapers.base import RawListing
 from app.services.deduplicator import street_and_civic, upsert_listing
 
@@ -219,6 +220,37 @@ def test_cheaper_twin_listing_lowers_minimum(db):
     assert prop.current_min_price == 290_000.0
     assert prop.price_history[-1].old_price == 300_000.0
     assert prop.price_history[-1].new_price == 290_000.0
+
+
+# --- Provenance: which search found the ad (ListingProfile) ----------------
+
+def test_profile_link_is_recorded_once_per_search(db):
+    """The link is what makes "delete this search with its results" answerable,
+    so it is written on every scan, not only on first sighting — a search that
+    starts covering an already-tracked ad must appear as a finder of its own
+    (otherwise deleting the *other* search would take the ad down with it).
+    Re-scanning must not pile up duplicate rows."""
+    prof = SearchProfile(name="a", portal="immobiliare", search_url="https://x")
+    other = SearchProfile(name="b", portal="immobiliare", search_url="https://y")
+    db.add_all([prof, other])
+    db.commit()
+
+    upsert_listing(db, _raw(), profile_id=prof.id)   # first scan: creates it
+    upsert_listing(db, _raw(), profile_id=prof.id)   # second scan: same ad
+    upsert_listing(db, _raw(), profile_id=other.id)  # a second search finds it
+    db.commit()
+
+    links = list(db.scalars(select(ListingProfile)))
+    assert sorted(l.profile_id for l in links) == sorted([prof.id, other.id])
+
+
+def test_an_import_records_no_profile_link(db):
+    """An inbox import belongs to no monitored search: with a link, deleting an
+    unrelated search could delete a property it never found."""
+    upsert_listing(db, _raw(), source="email")
+    db.commit()
+
+    assert db.scalar(select(func.count()).select_from(ListingProfile)) == 0
 
 
 # --- Address normalization -------------------------------------------------

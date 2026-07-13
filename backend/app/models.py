@@ -108,6 +108,38 @@ class Listing(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     property: Mapped[Property] = relationship(back_populates="listings")
+    # deleting a Listing must not leave its provenance rows behind
+    profile_links: Mapped[list["ListingProfile"]] = relationship(
+        back_populates="listing", cascade="all, delete-orphan",
+    )
+
+
+class ListingProfile(Base):
+    """Which monitored searches have found a given portal ad.
+
+    Many-to-many on purpose: two overlapping searches ("Milano 2-3 locali" and
+    "Milano Navigli") legitimately return the same ad, so a single profile_id
+    on Listing would have to pick one and lie about the other. Deleting a
+    profile "with its results" then has an exact answer: a property is that
+    profile's alone only when none of its listings is linked to another one.
+
+    Written by deduplicator.upsert_listing on every scan (not only on the first
+    sighting), so a search that starts covering an already-tracked ad is
+    recorded the next time it runs. Rows predating this table simply have no
+    link: the purge leaves them alone rather than guessing (see data_reset).
+    """
+    __tablename__ = "listing_profiles"
+
+    listing_id: Mapped[int] = mapped_column(
+        ForeignKey("listings.id"), primary_key=True
+    )
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("search_profiles.id"), primary_key=True, index=True
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    listing: Mapped[Listing] = relationship(back_populates="profile_links")
+    profile: Mapped["SearchProfile"] = relationship(back_populates="listing_links")
 
 
 class PriceHistory(Base):
@@ -218,3 +250,10 @@ class SearchProfile(Base):
     # keeps a portal blocked for a week from sending one message per scan.
     health_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    # which listings this search has found (see ListingProfile). Deleting the
+    # profile drops the links; whether the properties behind them go too is the
+    # user's call at delete time (data_reset.delete_profile_results).
+    listing_links: Mapped[list["ListingProfile"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan",
+    )

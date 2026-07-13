@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import (ImportedListing, Listing, PriceHistory,
+from app.models import (ImportedListing, Listing, ListingProfile, PriceHistory,
                         PricingSnapshot, Property, SearchProfile)
 from app.services import data_reset
 
@@ -169,3 +169,107 @@ def test_factory_reset_aborts_when_the_backup_fails(db, monkeypatch, tmp_path):
     with pytest.raises(data_reset.ResetError):
         data_reset.factory_reset(db)
     assert _count(db, Property) > 0  # nothing was wiped
+
+
+# --- deleting a search "with its results" (data_reset.profile_results) ---
+#
+# The provenance links (ListingProfile) are what makes this answerable at all:
+# before them, nothing in the DB knew which search had produced which card.
+
+def _seed_found(db, profile, portal_id="1", **over) -> Property:
+    """A property found by `profile`, wired exactly as upsert_listing wires it."""
+    prop = Property(fingerprint=f"fp{portal_id}", status="active", city="milano")
+    for k, v in over.items():
+        setattr(prop, k, v)
+    db.add(prop)
+    db.commit()
+    listing = Listing(property_id=prop.id, portal="immobiliare",
+                      portal_id=portal_id, url=f"u{portal_id}")
+    db.add(listing)
+    db.add(PriceHistory(property_id=prop.id, new_price=250000.0))
+    db.commit()
+    db.add(ListingProfile(listing_id=listing.id, profile_id=profile.id))
+    db.commit()
+    return prop
+
+
+def test_profile_results_ignores_properties_it_never_found(db):
+    """Untracked cards (imported by email, or predating the provenance links)
+    are not this search's to delete: attribution is by recorded link, never by
+    a guess at the search criteria, which would sweep up a sibling search's
+    results in the same city."""
+    prof = _seed_profile(db)
+    _seed_found(db, prof, "1")
+    _seed_dashboard(db)   # no link: nothing says this search found it
+
+    out = data_reset.profile_results(db, prof.id)
+
+    assert out["tracked"] == 1
+    assert out["deletable"] == 1
+
+
+def test_profile_results_spares_shared_and_curated(db):
+    """The two exclusions the delete dialog reports. A property another search
+    also found stays (that search still covers it, and the next scan would
+    re-create a blank card anyway); a favorited or annotated one stays because
+    the curation is hand-made and a re-scan cannot rebuild it (invariant 10)."""
+    prof = _seed_profile(db)
+    other = _seed_profile(db, name="other")
+    _seed_found(db, prof, "1")                       # deletable
+    _seed_found(db, prof, "2", is_favorite=True)     # curated
+    _seed_found(db, prof, "3", notes="call agency")  # curated
+    shared = _seed_found(db, prof, "4")
+    db.add(ListingProfile(listing_id=shared.listings[0].id, profile_id=other.id))
+    db.commit()
+
+    out = data_reset.profile_results(db, prof.id)
+
+    assert out["tracked"] == 4
+    assert out["deletable"] == 1
+    assert out["kept_shared"] == 1
+    assert out["kept_curated"] == 2
+    assert [p.id for p in out["properties"]] == [_id_of(db, "1")]
+
+
+def _id_of(db, portal_id: str) -> int:
+    listing = db.scalar(select(Listing).where(Listing.portal_id == portal_id))
+    assert listing is not None
+    return listing.property_id
+
+
+def test_delete_profile_results_takes_the_whole_card_with_it(db):
+    """Physical delete, unlike the reversible "hide" of DELETE /properties/{id}:
+    that one hides because a scan would resurrect the ad, while here the search
+    that produced the card is going away in the same transaction."""
+    prof = _seed_profile(db)
+    prop = _seed_found(db, prof, "1")
+    imp = ImportedListing(portal="immobiliare", portal_id="9", url="u",
+                          status="accepted", property_id=prop.id)
+    db.add(imp)
+    db.commit()
+
+    out = data_reset.delete_profile_results(db, prof.id)
+    db.commit()
+
+    assert out["deletable"] == 1 and out["listings"] == 1
+    assert _count(db, Property) == 0
+    assert _count(db, Listing) == 0
+    assert _count(db, PriceHistory) == 0
+    assert _count(db, ListingProfile) == 0   # cascaded with the listing
+    db.refresh(imp)
+    assert imp.property_id is None           # never left pointing at a ghost
+    assert _count(db, SearchProfile) == 1    # the profile itself is the caller's job
+
+
+def test_deleting_a_profile_alone_leaves_its_results_standing(db):
+    """The default answer to the dialog: the search goes, the dashboard stays.
+    Only the provenance links die with it (ORM cascade)."""
+    prof = _seed_profile(db)
+    _seed_found(db, prof, "1")
+
+    db.delete(prof)
+    db.commit()
+
+    assert _count(db, Property) == 1
+    assert _count(db, Listing) == 1
+    assert _count(db, ListingProfile) == 0

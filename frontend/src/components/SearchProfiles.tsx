@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../services/api";
 import { PortalBadge } from "./PortalBadge";
 import type {
-  AssistantSearch, SearchBuilderParams, SearchBuilderUrls, SearchProfile,
-  Settings,
+  AssistantSearch, ProfileResults, SearchBuilderParams, SearchBuilderUrls,
+  SearchProfile, Settings,
 } from "../types";
 
 interface Props {
@@ -112,6 +113,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   // a query with "o"/"oppure" yields several alternatives, reviewed as a list
   const [multi, setMulti] = useState<AssistantSearch[]>([]);
 
+  // delete dialog: the profile awaiting confirmation, plus what its results
+  // would cost (fetched on open — the counts decide which buttons make sense)
+  const [deleting, setDeleting] = useState<SearchProfile | null>(null);
+  const [results, setResults] = useState<ProfileResults | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const ready = channelReadiness(settings);
   const channelOptions = [
     {
@@ -141,6 +149,35 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     // edit the user is making: keeping it on screen would be nagging
     setAssistant((a) => (a && a.warnings.length ? { ...a, warnings: [] } : a));
   };
+
+  /** Opens the delete dialog and asks the backend what this search's results
+   *  amount to. The counts arrive after the dialog does (`results === null` is
+   *  the loading state): the question is worth asking even while they load. */
+  async function askDelete(p: SearchProfile) {
+    setDeleting(p);
+    setResults(null);
+    setDeleteError("");
+    try {
+      setResults(await api.getProfileResults(p.id));
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function confirmDelete(deleteResults: boolean) {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await api.deleteProfile(deleting.id, deleteResults);
+      setDeleting(null);
+      onChanged();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   function resetForm() {
     setName(""); setUrl(""); setKeywords(""); setError("");
@@ -671,18 +708,97 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
                   rounded-lg shrink-0"
                 title="Delete this search profile" aria-label="Delete this search profile"
-                onClick={async () => {
-                  if (confirm(`Delete profile "${p.name}"?`)) {
-                    await api.deleteProfile(p.id);
-                    onChanged();
-                  }
-                }}>
+                onClick={() => askDelete(p)}>
                 🗑
               </button>
             </li>
           );
         })}
       </ul>
+
+      {/* portaled to <body>: this section is a .glass, and its backdrop-blur
+          makes it the containing block of any `fixed` descendant — the overlay
+          would cover the panel instead of the viewport (the other modals live
+          in App.tsx, outside any .glass, so they never hit this) */}
+      {deleting && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+          onClick={() => !deleteBusy && setDeleting(null)}>
+          <div className="glass rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-2">Delete “{deleting.name}”?</h2>
+            <p className="text-sm t-muted">
+              The search stops being monitored. Its results are already in the
+              dashboard — you choose whether they go with it.
+            </p>
+
+            <div className="mt-4 p-3 rounded-xl panel text-sm">
+              {results === null && !deleteError && (
+                <p className="t-muted">Counting its results…</p>
+              )}
+              {results && results.tracked === 0 && (
+                <p className="t-muted">
+                  No property in the dashboard is attributable to this search, so
+                  “delete the results too” has nothing to delete. Results are
+                  attributed from the scans that found them: a search deleted
+                  before it has run keeps nothing on record.
+                </p>
+              )}
+              {results && results.tracked > 0 && (
+                <>
+                  <p>
+                    It found <strong>{results.tracked}</strong>{" "}
+                    {results.tracked === 1 ? "property" : "properties"};{" "}
+                    <strong>{results.deletable}</strong> would be deleted.
+                  </p>
+                  {/* the spared ones are the whole reason this dialog shows
+                      numbers rather than just asking yes/no */}
+                  {(results.kept_shared > 0 || results.kept_curated > 0) && (
+                    <ul className="mt-2 space-y-0.5 text-xs t-muted">
+                      {results.kept_shared > 0 && (
+                        <li>
+                          · {results.kept_shared} kept: also found by another
+                          monitored search
+                        </li>
+                      )}
+                      {results.kept_curated > 0 && (
+                        <li>
+                          · {results.kept_curated} kept: favorited or annotated
+                          by you
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  {results.deletable > 0 && (
+                    <p className="mt-2 text-xs accent-bad">
+                      Deleting them is irreversible: price history included.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+
+            {deleteError && <p className="accent-bad text-xs mt-3">{deleteError}</p>}
+
+            <div className="flex flex-wrap gap-2 mt-5">
+              <button className="btn-ghost" disabled={deleteBusy}
+                onClick={() => setDeleting(null)}>
+                Cancel
+              </button>
+              <button className="btn-ghost flex-1" disabled={deleteBusy}
+                onClick={() => confirmDelete(false)}>
+                Keep the results
+              </button>
+              <button className="btn-primary flex-1 !bg-rose-600 hover:!bg-rose-700"
+                disabled={deleteBusy || !results || results.deletable === 0}
+                onClick={() => confirmDelete(true)}>
+                {deleteBusy ? "Deleting…" : `Delete with ${results?.deletable ?? 0} ${
+                  results?.deletable === 1 ? "property" : "properties"}`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }

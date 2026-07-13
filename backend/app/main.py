@@ -18,7 +18,8 @@ from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
 from .models import ImportedListing, Listing, Property, SearchProfile
 from .scrapers import detect_portal
-from .services import availability_check, email_import, exporter, notifier, scheduler
+from .services import (availability_check, data_reset, email_import, exporter,
+                       notifier, scheduler)
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
@@ -521,14 +522,42 @@ def update_profile(
     return profile
 
 
-@app.delete("/api/search-profiles/{profile_id}")
-def delete_profile(profile_id: int, db: Session = Depends(get_db)):
+@app.get("/api/search-profiles/{profile_id}/results")
+def profile_results(profile_id: int, db: Session = Depends(get_db)):
+    """How many dashboard properties this search produced, and how many of them
+    deleting it would actually remove — the numbers the delete dialog shows
+    before the user chooses. See data_reset.profile_results for what is spared."""
     profile = db.get(SearchProfile, profile_id)
     if not profile:
         raise HTTPException(404, "Profile not found")
+    summary = data_reset.profile_results(db, profile_id)
+    summary.pop("properties")
+    return summary
+
+
+@app.delete("/api/search-profiles/{profile_id}")
+def delete_profile(
+    profile_id: int, delete_results: bool = False, db: Session = Depends(get_db)
+):
+    """Deletes a monitored search. With `delete_results=true` the properties it
+    alone produced go with it (irreversibly); by default they stay in the
+    dashboard, now orphaned but intact."""
+    profile = db.get(SearchProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+    if delete_results and scan_state["running"]:
+        # a scan in flight is writing the very links this decision reads (and
+        # would re-create the properties it deletes): same guard the resets use
+        raise HTTPException(
+            409, "A scan is running: wait for it to finish before deleting the results"
+        )
+    # results first, in the same transaction: the classification reads the
+    # profile's links, and deleting the profile cascades them away
+    results = (data_reset.delete_profile_results(db, profile_id)
+               if delete_results else None)
     db.delete(profile)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "results": results}
 
 
 # --- Search builder ---
@@ -823,7 +852,6 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
         raise HTTPException(
             409, "A scan is running: wait for it to finish before resetting"
         )
-    from .services import data_reset
     fn = {
         "email-import": data_reset.reset_email_import,
         "dashboard": data_reset.clear_dashboard,

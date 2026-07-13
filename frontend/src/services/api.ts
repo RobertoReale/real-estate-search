@@ -2,11 +2,11 @@
  *  In local development (`start.bat`), Vite proxies requests from port 5173 to 8000.
  *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
 import type {
-  AssistantResult, EmailScanParams, EmailScanProgress, EmailScanSummary,
-  ImportCheckProgress, ImportCheckSummary, ImportedListing,
-  ImportFilters, LogTail, MarketVelocity, PricingTrend, Property, PropertyFilters,
-  ScanStatus, SearchBuilderParams, SearchBuilderUrls, SearchProfile, Settings,
-  TrendArea,
+  AssistantResult, DeleteProfileResult, EmailScanParams, EmailScanProgress,
+  EmailScanSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
+  ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileResults, Property,
+  PropertyFilters, ScanStatus, SearchBuilderParams, SearchBuilderUrls,
+  SearchProfile, Settings, TrendArea,
 } from "../types";
 
 const BASE = "/api";
@@ -98,9 +98,17 @@ export const api = {
       method: "PUT", body: JSON.stringify(data),
     });
   },
-  /** Delete a search profile (`DELETE /api/search-profiles/{id}`). */
-  deleteProfile(id: number) {
-    return request(`/search-profiles/${id}`, { method: "DELETE" });
+  /** How many dashboard properties a search produced, and how many deleting it
+   *  would remove — shown in the delete dialog before the user chooses. */
+  getProfileResults(id: number): Promise<ProfileResults> {
+    return request(`/search-profiles/${id}/results`);
+  },
+  /** Delete a search profile (`DELETE /api/search-profiles/{id}`). With
+   *  `deleteResults` the properties it alone produced are deleted too. */
+  deleteProfile(id: number, deleteResults = false): Promise<DeleteProfileResult> {
+    return request(
+      `/search-profiles/${id}?delete_results=${deleteResults}`, { method: "DELETE" },
+    );
   },
 
   /** Generate native search URLs from structured criteria (`city`, `rooms`, `price`). */
