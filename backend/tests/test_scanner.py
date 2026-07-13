@@ -482,6 +482,57 @@ def test_paused_skips_automatic_scan_but_manual_runs(db, profile, monkeypatch):
     assert profile.last_run_status == "error"
 
 
+def test_a_muted_search_scans_but_never_notifies(db, monkeypatch):
+    """A search the user has silenced keeps filling the dashboard — it just
+    never pings. The empty string cannot say this (it means "all channels"),
+    so the mute rides on its own sentinel. The control is the test below: same
+    scan, same two brand-new properties, two notifications."""
+    muted = SearchProfile(name="Muted", portal="immobiliare", search_url="u",
+                          baseline_done=True,
+                          notify_channels=scanner.notifier.MUTED)
+    db.add(muted)
+    db.commit()
+
+    notified, summary = _run_profile(db, monkeypatch, muted)
+
+    assert summary["new"] == 2
+    assert summary["notified"] == 0
+    assert notified == []
+    assert db.query(Property).count() == 2   # scanned all the same
+
+
+def test_the_same_scan_notifies_when_the_search_is_not_muted(db, monkeypatch):
+    """Control for the mute above: with the default channels (empty = all), the
+    identical scan on an identical profile sends both notifications."""
+    profile = SearchProfile(name="Loud", portal="immobiliare", search_url="u",
+                            baseline_done=True)
+    db.add(profile)
+    db.commit()
+
+    notified, summary = _run_profile(db, monkeypatch, profile)
+
+    assert summary["new"] == 2
+    assert len(notified) == 2
+
+
+def test_a_muted_search_keeps_its_health_alert_to_itself(db, monkeypatch):
+    """"No notifications" includes the scraper-health alert: the streak is still
+    counted (the dashboard shows it), it is just never announced."""
+    alerts = []
+    monkeypatch.setattr(scanner.notifier, "notify_scraper_failure",
+                        lambda p, n, channels=None: alerts.append(p) or True)
+    profile = SearchProfile(name="Muted", portal="immobiliare", search_url="u",
+                            notify_channels=scanner.notifier.MUTED,
+                            last_run_status="blocked", consecutive_failures=2)
+
+    scanner._update_profile_health(
+        profile, {"health_alert_after_failures": 3}, {"health_alerts": 0})
+
+    assert alerts == []
+    assert profile.consecutive_failures == 3
+    assert not profile.health_alert_sent
+
+
 def test_second_scan_notifies_only_new(db, monkeypatch):
     profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
     db.add(profile)

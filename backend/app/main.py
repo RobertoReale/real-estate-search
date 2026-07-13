@@ -522,42 +522,55 @@ def update_profile(
     return profile
 
 
-@app.get("/api/search-profiles/{profile_id}/results")
-def profile_results(profile_id: int, db: Session = Depends(get_db)):
-    """How many dashboard properties this search produced, and how many of them
-    deleting it would actually remove — the numbers the delete dialog shows
-    before the user chooses. See data_reset.profile_results for what is spared."""
-    profile = db.get(SearchProfile, profile_id)
-    if not profile:
-        raise HTTPException(404, "Profile not found")
-    summary = data_reset.profile_results(db, profile_id)
+@app.post("/api/search-profiles/results")
+def profile_results(data: schemas.SearchProfileIdsIn, db: Session = Depends(get_db)):
+    """How many dashboard properties these searches produced, and how many of
+    them deleting them would actually remove — the numbers the delete dialog
+    shows before the user chooses. See data_reset.profile_results for what is
+    spared. Asked about the whole selection at once, because "also found by
+    another search" only means "another search that survives"."""
+    summary = data_reset.profile_results(db, data.ids)
     summary.pop("properties")
     return summary
 
 
-@app.delete("/api/search-profiles/{profile_id}")
-def delete_profile(
-    profile_id: int, delete_results: bool = False, db: Session = Depends(get_db)
-):
-    """Deletes a monitored search. With `delete_results=true` the properties it
-    alone produced go with it (irreversibly); by default they stay in the
-    dashboard, now orphaned but intact."""
-    profile = db.get(SearchProfile, profile_id)
-    if not profile:
-        raise HTTPException(404, "Profile not found")
-    if delete_results and scan_state["running"]:
-        # a scan in flight is writing the very links this decision reads (and
-        # would re-create the properties it deletes): same guard the resets use
-        raise HTTPException(
-            409, "A scan is running: wait for it to finish before deleting the results"
-        )
-    # results first, in the same transaction: the classification reads the
-    # profile's links, and deleting the profile cascades them away
-    results = (data_reset.delete_profile_results(db, profile_id)
-               if delete_results else None)
-    db.delete(profile)
+@app.post("/api/search-profiles/bulk")
+def bulk_profiles(data: schemas.SearchProfileBulkIn, db: Session = Depends(get_db)):
+    """Apply activate/pause/notify/delete to several monitored searches at once.
+
+    The single-search buttons go through here too (a selection of one): the
+    delete's ownership rules are subtle enough (invariant 20) that a second
+    implementation for the one-item case would be a second thing to get wrong.
+    Missing ids are skipped silently, as in the other bulk routes.
+    """
+    profiles = [p for p in (db.get(SearchProfile, x) for x in data.ids) if p]
+
+    if data.action == "delete":
+        if data.delete_results and scan_state["running"]:
+            # a scan in flight is writing the very links this decision reads (and
+            # would re-create the properties it deletes): same guard the resets use
+            raise HTTPException(
+                409,
+                "A scan is running: wait for it to finish before deleting the results",
+            )
+        # results first, in the same transaction: the classification reads the
+        # profiles' links, and deleting the profiles cascades them away
+        results = (data_reset.delete_profile_results(db, [p.id for p in profiles])
+                   if data.delete_results else None)
+        for profile in profiles:
+            db.delete(profile)
+        db.commit()
+        return {"ok": True, "processed": len(profiles), "results": results}
+
+    for profile in profiles:
+        if data.action == "activate":
+            profile.is_active = True
+        elif data.action == "pause":
+            profile.is_active = False
+        elif data.action == "notify":
+            profile.notify_channels = data.notify_channels
     db.commit()
-    return {"ok": True, "results": results}
+    return {"ok": True, "processed": len(profiles)}
 
 
 # --- Search builder ---

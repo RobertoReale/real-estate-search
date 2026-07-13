@@ -130,13 +130,36 @@ it, and shows the numbers before you choose:
 Two kinds of listing are never deleted this way, and the dialog says how many it
 is sparing:
 
-* those **another monitored search also found** — that search still covers them;
+* those **a search you are keeping also found** — that search still covers them;
 * those you **starred or annotated** — hand-curated work a re-scan cannot rebuild.
 
 A property counts as "found by this search" only if a scan actually recorded it
 as such. Listings that predate this tracking (and that the search has not
 re-found since) are not attributable to anyone, so they are left alone — a
 search deleted before it has ever run therefore reports nothing to delete.
+
+Deleting several searches at once (see below) asks the same question once for
+the whole selection: a property found by two of the searches you are deleting is
+not "covered by another search", so it *is* deleted.
+
+### Acting on several searches at once
+
+With more than one search in the list, each row gets a checkbox and a **Select
+all** appears above them. Tick a few and a toolbar offers, for the whole
+selection: **Activate**, **Pause**, a **Notifications →** menu, and **Delete**
+(same dialog as above, with the totals for the selection). Handy for pausing
+every search before a holiday, or silencing a noisy batch, without clicking
+through them one at a time.
+
+### Silencing one search
+
+The **Notifications** menu on a search row (or on a selection) chooses where its
+alerts go: *All channels*, *Telegram only*, *Email only*, or **🔕 No
+notifications**. The last one keeps the search running — its listings keep
+arriving in the dashboard — but you are never pinged for it: no new-listing
+message, no price-drop message, not even the scraper-health alert. It is the
+answer to "I want to watch this search, just not in real time"; *Pause*, by
+contrast, stops scanning it altogether.
 
 ---
 
@@ -377,8 +400,8 @@ guide next to each one:
 Each test button saves the form before testing, so it always exercises the
 values you just typed.
 
-Each search profile can route its own alerts to Telegram only, Email only, or
-both.
+Each search profile can route its own alerts to Telegram only, Email only, both,
+or nowhere at all (see *Silencing one search* above).
 
 ### Gmail: use an app password
 

@@ -170,14 +170,18 @@ def _update_profile_health(profile: SearchProfile, settings: dict,
     """
     threshold = int(settings.get("health_alert_after_failures") or 0)
     # same routing as listing notifications: a profile that only wants email
-    # must not have its outage announced on Telegram
-    channels = notifier.parse_channels_csv(profile.notify_channels) or None
+    # must not have its outage announced on Telegram — and a muted one ([])
+    # stays silent here too, outage included: "no notifications" means no
+    # notifications. The streak is still counted, so the dashboard shows it.
+    channels = notifier.profile_channels(profile.notify_channels)
+    muted = channels is not None and not channels
     failures = (profile.consecutive_failures or 0)
 
     if profile.last_run_status in ("blocked", "error"):
         failures += 1
         profile.consecutive_failures = failures
-        if threshold <= 0 or failures < threshold or profile.health_alert_sent:
+        if muted or threshold <= 0 or failures < threshold \
+                or profile.health_alert_sent:
             return
         # the flag means "the user was actually told", so it is set only on a
         # delivered message: when no channel is configured broadcast() returns
@@ -304,8 +308,12 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         )
         return
 
-    # per-profile channel routing: empty notify_channels = all enabled channels
-    channels = notifier.parse_channels_csv(profile.notify_channels) or None
+    # per-profile channel routing: None = all enabled channels, [] = muted
+    channels = notifier.profile_channels(profile.notify_channels)
+    if channels is not None and not channels:
+        # a muted search still fills the dashboard, it just never pings: bail
+        # out before the (otherwise pointless) scoring pass and the broadcasts
+        return
     # Deal Score for the new listings, so an undervalued one is flagged in the
     # notification itself (market position must be computed first — it feeds it).
     if new_properties:

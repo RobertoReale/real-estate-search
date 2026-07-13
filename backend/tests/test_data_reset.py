@@ -202,7 +202,7 @@ def test_profile_results_ignores_properties_it_never_found(db):
     _seed_found(db, prof, "1")
     _seed_dashboard(db)   # no link: nothing says this search found it
 
-    out = data_reset.profile_results(db, prof.id)
+    out = data_reset.profile_results(db, [prof.id])
 
     assert out["tracked"] == 1
     assert out["deletable"] == 1
@@ -222,13 +222,31 @@ def test_profile_results_spares_shared_and_curated(db):
     db.add(ListingProfile(listing_id=shared.listings[0].id, profile_id=other.id))
     db.commit()
 
-    out = data_reset.profile_results(db, prof.id)
+    out = data_reset.profile_results(db, [prof.id])
 
     assert out["tracked"] == 4
     assert out["deletable"] == 1
     assert out["kept_shared"] == 1
     assert out["kept_curated"] == 2
     assert [p.id for p in out["properties"]] == [_id_of(db, "1")]
+
+
+def test_a_shared_property_is_not_shared_when_both_finders_are_deleted(db):
+    """Bulk delete: "kept, another search covers it" must mean a search that
+    *survives*. Classifying one id at a time would spare a card found by two of
+    the searches being deleted — leaving it in the dashboard with nothing left
+    to keep it up to date."""
+    prof = _seed_profile(db)
+    other = _seed_profile(db, name="other")
+    shared = _seed_found(db, prof, "1")
+    db.add(ListingProfile(listing_id=shared.listings[0].id, profile_id=other.id))
+    db.commit()
+
+    assert data_reset.profile_results(db, [prof.id])["kept_shared"] == 1
+    both = data_reset.profile_results(db, [prof.id, other.id])
+    assert both["tracked"] == 1
+    assert both["deletable"] == 1
+    assert both["kept_shared"] == 0
 
 
 def _id_of(db, portal_id: str) -> int:
@@ -248,7 +266,7 @@ def test_delete_profile_results_takes_the_whole_card_with_it(db):
     db.add(imp)
     db.commit()
 
-    out = data_reset.delete_profile_results(db, prof.id)
+    out = data_reset.delete_profile_results(db, [prof.id])
     db.commit()
 
     assert out["deletable"] == 1 and out["listings"] == 1

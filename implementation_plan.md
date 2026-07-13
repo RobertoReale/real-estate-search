@@ -135,7 +135,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 357 tests
+│   ├── tests/                    # 363 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4

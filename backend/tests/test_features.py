@@ -224,6 +224,26 @@ def test_parse_channels_csv_ignores_unknown_channels():
     assert notifier.parse_channels_csv("") == []
 
 
+def test_profile_channels_tells_muted_apart_from_unspecified():
+    """The empty string means "all enabled channels", so a muted search needs a
+    value of its own: None (all) and [] (none) are different answers, and
+    `channels or CHANNELS` — what broadcast used to do — collapses them."""
+    assert notifier.profile_channels("") is None
+    assert notifier.profile_channels("email") == ["email"]
+    assert notifier.profile_channels(notifier.MUTED) == []
+
+
+def test_a_muted_selection_broadcasts_nowhere(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(notifier, "send_telegram_message",
+                        lambda text: calls.append("telegram") or True)
+    monkeypatch.setattr(notifier, "send_email_message",
+                        lambda text, subject=None: calls.append("email") or True)
+
+    assert notifier.broadcast("hi", []) is False
+    assert calls == []
+
+
 def test_disabled_channels_send_nothing():
     """With default settings (everything disabled) broadcast returns False
     instead of raising: a scan must never crash because notifications are

@@ -136,6 +136,23 @@ class SearchProfileIn(BaseModel):
         return v
 
 
+class SearchProfileIdsIn(BaseModel):
+    """The searches a bulk preview ("what would deleting these cost?") is about."""
+    ids: list[int]
+
+
+class SearchProfileBulkIn(SearchProfileIdsIn):
+    """Payload for an action applied to several monitored searches at once.
+
+    `notify_channels` is only read by the "notify" action, `delete_results` only
+    by "delete" — the alternative (one endpoint per action) would fork the
+    ownership rules the delete depends on across four routes.
+    """
+    action: Literal["activate", "pause", "notify", "delete"]
+    notify_channels: str = ""  # "" = all enabled, CSV = those, "none" = muted
+    delete_results: bool = False
+
+
 class SearchProfileOut(BaseModel):
     """API response model detailing a search profile along with its execution diagnostics."""
     model_config = ConfigDict(from_attributes=True)

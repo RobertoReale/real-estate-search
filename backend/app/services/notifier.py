@@ -3,7 +3,8 @@
 Channel architecture: every notification is composed once as simple HTML
 (Telegram's subset: <b>, <a>) and broadcast to the requested channels.
 A profile can restrict its own channels via SearchProfile.notify_channels
-(comma-separated, e.g. "email"); empty means "all enabled channels".
+(comma-separated, e.g. "email"); empty means "all enabled channels" and the
+MUTED sentinel means "no notification at all for this search".
 
 Telegram uses the raw Bot API (no external library); email uses stdlib
 smtplib so no new dependencies are required.
@@ -23,6 +24,9 @@ from ..models import Property, SearchProfile
 logger = logging.getLogger(__name__)
 
 CHANNELS = ("telegram", "email")
+# `notify_channels` value meaning "this search notifies nowhere". Not a channel:
+# it is the absence of every channel, kept out of CHANNELS on purpose.
+MUTED = "none"
 
 
 def send_telegram_message(text: str) -> bool:
@@ -110,15 +114,31 @@ def parse_channels_csv(csv: str) -> list[str]:
             if c.strip().lower() in CHANNELS]
 
 
+def profile_channels(csv: str) -> list[str] | None:
+    """Resolves a profile's `notify_channels` into what broadcast() expects.
+
+    Three states, and the empty string cannot express all three: "" means "all
+    enabled channels" (the default), a CSV means those channels, and the MUTED
+    sentinel means this search notifies nothing at all — the user wants it on
+    the dashboard but silent. Hence `None` (= all) vs `[]` (= muted), which
+    parse_channels_csv alone could not distinguish.
+    """
+    if (csv or "").strip().lower() == MUTED:
+        return []
+    return parse_channels_csv(csv) or None
+
+
 def broadcast(text: str, channels: list[str] | None = None,
               subject: str | None = None) -> bool:
-    """Sends to every requested channel; empty/None = all channels.
+    """Sends to every requested channel; None = all channels, [] = none.
 
     Whether a channel actually fires still depends on its own "enabled"
     setting, so a profile requesting "email" while email is off sends nothing.
     Returns True if at least one channel delivered.
     """
-    targets = channels or list(CHANNELS)
+    # an empty list is a muted profile, not "unspecified": `channels or CHANNELS`
+    # would silently turn the mute into a broadcast to everything
+    targets = list(CHANNELS) if channels is None else channels
     sent = False
     if "telegram" in targets:
         sent = send_telegram_message(text) or sent

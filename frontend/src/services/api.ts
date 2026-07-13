@@ -2,11 +2,11 @@
  *  In local development (`start.bat`), Vite proxies requests from port 5173 to 8000.
  *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
 import type {
-  AssistantResult, DeleteProfileResult, EmailScanParams, EmailScanProgress,
+  AssistantResult, EmailScanParams, EmailScanProgress,
   EmailScanSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
-  ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileResults, Property,
-  PropertyFilters, ScanStatus, SearchBuilderParams, SearchBuilderUrls,
-  SearchProfile, Settings, TrendArea,
+  ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
+  ProfileResults, Property, PropertyFilters, ScanStatus, SearchBuilderParams,
+  SearchBuilderUrls, SearchProfile, Settings, TrendArea,
 } from "../types";
 
 const BASE = "/api";
@@ -98,17 +98,30 @@ export const api = {
       method: "PUT", body: JSON.stringify(data),
     });
   },
-  /** How many dashboard properties a search produced, and how many deleting it
-   *  would remove — shown in the delete dialog before the user chooses. */
-  getProfileResults(id: number): Promise<ProfileResults> {
-    return request(`/search-profiles/${id}/results`);
+  /** How many dashboard properties the selected searches produced, and how many
+   *  deleting them would remove — shown in the delete dialog before the user
+   *  chooses. Asked for the whole selection at once: a property found by two of
+   *  the searches being deleted is not "kept by another search". */
+  getProfilesResults(ids: number[]): Promise<ProfileResults> {
+    return request("/search-profiles/results", {
+      method: "POST", body: JSON.stringify({ ids }),
+    });
   },
-  /** Delete a search profile (`DELETE /api/search-profiles/{id}`). With
-   *  `deleteResults` the properties it alone produced are deleted too. */
-  deleteProfile(id: number, deleteResults = false): Promise<DeleteProfileResult> {
-    return request(
-      `/search-profiles/${id}?delete_results=${deleteResults}`, { method: "DELETE" },
-    );
+  /** Apply activate/pause/notify/delete to the selected searches (one included).
+   *  With `delete_results` the properties they alone produced go with them. */
+  bulkProfiles(
+    ids: number[],
+    action: "activate" | "pause" | "notify" | "delete",
+    opts: { notifyChannels?: string; deleteResults?: boolean } = {},
+  ): Promise<ProfileBulkResult> {
+    return request("/search-profiles/bulk", {
+      method: "POST",
+      body: JSON.stringify({
+        ids, action,
+        notify_channels: opts.notifyChannels ?? "",
+        delete_results: opts.deleteResults ?? false,
+      }),
+    });
   },
 
   /** Generate native search URLs from structured criteria (`city`, `rooms`, `price`). */

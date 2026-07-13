@@ -87,15 +87,17 @@ export interface SearchProfile {
 export interface ProfileResults {
   tracked: number;
   deletable: number;
-  /** also found by another monitored search: it keeps them */
+  /** also found by a search outside the selection: it still covers them */
   kept_shared: number;
   /** favorited or annotated by hand: never deleted in bulk */
   kept_curated: number;
 }
 
-export interface DeleteProfileResult {
+export interface ProfileBulkResult {
   ok: boolean;
-  results: (ProfileResults & { listings: number }) | null;
+  processed: number;
+  /** only on the "delete" action, and only when the results were deleted too */
+  results?: (ProfileResults & { listings: number }) | null;
 }
 
 /** User-configurable application preferences persisted in settings.json. */

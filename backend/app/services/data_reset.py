@@ -7,6 +7,7 @@ backend/backups/). Every function returns the row counts it removed, so the UI
 can tell the user exactly what happened.
 """
 import logging
+from collections.abc import Sequence
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
@@ -26,9 +27,14 @@ def _count(db: Session, model) -> int:
     return db.scalar(select(func.count()).select_from(model)) or 0
 
 
-def profile_results(db: Session, profile_id: int) -> dict:
-    """Classifies the properties a monitored search has produced, so deleting
-    the search can offer (and preview) "delete its results too".
+def profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
+    """Classifies the properties a set of monitored searches has produced, so
+    deleting them can offer (and preview) "delete their results too".
+
+    The set, not a single id, is what makes a bulk delete answerable: a property
+    found by two of the searches being deleted is nobody's leftover, while one
+    also found by a search that survives is (and stays). Passing one id is just
+    the degenerate case.
 
     Provenance comes from the ListingProfile links the scanner writes, never
     from a guess at the search criteria: two searches on the same city overlap
@@ -38,20 +44,21 @@ def profile_results(db: Session, profile_id: int) -> dict:
     deliberately, since "not attributable" must fail towards keeping data.
 
     Three exclusions, each protecting something a re-scan cannot rebuild:
-      * `shared`: another search also found the ad. It stays; that search still
-        covers it, and deleting would throw away its price history only for the
-        next scan to re-create a blank card.
+      * `shared`: a search *outside the set* also found the ad. It stays; that
+        search still covers it, and deleting would throw away its price history
+        only for the next scan to re-create a blank card.
       * `favorite` / `noted`: hand-curated (invariant 10), the one thing in the
         dashboard that exists nowhere else.
     Returns the counts plus the Property objects that are actually deletable.
     """
+    ids = list(profile_ids)
     mine = select(ListingProfile.listing_id).where(
-        ListingProfile.profile_id == profile_id
+        ListingProfile.profile_id.in_(ids)
     )
     shared_property_ids = set(db.scalars(
         select(Listing.property_id)
         .join(ListingProfile, ListingProfile.listing_id == Listing.id)
-        .where(ListingProfile.profile_id != profile_id,
+        .where(ListingProfile.profile_id.not_in(ids),
                Listing.property_id.in_(
                    select(Listing.property_id).where(Listing.id.in_(mine))
                ))
@@ -81,17 +88,17 @@ def profile_results(db: Session, profile_id: int) -> dict:
     }
 
 
-def delete_profile_results(db: Session, profile_id: int) -> dict:
-    """Deletes the properties `profile_results` found to be this search's alone.
+def delete_profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
+    """Deletes the properties `profile_results` found to be these searches' own.
 
     A physical delete, not the reversible "hide" of DELETE /api/properties/{id}
     (invariant 5): that endpoint hides because a scan would re-find and
-    resurrect the ad, whereas here the search that produced these cards is
+    resurrect the ad, whereas here the searches that produced these cards are
     being deleted in the same breath — nothing is left to bring them back.
-    Does not commit: the caller deletes the profile in the same transaction, so
-    a failure cannot leave the results wiped and the search still monitoring.
+    Does not commit: the caller deletes the profiles in the same transaction, so
+    a failure cannot leave the results wiped and the searches still monitoring.
     """
-    summary = profile_results(db, profile_id)
+    summary = profile_results(db, profile_ids)
     props = summary.pop("properties")
     listings = sum(len(p.listings) for p in props)
     ids = [p.id for p in props]
@@ -105,7 +112,8 @@ def delete_profile_results(db: Session, profile_id: int) -> dict:
         db.delete(prop)  # cascades listings (and their links) + price history
     db.flush()
     summary["listings"] = listings
-    logger.info("Deleted results of search profile #%s: %s", profile_id, summary)
+    logger.info("Deleted results of search profiles %s: %s",
+                list(profile_ids), summary)
     return summary
 
 

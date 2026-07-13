@@ -46,20 +46,6 @@ function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
   };
 }
 
-/** Only the fields the backend's SearchProfileIn accepts: the inline toggles
- *  used to PUT the whole profile object, server-computed fields included
- *  (consecutive_failures, last_run_status…), which worked only because the
- *  backend happened to ignore unknown keys. */
-function profileInput(p: SearchProfile) {
-  return {
-    name: p.name,
-    search_url: p.search_url,
-    excluded_keywords: p.excluded_keywords,
-    notify_channels: p.notify_channels,
-    is_active: p.is_active,
-  };
-}
-
 /** Auto-label for a profile created from a parsed search. */
 function searchLabel(search: AssistantSearch): string {
   const p = search.params;
@@ -113,12 +99,19 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   // a query with "o"/"oppure" yields several alternatives, reviewed as a list
   const [multi, setMulti] = useState<AssistantSearch[]>([]);
 
-  // delete dialog: the profile awaiting confirmation, plus what its results
-  // would cost (fetched on open — the counts decide which buttons make sense)
-  const [deleting, setDeleting] = useState<SearchProfile | null>(null);
+  // delete dialog: the searches awaiting confirmation (one row, or a whole
+  // selection), plus what their results would cost — fetched on open, for the
+  // set as a whole, since "kept: another search covers it" only counts searches
+  // that survive the delete
+  const [deleting, setDeleting] = useState<SearchProfile[] | null>(null);
   const [results, setResults] = useState<ProfileResults | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // bulk selection: acting on every search one row at a time is the tedium this
+  // exists to remove (pausing them all before a holiday, muting a noisy set…)
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const ready = channelReadiness(settings);
   const channelOptions = [
@@ -140,7 +133,45 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       ok: ready.email,
       warn: "Email is not set up — this search won't send alerts. Configure SMTP in ⚙️ Settings.",
     },
+    {
+      // silence is a choice, not a misconfiguration: keep the search running
+      // and its cards flowing into the dashboard, just never get pinged for it
+      value: "none",
+      label: "🔕 No notifications",
+      ok: true,
+      warn: "",
+    },
   ];
+
+  const selectedProfiles = profiles.filter((p) => selected.has(p.id));
+  const allSelected = profiles.length > 0 && selected.size === profiles.length;
+
+  function toggleOne(id: number) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  /** Runs a bulk action, then clears the selection: the rows it acted on may no
+   *  longer exist (delete), and a stale checkbox is worse than none. */
+  async function runBulk(
+    ids: number[],
+    action: "activate" | "pause" | "notify",
+    notifyChannels?: string,
+  ) {
+    setBulkBusy(true);
+    setError("");
+    try {
+      await api.bulkProfiles(ids, action, { notifyChannels });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   const setParam = (patch: Partial<SearchBuilderParams>) => {
     setParams((p) => ({ ...p, ...patch }));
@@ -150,15 +181,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setAssistant((a) => (a && a.warnings.length ? { ...a, warnings: [] } : a));
   };
 
-  /** Opens the delete dialog and asks the backend what this search's results
+  /** Opens the delete dialog and asks the backend what these searches' results
    *  amount to. The counts arrive after the dialog does (`results === null` is
    *  the loading state): the question is worth asking even while they load. */
-  async function askDelete(p: SearchProfile) {
-    setDeleting(p);
+  async function askDelete(targets: SearchProfile[]) {
+    setDeleting(targets);
     setResults(null);
     setDeleteError("");
     try {
-      setResults(await api.getProfileResults(p.id));
+      setResults(await api.getProfilesResults(targets.map((p) => p.id)));
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : String(e));
     }
@@ -169,8 +200,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setDeleteBusy(true);
     setDeleteError("");
     try {
-      await api.deleteProfile(deleting.id, deleteResults);
+      await api.bulkProfiles(deleting.map((p) => p.id), "delete", { deleteResults });
       setDeleting(null);
+      setSelected(new Set());
       onChanged();
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : String(e));
@@ -642,6 +674,59 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         </p>
       )}
 
+      {profiles.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 mb-2 px-1">
+          <label className="flex items-center gap-2 text-xs t-muted cursor-pointer">
+            <input type="checkbox" checked={allSelected}
+              // "some but not all" deserves its own tick: without it, the box
+              // reads as "nothing selected" while a bulk bar is on screen
+              ref={(el) => {
+                if (el) el.indeterminate = selected.size > 0 && !allSelected;
+              }}
+              onChange={() => setSelected(
+                allSelected ? new Set() : new Set(profiles.map((p) => p.id)),
+              )} />
+            Select all
+          </label>
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs chip-blue px-2 py-1 rounded-lg font-medium">
+                {selected.size} selected
+              </span>
+              <button className="btn-ghost !text-xs" disabled={bulkBusy}
+                onClick={() => runBulk([...selected], "activate")}>
+                ▶️ Activate
+              </button>
+              <button className="btn-ghost !text-xs" disabled={bulkBusy}
+                onClick={() => runBulk([...selected], "pause")}>
+                ⏸️ Pause
+              </button>
+              {/* value stays on the placeholder: this is an action, not a state
+                  — the selection can hold searches with different channels */}
+              <select className="input !py-1 !px-2 text-xs w-full sm:w-48"
+                value="" disabled={bulkBusy}
+                onChange={(e) =>
+                  runBulk([...selected], "notify", e.target.value)}>
+                <option value="" disabled>Notifications →</option>
+                {channelOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <button
+                className="btn-ghost !text-xs hover:!text-rose-500"
+                disabled={bulkBusy}
+                onClick={() => askDelete(selectedProfiles)}>
+                🗑 Delete
+              </button>
+              <button className="text-xs accent-link"
+                onClick={() => setSelected(new Set())}>
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <ul className="space-y-2">
         {profiles.map((p) => {
           const badge = statusBadge[p.last_run_status];
@@ -650,6 +735,12 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           return (
             <li key={p.id}
               className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel">
+              {profiles.length > 1 && (
+                <input type="checkbox" className="shrink-0"
+                  aria-label={`Select ${p.name}`}
+                  checked={selected.has(p.id)}
+                  onChange={() => toggleOne(p.id)} />
+              )}
               <PortalBadge portal={p.portal} />
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm truncate">{p.name}</p>
@@ -677,24 +768,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 className="input !py-1 !px-2 text-xs w-44"
                 title="Where to send notifications for this search"
                 value={p.notify_channels}
-                onChange={async (e) => {
-                  await api.updateProfile(p.id, {
-                    ...profileInput(p), notify_channels: e.target.value,
-                  });
-                  onChanged();
-                }}>
+                onChange={(e) => runBulk([p.id], "notify", e.target.value)}>
                 {channelOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
               <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
                 <input type="checkbox" checked={p.is_active}
-                  onChange={async () => {
-                    await api.updateProfile(p.id, {
-                      ...profileInput(p), is_active: !p.is_active,
-                    });
-                    onChanged();
-                  }} />
+                  onChange={() =>
+                    runBulk([p.id], p.is_active ? "pause" : "activate")} />
                 Active
               </label>
               <button className="t-dim hover:opacity-70 transition text-sm btn-focus
@@ -708,7 +790,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
                   rounded-lg shrink-0"
                 title="Delete this search profile" aria-label="Delete this search profile"
-                onClick={() => askDelete(p)}>
+                onClick={() => askDelete([p])}>
                 🗑
               </button>
             </li>
@@ -725,19 +807,30 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           onClick={() => !deleteBusy && setDeleting(null)}>
           <div className="glass rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-2">Delete “{deleting.name}”?</h2>
+            <h2 className="text-lg font-bold mb-2">
+              {deleting.length === 1
+                ? `Delete “${deleting[0].name}”?`
+                : `Delete ${deleting.length} searches?`}
+            </h2>
             <p className="text-sm t-muted">
-              The search stops being monitored. Its results are already in the
-              dashboard — you choose whether they go with it.
+              {deleting.length === 1 ? "The search stops" : "The searches stop"}{" "}
+              being monitored. Their results are already in the dashboard — you
+              choose whether they go too.
             </p>
+            {deleting.length > 1 && (
+              <ul className="mt-2 text-xs t-muted space-y-0.5 max-h-32 overflow-y-auto">
+                {deleting.map((p) => <li key={p.id} className="truncate">· {p.name}</li>)}
+              </ul>
+            )}
 
             <div className="mt-4 p-3 rounded-xl panel text-sm">
               {results === null && !deleteError && (
-                <p className="t-muted">Counting its results…</p>
+                <p className="t-muted">Counting the results…</p>
               )}
               {results && results.tracked === 0 && (
                 <p className="t-muted">
-                  No property in the dashboard is attributable to this search, so
+                  No property in the dashboard is attributable to{" "}
+                  {deleting.length === 1 ? "this search" : "these searches"}, so
                   “delete the results too” has nothing to delete. Results are
                   attributed from the scans that found them: a search deleted
                   before it has run keeps nothing on record.
@@ -746,7 +839,8 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               {results && results.tracked > 0 && (
                 <>
                   <p>
-                    It found <strong>{results.tracked}</strong>{" "}
+                    {deleting.length === 1 ? "It found" : "They found"}{" "}
+                    <strong>{results.tracked}</strong>{" "}
                     {results.tracked === 1 ? "property" : "properties"};{" "}
                     <strong>{results.deletable}</strong> would be deleted.
                   </p>
@@ -756,8 +850,8 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                     <ul className="mt-2 space-y-0.5 text-xs t-muted">
                       {results.kept_shared > 0 && (
                         <li>
-                          · {results.kept_shared} kept: also found by another
-                          monitored search
+                          · {results.kept_shared} kept: also found by a search
+                          you are keeping
                         </li>
                       )}
                       {results.kept_curated > 0 && (
