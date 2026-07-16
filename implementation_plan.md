@@ -33,17 +33,22 @@ This document describes the architecture and implementation status of a **unifie
 
 Traditional scrapers break as soon as the website changes its CSS classes (`in-card__title` → `nd-property-title_xyz`). The system therefore uses a **cascaded strategy pipeline**: the first strategy that produces results wins, while the others serve as a safety net.
 
+For **Immobiliare** the order is now inverted: the internal `api-next` JSON is the primary path (stable schema, and it avoids spending a guaranteed-blocked HTML request on the residential IP every scan), with the HTML strategies 1-3 kept as the fallback for the day the endpoint changes. Idealista still runs HTML-first (heuristic), having no usable internal API.
+
 ```mermaid
 graph TD
-    A[Search Page] --> B{1. Structured SEO Data<br/>JSON-LD / Schema.org}
-    B -->|Success| Z[Data Normalizer]
+    A[Immobiliare Search] --> E{Portal Internal API<br/>api-next JSON}
+    E -->|Success| Z[Data Normalizer]
+    E -->|Empty / endpoint changed| B{1. Structured SEO Data<br/>JSON-LD / Schema.org}
+    B -->|Success| Z
     B -->|Absent| C{2. Embedded State<br/>__NEXT_DATA__ / window.*}
     C -->|Success| Z
     C -->|Absent| D{3. Heuristic Parsing<br/>no CSS classes}
     D -->|Success| Z
-    D -->|HTML Blocked| E{4. Portal Internal API<br/>api-next JSON}
-    E -->|Success| Z
-    E -->|Failure| F[Log + 'blocked' state<br/>retry on next scan]
+    D -->|Blocked| F[Log + 'blocked' state<br/>retry on next scan]
+    E -->|403 under every handshake| G{Opt-in cookie recovery<br/>headless harvest, once}
+    G -->|Recovered| E
+    G -->|Off / failed| F
 ```
 
 ### 🔹 Strategy 1 — Structured SEO Data (`JSON-LD`)
@@ -61,10 +66,10 @@ It **never** searches for CSS classes. It only uses patterns the portal cannot c
 
 **Card boundary:** text is read upwards from the ad link up to the **last ancestor containing only one ad**. Without this boundary, the parser would climb up to the document `<footer>` and read footer numbers as prices and square footage (see §8.3). This strategy — not #1 or #2 — is what makes Idealista work today.
 
-### 🔹 Strategy 4 — Portal Internal API (`api-next`)
-When DataDome blocks HTML, Immobiliare.it still responds on its internal JSON endpoint:
+### 🔹 Strategy 4 — Portal Internal API (`api-next`) — **primary for Immobiliare**
+Immobiliare.it responds on its internal JSON endpoint even when DataDome blocks HTML:
 `https://www.immobiliare.it/api-next/search-list/listings/`
-Requires resolved geographical parameters (`idComune`, `idMZona[]`, `fkRegione`, `idProvincia`), obtained from the `api-next/geography/autocomplete/` endpoint starting from the location name found in the user-pasted URL. User filters (`prezzoMassimo`, `superficieMinima`, etc.) already use the names expected by the API and are passed through unchanged.
+This is the **first** path tried for Immobiliare (the HTML strategies above are the fallback), because the JSON schema is far more stable than the HTML and leading with HTML only wasted a guaranteed-blocked request per scan. Requires resolved geographical parameters (`idComune`, `idMZona[]`, `fkRegione`, `idProvincia`), obtained from the `api-next/geography/autocomplete/` endpoint starting from the location name found in the user-pasted URL. User filters (`prezzoMassimo`, `superficieMinima`, etc.) already use the names expected by the API and are passed through unchanged. On a `403/429` under every TLS impersonation, an **opt-in** (`datadome_auto_refresh`) reactive cookie harvest mints a fresh DataDome cookie once and retries the page.
 
 > ⚠️ **Warning:** passing only `path` without geographical parameters returns `200 OK` with **all 500,000 ads across Italy** instead of those in the city. A silent failure rather than an error: this is why geographical resolution is mandatory.
 
@@ -84,7 +89,7 @@ graph TD
         SCHED --> CORE[Scanner]
 
         subgraph Scrapers [Resilient Scrapers]
-            CORE --> S1[Immobiliare<br/>JSON-LD → __NEXT_DATA__ → heuristic → api-next]
+            CORE --> S1[Immobiliare<br/>api-next → JSON-LD → __NEXT_DATA__ → heuristic]
             CORE --> S2[Idealista<br/>Safari impersonation + heuristic]
         end
 
@@ -135,7 +140,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 363 tests
+│   ├── tests/                    # 371 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4

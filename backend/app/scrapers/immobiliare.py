@@ -1,15 +1,22 @@
 """Scraper for Immobiliare.it.
 
-Cascading pipeline (from most stable to most fragile):
+Primary path: the internal JSON API `api-next` (`_api_search`). It returns
+structured JSON that survives the portal's frequent HTML/CSS redesigns (the
+same schema feeds their mobile apps and Next.js frontend), so it is the low-
+maintenance, stable acquisition path. It is tried FIRST: HTML search pages are
+almost always DataDome-blocked, so leading with them only spent a guaranteed-
+blocked request on every scan — tightening the block on the residential IP the
+scans depend on (invariant 8) — before falling through to the API anyway.
+
+HTML safety net (tried only if the API yields nothing), from most stable to
+most fragile:
   1. JSON-LD (Schema.org)      — present in HTML pages
   2. __NEXT_DATA__ (Next.js)   — embedded page state
   3. Heuristic parsing         — no CSS classes, only immutable patterns
-  4. Internal API `api-next`   — used when DataDome blocks HTML (403)
 
-In practice, HTML search pages are almost always blocked by DataDome,
-while the internal JSON endpoint responds correctly after "warming up" the
-session on the homepage. Strategies 1-3 remain active as a safety net
-in case the internal API changes or is removed.
+Strategies 1-3 stay as a deliberate fallback for the day the internal endpoint
+changes or is removed: they cost nothing while the API works, and a passive
+safety net is cheaper than no fallback at all.
 """
 import json
 import logging
@@ -19,9 +26,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from bs4 import BeautifulSoup
 
 from .base import (
-    BaseScraper, BlockedError, RawListing, ScrapeResult, extract_json_ld_blocks,
-    find_card_container, parse_price, parse_rooms, parse_sqm, plausible_price,
-    to_float, to_int,
+    BaseScraper, BlockedError, RawListing, ScrapeResult, detect_contract,
+    extract_json_ld_blocks, find_card_container, parse_price, parse_rooms,
+    parse_sqm, plausible_price, to_float, to_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +57,10 @@ class ImmobiliareScraper(BaseScraper):
     def __init__(self, delay_seconds: float = 6.0, max_pages: int = 10):
         super().__init__(delay_seconds=delay_seconds, max_pages=max_pages)
         self._warmed = False
+        # At most one reactive cookie recovery per scrape: a fresh headless
+        # harvest is expensive and, against a hard block, retrying it in a loop
+        # only hammers the IP the scans need (invariant 8/18).
+        self._cookie_recovered = False
 
     def warm_session(self) -> None:
         """Visits the homepage to obtain the DataDome cookie."""
@@ -319,6 +330,42 @@ class ImmobiliareScraper(BaseScraper):
                 params[key] = values[0] if len(values) == 1 else values
         return params
 
+    def _api_get(self, params, referer: str, page: int):
+        """Single api-next page request. Reads `self.session` at call time so a
+        rotation or a cookie recovery between attempts takes effect."""
+        return self.session.get(
+            API_LISTINGS, params={**params, "pag": str(page)},
+            headers={"Referer": referer},
+        )
+
+    def _recover_cookie(self) -> bool:
+        """Reactive DataDome cookie recovery when api-next answers 403/429 under
+        every impersonation. Opt-in (`datadome_auto_refresh`) and best-effort —
+        the SAME lever the availability check fires on a block
+        (`email_import._try_cookie_recovery`) and the scanner runs before a scan
+        (invariant 18): mint a fresh cookie in a headless browser, rebuild the
+        session around it, re-warm the homepage so the new cookie is carried in.
+        Returns whether it recovered. Never raises into the scrape."""
+        from ..config import load_settings
+        if not load_settings().get("datadome_auto_refresh"):
+            return False
+        from ..services import cookie_harvester
+        if not cookie_harvester.is_available():
+            return False
+        logger.info("immobiliare: api-next blocking; grabbing a fresh DataDome cookie")
+        try:
+            recovery = cookie_harvester.refresh_into_settings("immobiliare", headless=True)
+        except Exception:
+            logger.exception("immobiliare: reactive cookie recovery failed")
+            return False
+        if not recovery.get("ok"):
+            return False
+        self._imp_index = 0
+        self.session = self._new_session()
+        self._warmed = False
+        self.warm_session()
+        return True
+
     def _api_search(self, search_url: str, result: ScrapeResult) -> None:
         params = self._api_params(search_url)
         if params is None:
@@ -333,16 +380,16 @@ class ImmobiliareScraper(BaseScraper):
         max_pages = self.max_pages
 
         for page in range(1, self.max_pages + 1):
-            resp = self.session.get(
-                API_LISTINGS, params={**params, "pag": str(page)},
-                headers={"Referer": referer},
-            )
+            resp = self._api_get(params, referer, page)
             if resp.status_code in (403, 429) and self._rotate_session():
                 # retry the same page under a different TLS impersonation
-                resp = self.session.get(
-                    API_LISTINGS, params={**params, "pag": str(page)},
-                    headers={"Referer": referer},
-                )
+                resp = self._api_get(params, referer, page)
+            if (resp.status_code in (403, 429)
+                    and not self._cookie_recovered and self._recover_cookie()):
+                # every handshake blocked: the cookie has demonstrably burned —
+                # mint a fresh one once and retry the page through it
+                self._cookie_recovered = True
+                resp = self._api_get(params, referer, page)
             if resp.status_code in (403, 429):
                 result.blocked = True
                 result.error = f"immobiliare: API blocked (HTTP {resp.status_code})"
@@ -385,31 +432,35 @@ class ImmobiliareScraper(BaseScraper):
 
     # ------------------------------------------------------------------
     def scrape(self, search_url: str) -> ScrapeResult:
+        # `super().scrape()` sets self.contract, but the API path runs first and
+        # needs it (rent vs sale price bounds), so resolve it up front.
+        self.contract = detect_contract(search_url)
         self.warm_session()
 
-        # 1-3: try HTML pages (JSON-LD / __NEXT_DATA__ / heuristic)
-        result = super().scrape(search_url)
-        if result.listings:
-            return result
-
-        # 4: DataDome blocked HTML (or parsing yielded nothing):
-        # fall back to internal API, which responds using warmed-up session
-        logger.info("immobiliare: HTML unusable, using internal api-next API")
-        fallback = ScrapeResult()
+        # Primary: internal api-next. Stable JSON, and it avoids spending a
+        # guaranteed-blocked HTML request (and its TLS rotations) on every scan.
+        primary = ScrapeResult()
         try:
-            self._api_search(search_url, fallback)
+            self._api_search(search_url, primary)
         except BlockedError as e:
-            fallback.blocked = True
-            fallback.error = str(e)
+            primary.blocked = True
+            primary.error = str(e)
         except Exception as e:
-            logger.exception("immobiliare: API fallback failed")
-            fallback.error = str(e)
+            logger.exception("immobiliare: api-next failed")
+            primary.error = str(e)
 
-        if fallback.listings:
-            for listing in fallback.listings:
+        if primary.listings:
+            for listing in primary.listings:
                 listing.contract = self.contract
-            return fallback
-        # no strategy succeeded: return most informative error
-        fallback.blocked = fallback.blocked or result.blocked
-        fallback.error = fallback.error or result.error
-        return fallback
+            return primary
+
+        # Fallback safety net: the api-next endpoint changed/was removed (or the
+        # block also reached it). Try the HTML strategies 1-3 (super().scrape()).
+        logger.info("immobiliare: api-next unusable, falling back to HTML strategies")
+        html = super().scrape(search_url)
+        if html.listings:
+            return html
+        # no path succeeded: keep the most informative signal
+        html.blocked = html.blocked or primary.blocked
+        html.error = html.error or primary.error
+        return html

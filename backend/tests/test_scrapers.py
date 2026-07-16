@@ -295,6 +295,119 @@ def test_immobiliare_api_params_search_list():
 
 
 
+class _FakeApiResp:
+    """Minimal stand-in for a curl_cffi response used by the api-next path."""
+    def __init__(self, status=200, payload=None):
+        self.status_code = status
+        self._payload = payload
+        self.url = ""
+        self.text = ""
+
+    def json(self):
+        if self._payload is None:
+            raise json.JSONDecodeError("no body", "", 0)
+        return self._payload
+
+
+class _FakeApiSession:
+    """A fake session whose `get` yields canned api-next responses. Assigned as
+    the whole `session` object (not by patching `.get` on the real typed
+    Session), matching how `_probe` wires the AdProbe below."""
+    def __init__(self, responder):
+        self._responder = responder
+        self.headers = {}
+
+    def get(self, url, params=None, headers=None):
+        return self._responder(url, params, headers)
+
+
+_API_ENTRY = {"realEstate": {
+    "id": 999, "title": "Trilocale",
+    "price": {"value": 250000},
+    "properties": [{"surface": "80 m²", "rooms": "3",
+                    "location": {"city": "Milano"}}],
+}}
+
+
+def _api_first_scraper(monkeypatch):
+    s = ImmobiliareScraper()
+    monkeypatch.setattr(s, "warm_session", lambda: None)
+    monkeypatch.setattr(s, "_api_params", lambda url: {
+        "idComune": "8042", "idContratto": "1", "path": "/x"})
+    return s
+
+
+def test_immobiliare_scrape_tries_api_before_html(monkeypatch):
+    """api-next is the primary path: when it answers, the HTML strategies (which
+    would spend a guaranteed-blocked request on the residential IP) must never
+    run. Regression for the old HTML-first ordering."""
+    s = _api_first_scraper(monkeypatch)
+
+    def responder(url, params, headers):
+        if (params or {}).get("pag") == "1":
+            return _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1})
+        return _FakeApiResp(200, {"results": []})
+    setattr(s, "session", _FakeApiSession(responder))
+    html_fetches = []
+    monkeypatch.setattr(s, "fetch", lambda url: html_fetches.append(url) or "")
+
+    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
+    assert result.strategy_used == "api-next"
+    assert [l.portal_id for l in result.listings] == ["999"]
+    assert html_fetches == [], "HTML must not be fetched when api-next succeeds"
+
+
+def test_immobiliare_falls_back_to_html_when_api_is_unusable(monkeypatch):
+    """If api-next yields nothing (endpoint changed/removed), the HTML safety
+    net (strategies 1-3) still runs — it is a deliberate fallback, not dead
+    code."""
+    s = ImmobiliareScraper()
+    monkeypatch.setattr(s, "warm_session", lambda: None)
+    monkeypatch.setattr(s, "_api_params", lambda url: None)  # api-next gives up
+    html = ('<div><a href="/annunci/55555/">Bilocale</a>'
+            '<span>60 m² 3 locali € 200.000</span></div>')
+    monkeypatch.setattr(s, "fetch", lambda url: html)
+
+    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
+    assert [l.portal_id for l in result.listings] == ["55555"]
+    assert result.listings[0].price == 200000
+
+
+def test_api_block_recovers_the_cookie_once_when_opted_in(monkeypatch):
+    """On a 403 under every impersonation, an opt-in reactive harvest mints a
+    fresh cookie and retries the page — exactly once, never in a loop."""
+    s = _api_first_scraper(monkeypatch)
+    monkeypatch.setattr(s, "_rotate_session", lambda: False)
+    recoveries = []
+    monkeypatch.setattr(s, "_recover_cookie",
+                        lambda: (recoveries.append(1), True)[1])
+    responses = iter([
+        _FakeApiResp(403),
+        _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1}),
+        _FakeApiResp(200, {"results": []}),
+    ])
+    setattr(s, "session", _FakeApiSession(lambda u, p, h: next(responses)))
+
+    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
+    assert recoveries == [1]
+    assert [l.portal_id for l in result.listings] == ["999"]
+
+
+def test_api_block_without_optin_stays_blocked(monkeypatch):
+    """Reactive recovery is opt-in: with `datadome_auto_refresh` off, a 403 is
+    reported as blocked and no browser is launched."""
+    s = _api_first_scraper(monkeypatch)
+    monkeypatch.setattr(s, "_rotate_session", lambda: False)
+    monkeypatch.setattr("app.config.load_settings",
+                        lambda: {"datadome_auto_refresh": False})
+    setattr(s, "session", _FakeApiSession(lambda u, p, h: _FakeApiResp(403)))
+    # HTML fallback also finds nothing here; the api-next block must survive.
+    monkeypatch.setattr(s, "fetch", lambda url: "")
+
+    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
+    assert result.blocked is True
+
+
 def test_immobiliare_entry_to_listing_handles_range_rooms():
     s = ImmobiliareScraper()
     entry = {"realEstate": {
