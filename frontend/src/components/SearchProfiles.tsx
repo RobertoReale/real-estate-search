@@ -46,6 +46,23 @@ function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
   };
 }
 
+/** Convert extracted or stored profile criteria to form strings. */
+function paramsFromProfile(params?: SearchProfile["params"]): SearchBuilderParams {
+  if (!params) return EMPTY_BUILDER;
+  const str = (v: number | null | undefined) => (v === null || v === undefined ? "" : String(v));
+  return {
+    city: params.city || "",
+    province: params.province || "",
+    zone: params.zone || "",
+    contract: params.contract || "sale",
+    min_price: str(params.min_price),
+    max_price: str(params.max_price),
+    min_rooms: str(params.min_rooms),
+    max_rooms: str(params.max_rooms),
+    min_sqm: str(params.min_sqm),
+  };
+}
+
 /** Auto-label for a profile created from a parsed search. */
 function searchLabel(search: AssistantSearch): string {
   const p = search.params;
@@ -225,7 +242,20 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setKeywords(p.excluded_keywords);
     setEditingId(p.id);
     setError("");
-    setMode("url");
+    if (p.params && (p.params.city || p.params.min_price || p.params.min_rooms || p.params.zone)) {
+      setParams(paramsFromProfile(p.params));
+      setBuilt({
+        immobiliare: p.portal === "immobiliare" ? p.search_url : "",
+        idealista: p.portal === "idealista" ? p.search_url : "",
+      });
+      setUsePortals({
+        immobiliare: p.portal === "immobiliare",
+        idealista: p.portal === "idealista",
+      });
+      setMode("builder");
+    } else {
+      setMode("url");
+    }
   }
 
   function editInBuilder(search: AssistantSearch) {
@@ -235,6 +265,26 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     // the builder opens pre-filled and waits for the missing piece
     setBuilt(search.urls);
     setMode("builder");
+  }
+
+  async function extractParamsFromUrl() {
+    if (!url.trim()) return;
+    setError("");
+    try {
+      const extracted = await api.parseSearchUrl(url);
+      setParams(paramsFromProfile(extracted));
+      setBuilt({
+        immobiliare: url.includes("immobiliare.it") ? url : "",
+        idealista: url.includes("idealista.it") ? url : "",
+      });
+      setUsePortals({
+        immobiliare: url.includes("immobiliare.it"),
+        idealista: url.includes("idealista.it"),
+      });
+      setMode("builder");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
   }
 
   async function ask() {
@@ -328,14 +378,41 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       params.contract === "rent" ? "Rent" : "Buy", params.city, params.zone,
     ].filter(Boolean).join(" · ");
     try {
-      for (const portal of ["immobiliare", "idealista"] as const) {
-        if (!usePortals[portal]) continue;
-        await api.createProfile({
-          name: `${label} (${portal})`,
-          search_url: built[portal],
-          excluded_keywords: keywords,
-          is_active: true,
-        });
+      if (editingId !== null) {
+        const current = profiles.find((p) => p.id === editingId);
+        if (current) {
+          const targetPortal = (current.portal === "immobiliare" || current.portal === "idealista")
+            ? (current.portal as "immobiliare" | "idealista")
+            : (usePortals.immobiliare ? "immobiliare" : "idealista");
+          const targetUrl = built[targetPortal] || current.search_url;
+          await api.updateProfile(editingId, {
+            name: name || current.name,
+            search_url: targetUrl,
+            excluded_keywords: keywords,
+            notify_channels: current.notify_channels ?? "",
+            is_active: current.is_active ?? true,
+          });
+          for (const portal of ["immobiliare", "idealista"] as const) {
+            if (usePortals[portal] && portal !== targetPortal && built[portal]) {
+              await api.createProfile({
+                name: `${name || label} (${portal})`,
+                search_url: built[portal],
+                excluded_keywords: keywords,
+                is_active: true,
+              });
+            }
+          }
+        }
+      } else {
+        for (const portal of ["immobiliare", "idealista"] as const) {
+          if (!usePortals[portal]) continue;
+          await api.createProfile({
+            name: `${label} (${portal})`,
+            search_url: built[portal],
+            excluded_keywords: keywords,
+            is_active: true,
+          });
+        }
       }
       resetForm();
       onChanged();
@@ -516,9 +593,19 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             <input className="input w-full" placeholder="Extra excluded keywords (optional, comma-separated)"
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
-          <input className="input w-full"
-            placeholder="https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…"
-            value={url} onChange={(e) => setUrl(e.target.value)} />
+          <div className="flex flex-wrap sm:flex-nowrap gap-2">
+            <input className="input w-full"
+              placeholder="https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…"
+              value={url} onChange={(e) => setUrl(e.target.value)} />
+            {url.trim() && (
+              <button className="btn-secondary whitespace-nowrap text-xs px-3"
+                type="button"
+                title="Extract city and filters into the Builder form"
+                onClick={extractParamsFromUrl}>
+                🪄 Extract parameters
+              </button>
+            )}
+          </div>
           {error && <p className="accent-bad text-xs">{error}</p>}
           <button className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
             {saving ? "Saving…" : editingId !== null ? "Save changes" : "Save profile"}
@@ -659,7 +746,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               {error && <p className="accent-bad text-xs">{error}</p>}
               <button className="btn-primary" onClick={createFromBuilder}
                 disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
-                {saving ? "Saving…" : "Create profiles"}
+                {saving ? "Saving…" : editingId !== null ? "Save changes" : "Create profiles"}
               </button>
             </div>
           )}
@@ -745,6 +832,36 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm truncate">{p.name}</p>
                 <p className="text-xs t-dim truncate">{p.search_url}</p>
+                {p.params && (p.params.city || p.params.min_price || p.params.max_price || p.params.min_rooms || p.params.min_sqm || p.params.zone) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {p.params.contract && (
+                      <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
+                        {p.params.contract === "rent" ? "🔑 Rent" : "🏠 Buy"}
+                      </span>
+                    )}
+                    {p.params.city && (
+                      <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
+                        📍 {p.params.city}{p.params.province ? ` (${p.params.province})` : ""}
+                        {p.params.zone ? ` · ${p.params.zone}` : ""}
+                      </span>
+                    )}
+                    {(p.params.min_price || p.params.max_price) && (
+                      <span className="text-[11px] chip-amber px-2 py-0.5 rounded-md font-medium">
+                        💰 {p.params.min_price ? `${p.params.min_price.toLocaleString("it-IT")} €` : "0 €"} – {p.params.max_price ? `${p.params.max_price.toLocaleString("it-IT")} €` : "∞"}
+                      </span>
+                    )}
+                    {(p.params.min_rooms || p.params.max_rooms) && (
+                      <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
+                        🛏️ {p.params.min_rooms ?? 1}{p.params.max_rooms ? `–${p.params.max_rooms}` : "+"} rooms
+                      </span>
+                    )}
+                    {p.params.min_sqm && (
+                      <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
+                        📐 ≥ {p.params.min_sqm} sqm
+                      </span>
+                    )}
+                  </div>
+                )}
                 {p.last_run_detail && (
                   <p className="text-xs t-muted mt-0.5">{p.last_run_detail}</p>
                 )}

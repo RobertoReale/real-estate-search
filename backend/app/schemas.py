@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 
 class ListingOut(BaseModel):
@@ -153,6 +153,19 @@ class SearchProfileBulkIn(SearchProfileIdsIn):
     delete_results: bool = False
 
 
+class SearchBuilderParamsOut(BaseModel):
+    """Parameters extracted from or used to build a portal search URL."""
+    city: str = ""
+    province: str = ""
+    zone: str = ""
+    contract: str = "sale"
+    min_price: int | None = None
+    max_price: int | None = None
+    min_rooms: int | None = None
+    max_rooms: int | None = None
+    min_sqm: int | None = None
+
+
 class SearchProfileOut(BaseModel):
     """API response model detailing a search profile along with its execution diagnostics."""
     model_config = ConfigDict(from_attributes=True)
@@ -168,6 +181,16 @@ class SearchProfileOut(BaseModel):
     last_run_status: str
     last_run_detail: str
     consecutive_failures: int = 0
+
+    @computed_field
+    def params(self) -> SearchBuilderParamsOut:
+        from .services.search_builder import parse_search_url
+        return SearchBuilderParamsOut(**parse_search_url(self.search_url))
+
+
+class UrlIn(BaseModel):
+    """Payload for extracting builder parameters from a URL."""
+    url: str
 
 
 class SettingsIn(BaseModel):

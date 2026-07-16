@@ -29,7 +29,7 @@ from .services.pricing_stats import (
 )
 from .services.query_parser import parse_query
 from .services.scanner import run_scan, scan_state
-from .services.search_builder import build_search_urls
+from .services.search_builder import build_search_urls, parse_search_url
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -580,6 +580,12 @@ def search_builder(data: schemas.SearchBuilderIn):
     """Generates ready-to-use search URLs for both portals from structured
     parameters, so the user does not have to copy/paste from the browser."""
     return build_search_urls(data.model_dump())
+
+
+@app.post("/api/search-builder/parse", response_model=schemas.SearchBuilderParamsOut)
+def search_builder_parse(data: schemas.UrlIn):
+    """Extracts structured search builder parameters from a portal search URL."""
+    return schemas.SearchBuilderParamsOut(**parse_search_url(data.url))
 
 
 # --- Search assistant (natural language) ---

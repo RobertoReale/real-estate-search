@@ -6,7 +6,7 @@ import type {
   EmailScanSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
   ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, ScanStatus, SearchBuilderParams,
-  SearchBuilderUrls, SearchProfile, Settings, TrendArea,
+  SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, TrendArea,
 } from "../types";
 
 const BASE = "/api";
@@ -140,6 +140,13 @@ export const api = {
     };
     return request("/search-builder", {
       method: "POST", body: JSON.stringify(body),
+    });
+  },
+
+  /** Extract structured criteria offline from an existing portal search URL. */
+  parseSearchUrl(url: string): Promise<SearchProfileParams> {
+    return request("/search-builder/parse", {
+      method: "POST", body: JSON.stringify({ url }),
     });
   },
 

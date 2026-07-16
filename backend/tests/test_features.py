@@ -15,7 +15,7 @@ from app.services import notifier
 from app.services.deduplicator import upsert_listing
 from app.services.pricing_stats import annotate_market_position
 from app.services.search_builder import (
-    build_idealista_url, build_immobiliare_url,
+    build_idealista_url, build_immobiliare_url, parse_search_url,
 )
 
 
@@ -200,6 +200,34 @@ def test_accents_are_stripped_from_slugs():
     assert "cinisello-balsamo-e" in url
 
 
+def test_parse_search_url_roundtrip_immobiliare():
+    url = build_immobiliare_url(
+        city="Sesto San Giovanni", contract="sale", zone="Centro",
+        min_price=100_000, max_price=300_000, min_rooms=3, min_sqm=80,
+    )
+    parsed = parse_search_url(url)
+    assert parsed["city"] == "Sesto San Giovanni"
+    assert parsed["zone"] == "Centro"
+    assert parsed["contract"] == "sale"
+    assert parsed["min_price"] == 100000
+    assert parsed["max_price"] == 300000
+    assert parsed["min_rooms"] == 3
+    assert parsed["min_sqm"] == 80
+
+
+def test_parse_search_url_roundtrip_idealista():
+    url = build_idealista_url(
+        city="Sesto San Giovanni", province="Milano", contract="sale",
+        max_price=300_000, min_rooms=3,
+    )
+    parsed = parse_search_url(url)
+    assert parsed["city"] == "Sesto San Giovanni"
+    assert parsed["province"] == "Milano"
+    assert parsed["contract"] == "sale"
+    assert parsed["max_price"] == 300000
+    assert parsed["min_rooms"] == 3
+
+
 # --- Notification channel routing -------------------------------------------
 
 def test_broadcast_respects_channel_selection(monkeypatch):
@@ -279,6 +307,32 @@ def test_missing_columns_are_added_to_existing_db(tmp_path, monkeypatch):
         row = conn.execute(text(
             "SELECT contract, is_favorite, notes FROM properties")).one()
     assert row[0] == "sale"
+
+
+def test_search_builder_parse_endpoint():
+    from app import schemas
+    from app.main import search_builder_parse
+
+    url = build_immobiliare_url(city="Milano", max_price=400_000, min_rooms=2)
+    out = search_builder_parse(schemas.UrlIn(url=url))
+    assert isinstance(out, schemas.SearchBuilderParamsOut)
+    assert out.city == "Milano"
+    assert out.max_price == 400000
+    assert out.min_rooms == 2
+
+
+def test_profile_out_includes_computed_params(db):
+    from app import schemas
+    from app.main import create_profile
+
+    url = build_idealista_url(city="Milano", province="Milano", min_rooms=3, max_price=350_000)
+    in_data = schemas.SearchProfileIn(name="Milan 3 rooms", search_url=url)
+    profile_db = create_profile(in_data, db)
+    profile_out = schemas.SearchProfileOut.model_validate(profile_db)
+    assert isinstance(profile_out, schemas.SearchProfileOut)
+    assert profile_out.params.city == "Milano"
+    assert profile_out.params.min_rooms == 3
+    assert profile_out.params.max_price == 350000
 
 
 # --- PATCH endpoint (favorites & notes) --------------------------------------

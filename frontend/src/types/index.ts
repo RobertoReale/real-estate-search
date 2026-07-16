@@ -65,6 +65,19 @@ export interface Property {
   price_history: PricePoint[];
 }
 
+/** Extracted or computed criteria from a search profile's URL. */
+export interface SearchProfileParams {
+  city: string;
+  province: string;
+  zone: string;
+  contract: "sale" | "rent";
+  min_price: number | null;
+  max_price: number | null;
+  min_rooms: number | null;
+  max_rooms: number | null;
+  min_sqm: number | null;
+}
+
 /** Monitored search profile running scheduled or manual portal scrapes. */
 export interface SearchProfile {
   id: number;
@@ -78,6 +91,7 @@ export interface SearchProfile {
   last_run_status: string;
   last_run_detail: string;
   consecutive_failures: number;
+  params?: SearchProfileParams;
 }
 
 /** What a search has produced in the dashboard, and what deleting it would
