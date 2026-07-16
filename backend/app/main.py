@@ -30,6 +30,8 @@ from .services.pricing_stats import (
 from .services.query_parser import parse_query
 from .services.scanner import run_scan, scan_state
 from .services.search_builder import build_search_urls, parse_search_url
+from .services.search_validator import check_duplicate_profile
+
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -480,6 +482,12 @@ def list_profiles(db: Session = Depends(get_db)):
 
 @app.post("/api/search-profiles", response_model=schemas.SearchProfileOut)
 def create_profile(data: schemas.SearchProfileIn, db: Session = Depends(get_db)):
+    dup = check_duplicate_profile(db, data.search_url, data.excluded_keywords)
+    if dup:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Esiste già una ricerca monitorata identica ('{dup.name}') con lo stesso URL e parole chiave escluse.",
+        )
     profile = SearchProfile(
         name=data.name,
         portal=detect_portal(data.search_url),
@@ -501,6 +509,15 @@ def update_profile(
     profile = db.get(SearchProfile, profile_id)
     if not profile:
         raise HTTPException(404, "Profile not found")
+    dup = check_duplicate_profile(
+        db, data.search_url, data.excluded_keywords, exclude_profile_id=profile_id
+    )
+    if dup:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Esiste già una ricerca monitorata identica ('{dup.name}') con lo stesso URL e parole chiave escluse.",
+        )
+
     if data.search_url != profile.search_url:
         # a new URL is a new search: the old baseline says nothing about it.
         # Left armed, the next scan would notify every listing of the new

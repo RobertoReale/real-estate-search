@@ -172,3 +172,7 @@ def init_db():
     if "properties.source" in added:
         _backfill_property_source()
     _run_migrations()
+    with SessionLocal() as db:
+        from .services.search_validator import deduplicate_search_profiles
+        deduplicate_search_profiles(db)
+

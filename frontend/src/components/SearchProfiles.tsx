@@ -74,6 +74,35 @@ function searchLabel(search: AssistantSearch): string {
   ].filter(Boolean).join(" · ");
 }
 
+/** Surfaces the globally excluded keywords (set once in Settings, applied to
+ *  every search) next to the per-search field, so what gets discarded is
+ *  visible where the user is looking instead of a separate modal. */
+function GlobalKeywordsHint({ settings }: { settings: Settings | null }) {
+  const words = settings?.excluded_keywords ?? [];
+  if (!words.length) return null;
+  return (
+    <p className="text-xs t-dim -mt-1.5">
+      🌐 Always excluded for every search (from Settings): {words.join(", ")}
+    </p>
+  );
+}
+
+/** The full set of keywords that discard a listing for this profile: global
+ *  (Settings) plus this search's own extras, deduplicated case-insensitively
+ *  so the same word set from both places doesn't read as doubled. */
+function combinedKeywords(profile: SearchProfile, settings: Settings | null): string[] {
+  const own = profile.excluded_keywords.split(",").map((k) => k.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const kw of [...(settings?.excluded_keywords ?? []), ...own]) {
+    const key = kw.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(kw);
+  }
+  return result;
+}
+
 /** A channel is "ready" only when it is enabled AND has the credentials it
  *  needs — mirroring the backend's own gating in notifier.py, so the UI
  *  never claims a delivery route that would silently drop messages. */
@@ -243,7 +272,8 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setEditingId(p.id);
     setError("");
     if (p.params && (p.params.city || p.params.min_price || p.params.min_rooms || p.params.zone)) {
-      setParams(paramsFromProfile(p.params));
+      const formParams = paramsFromProfile(p.params);
+      setParams(formParams);
       setBuilt({
         immobiliare: p.portal === "immobiliare" ? p.search_url : "",
         idealista: p.portal === "idealista" ? p.search_url : "",
@@ -253,6 +283,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         idealista: p.portal === "idealista",
       });
       setMode("builder");
+      // the profile only carries its own portal's URL; fill in the other
+      // portal's slot too, so ticking its checkbox has a URL to save instead
+      // of silently no-opping (createFromBuilder skips an empty built[portal])
+      api.buildSearchUrls(formParams).then((urls) => {
+        setBuilt((b) => b && {
+          immobiliare: b.immobiliare || urls.immobiliare,
+          idealista: b.idealista || urls.idealista,
+        });
+      }).catch(() => {});
     } else {
       setMode("url");
     }
@@ -306,24 +345,64 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     }
   }
 
+  function normalizeSearchUrl(targetUrl: string): string {
+    if (!targetUrl) return "";
+    try {
+      const u = new URL(targetUrl.trim());
+      u.searchParams.delete("id");
+      u.searchParams.delete("imm_source");
+      u.searchParams.delete("pag");
+      const pathname = u.pathname.replace(/\/+$/, "");
+      const params = Array.from(u.searchParams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+      const search = params.length > 0 ? "?" + new URLSearchParams(params).toString() : "";
+      return `${u.origin}${pathname}${search}`.toLowerCase();
+    } catch {
+      return targetUrl.trim().replace(/\/+$/, "").toLowerCase();
+    }
+  }
+
+  function normalizeSearchKeywords(kw: string): string {
+    return (kw || "").split(",")
+      .map(k => k.trim().toLowerCase())
+      .filter(Boolean)
+      .sort()
+      .join(",");
+  }
+
+  function findDuplicateProfile(targetUrl: string, targetKw: string, excludeId?: number): SearchProfile | undefined {
+    const normUrl = normalizeSearchUrl(targetUrl);
+    const normKw = normalizeSearchKeywords(targetKw);
+    return profiles.find(p => {
+      if (excludeId !== undefined && p.id === excludeId) return false;
+      return normalizeSearchUrl(p.search_url) === normUrl && normalizeSearchKeywords(p.excluded_keywords) === normKw;
+    });
+  }
+
   async function createFromMulti() {
     setSaving(true);
     setError("");
+    let addedCount = 0;
     try {
       for (const search of multi) {
         if (!search.urls) continue; // no city recognised: cannot build URLs
         for (const portal of ["immobiliare", "idealista"] as const) {
           if (!usePortals[portal]) continue;
+          if (findDuplicateProfile(search.urls[portal], keywords)) continue;
           await api.createProfile({
             name: `${searchLabel(search)} (${portal})`,
             search_url: search.urls[portal],
             excluded_keywords: keywords,
             is_active: true,
           });
+          addedCount++;
         }
       }
-      resetForm();
-      onChanged();
+      if (addedCount === 0 && multi.some(s => s.urls)) {
+        setError("Tutte le ricerche selezionate sono già presenti e monitorate.");
+      } else {
+        resetForm();
+        onChanged();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -335,6 +414,12 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setSaving(true);
     setError("");
     try {
+      const dup = findDuplicateProfile(url, keywords, editingId !== null ? editingId : undefined);
+      if (dup) {
+        setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
+        setSaving(false);
+        return;
+      }
       if (editingId !== null) {
         const current = profiles.find((p) => p.id === editingId);
         await api.updateProfile(editingId, {
@@ -385,6 +470,12 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             ? (current.portal as "immobiliare" | "idealista")
             : (usePortals.immobiliare ? "immobiliare" : "idealista");
           const targetUrl = built[targetPortal] || current.search_url;
+          const dup = findDuplicateProfile(targetUrl, keywords, editingId);
+          if (dup) {
+            setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
+            setSaving(false);
+            return;
+          }
           await api.updateProfile(editingId, {
             name: name || current.name,
             search_url: targetUrl,
@@ -394,24 +485,34 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           });
           for (const portal of ["immobiliare", "idealista"] as const) {
             if (usePortals[portal] && portal !== targetPortal && built[portal]) {
-              await api.createProfile({
-                name: `${name || label} (${portal})`,
-                search_url: built[portal],
-                excluded_keywords: keywords,
-                is_active: true,
-              });
+              if (!findDuplicateProfile(built[portal], keywords, editingId)) {
+                await api.createProfile({
+                  name: `${name || label} (${portal})`,
+                  search_url: built[portal],
+                  excluded_keywords: keywords,
+                  is_active: true,
+                });
+              }
             }
           }
         }
       } else {
+        let addedCount = 0;
         for (const portal of ["immobiliare", "idealista"] as const) {
           if (!usePortals[portal]) continue;
+          if (findDuplicateProfile(built[portal], keywords)) continue;
           await api.createProfile({
             name: `${label} (${portal})`,
             search_url: built[portal],
             excluded_keywords: keywords,
             is_active: true,
           });
+          addedCount++;
+        }
+        if (addedCount === 0) {
+          setError("Esiste già una ricerca monitorata identica per i parametri selezionati.");
+          setSaving(false);
+          return;
         }
       }
       resetForm();
@@ -422,6 +523,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       setSaving(false);
     }
   }
+
 
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
@@ -556,6 +658,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               placeholder="Extra excluded keywords (optional, comma-separated)"
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
+          <GlobalKeywordsHint settings={settings} />
           {error && <p className="accent-bad text-xs">{error}</p>}
           <button className="btn-primary" onClick={createFromMulti}
             disabled={
@@ -593,6 +696,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             <input className="input w-full" placeholder="Extra excluded keywords (optional, comma-separated)"
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
+          <GlobalKeywordsHint settings={settings} />
           <div className="flex flex-wrap sm:flex-nowrap gap-2">
             <input className="input w-full"
               placeholder="https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…"
@@ -715,6 +819,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             <input className="input w-full" placeholder="Extra excluded keywords (optional, comma-separated)"
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
+          <GlobalKeywordsHint settings={settings} />
 
           {!built && (
             <button className="btn-primary" onClick={generate} disabled={!params.city.trim()}>
@@ -864,6 +969,12 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 )}
                 {p.last_run_detail && (
                   <p className="text-xs t-muted mt-0.5">{p.last_run_detail}</p>
+                )}
+                {combinedKeywords(p, settings).length > 0 && (
+                  <p className="text-xs t-dim mt-0.5 truncate"
+                    title="Listings mentioning any of these words are discarded (Settings + this search's own extras)">
+                    🚫 Excludes: {combinedKeywords(p, settings).join(", ")}
+                  </p>
                 )}
                 {/* a selected-but-unconfigured channel silently drops alerts:
                     make that state impossible to miss */}
