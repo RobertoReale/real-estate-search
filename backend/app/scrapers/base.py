@@ -428,6 +428,55 @@ AD_GONE_MARKERS = (
     "immobile non disponibile",
 )
 
+# DataDome's interstitial "block" wall (the "Access is temporarily restricted"
+# page). Not necessarily a solvable CAPTCHA widget — often just static text —
+# but always a block, never the ad. Confirmed ABSENT from live ad pages, so it
+# safely complements the 403/429 + "captcha" heuristic for a wall that arrives
+# as HTTP 200 with the word "captcha" nowhere in its markup. Matched against the
+# RAW HTML because one signal (`geo.captcha-delivery.com`) is a <script> src.
+DATADOME_BLOCK_MARKERS = (
+    "access is temporarily restricted",
+    "we detected unusual activity",
+    "geo.captcha-delivery.com",
+    "please enable js and disable any ad blocker",
+)
+
+
+def _visible_text(html: str) -> str:
+    """Lowercased text a human would actually see, with <script>/<style>/
+    <template>/<noscript> stripped out.
+
+    This matters because every Immobiliare ad page — live OR removed — embeds
+    the portal's i18n error dictionary (including "non è più disponibile")
+    inside its Next.js JSON. Matching the gone markers against the raw HTML+JS
+    therefore reports *live* ads as gone; the rendered text carries the message
+    only when the page truly is the gone page. Returns "" when the HTML can't be
+    parsed: without proof we must not claim "gone" (invariant 16)."""
+    if not html:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "template", "noscript"]):
+            tag.decompose()
+        return soup.get_text(" ", strip=True).lower()
+    except Exception:
+        return ""
+
+
+def text_says_gone(html: str) -> bool:
+    """True when the page's VISIBLE text carries a portal "ad gone" message."""
+    text = _visible_text(html)
+    return any(m in text for m in AD_GONE_MARKERS)
+
+
+def has_block_marker(html: str) -> bool:
+    """True when the raw HTML carries DataDome's interstitial-wall signature."""
+    if not html:
+        return False
+    low = html.lower()
+    return any(m in low for m in DATADOME_BLOCK_MARKERS)
+
 
 class AdProbe(BaseScraper):
     """A scraper stripped down to its TLS session: it answers one question,
@@ -663,10 +712,11 @@ class AdProbe(BaseScraper):
             # divert a plainly-gone ad down the blocked/None branch instead of
             # answering False. A real block carries neither signal.
             if (resp.status_code in (404, 410)
-                    or any(m in resp.text.lower() for m in AD_GONE_MARKERS)):
+                    or text_says_gone(resp.text)):
                 return False
             blocked = (resp.status_code in (403, 429)
-                       or "captcha" in resp.text[:4000].lower())
+                       or "captcha" in resp.text[:4000].lower()
+                       or has_block_marker(resp.text))
             if blocked and attempt == 0 and self._rotate_session():
                 continue
             if blocked:
@@ -688,8 +738,7 @@ class AdProbe(BaseScraper):
         # visitor to the search list. Losing the ad path on the way is proof.
         if path and path not in urlparse(str(resp.url)).path:
             return False
-        page = resp.text.lower()
-        is_online = not any(marker in page for marker in AD_GONE_MARKERS)
+        is_online = not text_says_gone(resp.text)
         if is_online:
             try:
                 from bs4 import BeautifulSoup
@@ -757,7 +806,9 @@ class AdProbe(BaseScraper):
             # cannot swallow a genuine block.
             if self._page_says_gone(resp, page):
                 return False
-            if resp.status in (403, 429) or "captcha" in page.content()[:4000].lower():
+            if (resp.status in (403, 429)
+                    or "captcha" in page.content()[:4000].lower()
+                    or has_block_marker(page.content())):
                 page.wait_for_timeout(5000)
                 if "captcha" in page.content()[:4000].lower():
                     if self._browser_headful and self._wait_for_human_solve(page):
@@ -778,11 +829,12 @@ class AdProbe(BaseScraper):
                         self.was_blocked = True
                         self.last_error = "Blocked by DataDome (browser CAPTCHA)"
                         return None
-                elif resp.status in (403, 429):
-                    # A soft 403 with no CAPTCHA markup is still the portal
-                    # refusing: stay fail-open (None, never False) but feed the
-                    # caller's block streak, or a repeated soft block would
-                    # never trigger the abort/recovery levers.
+                elif resp.status in (403, 429) or has_block_marker(page.content()):
+                    # A soft 403 with no CAPTCHA markup, or DataDome's static
+                    # "temporarily restricted" wall served 200: still the portal
+                    # refusing. Stay fail-open (None, never False) but feed the
+                    # caller's block streak, or a repeated soft block would never
+                    # trigger the abort/recovery levers.
                     self.was_blocked = True
                     self.last_error = f"Blocked by DataDome (browser HTTP {resp.status})"
                     return None
@@ -793,8 +845,7 @@ class AdProbe(BaseScraper):
                 return None
             if path and path not in urlparse(str(page.url)).path:
                 return False
-            content = page.content().lower()
-            is_online = not any(marker in content for marker in AD_GONE_MARKERS)
+            is_online = not text_says_gone(page.content())
             if is_online:
                 try:
                     from bs4 import BeautifulSoup
@@ -823,8 +874,7 @@ class AdProbe(BaseScraper):
         try:
             if resp is not None and resp.status in (404, 410):
                 return True
-            content = page.content().lower()
-            return any(marker in content for marker in AD_GONE_MARKERS)
+            return text_says_gone(page.content())
         except Exception:
             return False
 

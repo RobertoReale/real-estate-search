@@ -608,6 +608,72 @@ def test_probe_confirms_a_live_ad():
     ) is True
 
 
+# The portal's i18n error dictionary shipped inside every ad page's Next.js
+# JSON, verbatim from a live listing captured on the real site.
+_LIVE_AD_WITH_BURIED_MARKERS = (
+    '<html><head><title>Vendita Appartamento Milano. Bilocale in via '
+    'Lombardini</title>'
+    '<script id="__NEXT_DATA__" type="application/json">'
+    '{"props":{"page_service_404_generic_text1":['
+    '"La pagina che stai cercando non è presente sul nostro sito o '
+    'non è più disponibile."]}}</script></head>'
+    '<body><h1>Bilocale in via Lombardini</h1>'
+    '<p>Ottimo stato, quarto piano, € 250.000</p></body></html>'
+)
+
+
+def test_probe_ignores_gone_markers_buried_in_page_scripts():
+    """Regression (real bug, IP 91.80.4.244): every Immobiliare ad page — live
+    OR removed — embeds the portal's i18n error dictionary, "non è più
+    disponibile" included, inside its Next.js JSON. Matching the gone markers
+    against the raw HTML+JS reported *live* ads as removed (and a discard is
+    remembered forever, invariant 16). Only the VISIBLE text may say "gone"."""
+    url = "https://www.immobiliare.it/annunci/130663822/"
+    assert _probe(_Response(text=_LIVE_AD_WITH_BURIED_MARKERS, url=url)).check(
+        url
+    ) is True
+
+
+def test_browser_check_ignores_gone_markers_buried_in_page_scripts():
+    """Same regression on the browser transport: the rendered DOM still holds
+    the buried i18n dictionary, so `_browser_check_inner` must judge "gone" from
+    the visible text, not the raw content."""
+    probe = AdProbe()
+    probe._browser_headful = False
+    probe._browser_warmed_hosts = {"www.immobiliare.it"}
+
+    class FakeResp:
+        status = 200
+
+    class FakePage:
+        url = "https://www.immobiliare.it/annunci/130663822/"
+
+        def goto(self, url, **kwargs):
+            return FakeResp()
+
+        def wait_for_timeout(self, _ms):
+            pass
+
+        def content(self):
+            return _LIVE_AD_WITH_BURIED_MARKERS
+
+    setattr(probe, "_browser_page", FakePage())
+    assert probe._browser_check_inner(
+        "https://www.immobiliare.it/annunci/130663822/") is True
+
+
+def test_probe_treats_the_datadome_wall_served_200_as_blocked():
+    """DataDome's "Access is temporarily restricted" wall can arrive as HTTP 200
+    with no "captcha" anywhere in its text. It is still a block (unknown), never
+    a removal — the false negative is the one that costs the user data."""
+    wall = ("<html><body><h1>Access is temporarily restricted</h1>"
+            "<p>We detected unusual activity from your device or network.</p>"
+            "</body></html>")
+    probe = _probe(_Response(text=wall))
+    assert probe.check("https://www.immobiliare.it/annunci/1/") is None
+    assert probe.was_blocked is True
+
+
 def test_a_block_never_means_the_ad_is_gone():
     """The dangerous mistake is the false negative: a listing wrongly reported
     as gone gets discarded, and a discard is remembered forever. DataDome
