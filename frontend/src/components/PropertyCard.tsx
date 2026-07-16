@@ -180,6 +180,11 @@ export default function PropertyCard({
               💨 No longer available
             </span>
           )}
+          {p.status === "sold" && (
+            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-600/90 text-white backdrop-blur">
+              🔑 {p.contract === "rent" ? "Rented out" : "Sold"}
+            </span>
+          )}
         </div>
       </div>
 

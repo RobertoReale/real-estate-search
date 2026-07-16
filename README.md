@@ -97,9 +97,18 @@ phone without any of this. The dashboard is for browsing and triaging.
    - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening a modal.
 3. **Start Scanning**: Click **"Start Scan Now"** (or let the automatic scheduler scan in the background).
 4. **Browse Listings**: Merged listings will show a purple badge (e.g., *"2 merged listings"*), showing that duplicates across different portals or agencies have been successfully grouped together.
-5. **Curation (Hide & Discard)**:
+5. **Curation (Hide, Discard & Mark sold)**:
    - If you see a listing you do not want to track, click on the card to open its modal, then click **`Hide property`**.
    - Hidden listings are permanently excluded from searches and notifications. If you want to review or retrieve them, select the **`Discarded`** option in the **Status** filter at the top of the dashboard. Inside the detail modal of a discarded property, you can click **`Restore property`** to move it back to active status.
+   - **Mark as sold**: agencies often keep an ad online for weeks after the deal
+     closes — reusing the photo with a big *"VENDUTO"* / *"VENDUTO IN 30 GIORNI"*
+     overlay as advertising. Since the ad is still live, no scan will ever remove
+     it. Open the card and click **`🔑 Mark sold`** (for rentals, *Mark rented*)
+     to take it out of your active lists. Unlike *Hide*, a sold property is
+     **kept as a confirmed sale**: it feeds the **Market velocity** statistics
+     with a real close date (a much stronger signal than the *gone* guess), and
+     you can review these under the **`🔑 Sold`** option in the **Status** filter.
+     Marked one by mistake? *Restore property* puts it right back.
    - **Search & filter the grid**: the **Search** bar at the top of the filter
      bar matches any word across a listing's zone, address, title and ad text
      (type *San Siro* or *nuova costruzione* to isolate them), and there are
@@ -112,9 +121,10 @@ phone without any of this. The dashboard is for browsing and triaging.
      rules that keep your scans clean can prune old email imports too. (It is a
      filter, not a ranking — it shrinks the list, it does not reorder it.)
    - **Bulk cleanup**: click **`Selezione multipla annunci`**, tick the cards
-     (or *Seleziona tutti*), and **hide** or **star** the whole selection at
-     once — the fast way to clear a batch (e.g. every *nuova costruzione* the
-     search above surfaced) without opening cards one by one.
+     (or *Seleziona tutti*), and **hide**, **mark sold** or **star** the whole
+     selection at once — the fast way to clear a batch (e.g. every *nuova
+     costruzione*, or a whole cluster of *VENDUTO* re-posts) without opening
+     cards one by one.
 
 ### Deleting a search: what happens to its listings
 
@@ -197,8 +207,11 @@ contrast, stops scanning it altogether.
   reflects *your* sample — the listings this app was watching each day — not the
   whole market, which the panel states plainly.
 * **Market velocity**: how long listings survive before disappearing, broken down
-  by zone and agency. It is built from properties that have actually vanished, so
-  it becomes meaningful after a few months of scanning.
+  by zone and agency. It is built from properties that have actually left the
+  market, so it becomes meaningful after a few months of scanning. Listings you
+  *Mark sold* count as **confirmed** sales here — a real close date rather than
+  the "not seen for a while" guess — and the panel reports how many of the
+  closes are confirmed.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
 * **Share a shortlist**: the **Export** buttons on the filter bar download the

@@ -121,9 +121,10 @@ def _select_properties(
     if status != "all":
         query = query.where(Property.status == status)
     else:
-        # "all" shows active, filtered, and gone — but never manually
-        # hidden properties: the user excluded them intentionally
-        query = query.where(Property.status != "hidden")
+        # "all" shows active, filtered, and gone — but never the two states
+        # the user removed from their market on purpose: manually "hidden" and
+        # confirmed "sold". Each has its own filter to review it deliberately.
+        query = query.where(Property.status.notin_(("hidden", "sold")))
     if contract:
         query = query.where(Property.contract == contract)
     if city:
@@ -256,7 +257,8 @@ def list_properties(
     db: Session = Depends(get_db),
     # validated like `contract`/`sort`: a typo'd status would otherwise return
     # an empty list, indistinguishable from "no matches" — a silent failure
-    status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
+    status: str = Query(
+        "active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
     zone: str | None = None,
@@ -287,7 +289,8 @@ def export_properties(
     db: Session = Depends(get_db),
     fmt: str = Query("html", pattern="^(html|markdown|csv)$"),
     title: str = "Property shortlist",
-    status: str = Query("active", pattern="^(active|filtered|gone|hidden|all)$"),
+    status: str = Query(
+        "active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
     zone: str | None = None,
@@ -400,6 +403,28 @@ def restore_property(property_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Property not found")
     prop.status = "active"
     prop.gone_at = None
+    prop.sold_at = None  # also the way back from a mistaken "Mark as sold"
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/properties/{property_id}/sold")
+def mark_property_sold(property_id: int, db: Session = Depends(get_db)):
+    """Marks the property as sold/rented out.
+
+    Like hiding it, this removes the card from the active grid and stops scans
+    from resurfacing or notifying it (invariant 5 — a user choice a scan never
+    reverts). Unlike hiding, the property stays a *confirmed* market close:
+    `sold_at` gives market_velocity a real sale date instead of the inferred
+    "gone" heuristic. Reversible via /restore. This exists for the "VENDUTO"
+    re-posts that stay online for weeks and would otherwise never leave the
+    grid on their own."""
+    prop = db.get(Property, property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    prop.status = "sold"
+    prop.sold_at = datetime.now(timezone.utc)
+    prop.filtered_reason = ""
     db.commit()
     return {"ok": True}
 
@@ -420,6 +445,11 @@ def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db))
         elif data.action == "restore":
             prop.status = "active"
             prop.gone_at = None
+            prop.sold_at = None
+        elif data.action == "sold":
+            prop.status = "sold"
+            prop.sold_at = datetime.now(timezone.utc)
+            prop.filtered_reason = ""
         elif data.action == "favorite":
             prop.is_favorite = True
         elif data.action == "unfavorite":

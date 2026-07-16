@@ -38,8 +38,12 @@ class Property(Base):
     image_url: Mapped[str] = mapped_column(String, default="")
     # active   = currently for sale
     # filtered = excluded by keyword filter (visible under "Filtered")
-    # gone     = not seen by any scan for several days (sold/withdrawn)
+    # gone     = not seen by any scan for several days (inferred market exit)
     # hidden   = manually hidden by user (never returns to active automatically)
+    # sold     = user confirmed the property was sold/rented out. Like "hidden"
+    #            it is a user choice a scan never reverts (invariant 5), but it
+    #            is kept as a *confirmed* market close feeding market_velocity —
+    #            "gone" is only inferred exit, this is proof (see sold_at).
     status: Mapped[str] = mapped_column(String, default="active")
     filtered_reason: Mapped[str] = mapped_column(String, default="")
     # how this property first entered the dashboard:
@@ -59,6 +63,10 @@ class Property(Base):
     # rows marked gone before this column existed: market_velocity falls
     # back to last_seen_at for those).
     gone_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # when the user marked the property "sold": the end of its days-on-market
+    # window and, unlike gone_at, a *confirmed* sale date. Nullable (only set
+    # once the user marks it). Additive column, auto-migrates.
+    sold_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # ordered by id like price_history: the notifier and the exports read
     # listings[0].url as "the primary listing", which without order_by is

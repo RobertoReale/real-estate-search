@@ -61,6 +61,7 @@ export interface Property {
   target_price_high: number | null;
   first_seen_at: string;
   last_seen_at: string;
+  sold_at: string | null;  // set when the user marked it sold
   listings: Listing[];
   price_history: PricePoint[];
 }
@@ -341,7 +342,9 @@ export interface AreaVelocity {
   scope: "zone" | "city";
   sample: number;
   closed: number;
+  sold: number;  // of the closed, how many the user confirmed sold
   median_days_to_gone: number | null;
+  median_days_to_sold: number | null;  // confirmed-sale subset
   median_days_listed: number | null;
   sell_through_pct: number;
   price_drop_pct: number;
@@ -365,6 +368,7 @@ export interface MarketVelocity {
   min_sample: number;
   total_properties: number;
   closed_properties: number;
+  sold_properties: number;  // confirmed sales within closed_properties
   tracking_since: string | null;
   areas: AreaVelocity[];
   agencies: AgencyBehavior[];

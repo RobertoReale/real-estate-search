@@ -9,7 +9,7 @@ interface Props {
   onSelect: (property: Property) => void;
 }
 
-type PinKind = "drop" | "favorite" | "filtered" | "gone" | "active";
+type PinKind = "drop" | "favorite" | "filtered" | "gone" | "sold" | "active";
 
 /** Pin colors follow the same semantics as the card badges, so the map never
  *  says something different from the grid it replaces. Order matters: a
@@ -20,6 +20,7 @@ const PIN_STYLE: Record<PinKind, { color: string; label: string }> = {
   favorite: { color: "#d97706", label: "★ Favorite" },
   filtered: { color: "#e11d48", label: "🚫 Filtered" },
   gone: { color: "#64748b", label: "💨 No longer available" },
+  sold: { color: "#ca8a04", label: "🔑 Sold / rented out" },
   active: { color: "#2563eb", label: "Active listing" },
 };
 
@@ -30,6 +31,7 @@ function pinKind(p: Property): PinKind {
   if (p.is_favorite) return "favorite";
   if (p.status === "filtered") return "filtered";
   if (p.status === "gone") return "gone";
+  if (p.status === "sold") return "sold";
   return "active";
 }
 

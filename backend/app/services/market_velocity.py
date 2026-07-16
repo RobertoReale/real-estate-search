@@ -21,7 +21,10 @@ than hidden behind a confident number:
    are underestimates. They converge as the database ages.
 2. "gone" means "no scan has seen it for GONE_AFTER_DAYS days" — sold,
    rented, withdrawn, or simply re-published under a new portal id. It is
-   market exit, not proof of a sale.
+   market exit, not proof of a sale. A property the user explicitly marks
+   "sold" *is* a confirmed close (with a real `sold_at` date), and both
+   count towards the closed set — the `sold` counts break out how many of
+   the closes are confirmed rather than inferred.
 3. Medians below MIN_SAMPLE observations are not returned at all. The same
    rule as pricing_stats.py, for the same reason: a median of two listings
    is noise wearing the costume of a statistic.
@@ -44,13 +47,21 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+def _is_closed(prop: Property) -> bool:
+    """Left the market: inferred exit ("gone") or user-confirmed sale ("sold")."""
+    return prop.status in ("gone", "sold")
+
+
 def _days_on_market(prop: Property, now: datetime) -> float:
     """Days between the first sighting and the exit from the market (or now,
     for properties still listed)."""
-    if prop.gone_at is not None:
+    if prop.sold_at is not None:
+        # user-confirmed sale: a real, precise close date
+        end = _as_utc(prop.sold_at)
+    elif prop.gone_at is not None:
         end = _as_utc(prop.gone_at)
-    elif prop.status == "gone":
-        # marked gone before gone_at existed: last_seen_at is the best proxy
+    elif _is_closed(prop):
+        # marked closed before its timestamp existed: last_seen_at is the best proxy
         end = _as_utc(prop.last_seen_at)
     else:
         end = now
@@ -73,20 +84,26 @@ def _median_or_none(values: list[float]) -> float | None:
 
 def _area_row(city: str, zone: str, scope: str, props: list[Property],
               now: datetime) -> dict:
-    gone = [p for p in props if p.status == "gone"]
-    live = [p for p in props if p.status != "gone"]
+    closed = [p for p in props if _is_closed(p)]
+    sold = [p for p in props if p.status == "sold"]
+    live = [p for p in props if not _is_closed(p)]
     dropped = [p for p in props if _drop_pct(p) is not None]
     return {
         "city": city,
         "zone": zone,
         "scope": scope,
         "sample": len(props),
-        "closed": len(gone),
+        # closed = left the market (inferred "gone" + confirmed "sold")
+        "closed": len(closed),
+        # of which the user has confirmed as an actual sale
+        "sold": len(sold),
         # only closed listings have a *complete* days-on-market window
-        "median_days_to_gone": _median_or_none([_days_on_market(p, now) for p in gone]),
+        "median_days_to_gone": _median_or_none([_days_on_market(p, now) for p in closed]),
+        # the subset above with a confirmed sale date — the strongest signal
+        "median_days_to_sold": _median_or_none([_days_on_market(p, now) for p in sold]),
         # how long what is still online has been sitting there
         "median_days_listed": _median_or_none([_days_on_market(p, now) for p in live]),
-        "sell_through_pct": round(len(gone) / len(props) * 100.0, 1),
+        "sell_through_pct": round(len(closed) / len(props) * 100.0, 1),
         "price_drop_pct": round(len(dropped) / len(props) * 100.0, 1),
     }
 
@@ -167,7 +184,7 @@ def compute_agency_behavior(
             continue
         drops = [d for d in (_drop_pct(p) for p in group) if d is not None]
         deltas = [d for d in (sqm_delta_pct(p) for p in group) if d is not None]
-        gone = [p for p in group if p.status == "gone"]
+        gone = [p for p in group if _is_closed(p)]
         rows.append({
             "agency": display_name[agency_key],
             "sample": len(group),
@@ -193,7 +210,9 @@ def compute_market_velocity(
 
     Excludes "hidden" properties (the user removed them from their market on
     purpose) but keeps "filtered" ones: a ground-floor flat excluded by a
-    keyword is still a real listing that took real days to sell.
+    keyword is still a real listing that took real days to sell. "sold" ones
+    are kept and counted as confirmed closes (that is the whole point of the
+    state).
     """
     now = datetime.now(timezone.utc)
     query = (
@@ -201,7 +220,9 @@ def compute_market_velocity(
         .options(selectinload(Property.listings))
         .where(
             Property.contract == contract,
-            Property.status.in_(("active", "filtered", "gone")),
+            # "sold" joins the closed set here: it is a confirmed market exit,
+            # the very datapoint this module's docstring notes "gone" lacks.
+            Property.status.in_(("active", "filtered", "gone", "sold")),
         )
     )
     if city:
@@ -215,7 +236,9 @@ def compute_market_velocity(
         "generated_at": now,
         "min_sample": MIN_SAMPLE,
         "total_properties": len(props),
-        "closed_properties": sum(1 for p in props if p.status == "gone"),
+        "closed_properties": sum(1 for p in props if _is_closed(p)),
+        # of the closed ones, how many the user confirmed as a real sale
+        "sold_properties": sum(1 for p in props if p.status == "sold"),
         # how far back the observation window reaches: days-on-market values
         # cannot be older than this, and the UI says so
         "tracking_since": oldest,

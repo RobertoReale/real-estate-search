@@ -262,6 +262,26 @@ def test_hidden_property_is_not_reactivated(db, monkeypatch):
     assert notified == []
 
 
+def test_sold_property_is_not_reactivated(db, monkeypatch):
+    """"Mark as sold" is a user choice a scan never reverts (like "hidden",
+    invariant 5): a "VENDUTO" re-post often stays online for weeks, so the scan
+    keeps re-finding it — it must stay sold and silent, not bounce back to
+    active and notify as if new."""
+    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
+    db.add(profile)
+    db.commit()
+
+    _run_profile(db, monkeypatch, profile)  # baseline: creates 2 properties
+    prop = db.query(Property).first()
+    prop.status = "sold"
+    db.commit()
+
+    notified, _ = _run_profile(db, monkeypatch, profile)
+    db.refresh(prop)
+    assert prop.status == "sold"
+    assert notified == []
+
+
 # --- scraper health alerting -----------------------------------------------
 
 @pytest.fixture

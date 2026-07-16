@@ -209,25 +209,28 @@ def test_profile_results_ignores_properties_it_never_found(db):
 
 
 def test_profile_results_spares_shared_and_curated(db):
-    """The two exclusions the delete dialog reports. A property another search
-    also found stays (that search still covers it, and the next scan would
-    re-create a blank card anyway); a favorited or annotated one stays because
-    the curation is hand-made and a re-scan cannot rebuild it (invariant 10)."""
+    """The exclusions the delete dialog reports. A property another search also
+    found stays (that search still covers it, and the next scan would re-create
+    a blank card anyway); a favorited, annotated, or "sold" one stays because it
+    is hand-made and a re-scan cannot rebuild it — favorites/notes are invariant
+    10, a "sold" marking carries a confirmed sale date that is the whole reason
+    it was kept (invariant 20)."""
     prof = _seed_profile(db)
     other = _seed_profile(db, name="other")
     _seed_found(db, prof, "1")                       # deletable
     _seed_found(db, prof, "2", is_favorite=True)     # curated
     _seed_found(db, prof, "3", notes="call agency")  # curated
+    _seed_found(db, prof, "5", status="sold")        # confirmed sale: kept
     shared = _seed_found(db, prof, "4")
     db.add(ListingProfile(listing_id=shared.listings[0].id, profile_id=other.id))
     db.commit()
 
     out = data_reset.profile_results(db, [prof.id])
 
-    assert out["tracked"] == 4
+    assert out["tracked"] == 5
     assert out["deletable"] == 1
     assert out["kept_shared"] == 1
-    assert out["kept_curated"] == 2
+    assert out["kept_curated"] == 3
     assert [p.id for p in out["properties"]] == [_id_of(db, "1")]
 
 

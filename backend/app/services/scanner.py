@@ -252,9 +252,12 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     for raw in result.listings:
         prop, is_new, price_changed = upsert_listing(db, raw, profile_id=profile.id)
 
-        if prop.status == "hidden":
-            # manually hidden by user: data is updated (upsert already done)
-            # but property must never become visible again nor generate notifications
+        if prop.status in ("hidden", "sold"):
+            # manually hidden, or confirmed sold, by the user: data is updated
+            # (upsert already done) but the property must never become visible
+            # again nor generate notifications. Both are user choices a scan
+            # never reverts (invariant 5); a "sold" ad often stays online for
+            # weeks as a "VENDUTO" re-post, so re-finding it is expected.
             continue
 
         kw = find_excluded_keyword(_texts_for_filter(raw, prop), keywords)

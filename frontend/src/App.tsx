@@ -152,12 +152,17 @@ export default function App() {
     800,
   );
 
-  function bulkAction(action: "hide" | "favorite" | "unfavorite") {
+  function bulkAction(action: "hide" | "favorite" | "unfavorite" | "sold") {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     if (action === "hide" && !confirm(
       `Hide ${ids.length} properties? They will disappear from lists and ` +
       `notifications (recoverable from 🙈 Discarded → Restore).`
+    )) return;
+    if (action === "sold" && !confirm(
+      `Mark ${ids.length} properties as sold/rented out? They leave the active ` +
+      `lists but are kept as confirmed sales for the market statistics ` +
+      `(recoverable from 🔑 Sold → Restore).`
     )) return;
     return runAction(async () => {
       await api.bulkProperties(ids, action);
@@ -328,6 +333,13 @@ export default function App() {
                     disabled={checkingBatch}
                     onClick={() => bulkAction("hide")}>
                     🙈 Hide selected ({selectedIds.size})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    disabled={checkingBatch}
+                    onClick={() => bulkAction("sold")}>
+                    🔑 Mark sold ({selectedIds.size})
                   </button>
                   <button
                     type="button"

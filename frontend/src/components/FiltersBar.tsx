@@ -164,13 +164,15 @@ export default function FiltersBar({
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">Status</label>
-        {/* "gone" = no longer seen by scans for days (sold/withdrawn);
-            manually hidden properties never appear in "All" but can be viewed under "Discarded" */}
+        {/* "gone" = no longer seen by scans for days (inferred exit);
+            "sold" = user confirmed the sale; manually hidden/sold properties
+            never appear in "All" but each has its own filter here */}
         <select className="input w-full sm:w-36" value={filters.status}
           onChange={(e) => set({ status: e.target.value })}>
           <option value="active">{isRent ? "For rent" : "For sale"}</option>
           <option value="filtered">🚫 Filtered</option>
           <option value="gone">💨 Gone</option>
+          <option value="sold">🔑 {isRent ? "Rented out" : "Sold"}</option>
           <option value="hidden">🙈 Discarded</option>
           <option value="all">All</option>
         </select>

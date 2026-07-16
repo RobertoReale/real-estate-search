@@ -86,6 +86,9 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
               {data.total_properties} properties tracked
               {city && <> in “{city}”</>}, {data.closed_properties} left the
               market
+              {data.sold_properties > 0 && (
+                <> ({data.sold_properties} confirmed sold)</>
+              )}
               {data.tracking_since && (
                 <> · observed since{" "}
                   {new Date(data.tracking_since).toLocaleDateString()}</>

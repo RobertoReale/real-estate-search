@@ -65,12 +65,19 @@ export const api = {
   deleteProperty(id: number) {
     return request(`/properties/${id}`, { method: "DELETE" });
   },
-  /** Restore a previously hidden property back to `active` status. */
+  /** Restore a previously hidden/sold property back to `active` status. */
   restoreProperty(id: number) {
     return request<{ ok: boolean }>(`/properties/${id}/restore`, { method: "POST" });
   },
-  /** Apply hide/restore/favorite/unfavorite to many selected properties at once. */
-  bulkProperties(ids: number[], action: "hide" | "restore" | "favorite" | "unfavorite") {
+  /** Mark a property as sold/rented out (status `sold`, a confirmed close). */
+  markPropertySold(id: number) {
+    return request<{ ok: boolean }>(`/properties/${id}/sold`, { method: "POST" });
+  },
+  /** Apply hide/restore/favorite/unfavorite/sold to many selected properties at once. */
+  bulkProperties(
+    ids: number[],
+    action: "hide" | "restore" | "favorite" | "unfavorite" | "sold",
+  ) {
     return request<{ ok: boolean; processed: number }>("/properties/bulk", {
       method: "POST", body: JSON.stringify({ ids, action }),
     });

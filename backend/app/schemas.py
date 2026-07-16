@@ -70,6 +70,7 @@ class PropertyOut(BaseModel):
     target_price_high: float | None = None
     first_seen_at: datetime
     last_seen_at: datetime
+    sold_at: datetime | None = None  # set when the user marked it sold
     listings: list[ListingOut] = []
     price_history: list[PriceHistoryOut] = []
 
@@ -89,9 +90,10 @@ class PropertyBulkIn(BaseModel):
     """Payload for a bulk action on many selected properties at once."""
     ids: list[int]
     # hide/restore mirror the single-property DELETE/restore; favorite/unfavorite
-    # mirror the PATCH is_favorite flag — batched so the user can clear a
-    # cluttered dashboard (e.g. every "nuova costruzione") in one gesture.
-    action: Literal["hide", "restore", "favorite", "unfavorite"]
+    # mirror the PATCH is_favorite flag; sold mirrors the mark-sold route —
+    # batched so the user can clear a cluttered dashboard (e.g. every "nuova
+    # costruzione", or a whole cluster of "VENDUTO" re-posts) in one gesture.
+    action: Literal["hide", "restore", "favorite", "unfavorite", "sold"]
 
 
 class PricingTrendPoint(BaseModel):

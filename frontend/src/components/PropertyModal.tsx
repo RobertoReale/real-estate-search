@@ -253,16 +253,18 @@ export default function PropertyModal({
                 </span>
               )}
             </div>
-            {p.status === "hidden" || p.status === "gone" ? (
+            {p.status === "hidden" || p.status === "gone" || p.status === "sold" ? (
               <button
                 className="accent-good hover:opacity-80 text-sm transition"
                 onClick={async () => {
                   // The availability check fails open (invariant 16), but a
                   // portal redirect or block it misread as removal can still
                   // mark a live listing "gone" — this is the way back for
-                  // both that case and a manual "Hide".
+                  // that case, a manual "Hide", and a mistaken "Mark sold".
                   const msg = p.status === "gone"
                     ? "Restore this property? Use this if the availability check marked it \"no longer available\" by mistake."
+                    : p.status === "sold"
+                    ? "Restore this property? Use this if you marked it sold by mistake — it goes back to active lists."
                     : "Restore this property? It will appear in active lists again.";
                   if (confirm(msg)) {
                     try {
@@ -276,22 +278,43 @@ export default function PropertyModal({
                 👁 Restore property
               </button>
             ) : (
-              <button
-                className="accent-bad hover:opacity-80 text-sm transition"
-                onClick={async () => {
-                  // the backend marks as "hidden" rather than physical deletion so
-                  // subsequent scans do not re-insert or notify it as new
-                  if (confirm("Hide this property? It will never appear in lists or notifications again.")) {
-                    try {
-                      await api.deleteProperty(p.id);
-                      onDeleted();
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : "Hide failed");
+              <div className="flex items-center gap-3">
+                <button
+                  className="text-amber-600 dark:text-amber-400 hover:opacity-80 text-sm transition"
+                  onClick={async () => {
+                    // "sold" is a confirmed market close: it leaves the grid
+                    // like "hidden" but is kept as a real sale date feeding the
+                    // market-velocity signals. For the "VENDUTO" re-posts that
+                    // stay online for weeks and never leave on their own.
+                    const label = p.contract === "rent" ? "rented out" : "sold";
+                    if (confirm(`Mark this property as ${label}? It leaves the active lists but is kept as a confirmed sale for market statistics.`)) {
+                      try {
+                        await api.markPropertySold(p.id);
+                        onDeleted();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : "Mark sold failed");
+                      }
                     }
-                  }
-                }}>
-                🙈 Hide property
-              </button>
+                  }}>
+                  🔑 Mark {p.contract === "rent" ? "rented" : "sold"}
+                </button>
+                <button
+                  className="accent-bad hover:opacity-80 text-sm transition"
+                  onClick={async () => {
+                    // the backend marks as "hidden" rather than physical deletion so
+                    // subsequent scans do not re-insert or notify it as new
+                    if (confirm("Hide this property? It will never appear in lists or notifications again.")) {
+                      try {
+                        await api.deleteProperty(p.id);
+                        onDeleted();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : "Hide failed");
+                      }
+                    }
+                  }}>
+                  🙈 Hide property
+                </button>
+              </div>
             )}
           </div>
 

@@ -47,8 +47,11 @@ def profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
       * `shared`: a search *outside the set* also found the ad. It stays; that
         search still covers it, and deleting would throw away its price history
         only for the next scan to re-create a blank card.
-      * `favorite` / `noted`: hand-curated (invariant 10), the one thing in the
-        dashboard that exists nowhere else.
+      * `favorite` / `noted` / `sold`: hand-curated, the one thing in the
+        dashboard that exists nowhere else. Favorites/notes are invariant 10;
+        a "sold" marking carries a confirmed sale date (`sold_at`) a re-scan
+        can never reconstruct — and it is the market-velocity signal the user
+        marked it for in the first place.
     Returns the counts plus the Property objects that are actually deletable.
     """
     ids = list(profile_ids)
@@ -74,7 +77,7 @@ def profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
     for prop in props:
         if prop.id in shared_property_ids:
             kept_shared += 1
-        elif prop.is_favorite or (prop.notes or "").strip():
+        elif prop.is_favorite or (prop.notes or "").strip() or prop.status == "sold":
             kept_curated += 1
         else:
             deletable.append(prop)

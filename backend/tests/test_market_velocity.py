@@ -79,6 +79,15 @@ def test_legacy_gone_rows_without_gone_at_fall_back_to_last_seen():
     assert _days_on_market(prop, NOW) == pytest.approx(35, abs=0.01)
 
 
+def test_days_on_market_of_a_sold_property_ends_at_sold_at():
+    """A user-confirmed sale is a precise, real close date — stronger than the
+    inferred "gone" heuristic — so the window ends at sold_at, and sold_at wins
+    even if gone_at is also present."""
+    prop = Property(first_seen_at=_days_ago(45), last_seen_at=_days_ago(3),
+                    sold_at=_days_ago(15), gone_at=_days_ago(3), status="sold")
+    assert _days_on_market(prop, NOW) == pytest.approx(30, abs=0.01)
+
+
 def test_days_on_market_is_never_negative():
     prop = Property(first_seen_at=_days_ago(5), last_seen_at=_days_ago(10),
                     gone_at=_days_ago(10), status="gone")
@@ -170,6 +179,28 @@ def test_hidden_properties_are_excluded_but_filtered_ones_count(db):
 
     result = compute_market_velocity(db, contract="sale")
     assert result["total_properties"] == MIN_SAMPLE
+
+
+def test_sold_counts_as_a_confirmed_close(db):
+    """"sold" is the confirmed-sale datapoint "gone" only infers: it joins the
+    closed set (feeding sell-through and days-to-gone) and is also broken out
+    on its own so the UI can distinguish a real sale from a mere market exit."""
+    # three confirmed sold (10/20/30 days on market), one inferred-gone, two live
+    for days in (10, 20, 30):
+        _prop(db, status="sold", first_seen_days_ago=days + 5,
+              sold_at=_days_ago(5))
+    _prop(db, status="gone", first_seen_days_ago=35, gone_days_ago=5)
+    for _ in range(2):
+        _prop(db, status="active", first_seen_days_ago=40)
+
+    result = compute_market_velocity(db, contract="sale")
+    assert result["sold_properties"] == 3
+    assert result["closed_properties"] == 4          # 3 sold + 1 gone
+    zone = next(r for r in result["areas"] if r["scope"] == "zone")
+    assert zone["closed"] == 4 and zone["sold"] == 3
+    # 4 of 6 left the market; the confirmed-sold subset alone medians at 20 days
+    assert zone["sell_through_pct"] == pytest.approx(66.7, abs=0.1)
+    assert zone["median_days_to_sold"] == pytest.approx(20, abs=0.1)
 
 
 def test_city_filter_narrows_the_sample(db):
