@@ -426,17 +426,25 @@ def test_feature_filters_map_to_each_portal_measured_grammar():
     """
     params: dict[str, Any] = dict(
         city="Milano", max_price=380_000, balcony=True, garden=True,
-        parking=True, elevator=True, exclude_auctions=True,
+        parking=True, elevator=True, exclude_auctions=True, pool=True,
         floor="middle", condition="good")
 
     imm = build_immobiliare_url(**params)
     for expected in ("balconeOterrazzo[]=balcone", "giardino[]=10", "boxAuto[]=1",
-                     "ascensore=1", "noAste=1", "fasciaPiano[]=20", "stato=2"):
+                     "ascensore=1", "noAste=1", "piscina=1", "fasciaPiano[]=20",
+                     "stato=2"):
         assert expected in imm, expected
 
     ide = build_idealista_url(**params)
-    assert ("balcone,giardino,garage,ascensori,aste_no,piani-intermedi,"
+    assert ("balcone,giardino,garage,ascensori,aste_no,piscina,piani-intermedi,"
             "buono-stato") in ide
+
+    # "da ristrutturare": Immobiliare only ever renders it as a path segment, so
+    # its query name (stato=5) was found by matching result totals, not read.
+    imm_reno = build_immobiliare_url(city="Milano", condition="to_renovate")
+    assert "stato=5" in imm_reno
+    ide_reno = build_idealista_url(city="Milano", condition="to_renovate")
+    assert "con-ristrutturare" in ide_reno
     # Both of these were once believed absent from Idealista, because guessing
     # can only refute the strings you think of. The elevator token is PLURAL
     # ("ascensori"), and the auction one uses the underscore syntax of
@@ -534,6 +542,21 @@ def test_immobiliare_filters_parse_back_from_path_or_query():
     # the floor band also arrives as a path segment when picked alone
     parsed = parse_search_url("https://www.immobiliare.it/vendita-case/milano/con-ultimo-piano/")
     assert parsed["floor"] == "top"
+
+    # "da ristrutturare" is a bare path segment, not con-/query — the portal's
+    # own /da-ristrutturare/?bagni=3 must read as the filter, not a district
+    # named "Da Ristrutturare" (the con-ascensore trap, one filter over).
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/da-ristrutturare/?bagni=3")
+    assert parsed["condition"] == "to_renovate"
+    assert parsed["zone"] == ""
+    assert parsed["city"] == "Milano"
+
+    # pool travels as /con-piscina/ (path) or ?piscina=1 (query)
+    assert parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/con-piscina/")["pool"] is True
+    assert parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/?piscina=1")["pool"] is True
 
 
 def test_idealista_opaque_location_urls_yield_no_city():

@@ -48,8 +48,12 @@ IDEALISTA_MAX_ROOM_BUCKET = 5  # the only open-ended one: "5 locali o più"
 # /con-piani-intermedi/?fasciaPiano[0]=30 = middle+top, so 20=middle, 30=top
 # (two independent readings agree), leaving 10=ground.
 IMMOBILIARE_FLOORS = {"ground": 10, "middle": 20, "top": 30}
-# stato=N, read off the portal's own condition dropdown.
-IMMOBILIARE_CONDITION = {"new": 1, "good": 2, "excellent": 6}
+# stato=N, read off the portal's own condition dropdown. "to_renovate" has no
+# dropdown entry to read — the portal only ever renders it as the path segment
+# /da-ristrutturare/, keeping it there even when another filter joins it — so 5
+# was found by matching result totals: /da-ristrutturare/ and ?stato=5 both
+# answer 1.816 against a 19.059 city.
+IMMOBILIARE_CONDITION = {"new": 1, "good": 2, "excellent": 6, "to_renovate": 5}
 #
 # Idealista takes filters as comma-joined tokens in the con- segment. Each was
 # confirmed live by watching its result total move; a token it does not know
@@ -65,23 +69,28 @@ IDEALISTA_FEATURES = {
     "parking": "garage",            # -> 763
     "elevator": "ascensori",        # 7.843 -> 5.331 (plural!)
     "exclude_auctions": "aste_no",  # 7.843 -> 6.899
+    "pool": "piscina",              # 15.391 -> 201
 }
 IDEALISTA_FLOORS = {"ground": "piano-terra", "middle": "piani-intermedi",
                     "top": "ultimo-piano"}
-IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato"}
-# Measured on Idealista but deliberately NOT offered: "piscina" (-> 30) and
-# "ristrutturare" (-> 739, "da ristrutturare"). Immobiliare renders both only
-# as path segments (/con-piscina/, /da-ristrutturare/), and it keeps them there
-# even when a second filter is added, so no query spelling has ever surfaced —
-# /da-ristrutturare/?bagni=3 is the portal's own output. Offering them would
-# filter Idealista while leaving Immobiliare wide open: the same silent
-# asymmetry idealista_unsupported exists to prevent, in the direction nothing
-# reports. Add them once Immobiliare's params are read off its UI.
+IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato",
+                       "to_renovate": "ristrutturare"}  # 15.391 -> 1.602
 #
-# Both tokens here were also a reminder that guessing loses: four spellings of
-# an auction filter (escludi-aste, senza-asta, non-asta, no-aste) 404'd before
-# the portal's own UI produced "aste_no" — the syntax was wrong, not just the
-# word.
+# "piscina" and "ristrutturare" were measured on Idealista months before they
+# could be offered, because Immobiliare renders both only as path segments and
+# keeps them there even when another filter joins them (/da-ristrutturare/?bagni=3
+# is the portal's own output), so no query spelling ever surfaced to read. They
+# stayed hidden rather than filter one portal and leave the other wide open — the
+# silent asymmetry idealista_unsupported exists to prevent, in the direction
+# nothing reports. Their query names were eventually found by matching totals
+# instead of reading: ?stato=5 and ?piscina=1 each reproduce their path form's
+# count exactly, while a bogus ?caratteristiche[]=piscina answers with the whole
+# city (19.070) — Immobiliare ignores what it does not know and says nothing,
+# which is why a control group is mandatory in any sweep here.
+#
+# Guessing loses in the other direction too: four spellings of an auction filter
+# (escludi-aste, senza-asta, non-asta, no-aste) 404'd before the portal's own UI
+# produced "aste_no" — the syntax was wrong, not just the word.
 
 
 def _slug(name: str) -> str:
@@ -134,7 +143,8 @@ def build_immobiliare_url(
     min_rooms: int | None = None, max_rooms: int | None = None,
     min_sqm: int | None = None, balcony: bool = False, garden: bool = False,
     parking: bool = False, elevator: bool = False,
-    exclude_auctions: bool = False, floor: str = "", condition: str = "",
+    exclude_auctions: bool = False, pool: bool = False, floor: str = "",
+    condition: str = "",
     **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
@@ -159,6 +169,8 @@ def build_immobiliare_url(
         query.append("ascensore=1")
     if exclude_auctions:
         query.append("noAste=1")
+    if pool:
+        query.append("piscina=1")
     if floor in IMMOBILIARE_FLOORS:
         query.append(f"fasciaPiano[]={IMMOBILIARE_FLOORS[floor]}")
     if condition in IMMOBILIARE_CONDITION:
@@ -179,7 +191,8 @@ def build_idealista_url(
     min_rooms: int | None = None, max_rooms: int | None = None,
     min_sqm: int | None = None, zone_page: bool = False, balcony: bool = False,
     garden: bool = False, parking: bool = False, elevator: bool = False,
-    exclude_auctions: bool = False, floor: str = "", condition: str = "",
+    exclude_auctions: bool = False, pool: bool = False, floor: str = "",
+    condition: str = "",
     **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
@@ -215,7 +228,8 @@ def build_idealista_url(
     # normalizes the query string, not the order of a path segment).
     for key, requested in (("balcony", balcony), ("garden", garden),
                            ("parking", parking), ("elevator", elevator),
-                           ("exclude_auctions", exclude_auctions)):
+                           ("exclude_auctions", exclude_auctions),
+                           ("pool", pool)):
         if requested:
             filters.append(IDEALISTA_FEATURES[key])
     if floor in IDEALISTA_FLOORS:
@@ -411,7 +425,12 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
     # Ascensore" — and, once fed to build_idealista_url, the sibling URL
     # /vendita-case/milano/con-ascensore/con-prezzo_260000/ (two con- segments,
     # a guaranteed 404). Two such searches are saved in the live database.
-    _NOT_A_ZONE = ("pag", "search-list", "con-", "?")
+    # Not every filter segment is spelled "con-": the condition ones are bare
+    # adjectives ("da-ristrutturare", "nuove-costruzioni"), and the portal's own
+    # /vendita-case/milano/da-ristrutturare/?bagni=3 would otherwise parse as a
+    # district named "Da Ristrutturare".
+    _NOT_A_ZONE = ("pag", "search-list", "con-", "?", "da-ristrutturare",
+                   "nuove-costruzioni")
 
     city = ""
     zone = ""
@@ -450,6 +469,11 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
     for name, code in IMMOBILIARE_CONDITION.items():
         if str(code) in (qs.get("stato") or []):
             condition = name
+    # the condition filters also travel as bare path segments
+    for name, seg in (("to_renovate", "da-ristrutturare"),
+                      ("new", "nuove-costruzioni")):
+        if seg in segs:
+            condition = name
 
     return {
         "city": city,
@@ -466,6 +490,7 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         "parking": _has("boxAuto"),
         "elevator": _has("ascensore", seg="con-ascensore"),
         "exclude_auctions": _has("noAste"),
+        "pool": _has("piscina", seg="con-piscina"),
         "floor": floor,
         "condition": condition,
     }

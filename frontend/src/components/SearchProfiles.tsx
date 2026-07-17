@@ -24,7 +24,7 @@ const EMPTY_BUILDER: SearchBuilderParams = {
   city: "", province: "", zone: "", contract: "sale",
   min_price: "", max_price: "", min_rooms: "", max_rooms: "", min_sqm: "",
   balcony: false, garden: false, parking: false, elevator: false,
-  exclude_auctions: false, floor: "", condition: "",
+  exclude_auctions: false, pool: false, floor: "", condition: "",
 };
 
 /** Feature filters both portals can apply. */
@@ -34,6 +34,7 @@ const FEATURES = [
   ["parking", "Garage / parking"],
   ["elevator", "Lift"],
   ["exclude_auctions", "Exclude auctions"],
+  ["pool", "Swimming pool"],
 ] as const;
 
 /** Backend filter keys → what to call them when Idealista cannot apply them.
@@ -56,6 +57,7 @@ const CONDITIONS = [
   ["new", "New build"],
   ["good", "Good / habitable"],
   ["excellent", "Excellent / renovated"],
+  ["to_renovate", "Needs renovation"],
 ] as const;
 
 const ASSISTANT_EXAMPLES = [
@@ -78,7 +80,7 @@ function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
     max_rooms: str(search.params.max_rooms),
     min_sqm: str(search.params.min_sqm),
     balcony: false, garden: false, parking: false, elevator: false,
-    exclude_auctions: false, floor: "", condition: "",
+    exclude_auctions: false, pool: false, floor: "", condition: "",
   };
 }
 
@@ -101,6 +103,7 @@ function paramsFromProfile(params?: SearchProfile["params"]): SearchBuilderParam
     parking: Boolean(params.parking),
     elevator: Boolean(params.elevator),
     exclude_auctions: Boolean(params.exclude_auctions),
+    pool: Boolean(params.pool),
     floor: (params.floor || "") as SearchBuilderParams["floor"],
     condition: (params.condition || "") as SearchBuilderParams["condition"],
   };
