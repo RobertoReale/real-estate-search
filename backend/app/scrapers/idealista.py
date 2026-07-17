@@ -58,16 +58,25 @@ class IdealistaScraper(BaseScraper):
         """Extracts the municipality from the search path.
 
         Real Idealista formats (city segment is "municipality-province"):
-          /vendita-case/milano-milano/               -> Milano
-          /vendita-case/sesto-san-giovanni-milano/   -> Sesto San Giovanni
-          /cerca/vendita-case/con-x/Bovisa_Milano/   -> Milano (zone search)
-          /aree/vendita-case/?shape=...              -> "" (polygon: city unknown)
+          /vendita-case/milano-milano/                  -> Milano
+          /vendita-case/sesto-san-giovanni-milano/      -> Sesto San Giovanni
+          /vendita-case/milano/fiera-de-angeli/         -> Milano (macro-area)
+          /vendita-case/milano/fiera-de-angeli/fiera/   -> Milano (zone)
+          /cerca/vendita-case/con-x/Bovisa_Milano/      -> Milano (text search)
+          /multi/vendita-case/aOA,aOw/                  -> "" (opaque zone ids)
+          /aree/vendita-case/?shape=...                 -> "" (polygon)
 
         Better "" than an incorrect city: the city enters the fingerprint and
         deduplication matching, so a wrong value would prevent cross-portal
         merging (or worse, create false merges).
         """
         segments = [s for s in urlparse(page_url).path.split("/") if s]
+        # Multi-zone selections carry opaque ids ("aOA,aOw"), never a city. The
+        # positional rule read the ids themselves as one — a city of "Aoa,Aow"
+        # in every fingerprint, silently killing cross-portal merging for the
+        # whole search. Nothing here can be recovered, so say so.
+        if segments and segments[0] == "multi":
+            return ""
         # zone searches ride the free-text /cerca/ endpoint (search_builder
         # explains why), where the segment after "vendita-case" is the filter
         # list, not the city: the loop below would have read a city of

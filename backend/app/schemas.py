@@ -166,6 +166,13 @@ class SearchBuilderParamsOut(BaseModel):
     min_rooms: int | None = None
     max_rooms: int | None = None
     min_sqm: int | None = None
+    balcony: bool = False
+    garden: bool = False
+    parking: bool = False
+    elevator: bool = False          # Immobiliare only: Idealista has no such filter
+    exclude_auctions: bool = False  # Immobiliare only (noAste=1)
+    floor: str = ""                 # ground | middle | top
+    condition: str = ""             # new | good | excellent
 
 
 class SearchProfileOut(BaseModel):
@@ -270,6 +277,13 @@ class SearchBuilderIn(BaseModel):
     min_rooms: int | None = None
     max_rooms: int | None = None
     min_sqm: int | None = None
+    balcony: bool = False
+    garden: bool = False
+    parking: bool = False
+    elevator: bool = False          # Immobiliare only: Idealista has no such filter
+    exclude_auctions: bool = False  # Immobiliare only (noAste=1)
+    floor: str = ""                 # ground | middle | top
+    condition: str = ""             # new | good | excellent
     # Asks Idealista whether it knows this zone's slug, so the precise zone page
     # can be used instead of the broader free-text search (search_builder.
     # resolve_idealista_url). One live request, hence off unless the user

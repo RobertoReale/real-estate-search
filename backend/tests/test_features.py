@@ -15,7 +15,7 @@ from app.services import notifier
 from app.services.deduplicator import upsert_listing
 from app.services.pricing_stats import annotate_market_position
 from app.services.search_builder import (
-    build_idealista_url, build_immobiliare_url, parse_search_url,
+    build_idealista_url, build_immobiliare_url, build_search_urls, parse_search_url,
 )
 
 
@@ -185,9 +185,31 @@ def test_idealista_room_union_is_capped_by_max_rooms():
     url = build_idealista_url(city="Milano", min_rooms=2, max_rooms=3)
     assert "bilocali-2,trilocali-3" in url and "quadrilocali" not in url
 
-    # 4 is the portal's own "4 or more" bucket: capping there keeps it
-    url = build_idealista_url(city="Milano", min_rooms=3, max_rooms=5)
-    assert "trilocali-3,quadrilocali-4" in url
+
+def test_five_plus_rooms_is_its_own_bucket_not_folded_into_four():
+    """"quadrilocali-4" means EXACTLY four. This code treated it as the
+    portal's "4 or more" bucket — a comment said so, and a test asserted the
+    comment — so every "4+ rooms" search silently dropped all five-room flats.
+
+    The portal's own UI settles it: picking "2 o più locali" produces
+    bilocali-2,trilocali-3,quadrilocali-4,5-locali-o-piu, and the totals are
+    exactly additive — quadrilocali-4 alone 367, 5-locali-o-piu alone 141, the
+    two together 508. Overlapping buckets could not add up like that.
+    """
+    # open-ended minimum must reach the 5+ bucket
+    url = build_idealista_url(city="Milano", min_rooms=4)
+    assert "quadrilocali-4,5-locali-o-piu" in url
+
+    url = build_idealista_url(city="Milano", min_rooms=3)
+    assert "trilocali-3,quadrilocali-4,5-locali-o-piu" in url
+
+    # an explicit cap still caps: 5+ is open-ended, so it only appears when the
+    # user did not ask for a maximum below it
+    url = build_idealista_url(city="Milano", min_rooms=3, max_rooms=4)
+    assert "trilocali-3,quadrilocali-4" in url and "5-locali-o-piu" not in url
+
+    url = build_idealista_url(city="Milano", min_rooms=3, max_rooms=9)
+    assert "trilocali-3,quadrilocali-4,5-locali-o-piu" in url
 
 
 def test_idealista_url_defaults_province_to_city():
@@ -389,6 +411,118 @@ def test_zone_urls_use_the_zone_page_grammar():
     assert build_idealista_url(city="Milano") == (
         "https://www.idealista.it/vendita-case/milano-milano/"
     )
+
+
+def test_feature_filters_map_to_each_portal_measured_grammar():
+    """Every value here was read off the real portals, not inferred.
+
+    Immobiliare's params come from URLs copied out of its own UI; `fasciaPiano`
+    was decoded from three combinations of it (/con-piano-terra/?fasciaPiano=20
+    = ground+middle, /con-piani-intermedi/?fasciaPiano=30 = middle+top), which
+    pins 20=middle, 30=top by two independent readings and leaves 10=ground.
+    Idealista's tokens were confirmed by watching its result total move
+    (3.477 -> 1.960 for `balcone`); it 404s a token it does not know, so no
+    token here passed silently.
+    """
+    params: dict[str, Any] = dict(
+        city="Milano", max_price=380_000, balcony=True, garden=True,
+        parking=True, elevator=True, exclude_auctions=True,
+        floor="middle", condition="good")
+
+    imm = build_immobiliare_url(**params)
+    for expected in ("balconeOterrazzo[]=balcone", "giardino[]=10", "boxAuto[]=1",
+                     "ascensore=1", "noAste=1", "fasciaPiano[]=20", "stato=2"):
+        assert expected in imm, expected
+
+    ide = build_idealista_url(**params)
+    assert "balcone,giardino,garage,ascensori,piani-intermedi,buono-stato" in ide
+    # Idealista's elevator token is PLURAL. Probing declared the filter absent
+    # because every spelling tried was singular, and the portal's own UI says
+    # "ascensori" — a 404 means "not this word", never "no such filter".
+    assert "ascensore," not in ide
+    # no auction filter is known on Idealista: it must not leak in as an
+    # invented token, which the portal would 404 on — taking the whole search
+    # down rather than merely widening it
+    assert "aste" not in ide
+
+
+def test_filters_idealista_cannot_apply_are_reported_not_swallowed():
+    """The Idealista half of a paired search is quietly the wider one whenever
+    a filter exists only on Immobiliare. Unsaid, the extra listings read as a
+    deduplication failure rather than a filter the portal does not have."""
+    # Immobiliare has noAste=1; no Idealista token for it is known yet
+    out = build_search_urls(dict(city="Milano", exclude_auctions=True))
+    assert out["idealista_unsupported"] == ["exclude_auctions"]
+
+    # "ottimo/ristrutturato" is Immobiliare's stato=6 with no Idealista twin
+    out = build_search_urls(dict(city="Milano", condition="excellent"))
+    assert out["idealista_unsupported"] == ["condition"]
+
+    # everything both portals can do reports nothing — including the elevator
+    # and the ground floor, which were wrongly believed Immobiliare-only
+    out = build_search_urls(dict(city="Milano", balcony=True, elevator=True,
+                                 floor="ground", condition="new"))
+    assert out["idealista_unsupported"] == []
+
+
+def test_immobiliare_filters_parse_back_from_path_or_query():
+    """Immobiliare renders ONE filter as a pretty path segment and the rest as
+    query params, so the same filter arrives either way depending on what else
+    the user picked. Reading only the query dropped whichever one the portal
+    had made pretty — /vendita-case/milano/con-ascensore/ is exactly the shape
+    two of the saved searches have."""
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=380000")
+    assert parsed["elevator"] is True
+
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/?ascensore=1&noAste=1"
+        "&balconeOterrazzo%5B0%5D=balcone&fasciaPiano%5B0%5D=20&stato=6")
+    assert parsed["elevator"] is True
+    assert parsed["exclude_auctions"] is True
+    assert parsed["balcony"] is True
+    assert parsed["floor"] == "middle"
+    assert parsed["condition"] == "excellent"
+
+    # the floor band also arrives as a path segment when picked alone
+    parsed = parse_search_url("https://www.immobiliare.it/vendita-case/milano/con-ultimo-piano/")
+    assert parsed["floor"] == "top"
+
+
+def test_idealista_opaque_location_urls_yield_no_city():
+    """A multi-zone selection addresses zones by opaque ids
+    (/multi/vendita-case/aOA,aOw/) and a map search by polygon: neither holds a
+    city. The positional rule read the ids as one, so every listing of such a
+    search carried the city "Aoa,Aow" — into the dedup fingerprint, where a
+    bogus city silently blocks cross-portal merging for the whole search
+    (invariant 1). Better nothing than wrong."""
+    from app.scrapers.idealista import IdealistaScraper
+
+    i = IdealistaScraper()
+    assert i._city_from_url("https://www.idealista.it/multi/vendita-case/aOA,aOw/") == ""
+
+    parsed = parse_search_url("https://www.idealista.it/multi/vendita-case/aOA,aOw/")
+    assert parsed["city"] == "" and parsed["zone"] == ""
+
+
+def test_idealista_zone_sits_under_a_macro_area():
+    """Idealista nests zones: /vendita-case/milano/fiera-de-angeli/fiera/ is
+    the zone "Fiera" inside the macro-area "Fiera De Angeli" (both live, 238 vs
+    1.536 listings). Reading the second segment named the macro-area as the
+    zone, so the edit form described a wider search than the URL performs.
+
+    This is also why /vendita-case/milano/bovisa/ is a 404 while
+    /vendita-case/milano/forlanini/ is not: Forlanini is a macro-area, Bovisa a
+    zone whose macro-area the name alone never yields."""
+    parsed = parse_search_url(
+        "https://www.idealista.it/vendita-case/milano/fiera-de-angeli/fiera/")
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == "Fiera"
+
+    # a two-level macro-area page still reads as itself
+    parsed = parse_search_url("https://www.idealista.it/vendita-case/milano/forlanini/")
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == "Forlanini"
 
 
 def test_zone_page_is_used_only_on_positive_proof():

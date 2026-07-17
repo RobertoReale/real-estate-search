@@ -23,10 +23,58 @@ from urllib.parse import parse_qs, urlparse
 
 # Idealista encodes room counts as named segments with a numeric suffix
 # ("con-trilocali/" is a 404 — verified live on 2026-07-09, along with every
-# segment below and their comma-joined combinations). "quadrilocali-4" is
-# the portal's own "4 or more" bucket.
+# segment below and their comma-joined combinations).
+#
+# Room buckets are DISCRETE and exact — "quadrilocali-4" means exactly four.
+# A comment here used to call it the portal's "4 or more" bucket; the portal's
+# own UI disproves it: picking "2 o più locali" yields
+# bilocali-2,trilocali-3,quadrilocali-4,5-locali-o-piu, and the totals are
+# exactly additive (quadrilocali-4 = 367, 5-locali-o-piu = 141, both together
+# = 508). While 4 was treated as the open-ended bucket, every "4+ rooms" search
+# silently dropped all five-room flats — the failure shape of invariant 7.
 IDEALISTA_ROOMS = {1: "monolocali-1", 2: "bilocali-2", 3: "trilocali-3",
-                   4: "quadrilocali-4"}
+                   4: "quadrilocali-4", 5: "5-locali-o-piu"}
+IDEALISTA_MAX_ROOM_BUCKET = 5  # the only open-ended one: "5 locali o più"
+
+# --- Feature filters -------------------------------------------------------
+#
+# Every mapping below is measured, never inferred from a portal's wording.
+#
+# Immobiliare renders ONE filter as a pretty path segment (/con-ascensore/) and
+# the rest as query params; the params work on their own, which is what the
+# builder uses — uniform, and the shape the user's own copied URLs already had.
+# `fasciaPiano` was decoded from three combinations of the real UI:
+# /con-piano-terra/?fasciaPiano[0]=20 = ground+middle and
+# /con-piani-intermedi/?fasciaPiano[0]=30 = middle+top, so 20=middle, 30=top
+# (two independent readings agree), leaving 10=ground.
+IMMOBILIARE_FLOORS = {"ground": 10, "middle": 20, "top": 30}
+# stato=N, read off the portal's own condition dropdown.
+IMMOBILIARE_CONDITION = {"new": 1, "good": 2, "excellent": 6}
+#
+# Idealista takes filters as comma-joined tokens in the con- segment. Each was
+# confirmed live by watching its result total move; a token it does not know
+# answers 404 rather than ignoring it, so nothing here passed silently.
+#
+# Guessing these is a trap worth remembering: probing found no elevator filter
+# because every spelling tried was singular, and the portal's own UI writes
+# "ascensori". A 404 means "not this word", never "no such filter" — when a
+# token is wanted, read it off the portal's UI rather than inventing it.
+IDEALISTA_FEATURES = {
+    "balcony": "balcone",        # 3.477 -> 1.960
+    "garden": "giardino",        # -> 1.203
+    "parking": "garage",         # -> 763
+    "elevator": "ascensori",     # 7.843 -> 5.331 (plural!)
+}
+IDEALISTA_FLOORS = {"ground": "piano-terra", "middle": "piani-intermedi",
+                    "top": "ultimo-piano"}
+IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato"}
+# Measured on Idealista but deliberately NOT offered: "piscina" (-> 30) and
+# "ristrutturare" (-> 739, "da ristrutturare"). Immobiliare renders both only
+# as path segments (/con-piscina/, /da-ristrutturare/) and its query-param
+# spelling is unknown, so offering them would filter Idealista while leaving
+# Immobiliare wide open — the same silent asymmetry idealista_unsupported
+# exists to prevent, only in the direction nothing reports. Add them once the
+# Immobiliare params are read off its UI.
 
 
 def _slug(name: str) -> str:
@@ -77,7 +125,10 @@ def build_immobiliare_url(
     city: str, contract: str = "sale", zone: str = "",
     min_price: int | None = None, max_price: int | None = None,
     min_rooms: int | None = None, max_rooms: int | None = None,
-    min_sqm: int | None = None, **_ignored,
+    min_sqm: int | None = None, balcony: bool = False, garden: bool = False,
+    parking: bool = False, elevator: bool = False,
+    exclude_auctions: bool = False, floor: str = "", condition: str = "",
+    **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
     query = []
@@ -91,6 +142,20 @@ def build_immobiliare_url(
         query.append(f"localiMassimo={max_rooms}")
     if min_sqm:
         query.append(f"superficieMinima={min_sqm}")
+    if balcony:
+        query.append("balconeOterrazzo[]=balcone")
+    if garden:
+        query.append("giardino[]=10")  # 10 = private, 20 = shared
+    if parking:
+        query.append("boxAuto[]=1")  # 1 = single garage, 3 = double, 4 = space
+    if elevator:
+        query.append("ascensore=1")
+    if exclude_auctions:
+        query.append("noAste=1")
+    if floor in IMMOBILIARE_FLOORS:
+        query.append(f"fasciaPiano[]={IMMOBILIARE_FLOORS[floor]}")
+    if condition in IMMOBILIARE_CONDITION:
+        query.append(f"stato={IMMOBILIARE_CONDITION[condition]}")
     # zone slugs are best-effort (the portal's own naming is not knowable
     # offline), so the UI shows the URL for verification before saving.
     # The api-next fallback copes either way: it resolves the last path
@@ -105,7 +170,9 @@ def build_idealista_url(
     city: str, contract: str = "sale", province: str = "", zone: str = "",
     min_price: int | None = None, max_price: int | None = None,
     min_rooms: int | None = None, max_rooms: int | None = None,
-    min_sqm: int | None = None, zone_page: bool = False, **_ignored,
+    min_sqm: int | None = None, zone_page: bool = False, balcony: bool = False,
+    garden: bool = False, parking: bool = False, elevator: bool = False,
+    floor: str = "", condition: str = "", **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
     filters = []
@@ -116,16 +183,31 @@ def build_idealista_url(
     if min_sqm:
         filters.append(f"dimensione_{min_sqm}")
     if min_rooms:
-        # room segments are discrete categories, not a minimum: "3+ rooms"
-        # is the union trilocali-3 + quadrilocali-4 (the portal's 4-or-more).
-        # An explicit max_rooms narrows that union, otherwise a search the
-        # user asked to cap at 3 locali would still return 4-room flats —
-        # which Immobiliare's localiMassimo does honour, so the two portals
-        # would disagree about the same profile.
-        low = min(max(min_rooms, 1), 4)
-        high = min(max_rooms, 4) if max_rooms else 4
+        # room segments are discrete categories, not a minimum: "3+ rooms" is
+        # the union trilocali-3 + quadrilocali-4 + 5-locali-o-piu, the last
+        # being the portal's only open-ended bucket. An explicit max_rooms
+        # narrows that union, otherwise a search the user asked to cap at 3
+        # locali would still return 4-room flats — which Immobiliare's
+        # localiMassimo does honour, so the two portals would disagree about
+        # the same profile.
+        low = min(max(min_rooms, 1), IDEALISTA_MAX_ROOM_BUCKET)
+        high = (min(max_rooms, IDEALISTA_MAX_ROOM_BUCKET) if max_rooms
+                else IDEALISTA_MAX_ROOM_BUCKET)
         for n in range(low, max(high, low) + 1):
             filters.append(IDEALISTA_ROOMS[n])
+    # Fixed order, not set iteration: the same criteria must always produce a
+    # byte-identical URL, or search_validator would read two spellings of one
+    # search as two different searches (invariant 20's duplicate check
+    # normalizes the query string, not the order of a path segment).
+    wanted = {"balcony": balcony, "garden": garden, "parking": parking,
+              "elevator": elevator}
+    for key in ("balcony", "garden", "parking", "elevator"):
+        if wanted[key]:
+            filters.append(IDEALISTA_FEATURES[key])
+    if floor in IDEALISTA_FLOORS:
+        filters.append(IDEALISTA_FLOORS[floor])
+    if condition in IDEALISTA_CONDITION:
+        filters.append(IDEALISTA_CONDITION[condition])
     con_seg = f"con-{','.join(filters)}/" if filters else ""
 
     # Idealista DOES have zone pages — /vendita-case/milano/forlanini/ is live,
@@ -225,7 +307,29 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
         "immobiliare": build_immobiliare_url(**params),
         "idealista": idealista,
         "idealista_zone_page": zone_page,
+        "idealista_unsupported": idealista_unsupported(params),
     }
+
+
+def idealista_unsupported(params: dict) -> list[str]:
+    """Which of the requested filters Idealista cannot apply.
+
+    Only the auction exclusion, so far: Immobiliare has noAste=1 and no token
+    tried on Idealista matches (its sidebar does show an "Asta" dropdown, so
+    one likely exists under a name not yet read off its UI — the entry stays
+    here until it is, since claiming a filter we do not apply is the worse
+    error). Left unsaid, the Idealista half of a paired search would quietly be
+    the wider one, and the extra listings would read as a deduplication failure
+    rather than a filter that is not there.
+    """
+    out = []
+    if params.get("exclude_auctions"):
+        out.append("exclude_auctions")
+    if params.get("floor") and params["floor"] not in IDEALISTA_FLOORS:
+        out.append("floor")
+    if params.get("condition") and params["condition"] not in IDEALISTA_CONDITION:
+        out.append("condition")
+    return out
 
 
 def _safe_int(val: Any) -> int | None:
@@ -296,6 +400,31 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
             zone = _unslug_zone(segments[1])
 
     qs = parse_qs(parsed.query)
+    # Immobiliare renders one filter as a path segment (/con-ascensore/) and
+    # the rest as query params, so a filter must be looked for in both places
+    # or a URL copied from the browser loses whichever one it made pretty.
+    segs = set(segments)
+
+    def _has(param: str, value: str = "", *, seg: str = "") -> bool:
+        if seg and seg in segs:
+            return True
+        vals = qs.get(param) or qs.get(f"{param}[]") or qs.get(f"{param}[0]") or []
+        return bool(vals) if not value else value in vals
+
+    floor = ""
+    for name, code in IMMOBILIARE_FLOORS.items():
+        if str(code) in (qs.get("fasciaPiano[]") or qs.get("fasciaPiano[0]") or []):
+            floor = name
+    for name, seg in (("ground", "con-piano-terra"), ("middle", "con-piani-intermedi"),
+                      ("top", "con-ultimo-piano")):
+        if seg in segs:
+            floor = name
+
+    condition = ""
+    for name, code in IMMOBILIARE_CONDITION.items():
+        if str(code) in (qs.get("stato") or []):
+            condition = name
+
     return {
         "city": city,
         "province": "",
@@ -306,6 +435,13 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         "min_rooms": _safe_int(qs.get("localiMinimo", [None])[0]),
         "max_rooms": _safe_int(qs.get("localiMassimo", [None])[0]),
         "min_sqm": _safe_int(qs.get("superficieMinima", [None])[0]),
+        "balcony": _has("balconeOterrazzo", "balcone"),
+        "garden": _has("giardino"),
+        "parking": _has("boxAuto"),
+        "elevator": _has("ascensore", seg="con-ascensore"),
+        "exclude_auctions": _has("noAste"),
+        "floor": floor,
+        "condition": condition,
     }
 
 
@@ -320,6 +456,12 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
     city = ""
     zone = ""
     province = ""
+    # Opaque zone ids and hand-drawn polygons carry no readable location: the
+    # positional rule turned /multi/vendita-case/aOA,aOw/ into city "Multi",
+    # zone "Vendita Case". Nothing to recover — leave the form blank rather
+    # than prefill it with rubbish the user would then save.
+    if segments and segments[0] in ("multi", "aree"):
+        return _idealista_params("", "", "", contract, segments)
     if segments and segments[0] == "cerca":
         # /cerca/<base>/con-<filters>/<Zone_City>/: the location is free text
         # and trails the filters, so it is found by exclusion, not by position.
@@ -343,7 +485,11 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
         else:
             city = _unslug_city(loc_segments[0])
         if len(loc_segments) >= 2:
-            zone = _unslug_zone(loc_segments[1])
+            # Idealista nests a zone under a macro-area:
+            # /milano/fiera-de-angeli/fiera/ — three levels, the last being the
+            # narrowest. Reading segment[1] named the macro-area ("Fiera De
+            # Angeli") as the zone, so the form showed a search the URL was not.
+            zone = _unslug_zone(loc_segments[-1])
 
     return _idealista_params(city, province, zone, contract, segments)
 
@@ -401,6 +547,7 @@ def _idealista_params(city: str, province: str, zone: str, contract: str,
             if max_rooms == min_rooms:
                 max_rooms = min_rooms
 
+    tokens = {f for s in segments if s.startswith("con-") for f in s[4:].split(",")}
     return {
         "city": city,
         "province": province,
@@ -411,6 +558,15 @@ def _idealista_params(city: str, province: str, zone: str, contract: str,
         "min_rooms": min_rooms,
         "max_rooms": max_rooms,
         "min_sqm": min_sqm,
+        "balcony": IDEALISTA_FEATURES["balcony"] in tokens,
+        "garden": IDEALISTA_FEATURES["garden"] in tokens,
+        "parking": IDEALISTA_FEATURES["parking"] in tokens,
+        # Idealista has neither filter, so a URL of its own can never assert
+        # them; a paired Immobiliare URL is where those come from.
+        "elevator": False,
+        "exclude_auctions": False,
+        "floor": next((k for k, v in IDEALISTA_FLOORS.items() if v in tokens), ""),
+        "condition": next((k for k, v in IDEALISTA_CONDITION.items() if v in tokens), ""),
     }
 
 
@@ -424,6 +580,8 @@ def parse_search_url(url: str) -> dict[str, Any]:
     return {
         "city": "", "province": "", "zone": "", "contract": "sale",
         "min_price": None, "max_price": None, "min_rooms": None,
-        "max_rooms": None, "min_sqm": None,
+        "max_rooms": None, "min_sqm": None, "balcony": False, "garden": False,
+        "parking": False, "elevator": False, "exclude_auctions": False,
+        "floor": "", "condition": "",
     }
 

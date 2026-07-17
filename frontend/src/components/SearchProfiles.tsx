@@ -23,7 +23,45 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
 const EMPTY_BUILDER: SearchBuilderParams = {
   city: "", province: "", zone: "", contract: "sale",
   min_price: "", max_price: "", min_rooms: "", max_rooms: "", min_sqm: "",
+  balcony: false, garden: false, parking: false, elevator: false,
+  exclude_auctions: false, floor: "", condition: "",
 };
+
+/** Feature filters both portals can apply. */
+const FEATURES = [
+  ["balcony", "Balcony"],
+  ["garden", "Garden"],
+  ["parking", "Garage / parking"],
+  ["elevator", "Lift"],
+] as const;
+
+/** Filters only Immobiliare has (noAste=1): no Idealista token for it is known,
+ *  so its half of a paired search stays the wider one — which the form says
+ *  rather than leaving the extra listings to look like a dedup failure. */
+const IMMOBILIARE_ONLY = [
+  ["exclude_auctions", "Exclude auctions"],
+] as const;
+
+/** Backend filter keys → what to call them when Idealista cannot apply them. */
+const UNSUPPORTED_LABELS: Record<string, string> = {
+  exclude_auctions: "excluding auctions",
+  floor: "this floor band",
+  condition: "this condition",
+};
+
+const FLOORS = [
+  ["", "Any floor"],
+  ["ground", "Ground floor"],
+  ["middle", "Middle floors"],
+  ["top", "Top floor"],
+] as const;
+
+const CONDITIONS = [
+  ["", "Any condition"],
+  ["new", "New build"],
+  ["good", "Good / habitable"],
+  ["excellent", "Excellent / renovated"],
+] as const;
 
 const ASSISTANT_EXAMPLES = [
   "trilocale in affitto a Milano sotto i 1.200 € al mese",
@@ -44,6 +82,8 @@ function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
     min_rooms: str(search.params.min_rooms),
     max_rooms: str(search.params.max_rooms),
     min_sqm: str(search.params.min_sqm),
+    balcony: false, garden: false, parking: false, elevator: false,
+    exclude_auctions: false, floor: "", condition: "",
   };
 }
 
@@ -61,6 +101,13 @@ function paramsFromProfile(params?: SearchProfile["params"]): SearchBuilderParam
     min_rooms: str(params.min_rooms),
     max_rooms: str(params.max_rooms),
     min_sqm: str(params.min_sqm),
+    balcony: Boolean(params.balcony),
+    garden: Boolean(params.garden),
+    parking: Boolean(params.parking),
+    elevator: Boolean(params.elevator),
+    exclude_auctions: Boolean(params.exclude_auctions),
+    floor: (params.floor || "") as SearchBuilderParams["floor"],
+    condition: (params.condition || "") as SearchBuilderParams["condition"],
   };
 }
 
@@ -920,6 +967,45 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 onChange={(e) => setParam({ min_sqm: e.target.value })} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs t-muted">Floor</label>
+              <select className="input w-full sm:w-36" value={params.floor}
+                onChange={(e) => setParam({
+                  floor: e.target.value as SearchBuilderParams["floor"],
+                })}>
+                {FLOORS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs t-muted">Condition</label>
+              <select className="input w-full sm:w-44" value={params.condition}
+                onChange={(e) => setParam({
+                  condition: e.target.value as SearchBuilderParams["condition"],
+                })}>
+                {CONDITIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {FEATURES.map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0">
+                <input type="checkbox" checked={params[key]}
+                  onChange={(e) => setParam({ [key]: e.target.checked })} />
+                {label}
+              </label>
+            ))}
+            {IMMOBILIARE_ONLY.map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0"
+                title="Immobiliare only: Idealista's search URLs have no such filter">
+                <input type="checkbox" checked={params[key]}
+                  onChange={(e) => setParam({ [key]: e.target.checked })} />
+                {label} <span className="t-dim text-xs">(Immobiliare only)</span>
+              </label>
+            ))}
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-3">
             <input className="input w-full" placeholder="Profile name (optional)"
               value={name} onChange={(e) => setName(e.target.value)} />
@@ -970,6 +1056,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   </p>
                 )
               )}
+              {usePortals.idealista && built.idealista_unsupported?.length ? (
+                <p className="text-xs t-muted">
+                  Idealista has no search filter for{" "}
+                  {built.idealista_unsupported
+                    .map((k) => UNSUPPORTED_LABELS[k] ?? k).join(", ")}
+                  , so its half of this pair is the wider search — expect
+                  listings there that Immobiliare filters out.
+                </p>
+              ) : null}
               {error && <p className="accent-bad text-xs">{error}</p>}
               <button className="btn-primary" onClick={createFromBuilder}
                 disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
