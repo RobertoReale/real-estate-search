@@ -8,6 +8,7 @@ nssm.exe
 
 # Local AI agent instructions & workspace history (NEVER commit to public git)
 CLAUDE.md
+AUDIT.md
 PIANO_LANCIO_PRIVATE.md
 .agents/
 .gemini/
