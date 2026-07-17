@@ -488,6 +488,30 @@ def test_a_room_cap_idealista_cannot_express_is_reported():
     assert out["idealista_unsupported"] == ["max_rooms"]
 
 
+def test_every_idealista_filter_survives_a_build_parse_round_trip():
+    """The edit form prefills itself by re-parsing a profile's own URL, so a
+    filter the builder writes but the parser cannot read is silently dropped the
+    next time the user presses Save.
+
+    `elevator` and `exclude_auctions` were hardcoded False here, under a comment
+    stating Idealista had neither filter — it has both ("ascensori", "aste_no").
+    The loop is the point: it covers whatever IDEALISTA_FEATURES holds, so a
+    token added to the table cannot be written without being parsed back.
+    """
+    from app.services.search_builder import IDEALISTA_FEATURES
+
+    flags: dict[str, Any] = {key: True for key in IDEALISTA_FEATURES}
+    url = build_idealista_url(city="Milano", province="Milano", max_price=380_000,
+                              min_sqm=65, floor="middle", condition="good", **flags)
+    back = parse_search_url(url)
+
+    for key in IDEALISTA_FEATURES:
+        assert back[key] is True, f"{key} was written to the URL but not parsed back"
+    assert back["floor"] == "middle"
+    assert back["condition"] == "good"
+    assert back["max_price"] == 380000 and back["min_sqm"] == 65
+
+
 def test_immobiliare_filters_parse_back_from_path_or_query():
     """Immobiliare renders ONE filter as a pretty path segment and the rest as
     query params, so the same filter arrives either way depending on what else

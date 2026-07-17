@@ -584,13 +584,12 @@ def _idealista_params(city: str, province: str, zone: str, contract: str,
         "min_rooms": min_rooms,
         "max_rooms": max_rooms,
         "min_sqm": min_sqm,
-        "balcony": IDEALISTA_FEATURES["balcony"] in tokens,
-        "garden": IDEALISTA_FEATURES["garden"] in tokens,
-        "parking": IDEALISTA_FEATURES["parking"] in tokens,
-        # Idealista has neither filter, so a URL of its own can never assert
-        # them; a paired Immobiliare URL is where those come from.
-        "elevator": False,
-        "exclude_auctions": False,
+        # Read back from the same table that writes them, so a token can never
+        # be written and not parsed. The elevator and the auction exclusion were
+        # hardcoded False here under a comment claiming Idealista had neither
+        # filter; it has both ("ascensori", "aste_no"), so a profile built with
+        # them lost them the moment the edit form re-parsed its own URL.
+        **{key: token in tokens for key, token in IDEALISTA_FEATURES.items()},
         "floor": next((k for k, v in IDEALISTA_FLOORS.items() if v in tokens), ""),
         "condition": next((k for k, v in IDEALISTA_CONDITION.items() if v in tokens), ""),
     }
