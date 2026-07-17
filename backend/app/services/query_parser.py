@@ -501,6 +501,68 @@ def _interpretation(item: dict) -> list[str]:
     return parts
 
 
+# Params in the shape every search entry (deterministic OR LLM) exposes, so a
+# caller never has to special-case a missing key.
+PARAM_KEYS = ("city", "province", "zone", "contract", "min_price",
+              "max_price", "min_rooms", "max_rooms", "min_sqm")
+
+_NO_CITY_WARNING = (
+    "I could not tell which city you mean. Add it below — without a city the "
+    "portals would return listings from all of Italy."
+)
+
+
+def build_search_entry(params: dict, *, contract_assumed: bool = False,
+                       notes: list[str] | None = None,
+                       warnings: list[str] | None = None) -> dict:
+    """Assemble one `{"params","interpretation","notes","warnings"}` entry from a
+    bare params dict, reusing the deterministic interpretation/warning text.
+
+    Shared with the LLM backend (services/llm_parser.py) so the two paths cannot
+    drift: both produce the same city warning, the same best-effort-zone note and
+    the same human interpretation the deterministic parser has always shown.
+    """
+    normalized = {k: params.get(k) for k in PARAM_KEYS}
+    normalized["city"] = normalized.get("city") or ""
+    normalized["province"] = normalized.get("province") or ""
+    normalized["zone"] = normalized.get("zone") or ""
+    normalized["contract"] = normalized.get("contract") or "sale"
+    item = {"params": normalized, "contract_assumed": contract_assumed}
+    entry_warnings = list(warnings or [])
+    if not normalized["city"]:
+        entry_warnings.insert(0, _NO_CITY_WARNING)
+    entry_notes = list(notes or [])
+    if normalized["zone"]:
+        entry_notes.append(
+            f"Zone \"{normalized['zone']}\" is matched best-effort: open the "
+            "generated links to check the portal recognises it."
+        )
+    return {
+        "params": normalized,
+        "interpretation": _interpretation(item),
+        "notes": entry_notes,
+        "warnings": entry_warnings,
+    }
+
+
+def parse_query_auto(query: str) -> dict:
+    """Dispatch to the configured NL backend.
+
+    The default is the deterministic parser below. When `nl_parser_backend` is
+    "llm" the query goes to an OpenAI-compatible model that returns the same
+    structured params; any failure (no config, bad JSON, network) falls straight
+    back to the deterministic parser, so the feature is fail-safe and the offline
+    default is never disturbed.
+    """
+    from ..config import load_settings
+    if load_settings().get("nl_parser_backend") == "llm":
+        from . import llm_parser
+        result = llm_parser.parse_with_llm(query)
+        if result is not None:
+            return result
+    return parse_query(query)
+
+
 def parse_query(query: str) -> dict:
     """Parses a free-text property search into search-builder parameters.
 

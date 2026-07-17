@@ -131,7 +131,9 @@ progetto/
 │   │       ├── notifier.py       # Telegram Bot API + SMTP email
 │   │       ├── pricing_stats.py  # €/sqm medians, market position per property
 │   │       ├── market_velocity.py# days-on-market and agency statistics
-│   │       ├── query_parser.py   # offline natural-language search assistant
+│   │       ├── query_parser.py   # offline natural-language search assistant (deterministic default)
+│   │       ├── llm_parser.py     # optional LLM backend for the assistant (OpenAI-compatible, falls back to query_parser)
+│   │       ├── geocoder.py       # opt-in Nominatim geocoding for missing map coordinates (cached, fail-open)
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
@@ -140,7 +142,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 401 tests
+│   ├── tests/                    # 431 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -179,12 +181,12 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (401, `pytest`)
+### Automated Tests (431, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
 ```
-Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the read-only IMAP inbox import (against a fake IMAP client), the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety).
+Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the read-only IMAP inbox import (against a fake IMAP client), the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware.
 
 ### Manual Verification
 1. Double click `scripts\windows\start.bat`.
@@ -268,6 +270,16 @@ Idealista answers **404 for a search that simply matched nothing**, serving its 
 Both portals were reporting an empty search as a broken profile, by two different routes: Idealista through `raise_for_status()` on that 404, Immobiliare — which answers 200 — through the "no listings extracted" alarm that an empty parse trips. Either way the dashboard showed a permanent `Error`, and the health streak (invariant 11) counted it towards alerting about a scraper that was working perfectly. Fixed by asking the portal's own words (`text_says_no_results`, visible text only, exactly as for the gone markers in invariant 16). The asymmetry is deliberate: only an explicit "nothing matched" may excuse an empty parse, because assuming empty pages are harmless would silence the alarm that catches a portal rewriting its markup.
 
 This also measured a smaller trap: the marker phrases had to survive the portal wrapping a sentence across lines, so `_visible_text` now collapses whitespace runs — a reader does not see the line break, and a marker must not depend on where the markup happens to wrap.
+
+### 8.14 "No cloud service, no LLM, no password — ever" — **Softened to "optional, off by default"**
+The original design was absolute: everything local, `query_parser` deterministic and offline "(no LLM)", and the bind address the only access control (invariant 14). Real use showed each absolute was costing more than it protected, so four **opt-in, default-off** escape hatches were added — none of which changes the local, free, offline behavior of an untouched install:
+
+- **Scraping-API transport.** Almost all of the project's most fragile code — the cookie harvester, the Camoufox/Playwright fallback, the block-streak/abort machinery — exists only because scans run from a residential IP DataDome learns. A DataDome-solving scraping API (Scrapfly/ScraperAPI/Zyte) removes that root cause: the target URL is handed to the provider, which returns solved HTML to the *same* parsers. Wrapped at the single `_fetch_once` choke point so nothing else forks; empty key keeps the local path. Relaxes invariants 8/16/18 for the remote path only. A free tier (~1,000 calls/month) covers a small personal scanner, so the "paid dependency" is real but avoidable.
+- **Optional LLM query parser.** The deterministic parser stays the default and every one of its tests stays green; the LLM backend (`llm_parser.py`) is a non-default alternative that emits the exact same structured params and falls back to the deterministic path on any failure. A local Ollama model keeps it free and fully offline, so the "(no LLM)" property becomes "no LLM unless you ask, and even then it can be local".
+- **Geocoding backfill.** One outbound, opt-in, cached call (Nominatim) turns the address/zone most listings carry into the coordinates ~70% of them lack. Fail-open by construction — a lookup that cannot resolve is left off the map, never guessed — and self-hostable for unlimited offline use.
+- **API token.** A single optional bearer token makes a wider bind safe without imposing a login on the loopback default. Empty = unchanged; set = every `/api` request needs it. Relaxes invariant 14 to "bind address **or** token".
+
+The through-line: each is the *option* the original absolutes ruled out, added without making the local/free/offline path anything other than the default.
 
 ---
 

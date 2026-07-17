@@ -67,6 +67,21 @@ DEFAULT_SETTINGS = {
     "dream_min_floor": 0,
     "dream_keywords": [],
     "dream_zones": [],
+    # Natural-language search assistant backend. "deterministic" (default) is
+    # the hand-written offline parser (services/query_parser.py); "llm" routes
+    # the query through an OpenAI-compatible chat endpoint that returns the same
+    # structured params, then FALLS BACK to the deterministic parser on any
+    # failure. Point llm_base_url at Ollama (http://localhost:11434/v1) for a
+    # free, fully-offline local model, or at a free cloud tier. See IMPROVEMENTS.md.
+    # Geocoding endpoint for the opt-in "backfill missing map coordinates"
+    # maintenance action (services/geocoder.py). Public Nominatim by default
+    # (1 request/second, cached so a batch stays inside it); point it at a
+    # self-hosted instance for unlimited, fully-offline use.
+    "nominatim_url": "https://nominatim.openstreetmap.org",
+    "nl_parser_backend": "deterministic",  # deterministic | llm
+    "llm_base_url": "",   # OpenAI-compatible base, e.g. http://localhost:11434/v1
+    "llm_api_key": "",    # blank for a local Ollama server
+    "llm_model": "",      # e.g. "llama3.1" / "qwen2.5" / "gpt-4o-mini"
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,
     "max_pages_per_search": 10,
@@ -76,6 +91,15 @@ DEFAULT_SETTINGS = {
     # ignore the alerts. 0 disables health alerting entirely.
     "health_alert_after_failures": 3,
     "proxy_url": "",
+    # Optional scraping API that solves DataDome server-side (Scrapfly /
+    # ScraperAPI / Zyte). Unlike a proxy these are not transparent: the scraper
+    # POSTs the *target* URL to the provider and gets back the solved HTML, so
+    # every existing parser is untouched. Empty key = the local curl_cffi/
+    # browser path stays in charge (the free, offline default). This trades the
+    # residential-IP fragility (invariants 8/16/18) for a paid — but free-tier-
+    # capable — dependency; see IMPROVEMENTS.md / ROADMAP.md.
+    "scrape_api_provider": "scrapfly",  # scrapfly | scraperapi | zyte
+    "scrape_api_key": "",
     # TLS impersonation override (advanced). Empty = use each scraper's built-in,
     # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
     # profile names (e.g. ["safari260", "safari184"]) replaces it for every
@@ -113,6 +137,13 @@ DEFAULT_SETTINGS = {
     # "chromium" pins the current behaviour; "camoufox" forces it (and still
     # falls back to Chromium if the launch fails, e.g. its browser is unfetched).
     "browser_engine": "auto",
+    # Optional shared-secret API token. Empty (default) = the API is open and
+    # the bind address is the only access control (invariant 14). A non-empty
+    # value requires every /api request to carry `Authorization: Bearer <token>`,
+    # which makes a wider bind (LAN, Tailscale) safe to expose. Returned in clear
+    # to an already-authenticated caller so the Settings UI can show/clear it —
+    # emptying the field disables auth again.
+    "api_auth_token": "",
 }
 
 
@@ -130,7 +161,8 @@ def load_settings() -> dict:
 # users paste them verbatim. smtplib/imaplib forward the spaces to the server,
 # which answers with an opaque AUTHENTICATIONFAILED. No provider allows spaces
 # in a password, so stripping them can only help.
-_SPACELESS_SECRETS = ("smtp_password", "imap_password", "telegram_bot_token", "datadome_cookie")
+_SPACELESS_SECRETS = ("smtp_password", "imap_password", "telegram_bot_token",
+                      "datadome_cookie", "scrape_api_key", "llm_api_key")
 
 
 def save_settings(new_values: dict) -> dict:

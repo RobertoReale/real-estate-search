@@ -29,6 +29,11 @@ export default function FiltersBar({
     properties_merged: number;
     duplicate_listings_removed: number;
   } | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeResult, setGeocodeResult] = useState<{
+    scanned: number; geocoded: number; cached: number;
+    not_found: number; remaining: number;
+  } | null>(null);
 
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
@@ -250,6 +255,27 @@ export default function FiltersBar({
             }}>
             {repairing ? "⏳ Repairing…" : "🛠️ Repair data"}
           </button>
+          <button
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
+              geocoding
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
+                : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/30"
+            }`}
+            disabled={geocoding}
+            title="Find map coordinates for listings that have an address or zone but no pin (uses OpenStreetMap; can take a while)"
+            onClick={async () => {
+              setGeocoding(true);
+              setGeocodeResult(null);
+              try {
+                const res = await api.geocodeMissing();
+                setGeocodeResult(res);
+                onChange({ ...filters });
+              } finally {
+                setGeocoding(false);
+              }
+            }}>
+            {geocoding ? "⏳ Locating…" : "📍 Find coordinates"}
+          </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
             DB) — see services/exporter.py */}
@@ -329,6 +355,30 @@ export default function FiltersBar({
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setRepairResult(null)}
+            title="Close">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {geocodeResult && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+          <div className="space-y-1">
+            <p className="font-semibold text-sky-700 dark:text-sky-400 text-sm flex items-center gap-1.5">
+              <span>📍</span> Coordinate lookup finished
+            </p>
+            <p>
+              Located <strong>{geocodeResult.geocoded}</strong> of{" "}
+              {geocodeResult.scanned} listings without a pin
+              {geocodeResult.not_found > 0 && <> · {geocodeResult.not_found} could not be resolved</>}.
+              {geocodeResult.remaining > 0 && (
+                <> <strong>{geocodeResult.remaining}</strong> left — run it again to continue.</>
+              )}
+            </p>
+          </div>
+          <button
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            onClick={() => setGeocodeResult(null)}
             title="Close">
             ✕
           </button>

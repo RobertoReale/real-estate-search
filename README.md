@@ -59,12 +59,17 @@ port forwarding, and no public IP. `serve.bat` (in `scripts\windows\`) detects t
 automatically and binds only to it, so the dashboard is reachable from your own
 devices anywhere and from nothing else.
 
-> Note: **The API has no password.** Anything that can reach port 8000 can read your
-> database and change your settings, so the address matters:
+> Note: **By default the API has no password**, so the address is the access
+> control:
 > - *(default)* Tailscale address — only your own logged-in devices.
 > - `scripts\windows\serve.bat lan` — **every device on your Wi-Fi**, guests included. Convenient
 >   at home, but do not use it on a network you do not control.
 > - Never forward port 8000 on your router.
+>
+> If you want a wider bind to be safe, set an **API token** (Settings → *API
+> access token*). With one set, every device is asked for it once before it can
+> see anything; your own browser stays logged in. Empty = the open,
+> address-only behavior above.
 
 Scans keep running only while the PC is on. Since listings stay online for days,
 one scan a day is usually enough — and Telegram/Email alerts already reach your
@@ -89,6 +94,12 @@ phone without any of this. The dashboard is for browsing and triaging.
      assistant builds both portal URLs for you. It runs offline with no AI
      service involved. Zone names are still a best guess on Immobiliare, so use
      the **"Open ↗"** link to check the result before saving the profile.
+   - *Optional AI parser*: if the built-in parser trips on unusual phrasing, you
+     can point it at a language model instead (Settings → *Search assistant
+     backend* → LLM). It understands freer wording and produces the same result;
+     on any hiccup it falls back to the offline parser. Use a **local Ollama**
+     model to keep this free and fully offline (nothing leaves your PC), or a
+     cloud API key. Off by default.
    - *Note on Idealista zones*: pressing **"Generate search URLs"** asks
      Idealista once whether it knows the zone you typed. It has a page for some
      zone names (Forlanini) but not others (Bovisa, Udine/Lambrate), and there
@@ -196,7 +207,12 @@ contrast, stops scanning it altogether.
 
 * **Map view**: the same properties as pins on an OpenStreetMap background —
   useful to see how a shortlist is spread across the city. Clicking a pin opens
-  the property.
+  the property. Many Immobiliare listings arrive without coordinates, so the map
+  can look sparse; the **📍 Find coordinates** button (next to *Repair data*)
+  looks up the missing pins from each listing's address or zone via OpenStreetMap
+  (opt-in, cached, and it never invents a wrong pin — a lookup it cannot resolve
+  is simply left off the map). It works in batches, so on a large dashboard press
+  it again to continue.
 * **Is this price fair?**: each card compares its €/sqm against the median of
   comparable properties in the same zone (falling back to the whole city), so an
   overpriced listing stands out. It needs at least 3 comparables to say anything,
@@ -519,6 +535,15 @@ You can provide that cookie in three ways, from most to least automatic:
 * **Proxy** — as a last resort, route scraper traffic through a proxy
   (Settings → Proxy URL). Note a *datacenter* proxy is blocked harder than your
   home IP; only a residential proxy helps.
+* **Scraping API** — for the sturdiest option, paste a key from a DataDome-solving
+  scraping API (Settings → Advanced Scraping → *Scraping API*: Scrapfly,
+  ScraperAPI or Zyte). Instead of fetching pages from your own IP, each scan
+  hands the target URL to the provider, which returns the already-solved HTML —
+  so blocks stop reaching your connection entirely, and detail data (like map
+  coordinates) becomes fetchable. This is the one place the app can use a paid
+  cloud service, and it stays **optional**: free tiers (~1,000 calls/month) can
+  cover a small personal scanner, and with no key set the app runs exactly as
+  before, fully local. Empty the key to go back to the local path.
 
 Nothing here is required for the app to work — a home connection is trusted by
 DataDome most of the time on its own. These are the levers for when it isn't.

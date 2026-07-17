@@ -168,10 +168,18 @@ export interface Settings {
   dream_keywords?: string[];
   dream_zones?: string[];
   excluded_keywords: string[];
+  nl_parser_backend?: string;
+  llm_base_url?: string;
+  llm_api_key?: string;
+  llm_api_key_set?: boolean;
+  llm_model?: string;
   request_delay_seconds: number;
   max_pages_per_search: number;
   health_alert_after_failures: number;
   proxy_url: string;
+  scrape_api_provider?: string;
+  scrape_api_key?: string;
+  scrape_api_key_set?: boolean;
   datadome_cookie: string;
   datadome_cookie_set?: boolean;
   datadome_auto_refresh?: boolean;
@@ -184,6 +192,7 @@ export interface Settings {
   // browser paths use; auto prefers Camoufox when installed
   browser_engine?: string;
   camoufox_available?: boolean;
+  api_auth_token?: string;
 }
 
 /** Status and timing details of background scan execution. */

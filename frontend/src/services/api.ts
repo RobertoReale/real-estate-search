@@ -11,12 +11,45 @@ import type {
 
 const BASE = "/api";
 
+/** Optional shared-secret API token (invariant 14 relaxed). Kept in
+ *  localStorage so it survives reloads; attached to every request as a Bearer
+ *  header. Empty string when the backend has auth off — the common case. */
+const TOKEN_KEY = "apiToken";
+export const authToken = {
+  get: () => localStorage.getItem(TOKEN_KEY) || "",
+  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+};
+
+/** Thrown on a 401 so the app can show the token prompt instead of a red toast. */
+export class AuthError extends Error {
+  constructor() {
+    super("Authentication required");
+    this.name = "AuthError";
+  }
+}
+
+/** Set by the app so any 401 anywhere can surface the login gate. */
+let onAuthRequired: (() => void) | null = null;
+export function setAuthRequiredHandler(fn: () => void) {
+  onAuthRequired = fn;
+}
+
 /** Execute an HTTP request against the backend REST endpoint, throwing formatted JSON errors on failure. */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = authToken.get();
   const resp = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
   });
+  if (resp.status === 401) {
+    onAuthRequired?.();
+    throw new AuthError();
+  }
   if (!resp.ok) {
     const body = await resp.json().catch(() => null);
     throw new Error(body?.detail ?? `Error ${resp.status}`);
@@ -206,6 +239,16 @@ export const api = {
   }> {
     return request("/maintenance/repair-listings", { method: "POST" });
   },
+  /** Backfill map coordinates for properties with an address/zone but no pin,
+   *  via Nominatim (opt-in, batched, paced, cached). `remaining` > 0 means run
+   *  it again to continue. */
+  geocodeMissing(): Promise<{
+    scanned: number; geocoded: number; cached: number;
+    not_found: number; remaining: number;
+  }> {
+    return request("/maintenance/geocode-missing", { method: "POST" });
+  },
+
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
   resetData(scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory"): Promise<{
     scope: string; deleted: Record<string, number>; backup?: string | null;

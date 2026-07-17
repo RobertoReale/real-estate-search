@@ -227,6 +227,27 @@ class PricingSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class GeocodeCache(Base):
+    """One resolved (or unresolved) geocoding lookup, keyed by its query string.
+
+    ~70% of Immobiliare listings arrive with no coordinates, so the map is
+    mostly empty. The opt-in geocoder (services/geocoder.py) turns their
+    "address/zone + city" into pins — but the free Nominatim endpoint allows one
+    request per second, so re-querying the same "via Dante, Milano" on every run
+    would make a batch unusable. This table is the memory that keeps it inside
+    that limit: a row exists once a query has been tried, and a NULL lat/lng is a
+    negative result cached on purpose (do not ask again). Never a source of a
+    *wrong* pin — a failed lookup leaves the property's coordinates untouched.
+    """
+    __tablename__ = "geocode_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    query: Mapped[str] = mapped_column(String, unique=True, index=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class SearchProfile(Base):
     __tablename__ = "search_profiles"
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api } from "../services/api";
+import { api, authToken } from "../services/api";
 import type { Settings } from "../types";
 
 interface Props {
@@ -66,12 +66,19 @@ export default function SettingsModal({ onClose }: Props) {
   const [dreamMinFloor, setDreamMinFloor] = useState(0);
   const [dreamKeywords, setDreamKeywords] = useState("");
   const [dreamZones, setDreamZones] = useState("");
+  const [nlBackend, setNlBackend] = useState("deterministic");
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmModel, setLlmModel] = useState("");
   const [proxyUrl, setProxyUrl] = useState("");
+  const [scrapeApiProvider, setScrapeApiProvider] = useState("scrapfly");
+  const [scrapeApiKey, setScrapeApiKey] = useState("");
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
   const [browserHeadful, setBrowserHeadful] = useState(false);
   const [browserEngine, setBrowserEngine] = useState("auto");
+  const [apiToken, setApiToken] = useState("");
   const [grabbing, setGrabbing] = useState(false);
   const [stoppingGrab, setStoppingGrab] = useState(false);
   const [installingHarvester, setInstallingHarvester] = useState(false);
@@ -109,17 +116,24 @@ export default function SettingsModal({ onClose }: Props) {
     setDreamMinFloor(s.dream_min_floor ?? 0);
     setDreamKeywords((s.dream_keywords ?? []).join(", "));
     setDreamZones((s.dream_zones ?? []).join(", "));
+    setNlBackend(s.nl_parser_backend || "deterministic");
+    setLlmBaseUrl(s.llm_base_url || "");
+    setLlmModel(s.llm_model || "");
     setProxyUrl(s.proxy_url || "");
+    setScrapeApiProvider(s.scrape_api_provider || "scrapfly");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     setBrowserFirst(s.availability_browser_first ?? false);
     setBrowserHeadful(s.availability_browser_headful ?? false);
     setBrowserEngine(s.browser_engine ?? "auto");
+    setApiToken(s.api_auth_token ?? "");
     // Secrets are write-only: the server never returns them, so the inputs go
     // back to their "already saved" placeholder rather than showing stale dots.
     setToken("");
     setSmtpPassword("");
     setImapPassword("");
     setDatadomeCookie("");
+    setScrapeApiKey("");
+    setLlmApiKey("");
   }
 
   /** Persists the form and refreshes local state from the server's answer. */
@@ -149,18 +163,29 @@ export default function SettingsModal({ onClose }: Props) {
       dream_min_floor: dreamMinFloor,
       dream_keywords: dreamKeywords.split(",").map((k) => k.trim()).filter(Boolean),
       dream_zones: dreamZones.split(",").map((k) => k.trim()).filter(Boolean),
+      nl_parser_backend: nlBackend,
+      llm_base_url: llmBaseUrl,
+      llm_model: llmModel,
       proxy_url: proxyUrl,
+      scrape_api_provider: scrapeApiProvider,
       datadome_auto_refresh: autoRefresh,
       availability_browser_first: browserFirst,
       availability_browser_headful: browserHeadful,
       browser_engine: browserEngine,
+      api_auth_token: apiToken,
     };
+    // Keep this browser's stored token in step with the field, so enabling auth
+    // does not lock out the very next request (and clearing it removes the token).
+    if (apiToken.trim()) authToken.set(apiToken.trim());
+    else authToken.clear();
     // An empty secret field means "keep the stored one", never "erase it".
     // Pasted app passwords keep their display spaces; save_settings strips them.
     if (token.trim()) payload.telegram_bot_token = token.trim();
     if (smtpPassword.trim()) payload.smtp_password = smtpPassword;
     if (imapPassword.trim()) payload.imap_password = imapPassword;
     if (datadomeCookie.trim()) payload.datadome_cookie = datadomeCookie;
+    if (scrapeApiKey.trim()) payload.scrape_api_key = scrapeApiKey.trim();
+    if (llmApiKey.trim()) payload.llm_api_key = llmApiKey.trim();
     hydrate(await api.updateSettings(payload));
   }
 
@@ -619,6 +644,40 @@ export default function SettingsModal({ onClose }: Props) {
         )}
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
+          🧠 Search assistant backend
+        </h3>
+        <p className="text-xs t-dim mb-2">
+          How the "describe your search in words" box turns text into a search.
+          The default parser is offline and instant. An LLM understands freer
+          phrasing; it falls back to the offline parser on any error, and
+          nothing else on your PC ever leaves it.
+        </p>
+        <select className="input w-full" value={nlBackend}
+          onChange={(e) => setNlBackend(e.target.value)}>
+          <option value="deterministic">Built-in parser (offline, default)</option>
+          <option value="llm">LLM (OpenAI-compatible / local Ollama)</option>
+        </select>
+        {nlBackend === "llm" && (
+          <div className="space-y-2 mt-2">
+            <p className="text-xs t-dim">
+              For a free, fully-offline model install{" "}
+              <Link href="https://ollama.com">Ollama</Link> and use base URL{" "}
+              <code className="px-1 rounded bg-black/10 dark:bg-white/10 select-all">http://localhost:11434/v1</code>{" "}
+              with a model like <code className="px-1 rounded bg-black/10 dark:bg-white/10">llama3.1</code> (no key needed).
+            </p>
+            <input className="input w-full" placeholder="Base URL (e.g. http://localhost:11434/v1)"
+              value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input className="input w-full" placeholder="Model (e.g. llama3.1)"
+                value={llmModel} onChange={(e) => setLlmModel(e.target.value)} />
+              <input className="input w-full" type="password"
+                placeholder={settings.llm_api_key_set ? "API key saved (leave empty to keep)" : "API key (blank for local Ollama)"}
+                value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
           🛡️ Advanced Scraping & Bypass
         </h3>
         <HelpSteps
@@ -642,6 +701,27 @@ export default function SettingsModal({ onClose }: Props) {
             <label className="text-xs t-muted block mb-1">Proxy URL (HTTP/HTTPS/SOCKS5)</label>
             <input className="input w-full" placeholder="e.g. socks5://127.0.0.1:9050"
               value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} />
+          </div>
+          <div className="rounded-xl panel p-3 space-y-2">
+            <p className="text-xs font-medium t-body">🌐 Scraping API (solves DataDome for you)</p>
+            <p className="text-xs t-dim">
+              Optional. With a provider key set, scans route each portal page
+              through the provider — which returns the already-solved HTML — so
+              blocks stop hitting your home IP. Free tiers (~1,000 calls/month)
+              can cover a small personal scanner. Leave empty to keep the local
+              (free, offline) path.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <select className="input w-full" value={scrapeApiProvider}
+                onChange={(e) => setScrapeApiProvider(e.target.value)}>
+                <option value="scrapfly">Scrapfly</option>
+                <option value="scraperapi">ScraperAPI</option>
+                <option value="zyte">Zyte</option>
+              </select>
+              <input className="input w-full sm:col-span-2" type="password"
+                placeholder={settings.scrape_api_key_set ? "Key already saved (leave empty to keep)" : "Provider API key"}
+                value={scrapeApiKey} onChange={(e) => setScrapeApiKey(e.target.value)} />
+            </div>
           </div>
           <div>
             <label className="text-xs t-muted block mb-1">DataDome Cookie</label>
@@ -752,6 +832,20 @@ export default function SettingsModal({ onClose }: Props) {
             )}
           </div>
         </div>
+
+        <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
+          🔒 API access token
+        </h3>
+        <p className="text-xs t-dim mb-2">
+          By default the dashboard is reachable by anyone who can reach its
+          address (that is why it binds to localhost). Set a token to require it
+          on every request — then it is safe to expose the app on your LAN or
+          Tailscale. Leave empty to keep it open. You stay logged in on this
+          device; other devices are asked for the token once.
+        </p>
+        <input className="input w-full" type="password"
+          placeholder="No token (open access)"
+          value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
 
         <Result where="global" />
 

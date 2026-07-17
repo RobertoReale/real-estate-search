@@ -1,6 +1,7 @@
 """Scraper base: HTTP client with TLS impersonation, normalized listing dataclass,
 and 3-strategy pipeline (JSON-LD -> embedded state -> heuristic parsing)
 implemented in subclasses."""
+import base64
 import json
 import logging
 import random
@@ -8,7 +9,7 @@ import re
 import time
 import typing
 from dataclasses import dataclass, field
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
@@ -214,6 +215,100 @@ def to_int(value) -> int | None:
         return None
 
 
+# --- Optional scraping-API transport (Scrapfly / ScraperAPI / Zyte) ----------
+#
+# These providers are NOT proxies: you hand them the *target* URL and they
+# return the already-solved HTML, DataDome and all. So the whole point is that
+# every parser downstream still receives ordinary HTML — the only thing that
+# changes is the single choke point that fetches it (`_fetch_once`). Kept as
+# free module functions so they are unit-testable without a live network: a
+# test asserts the request is rewritten to the provider and the wrapper JSON is
+# unwrapped back to raw HTML.
+
+@dataclass
+class _ScrapeApiRequest:
+    method: str
+    url: str
+    params: dict | None = None
+    headers: dict | None = None
+    json_body: dict | None = None
+
+
+def scrape_api_config() -> tuple[str, str]:
+    """(provider, key) from settings; key is "" when the local path should run."""
+    from ..config import load_settings
+    s = load_settings()
+    provider = (s.get("scrape_api_provider") or "scrapfly").strip().lower()
+    key = (s.get("scrape_api_key") or "").strip()
+    return provider, key
+
+
+def build_scrape_api_request(provider: str, key: str, url: str) -> _ScrapeApiRequest:
+    """Turn a target URL into the provider call that returns its solved HTML.
+
+    `asp`/anti-bot and Italian geo are requested where the provider supports
+    them (DataDome lives on .it and geo-checks the exit IP); `render_js` stays
+    off — the parsers read the server HTML, not a hydrated DOM, and JS rendering
+    both costs more credits and is unnecessary here.
+    """
+    if provider == "scraperapi":
+        # ScraperAPI answers with the raw target HTML directly (no JSON wrapper).
+        return _ScrapeApiRequest(
+            method="GET",
+            url="https://api.scraperapi.com/",
+            params={"api_key": key, "url": url, "country_code": "it"},
+        )
+    if provider == "zyte":
+        # Zyte wants a POST with the key as HTTP Basic username (empty password)
+        # and returns the body base64-encoded under httpResponseBody.
+        token = base64.b64encode(f"{key}:".encode()).decode()
+        return _ScrapeApiRequest(
+            method="POST",
+            url="https://api.zyte.com/v1/extract",
+            headers={"Authorization": f"Basic {token}"},
+            json_body={"url": url, "httpResponseBody": True},
+        )
+    # Default: Scrapfly. GET with the target URL encoded into the query string;
+    # asp=true turns on its anti-scraping-protection (DataDome) solver.
+    return _ScrapeApiRequest(
+        method="GET",
+        url=(
+            "https://api.scrapfly.io/scrape"
+            f"?key={quote(key, safe='')}&asp=true&render_js=false"
+            f"&country=it&url={quote(url, safe='')}"
+        ),
+    )
+
+
+def unwrap_scrape_api_response(provider: str, resp) -> str:
+    """Extract the target HTML from the provider's response.
+
+    Scrapfly wraps it in JSON (`result.content`), Zyte base64-encodes it under
+    `httpResponseBody`, ScraperAPI returns it verbatim. A shape that does not
+    match is a provider/quota error dressed as 200, so raising BlockedError
+    routes it into the same rotate/fallback path as any other refusal.
+    """
+    if provider == "scraperapi":
+        return resp.text
+    if provider == "zyte":
+        try:
+            data = resp.json()
+            body = data.get("httpResponseBody") or data.get("browserHtml")
+            if not body:
+                raise BlockedError(f"zyte: no HTML in response: {str(data)[:200]}")
+            if data.get("browserHtml"):
+                return body
+            return base64.b64decode(body).decode("utf-8", "replace")
+        except (ValueError, KeyError) as e:
+            raise BlockedError(f"zyte: unreadable response ({e})")
+    # Scrapfly
+    try:
+        content = resp.json()["result"]["content"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise BlockedError(f"scrapfly: unreadable response ({e})")
+    return content or ""
+
+
 class BaseScraper:
     portal: str = ""
     # ORDERED list by preference, not random: portals only accept certain
@@ -310,7 +405,35 @@ class BaseScraper:
     def warm_session(self) -> None:
         """Hook: subclasses visit the homepage to acquire cookies."""
 
+    def _fetch_via_scrape_api(self, url: str, provider: str, key: str) -> str:
+        """Fetch through the configured scraping API instead of curl_cffi.
+
+        The provider solves DataDome for us, so the returned HTML is fed to the
+        exact same parsers. A provider-level refusal (bad key, quota exhausted,
+        or a page the provider itself could not solve) surfaces as BlockedError,
+        which the fetch() loop already knows how to rotate/abandon on.
+        """
+        req = build_scrape_api_request(provider, key, url)
+        # curl_cffi's typed .request narrows `method` to a Literal and its
+        # return to Response|None (streaming overload); we pass a runtime string
+        # and always get a Response, so go through an untyped handle.
+        send = typing.cast(typing.Any, self.session.request)
+        resp = send(
+            req.method, req.url, params=req.params,
+            headers=req.headers, json=req.json_body, allow_redirects=True,
+        )
+        if resp.status_code in (401, 402, 403, 429):
+            raise BlockedError(
+                f"{self.portal}: scrape API ({provider}) refused "
+                f"(HTTP {resp.status_code}) on {url}"
+            )
+        resp.raise_for_status()
+        return unwrap_scrape_api_response(provider, resp)
+
     def _fetch_once(self, url: str) -> str:
+        provider, key = scrape_api_config()
+        if key:
+            return self._fetch_via_scrape_api(url, provider, key)
         resp = self.session.get(url, allow_redirects=True)
         if resp.status_code in (403, 429) or "captcha" in resp.text[:4000].lower():
             raise BlockedError(

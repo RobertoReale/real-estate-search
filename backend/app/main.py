@@ -1,5 +1,6 @@
 """FastAPI entrypoint: REST routes for properties, search profiles,
 scans, and settings."""
+import hmac
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from logging.handlers import RotatingFileHandler
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -27,7 +28,7 @@ from .services.match_score import annotate_match_scores
 from .services.pricing_stats import (
     annotate_market_position, get_trends, list_trend_areas,
 )
-from .services.query_parser import parse_query
+from .services.query_parser import parse_query_auto
 from .services.scanner import run_scan, scan_state
 from .services.search_builder import build_search_urls, parse_search_url
 from .services.search_validator import check_duplicate_profile
@@ -71,6 +72,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def require_api_token(request: Request, call_next):
+    """Optional shared-secret gate on /api (invariant 14 relaxed to "bind
+    address **or** token").
+
+    Off entirely when `api_auth_token` is empty — nothing changes for the
+    loopback-only default. When set, every /api request must carry
+    `Authorization: Bearer <token>`; the static SPA and any non-/api route stay
+    open so the app can load and present its login prompt, and CORS preflight
+    (OPTIONS, which browsers send without the header) is never blocked.
+    """
+    token = (load_settings().get("api_auth_token") or "").strip()
+    if (token and request.method != "OPTIONS"
+            and request.url.path.startswith("/api/")):
+        provided = request.headers.get("Authorization", "")
+        # constant-time compare so a wrong token cannot be timed out character
+        # by character
+        if not hmac.compare_digest(provided, f"Bearer {token}"):
+            return JSONResponse(
+                {"detail": "Authentication required: provide the API token."},
+                status_code=401,
+            )
+    return await call_next(request)
 
 
 # --- Properties ---
@@ -655,7 +681,7 @@ def search_assistant(data: schemas.AssistantQueryIn):
     only when a city was identified — without one the portals would silently
     return all of Italy.
     """
-    result = parse_query(data.query)
+    result = parse_query_auto(data.query)
     searches = []
     for search in result["searches"]:
         params = schemas.AssistantParams(**search["params"])
@@ -910,6 +936,15 @@ def repair_listings_endpoint(db: Session = Depends(get_db)):
     return repair_empty_listings_locally(db)
 
 
+@app.post("/api/maintenance/geocode-missing")
+def geocode_missing_endpoint(db: Session = Depends(get_db)):
+    """Fills in map coordinates for properties that have an address/zone but no
+    pin, via Nominatim (opt-in, batched, paced, cached). Fails open: a lookup
+    that cannot resolve leaves the property untouched."""
+    from .services.geocoder import geocode_missing_properties
+    return geocode_missing_properties(db)
+
+
 # Scoped, irreversible data resets (Settings → Data management). Each is a
 # distinct deliberate choice, so they are separate scopes rather than flags on
 # one call. `factory` and `dashboard` delete rows a running scan is writing, so
@@ -982,6 +1017,10 @@ def get_settings():
     settings["imap_password"] = "***" if settings.get("imap_password") else ""
     settings["datadome_cookie_set"] = bool(settings.get("datadome_cookie"))
     settings["datadome_cookie"] = "***" if settings.get("datadome_cookie") else ""
+    settings["scrape_api_key_set"] = bool(settings.get("scrape_api_key"))
+    settings["scrape_api_key"] = "***" if settings.get("scrape_api_key") else ""
+    settings["llm_api_key_set"] = bool(settings.get("llm_api_key"))
+    settings["llm_api_key"] = "***" if settings.get("llm_api_key") else ""
     # whether the optional browser automation is installed, so the UI can show
     # the "grab it for me" button instead of a paste-only field
     from .services import cookie_harvester
@@ -1002,6 +1041,10 @@ def update_settings(data: schemas.SettingsIn):
         values.pop("imap_password")
     if values.get("datadome_cookie") == "***":
         values.pop("datadome_cookie")
+    if values.get("scrape_api_key") == "***":
+        values.pop("scrape_api_key")
+    if values.get("llm_api_key") == "***":
+        values.pop("llm_api_key")
     save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
