@@ -190,7 +190,7 @@ def build_idealista_url(
         filters.append(f"prezzo-min_{min_price}")
     if min_sqm:
         filters.append(f"dimensione_{min_sqm}")
-    if min_rooms:
+    if min_rooms or max_rooms:
         # room segments are discrete categories, not a minimum: "3+ rooms" is
         # the union trilocali-3 + quadrilocali-4 + 5-locali-o-piu, the last
         # being the portal's only open-ended bucket. An explicit max_rooms
@@ -198,7 +198,13 @@ def build_idealista_url(
         # locali would still return 4-room flats — which Immobiliare's
         # localiMassimo does honour, so the two portals would disagree about
         # the same profile.
-        low = min(max(min_rooms, 1), IDEALISTA_MAX_ROOM_BUCKET)
+        #
+        # Either bound alone is enough to build the union: gating this on
+        # min_rooms once meant a cap-only search ("max 3 locali") emitted no
+        # room segment at all, so Immobiliare filtered and Idealista returned
+        # the whole city — the wider half reads as broken deduplication, not
+        # as a missing filter.
+        low = min(max(min_rooms or 1, 1), IDEALISTA_MAX_ROOM_BUCKET)
         high = (min(max_rooms, IDEALISTA_MAX_ROOM_BUCKET) if max_rooms
                 else IDEALISTA_MAX_ROOM_BUCKET)
         for n in range(low, max(high, low) + 1):
@@ -218,14 +224,15 @@ def build_idealista_url(
         filters.append(IDEALISTA_CONDITION[condition])
     con_seg = f"con-{','.join(filters)}/" if filters else ""
 
-    # Idealista DOES have zone pages — /vendita-case/milano/forlanini/ is live,
-    # 124 listings — but they are keyed by slugs of its own, and a zone's *name*
-    # only sometimes happens to be one: /milano/bovisa/ and
-    # /milano/udine-lambrate/ are 404s (with and without the province suffix;
-    # measured live 2026-07-17, 7 of the 8 real searches in the database).
-    # Nothing offline can tell the two apart, so the zone page is used only on
-    # positive proof — see resolve_idealista_url, which probes it once when the
-    # user generates the search. `zone_page=True` is that proof.
+    # Idealista DOES have zone pages, but they nest under a macro-area:
+    # /vendita-case/milano/fiera-de-angeli/fiera/ is the portal's own three-level
+    # URL. This two-level form is the special case where the zone *is* a
+    # macro-area — /milano/forlanini/ is live with 124 listings, while
+    # /milano/bovisa/ 404s because Bovisa's macro-area cannot be derived from its
+    # name. Nothing offline can tell the two apart, so the zone page is used only
+    # on positive proof — see resolve_idealista_url, which probes it once when the
+    # user generates the search. `zone_page=True` is that proof, and the /cerca/
+    # fallback below is what the other zones get until their macro-area is known.
     if zone and zone_page:
         return (f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/"
                 f"{con_seg}")
@@ -306,7 +313,6 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
     it when the user presses Generate, and leaves it off when it is merely
     re-deriving a URL to prefill an edit form.
     """
-    params = {k: v for k, v in params.items() if k != "verify"}
     idealista, zone_page = (
         resolve_idealista_url(params) if verify
         else (build_idealista_url(**params), False)
@@ -322,11 +328,17 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
 def idealista_unsupported(params: dict) -> list[str]:
     """Which of the requested filters Idealista cannot apply.
 
-    Only "excellent/renovated" condition, so far: Immobiliare has stato=6 and
-    Idealista's dropdown offers no equivalent. Left unsaid, the Idealista half
-    of a paired search would quietly be the wider one, and the extra listings
-    would read as a deduplication failure rather than a filter that is not
-    there.
+    Left unsaid, the Idealista half of a paired search would quietly be the
+    wider one, and the extra listings would read as a deduplication failure
+    rather than a filter that is not there.
+
+    Two cases, both structural:
+    - "excellent/renovated" condition: Immobiliare has stato=6 and Idealista's
+      dropdown offers no equivalent.
+    - a room cap of 5 or more: Idealista's top bucket is "5 locali o più", so
+      any cap that needs it is open-ended, while Immobiliare's localiMassimo
+      honours the cap exactly. A cap of 4 or less lands on discrete buckets and
+      is expressible.
 
     Everything else once listed here turned out to exist under a name that had
     simply not been read off the portal yet — the elevator ("ascensori") and
@@ -338,18 +350,23 @@ def idealista_unsupported(params: dict) -> list[str]:
         out.append("floor")
     if params.get("condition") and params["condition"] not in IDEALISTA_CONDITION:
         out.append("condition")
+    max_rooms = params.get("max_rooms")
+    if max_rooms and max_rooms >= IDEALISTA_MAX_ROOM_BUCKET:
+        out.append("max_rooms")
     return out
 
 
 def _safe_int(val: Any) -> int | None:
+    """Coerce a single portal URL value into an int, or None if it holds no
+    number. Callers pass one value (a query param already unwrapped from
+    parse_qs's list, or a path token already split), never a collection."""
     if val is None:
         return None
-    if isinstance(val, list) and val:
-        val = val[0]
+    digits = re.sub(r"[^\d.]", "", str(val))
+    if not digits:
+        return None
     try:
-        if isinstance(val, str):
-            val = re.sub(r"[^\d.]", "", str(val))
-        return int(float(val)) if val else None
+        return int(float(digits))
     except (ValueError, TypeError):
         return None
 

@@ -192,6 +192,7 @@ class SearchProfileOut(BaseModel):
     consecutive_failures: int = 0
 
     @computed_field
+    @property
     def params(self) -> SearchBuilderParamsOut:
         from .services.search_builder import parse_search_url
         return SearchBuilderParamsOut(**parse_search_url(self.search_url))

@@ -632,7 +632,8 @@ def search_builder(data: schemas.SearchBuilderIn):
     would hold the event loop for its whole duration.
     """
     payload = data.model_dump()
-    return build_search_urls(payload, verify=payload.pop("verify", False))
+    verify = payload.pop("verify", False)
+    return build_search_urls(payload, verify=verify)
 
 
 @app.post("/api/search-builder/parse", response_model=schemas.SearchBuilderParamsOut)

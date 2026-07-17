@@ -463,6 +463,31 @@ def test_filters_idealista_cannot_apply_are_reported_not_swallowed():
     assert out["idealista_unsupported"] == []
 
 
+def test_a_room_cap_alone_still_filters_idealista():
+    """Regression: the room segments were gated on `min_rooms`, so a cap-only
+    search ("max 3 locali") emitted none of them — Immobiliare honoured
+    localiMassimo=3 while Idealista returned the whole city, and nothing said
+    so. The wider half reads as broken deduplication, not a missing filter.
+    """
+    out = build_search_urls(dict(city="Milano", province="Milano", max_rooms=3))
+    assert "con-monolocali-1,bilocali-2,trilocali-3/" in out["idealista"]
+    assert "localiMassimo=3" in out["immobiliare"]
+    # a cap of 3 lands on discrete buckets, so both portals mean the same thing
+    assert out["idealista_unsupported"] == []
+
+
+def test_a_room_cap_idealista_cannot_express_is_reported():
+    """"5 locali o più" is Idealista's only open-ended bucket, so any cap that
+    needs it is not a cap at all: Immobiliare's localiMassimo=5 excludes a
+    6-room flat and Idealista's 5-locali-o-piu returns it. Same failure shape as
+    treating quadrilocali-4 as "4 or more" — an open-ended bucket read as exact.
+    """
+    out = build_search_urls(dict(city="Milano", province="Milano",
+                                 min_rooms=2, max_rooms=5))
+    assert "5-locali-o-piu" in out["idealista"]
+    assert out["idealista_unsupported"] == ["max_rooms"]
+
+
 def test_immobiliare_filters_parse_back_from_path_or_query():
     """Immobiliare renders ONE filter as a pretty path segment and the rest as
     query params, so the same filter arrives either way depending on what else

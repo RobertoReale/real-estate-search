@@ -37,10 +37,11 @@ const FEATURES = [
 ] as const;
 
 /** Backend filter keys → what to call them when Idealista cannot apply them.
- *  Only "Excellent / renovated" lands here today (Immobiliare's stato=6). */
+ *  Kept in step with search_builder.idealista_unsupported. */
 const UNSUPPORTED_LABELS: Record<string, string> = {
   floor: "this floor band",
   condition: "this condition",
+  max_rooms: "a cap of 5 or more rooms (its largest bucket is “5 or more”)",
 };
 
 const FLOORS = [
