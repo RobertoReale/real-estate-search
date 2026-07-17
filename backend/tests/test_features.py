@@ -469,6 +469,18 @@ def test_build_search_urls_does_not_touch_the_network_unless_asked():
         sb.probe_zone_page = original
 
 
+def test_immobiliare_zona_prefix_is_url_furniture_not_part_of_the_name():
+    """/vendita-case/milano/zona-navigli/ names the zone "Navigli"; "zona-" is
+    Immobiliare's own decoration. Kept, it reached Idealista's free-text search
+    as "Zona_Navigli_Milano", asking the portal to match the literal word
+    "zona" — one of the saved searches did exactly that."""
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/zona-navigli/?prezzoMassimo=350000")
+    assert parsed["zone"] == "Navigli"
+    assert build_idealista_url(city="Milano", zone=parsed["zone"]) == (
+        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/")
+
+
 def test_immobiliare_filter_segment_is_not_mistaken_for_a_zone():
     """Immobiliare puts filter segments where a zone would sit
     (/vendita-case/milano/con-ascensore/). Taken as a zone it became a search

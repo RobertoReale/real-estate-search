@@ -257,10 +257,17 @@ def _unslug_city(slug: str) -> str:
 
 
 def _unslug_zone(slug: str) -> str:
-    """Restores navigli -> Navigli."""
+    """Restores navigli -> Navigli, zona-navigli -> Navigli.
+
+    Immobiliare prefixes some of its zone slugs with "zona-"
+    (/vendita-case/milano/zona-navigli/). It is its own URL furniture, not part
+    of the name: carried through, it reached Idealista's free-text search as
+    "Zona Navigli Milano" — asking the portal to match the literal word "zona".
+    """
     if not slug:
         return ""
-    return slug.replace("-", " ").strip().title()
+    text = re.sub(r"^zona-", "", slug.strip())
+    return text.replace("-", " ").strip().title()
 
 
 def parse_immobiliare_url(url: str) -> dict[str, Any]:
