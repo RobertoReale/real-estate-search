@@ -105,7 +105,7 @@ def build_idealista_url(
     city: str, contract: str = "sale", province: str = "", zone: str = "",
     min_price: int | None = None, max_price: int | None = None,
     min_rooms: int | None = None, max_rooms: int | None = None,
-    min_sqm: int | None = None, **_ignored,
+    min_sqm: int | None = None, zone_page: bool = False, **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
     filters = []
@@ -128,16 +128,23 @@ def build_idealista_url(
             filters.append(IDEALISTA_ROOMS[n])
     con_seg = f"con-{','.join(filters)}/" if filters else ""
 
-    # A zone cannot be addressed by name: Idealista's zone pages are keyed by
-    # slugs of its own that are not derivable from the zone's name, so the
-    # obvious /vendita-case/milano/bovisa/ is a 404 — measured live on
-    # 2026-07-17, with and without the province suffix, while the same page
-    # without the zone answers 200. Its free-text endpoint resolves the
-    # location server-side instead, and honours the very same con- filters
-    # (verified: the result total moves, 179 -> 112 with trilocali-3, and
-    # /lista-N.htm still paginates). Plain city searches keep the canonical
-    # municipality-province page: it works, and it is the URL the user
-    # recognises from the browser.
+    # Idealista DOES have zone pages — /vendita-case/milano/forlanini/ is live,
+    # 124 listings — but they are keyed by slugs of its own, and a zone's *name*
+    # only sometimes happens to be one: /milano/bovisa/ and
+    # /milano/udine-lambrate/ are 404s (with and without the province suffix;
+    # measured live 2026-07-17, 7 of the 8 real searches in the database).
+    # Nothing offline can tell the two apart, so the zone page is used only on
+    # positive proof — see resolve_idealista_url, which probes it once when the
+    # user generates the search. `zone_page=True` is that proof.
+    if zone and zone_page:
+        return (f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/"
+                f"{con_seg}")
+    # Unproven (or unprobed) zone: the free-text endpoint, which resolves the
+    # location server-side and always answers. It honours the same con- filters
+    # (the result total moves, 179 -> 112 with trilocali-3) and still paginates
+    # with /lista-N.htm. It is a *text* search though, so it is broader than a
+    # zone page — Forlanini gives 220 against the zone page's 124 — which is
+    # why it is the fallback and not the first choice.
     if zone:
         return (f"https://www.idealista.it/cerca/{base}/{con_seg}"
                 f"{cerca_location(city, zone)}/")
@@ -147,11 +154,77 @@ def build_idealista_url(
     return f"https://www.idealista.it/{base}/{city_seg}/{con_seg}"
 
 
-def build_search_urls(params: dict) -> dict[str, str]:
-    """Returns {"immobiliare": url, "idealista": url} for the given params."""
+def idealista_zone_page_url(city: str, zone: str, contract: str = "sale") -> str:
+    """The bare zone page, no filters — what `probe_zone_page` asks about.
+
+    Unfiltered on purpose: the question is "does Idealista know this zone
+    slug?", and a filtered page can legitimately hold zero listings, which
+    would read as "the slug is dead" and lose a perfectly good zone page.
+    """
+    base = "affitto-case" if contract == "rent" else "vendita-case"
+    return f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/"
+
+
+def probe_zone_page(url: str) -> bool | None:
+    """True = the zone page exists and lists ads, False = 404, None = unknown.
+
+    Fails open exactly like the availability probe (invariant 16): a DataDome
+    block, a timeout or a 5xx answers None, never False. Here that matters less
+    than it does there — both None and False land on /cerca/, which works — but
+    the distinction keeps the caller's log honest about *why* it fell back.
+    """
+    from ..scrapers.base import AdProbe, BlockedError  # lazy: scrapers import us
+    probe = AdProbe()
+    try:
+        probe.warm_host(url)
+        html = probe.fetch(url)
+    except BlockedError:
+        return None
+    except Exception as e:
+        # raise_for_status turns the 404 into an HTTPError; anything else
+        # (timeout, DNS, 5xx) is not the portal saying "no such zone".
+        if "404" in str(e):
+            return False
+        return None
+    return bool(re.search(r"/immobile/\d+", html)) or None
+
+
+def resolve_idealista_url(params: dict, probe=None) -> tuple[str, bool]:
+    """Returns (url, used_zone_page).
+
+    A zone page is precise but only exists for the slugs Idealista recognises;
+    /cerca/ is broader but universal. Nothing offline distinguishes the two, so
+    this asks the portal once — at generate time, while the user is watching —
+    and keeps the answer in the saved URL. Anything short of proof falls back to
+    /cerca/, so a block or an outage costs precision, never a working search.
+    """
+    zone = (params.get("zone") or "").strip()
+    if not zone:
+        return build_idealista_url(**params), False
+    check = probe or probe_zone_page
+    ok = check(idealista_zone_page_url(
+        params.get("city", ""), zone, params.get("contract", "sale")))
+    if ok:
+        return build_idealista_url(**{**params, "zone_page": True}), True
+    return build_idealista_url(**params), False
+
+
+def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
+    """Returns {"immobiliare": url, "idealista": url} for the given params.
+
+    `verify` costs one live request to Idealista, so it is opt-in: the UI sets
+    it when the user presses Generate, and leaves it off when it is merely
+    re-deriving a URL to prefill an edit form.
+    """
+    params = {k: v for k, v in params.items() if k != "verify"}
+    idealista, zone_page = (
+        resolve_idealista_url(params) if verify
+        else (build_idealista_url(**params), False)
+    )
     return {
         "immobiliare": build_immobiliare_url(**params),
-        "idealista": build_idealista_url(**params),
+        "idealista": idealista,
+        "idealista_zone_page": zone_page,
     }
 
 

@@ -391,6 +391,53 @@ def test_zone_urls_use_the_zone_page_grammar():
     )
 
 
+def test_zone_page_is_used_only_on_positive_proof():
+    """Idealista's zone pages are real (/vendita-case/milano/forlanini/ lists
+    124 flats) but keyed by its own slugs, and a zone's name is only sometimes
+    one: 7 of the 8 searches in the live database 404'd. Nothing offline tells
+    the two apart, so the portal is asked once — and only a clear yes buys the
+    precise page. A 404, a DataDome block and a timeout all land on /cerca/,
+    which always answers: an outage may cost precision, never a working search.
+    """
+    from app.services.search_builder import resolve_idealista_url
+
+    params = dict(city="Milano", zone="Forlanini", max_price=380_000, min_sqm=65)
+
+    url, zone_page = resolve_idealista_url(params, probe=lambda _u: True)
+    assert zone_page is True
+    assert url == ("https://www.idealista.it/vendita-case/milano/forlanini/"
+                   "con-prezzo_380000,dimensione_65/")
+
+    for answer in (False, None):  # 404, and "blocked/timed out: unknown"
+        url, zone_page = resolve_idealista_url(params, probe=lambda _u: answer)
+        assert zone_page is False
+        assert url.startswith("https://www.idealista.it/cerca/")
+
+    # the probe asks about the BARE zone page: a filtered one can hold zero
+    # listings for honest reasons, and reading that as "dead slug" would throw
+    # away a working zone page
+    asked: list[str] = []
+    resolve_idealista_url(params, probe=lambda u: asked.append(u) or True)
+    assert asked == ["https://www.idealista.it/vendita-case/milano/forlanini/"]
+
+
+def test_build_search_urls_does_not_touch_the_network_unless_asked():
+    """The UI re-derives URLs to prefill its edit form; only pressing Generate
+    means "go ask the portal". A probe on every call would put a live request
+    behind opening a dialog."""
+    def explode(_url):
+        raise AssertionError("probed without verify=True")
+
+    from app.services import search_builder as sb
+    original, sb.probe_zone_page = sb.probe_zone_page, explode
+    try:
+        urls = sb.build_search_urls(dict(city="Milano", zone="Bovisa"))
+        assert urls["idealista"].startswith("https://www.idealista.it/cerca/")
+        assert urls["idealista_zone_page"] is False
+    finally:
+        sb.probe_zone_page = original
+
+
 def test_immobiliare_filter_segment_is_not_mistaken_for_a_zone():
     """Immobiliare puts filter segments where a zone would sit
     (/vendita-case/milano/con-ascensore/). Taken as a zone it became a search

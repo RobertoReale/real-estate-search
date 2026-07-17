@@ -87,11 +87,20 @@ phone without any of this. The dashboard is for browsing and triaging.
    - *Shortcut*: instead of visiting the portals, describe the search in plain
      Italian ("trilocale a Milano sotto i 300k, zona Navigli o Isola") and the
      assistant builds both portal URLs for you. It runs offline with no AI
-     service involved, and zone names are a best guess — use the **"Open ↗"**
-     link to check the result on the portal before saving the profile. The
-     assistant and the **"Build a search"** form only cover the basics (city,
-     price, rooms, surface); for any of the advanced filters above, set them on
-     the portal and paste the URL.
+     service involved. Zone names are still a best guess on Immobiliare, so use
+     the **"Open ↗"** link to check the result before saving the profile.
+   - *Note on Idealista zones*: pressing **"Generate search URLs"** asks
+     Idealista once whether it knows the zone you typed. It has a page for some
+     zone names (Forlanini) but not others (Bovisa, Udine/Lambrate), and there
+     is no way to tell offline. When it does, you get that exact zone page; when
+     it does not, the search falls back to matching the zone's *name as text*,
+     which also returns listings outside the zone that merely mention it. The
+     form tells you which of the two you got. If Idealista is blocking or
+     unreachable at that moment, it uses the text search — a check that fails
+     costs precision, never a working search.
+   - The assistant and the **"Build a search"** form only cover the basics
+     (city, price, rooms, surface); for any of the advanced filters above, set
+     them on the portal and paste the URL.
 2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list. To remove one, click **🗑** — see *Deleting a search* below, since you get to decide what happens to the listings it found.
    - *No accidental duplicates*: a search that resolves to the same portal URL and the same excluded keywords as one you already monitor is refused (the comparison ignores irrelevant differences like trailing slashes, tracking parameters, or keyword order/case), so the same listings aren't scanned and notified twice. Any pre-existing duplicates are merged into the oldest copy at startup, preserving which searches found what.
    - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening a modal.

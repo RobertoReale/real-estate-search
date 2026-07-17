@@ -166,6 +166,9 @@ class SearchBuilderParamsOut(BaseModel):
     min_rooms: int | None = None
     max_rooms: int | None = None
     min_sqm: int | None = None
+    # Costs one live request to Idealista (see search_builder.
+    # resolve_idealista_url), so it stays off unless the user asked for a URL.
+    verify: bool = False
 
 
 class SearchProfileOut(BaseModel):

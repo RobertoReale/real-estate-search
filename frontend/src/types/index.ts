@@ -223,6 +223,9 @@ export interface SearchBuilderParams {
 export interface SearchBuilderUrls {
   immobiliare: string;
   idealista: string;
+  /** Whether the Idealista URL is its precise zone page (the portal confirmed
+   *  the slug) rather than the broader free-text search. */
+  idealista_zone_page?: boolean;
 }
 
 /** One search alternative the assistant understood ("bilocale in zona X o

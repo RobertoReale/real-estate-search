@@ -137,6 +137,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   // builder state
   const [params, setParams] = useState<SearchBuilderParams>(EMPTY_BUILDER);
   const [built, setBuilt] = useState<SearchBuilderUrls | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [usePortals, setUsePortals] = useState({ immobiliare: true, idealista: true });
 
   // assistant state: the parsed read-back stays visible in the builder, so
@@ -545,10 +546,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
 
   async function generate() {
     setError("");
+    setGenerating(true);
     try {
-      setBuilt(await api.buildSearchUrls(params));
+      // verify=true: with a zone this asks Idealista once whether it knows the
+      // slug, so the URL we save is the precise zone page when one exists
+      setBuilt(await api.buildSearchUrls(params, true));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -923,8 +929,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           <GlobalKeywordsHint settings={settings} />
 
           {!built && (
-            <button className="btn-primary" onClick={generate} disabled={!params.city.trim()}>
-              Generate search URLs
+            <button className="btn-primary" onClick={generate}
+              disabled={generating || !params.city.trim()}>
+              {generating ? "Checking the zone on Idealista…" : "Generate search URLs"}
             </button>
           )}
 
@@ -949,6 +956,20 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   </a>
                 </label>
               ))}
+              {params.zone.trim() && usePortals.idealista && (
+                built.idealista_zone_page ? (
+                  <p className="text-xs t-muted">
+                    Idealista knows the “{params.zone.trim()}” zone: using its
+                    exact zone page.
+                  </p>
+                ) : (
+                  <p className="text-xs t-muted">
+                    Idealista has no zone page for “{params.zone.trim()}”, so
+                    this searches its name as text — expect some listings from
+                    outside the zone that merely mention it.
+                  </p>
+                )
+              )}
               {error && <p className="accent-bad text-xs">{error}</p>}
               <button className="btn-primary" onClick={createFromBuilder}
                 disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>

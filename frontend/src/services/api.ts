@@ -131,8 +131,13 @@ export const api = {
     });
   },
 
-  /** Generate native search URLs from structured criteria (`city`, `rooms`, `price`). */
-  buildSearchUrls(params: SearchBuilderParams): Promise<SearchBuilderUrls> {
+  /** Generate native search URLs from structured criteria (`city`, `rooms`, `price`).
+   *
+   *  `verify` asks the backend to check, with one live request, whether
+   *  Idealista knows this zone's slug: only then can it use the precise zone
+   *  page instead of the broader free-text search. It is off for calls that
+   *  merely re-derive a URL to prefill a form. */
+  buildSearchUrls(params: SearchBuilderParams, verify = false): Promise<SearchBuilderUrls> {
     // empty strings become nulls the backend understands as "no filter"
     const body = {
       city: params.city,
@@ -144,6 +149,7 @@ export const api = {
       min_rooms: params.min_rooms ? Number(params.min_rooms) : null,
       max_rooms: params.max_rooms ? Number(params.max_rooms) : null,
       min_sqm: params.min_sqm ? Number(params.min_sqm) : null,
+      verify,
     };
     return request("/search-builder", {
       method: "POST", body: JSON.stringify(body),

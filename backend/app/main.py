@@ -625,8 +625,14 @@ def bulk_profiles(data: schemas.SearchProfileBulkIn, db: Session = Depends(get_d
 @app.post("/api/search-builder")
 def search_builder(data: schemas.SearchBuilderIn):
     """Generates ready-to-use search URLs for both portals from structured
-    parameters, so the user does not have to copy/paste from the browser."""
-    return build_search_urls(data.model_dump())
+    parameters, so the user does not have to copy/paste from the browser.
+
+    Declared sync on purpose, like email_import_scan (invariant 15): with
+    `verify` set this makes a live request to Idealista, and an `async def`
+    would hold the event loop for its whole duration.
+    """
+    payload = data.model_dump()
+    return build_search_urls(payload, verify=payload.pop("verify", False))
 
 
 @app.post("/api/search-builder/parse", response_model=schemas.SearchBuilderParamsOut)
