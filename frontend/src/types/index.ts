@@ -95,6 +95,20 @@ export interface SearchProfile {
   params?: SearchProfileParams;
 }
 
+/** A grouped/unified search containing one or more SearchProfiles (e.g. Immobiliare + Idealista). */
+export interface GroupedSearchProfile {
+  baseName: string;
+  profiles: SearchProfile[];
+  ids: number[];
+  portals: string[];
+  is_active: boolean;
+  notify_channels: string;
+  consecutive_failures: number;
+  last_run_status: string;
+  last_run_detail: string;
+  excluded_keywords: string;
+}
+
 /** What a search has produced in the dashboard, and what deleting it would
  *  take with it. `tracked` counts only properties whose provenance is recorded
  *  (see the backend's ListingProfile): cards from before that tracking existed,

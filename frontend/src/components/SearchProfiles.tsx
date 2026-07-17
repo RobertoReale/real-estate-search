@@ -4,8 +4,9 @@ import { api } from "../services/api";
 import { PortalBadge } from "./PortalBadge";
 import type {
   AssistantSearch, ProfileResults, SearchBuilderParams, SearchBuilderUrls,
-  SearchProfile, Settings,
+  GroupedSearchProfile, SearchProfile, Settings,
 } from "../types";
+import { getBaseName, groupSearchProfiles } from "../utils/searchProfiles";
 
 interface Props {
   profiles: SearchProfile[];
@@ -131,6 +132,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   // set while editing an existing profile via the "url" form, so submitUrl
   // knows whether to PUT over it instead of POSTing a new one
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingGroupIds, setEditingGroupIds] = useState<number[]>([]);
 
   // builder state
   const [params, setParams] = useState<SearchBuilderParams>(EMPTY_BUILDER);
@@ -200,6 +202,19 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     });
   }
 
+  function toggleGroup(ids: number[]) {
+    setSelected((s) => {
+      const next = new Set(s);
+      const allIn = ids.every((id) => next.has(id));
+      if (allIn) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
   /** Runs a bulk action, then clears the selection: the rows it acted on may no
    *  longer exist (delete), and a stale checkbox is worse than none. */
   async function runBulk(
@@ -211,6 +226,51 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setError("");
     try {
       await api.bulkProfiles(ids, action, { notifyChannels });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function groupSelected(targets: SearchProfile[]) {
+    if (targets.length < 2) return;
+    const defaultName = getBaseName(targets[0].name || "Ricerca monitorata");
+    const newBaseName = window.prompt(
+      "Inserisci il nome univoco per accorpare le ricerche selezionate in un solo box:",
+      defaultName
+    );
+    if (!newBaseName || !newBaseName.trim()) return;
+    const cleaned = getBaseName(newBaseName.trim());
+    setBulkBusy(true);
+    setError("");
+    try {
+      for (const p of targets) {
+        await api.updateProfile(p.id, {
+          name: `${cleaned} (${p.portal})`,
+        });
+      }
+      setSelected(new Set());
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function separateGroup(group: GroupedSearchProfile) {
+    if (group.profiles.length < 2) return;
+    if (!window.confirm(`Vuoi separare i portali di "${group.baseName}" in box di ricerca distinti?`)) return;
+    setBulkBusy(true);
+    setError("");
+    try {
+      for (const p of group.profiles) {
+        await api.updateProfile(p.id, {
+          name: `${group.baseName} - ${p.portal.toUpperCase()}`,
+        });
+      }
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -262,6 +322,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setParams(EMPTY_BUILDER); setBuilt(null);
     setQuery(""); setAssistant(null); setMulti([]);
     setEditingId(null);
+    setEditingGroupIds([]);
     setMode("closed");
   }
 
@@ -270,6 +331,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setUrl(p.search_url);
     setKeywords(p.excluded_keywords);
     setEditingId(p.id);
+    setEditingGroupIds([p.id]);
     setError("");
     if (p.params && (p.params.city || p.params.min_price || p.params.min_rooms || p.params.zone)) {
       const formParams = paramsFromProfile(p.params);
@@ -296,6 +358,41 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       setMode("url");
     }
   }
+
+  function editGroup(group: GroupedSearchProfile) {
+    const first = group.profiles[0];
+    setName(group.baseName);
+    setUrl(first.search_url);
+    setKeywords(group.excluded_keywords);
+    setEditingId(first.id);
+    setEditingGroupIds(group.ids);
+    setError("");
+    const paramsProfile = group.profiles.find((p) => p.params);
+    if (paramsProfile?.params && (paramsProfile.params.city || paramsProfile.params.min_price || paramsProfile.params.min_rooms || paramsProfile.params.zone)) {
+      const formParams = paramsFromProfile(paramsProfile.params);
+      setParams(formParams);
+      const imm = group.profiles.find((p) => p.portal === "immobiliare");
+      const ideal = group.profiles.find((p) => p.portal === "idealista");
+      setBuilt({
+        immobiliare: imm?.search_url || "",
+        idealista: ideal?.search_url || "",
+      });
+      setUsePortals({
+        immobiliare: Boolean(imm) || true,
+        idealista: Boolean(ideal) || true,
+      });
+      setMode("builder");
+      api.buildSearchUrls(formParams).then((urls) => {
+        setBuilt((b) => b && {
+          immobiliare: b.immobiliare || urls.immobiliare,
+          idealista: b.idealista || urls.idealista,
+        });
+      }).catch(() => {});
+    } else {
+      setMode("url");
+    }
+  }
+
 
   function editInBuilder(search: AssistantSearch) {
     setAssistant(search);
@@ -463,32 +560,35 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       params.contract === "rent" ? "Rent" : "Buy", params.city, params.zone,
     ].filter(Boolean).join(" · ");
     try {
-      if (editingId !== null) {
-        const current = profiles.find((p) => p.id === editingId);
-        if (current) {
-          const targetPortal = (current.portal === "immobiliare" || current.portal === "idealista")
-            ? (current.portal as "immobiliare" | "idealista")
-            : (usePortals.immobiliare ? "immobiliare" : "idealista");
-          const targetUrl = built[targetPortal] || current.search_url;
-          const dup = findDuplicateProfile(targetUrl, keywords, editingId);
-          if (dup) {
-            setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
-            setSaving(false);
-            return;
-          }
-          await api.updateProfile(editingId, {
-            name: name || current.name,
-            search_url: targetUrl,
-            excluded_keywords: keywords,
-            notify_channels: current.notify_channels ?? "",
-            is_active: current.is_active ?? true,
-          });
+      if (editingId !== null || editingGroupIds.length > 0) {
+        const targetIds = editingGroupIds.length > 0 ? editingGroupIds : (editingId !== null ? [editingId] : []);
+        const groupProfiles = profiles.filter((p) => targetIds.includes(p.id));
+        const firstCurrent = groupProfiles[0] || profiles.find((p) => p.id === editingId);
+        if (firstCurrent) {
           for (const portal of ["immobiliare", "idealista"] as const) {
-            if (usePortals[portal] && portal !== targetPortal && built[portal]) {
-              if (!findDuplicateProfile(built[portal], keywords, editingId)) {
+            if (!usePortals[portal]) continue;
+            const targetUrl = built[portal];
+            if (!targetUrl) continue;
+            const existingForPortal = groupProfiles.find((p) => p.portal === portal);
+            if (existingForPortal) {
+              const dup = findDuplicateProfile(targetUrl, keywords, existingForPortal.id);
+              if (dup && !targetIds.includes(dup.id)) {
+                setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
+                setSaving(false);
+                return;
+              }
+              await api.updateProfile(existingForPortal.id, {
+                name: `${name || label} (${portal})`,
+                search_url: targetUrl,
+                excluded_keywords: keywords,
+                notify_channels: existingForPortal.notify_channels ?? firstCurrent.notify_channels ?? "",
+                is_active: existingForPortal.is_active ?? firstCurrent.is_active ?? true,
+              });
+            } else {
+              if (!findDuplicateProfile(targetUrl, keywords)) {
                 await api.createProfile({
                   name: `${name || label} (${portal})`,
-                  search_url: built[portal],
+                  search_url: targetUrl,
                   excluded_keywords: keywords,
                   is_active: true,
                 });
@@ -524,6 +624,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     }
   }
 
+  const groupedProfiles = groupSearchProfiles(profiles);
 
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
@@ -910,6 +1011,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 onClick={() => askDelete(selectedProfiles)}>
                 🗑 Delete
               </button>
+              {selectedProfiles.length > 1 && (
+                <button
+                  className="btn-ghost !text-xs !text-purple-600 dark:!text-purple-400 font-medium"
+                  disabled={bulkBusy}
+                  title="Accorpa i portali selezionati in un unico box di ricerca"
+                  onClick={() => groupSelected(selectedProfiles)}>
+                  🔗 Accorpa selezionati
+                </button>
+              )}
               <button className="text-xs accent-link"
                 onClick={() => setSelected(new Set())}>
                 Clear
@@ -920,107 +1030,158 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       )}
 
       <ul className="space-y-2">
-        {profiles.map((p) => {
-          const badge = statusBadge[p.last_run_status];
-          const channel = channelOptions.find((o) => o.value === p.notify_channels)
+        {groupedProfiles.map((group) => {
+          const badge = statusBadge[group.last_run_status];
+          const channel = channelOptions.find((o) => o.value === group.notify_channels)
             ?? channelOptions[0];
+          const isGroupSelected = group.ids.length > 0 && group.ids.every((id) => selected.has(id));
+          const isGroupIndeterminate = !isGroupSelected && group.ids.some((id) => selected.has(id));
+          const paramsProfile = group.profiles.find((p) => p.params);
+          const pParams = paramsProfile?.params;
+
           return (
-            <li key={p.id}
-              className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel">
+            <li key={group.baseName + "-" + group.ids.join("-")}
+              className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel transition hover:shadow-sm">
               {profiles.length > 1 && (
-                <input type="checkbox" className="shrink-0"
-                  aria-label={`Select ${p.name}`}
-                  checked={selected.has(p.id)}
-                  onChange={() => toggleOne(p.id)} />
+                <input type="checkbox" className="shrink-0 cursor-pointer"
+                  aria-label={`Select ${group.baseName}`}
+                  checked={isGroupSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isGroupIndeterminate;
+                  }}
+                  onChange={() => toggleGroup(group.ids)} />
               )}
-              <PortalBadge portal={p.portal} />
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                {group.profiles.map((p) => (
+                  <PortalBadge key={p.id} portal={p.portal} />
+                ))}
+                {group.profiles.length > 1 && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0"
+                    title="Ricerche su molteplici portali accorpate in un solo box">
+                    Accorpata ({group.profiles.length} portali)
+                  </span>
+                )}
+              </div>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm truncate">{p.name}</p>
-                <p className="text-xs t-dim truncate">{p.search_url}</p>
-                {p.params && (p.params.city || p.params.min_price || p.params.max_price || p.params.min_rooms || p.params.min_sqm || p.params.zone) && (
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    {p.params.contract && (
+                <p className="font-medium text-sm truncate" title={group.baseName}>
+                  {group.baseName}
+                </p>
+                {group.profiles.length === 1 ? (
+                  <p className="text-xs t-dim truncate mt-0.5">
+                    <a href={group.profiles[0].search_url} target="_blank" rel="noreferrer" className="hover:underline text-blue-600 dark:text-blue-400">
+                      {group.profiles[0].search_url}
+                    </a>
+                  </p>
+                ) : (
+                  <div className="space-y-0.5 mt-1">
+                    {group.profiles.map((p) => {
+                      const pBadge = statusBadge[p.last_run_status];
+                      return (
+                        <div key={p.id} className="flex items-center gap-1.5 text-xs t-dim">
+                          <span className="font-semibold uppercase text-[10px] w-20 shrink-0 truncate t-muted">
+                            {p.portal}:
+                          </span>
+                          <a href={p.search_url} target="_blank" rel="noreferrer" className="hover:underline truncate min-w-0 flex-1 text-blue-600 dark:text-blue-400" title={p.search_url}>
+                            {p.search_url}
+                          </a>
+                          {pBadge && p.last_run_status !== "ok" && (
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${pBadge.cls}`}>
+                              {pBadge.label}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {pParams && (pParams.city || pParams.min_price || pParams.max_price || pParams.min_rooms || pParams.min_sqm || pParams.zone) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    {pParams.contract && (
                       <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
-                        {p.params.contract === "rent" ? "🔑 Rent" : "🏠 Buy"}
+                        {pParams.contract === "rent" ? "🔑 Rent" : "🏠 Buy"}
                       </span>
                     )}
-                    {p.params.city && (
+                    {pParams.city && (
                       <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
-                        📍 {p.params.city}{p.params.province ? ` (${p.params.province})` : ""}
-                        {p.params.zone ? ` · ${p.params.zone}` : ""}
+                        📍 {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
+                        {pParams.zone ? ` · ${pParams.zone}` : ""}
                       </span>
                     )}
-                    {(p.params.min_price || p.params.max_price) && (
+                    {(pParams.min_price || pParams.max_price) && (
                       <span className="text-[11px] chip-amber px-2 py-0.5 rounded-md font-medium">
-                        💰 {p.params.min_price ? `${p.params.min_price.toLocaleString("it-IT")} €` : "0 €"} – {p.params.max_price ? `${p.params.max_price.toLocaleString("it-IT")} €` : "∞"}
+                        💰 {pParams.min_price ? `${pParams.min_price.toLocaleString("it-IT")} €` : "0 €"} – {pParams.max_price ? `${pParams.max_price.toLocaleString("it-IT")} €` : "∞"}
                       </span>
                     )}
-                    {(p.params.min_rooms || p.params.max_rooms) && (
+                    {(pParams.min_rooms || pParams.max_rooms) && (
                       <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
-                        🛏️ {p.params.min_rooms ?? 1}{p.params.max_rooms ? `–${p.params.max_rooms}` : "+"} rooms
+                        🛏️ {pParams.min_rooms ?? 1}{pParams.max_rooms ? `–${pParams.max_rooms}` : "+"} rooms
                       </span>
                     )}
-                    {p.params.min_sqm && (
+                    {pParams.min_sqm && (
                       <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
-                        📐 ≥ {p.params.min_sqm} sqm
+                        📐 ≥ {pParams.min_sqm} sqm
                       </span>
                     )}
                   </div>
                 )}
-                {p.last_run_detail && (
-                  <p className="text-xs t-muted mt-0.5">{p.last_run_detail}</p>
+                {group.last_run_detail && (
+                  <p className="text-xs t-muted mt-1">{group.last_run_detail}</p>
                 )}
-                {combinedKeywords(p, settings).length > 0 && (
-                  <p className="text-xs t-dim mt-0.5 truncate"
+                {combinedKeywords(group.profiles[0], settings).length > 0 && (
+                  <p className="text-xs t-dim mt-1 truncate"
                     title="Listings mentioning any of these words are discarded (Settings + this search's own extras)">
-                    🚫 Excludes: {combinedKeywords(p, settings).join(", ")}
+                    🚫 Excludes: {combinedKeywords(group.profiles[0], settings).join(", ")}
                   </p>
                 )}
-                {/* a selected-but-unconfigured channel silently drops alerts:
-                    make that state impossible to miss */}
                 {!channel.ok && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                     ⚠️ {channel.warn}
                   </p>
                 )}
               </div>
               {badge && (
-                <span className={`text-xs px-2 py-0.5 rounded-full ${badge.cls}`}>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge.cls}`}>
                   {badge.label}
-                  {/* a streak, unlike a single 403, means the scraper is
-                      really broken — the same signal that triggers the alert */}
-                  {p.consecutive_failures > 1 && ` ×${p.consecutive_failures}`}
+                  {group.consecutive_failures > 1 && ` ×${group.consecutive_failures}`}
                 </span>
               )}
               <select
-                className="input !py-1 !px-2 text-xs w-44"
+                className="input !py-1 !px-2 text-xs w-44 shrink-0"
                 title="Where to send notifications for this search"
-                value={p.notify_channels}
-                onChange={(e) => runBulk([p.id], "notify", e.target.value)}>
+                value={group.notify_channels}
+                onChange={(e) => runBulk(group.ids, "notify", e.target.value)}>
                 {channelOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
-                <input type="checkbox" checked={p.is_active}
+              <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer shrink-0">
+                <input type="checkbox" checked={group.is_active}
                   onChange={() =>
-                    runBulk([p.id], p.is_active ? "pause" : "activate")} />
+                    runBulk(group.ids, group.is_active ? "pause" : "activate")} />
                 Active
               </label>
-              <button className="t-dim hover:opacity-70 transition text-sm btn-focus
-                  inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
-                  rounded-lg shrink-0"
-                title="Edit this search profile" aria-label="Edit this search profile"
-                onClick={() => editProfile(p)}>
-                ✏️
-              </button>
-              <button className="t-dim hover:text-rose-500 transition text-sm btn-focus
-                  inline-flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto
-                  rounded-lg shrink-0"
-                title="Delete this search profile" aria-label="Delete this search profile"
-                onClick={() => askDelete([p])}>
-                🗑
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button className="t-dim hover:opacity-70 transition text-sm btn-focus
+                    inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                  title="Modifica questo box di ricerca" aria-label="Modifica questo box di ricerca"
+                  onClick={() => editGroup(group)}>
+                  ✏️
+                </button>
+                {group.profiles.length > 1 && (
+                  <button className="t-dim hover:text-purple-500 transition text-sm btn-focus
+                      inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                    title="Separa i portali in box singoli indipendenti" aria-label="Separa i portali in box singoli"
+                    onClick={() => separateGroup(group)}>
+                    ✂️
+                  </button>
+                )}
+                <button className="t-dim hover:text-rose-500 transition text-sm btn-focus
+                    inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                  title="Elimina questo box di ricerca (tutti i portali associati)" aria-label="Elimina questo box di ricerca"
+                  onClick={() => askDelete(group.profiles)}>
+                  🗑
+                </button>
+              </div>
             </li>
           );
         })}
@@ -1038,7 +1199,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             <h2 className="text-lg font-bold mb-2">
               {deleting.length === 1
                 ? `Delete “${deleting[0].name}”?`
-                : `Delete ${deleting.length} searches?`}
+                : `Delete “${getBaseName(deleting[0].name)}” (${deleting.length} portals)?`}
             </h2>
             <p className="text-sm t-muted">
               {deleting.length === 1 ? "The search stops" : "The searches stop"}{" "}
@@ -1047,7 +1208,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             </p>
             {deleting.length > 1 && (
               <ul className="mt-2 text-xs t-muted space-y-0.5 max-h-32 overflow-y-auto">
-                {deleting.map((p) => <li key={p.id} className="truncate">· {p.name}</li>)}
+                {deleting.map((p) => <li key={p.id} className="truncate">· {p.name} ({p.portal})</li>)}
               </ul>
             )}
 

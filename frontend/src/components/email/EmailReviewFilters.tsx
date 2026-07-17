@@ -1,4 +1,6 @@
 import type { ImportFilters, SearchProfile } from "../../types";
+import { groupSearchProfiles } from "../../utils/searchProfiles";
+
 
 interface Props {
   filters: ImportFilters;
@@ -40,9 +42,9 @@ export function EmailReviewFilters({ filters, onFilterChange, profiles }: Props)
           value={filters.profile_id}
           onChange={(e) => onFilterChange({ profile_id: e.target.value })}>
           <option value="">— ad-hoc filters —</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
+          {groupSearchProfiles(profiles).map((g) => (
+            <option key={g.ids[0]} value={g.ids[0]}>
+              {g.baseName} {g.portals.length > 1 ? `(${g.portals.join("/")})` : ""}
             </option>
           ))}
         </select>

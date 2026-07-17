@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { PropertyFilters, SearchProfile, ViewMode } from "../types";
+import { groupSearchProfiles } from "../utils/searchProfiles";
+
 
 interface Props {
   filters: PropertyFilters;
@@ -202,8 +204,10 @@ export default function FiltersBar({
             title="Filter the grid down to what a saved search would keep: applies its city, contract and excluded keywords (useful to prune email imports the scan filter never saw). This narrows the list — it does not reorder it."
             onChange={(e) => set({ profile_id: e.target.value })}>
             <option value="">All searches</option>
-            {profiles.map((p) => (
-              <option key={p.id} value={String(p.id)}>{p.name}</option>
+            {groupSearchProfiles(profiles).map((g) => (
+              <option key={g.ids[0]} value={String(g.ids[0])}>
+                {g.baseName} {g.portals.length > 1 ? `(${g.portals.join("/")})` : ""}
+              </option>
             ))}
           </select>
         </div>
