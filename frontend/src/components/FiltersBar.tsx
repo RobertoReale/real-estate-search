@@ -34,6 +34,7 @@ export default function FiltersBar({
     scanned: number; geocoded: number; cached: number;
     not_found: number; remaining: number;
   } | null>(null);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
@@ -266,10 +267,18 @@ export default function FiltersBar({
             onClick={async () => {
               setGeocoding(true);
               setGeocodeResult(null);
+              setGeocodeError(null);
               try {
                 const res = await api.geocodeMissing();
                 setGeocodeResult(res);
                 onChange({ ...filters });
+              } catch (e) {
+                const raw = e instanceof Error ? e.message : String(e);
+                setGeocodeError(
+                  /Error 404|Not Found/i.test(raw)
+                    ? "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again."
+                    : raw,
+                );
               } finally {
                 setGeocoding(false);
               }
@@ -361,20 +370,40 @@ export default function FiltersBar({
         </div>
       )}
 
+      {geocodeError && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+          <p className="text-rose-700 dark:text-rose-300">❌ {geocodeError}</p>
+          <button
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            onClick={() => setGeocodeError(null)}
+            title="Close">
+            ✕
+          </button>
+        </div>
+      )}
+
       {geocodeResult && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
             <p className="font-semibold text-sky-700 dark:text-sky-400 text-sm flex items-center gap-1.5">
               <span>📍</span> Coordinate lookup finished
             </p>
-            <p>
-              Located <strong>{geocodeResult.geocoded}</strong> of{" "}
-              {geocodeResult.scanned} listings without a pin
-              {geocodeResult.not_found > 0 && <> · {geocodeResult.not_found} could not be resolved</>}.
-              {geocodeResult.remaining > 0 && (
-                <> <strong>{geocodeResult.remaining}</strong> left — run it again to continue.</>
-              )}
-            </p>
+            {geocodeResult.scanned === 0 ? (
+              <p>
+                Nothing to locate: every property either already has a pin or has
+                no address/zone to look one up from. (A bare city is skipped on
+                purpose — it would drop every such listing on one downtown pin.)
+              </p>
+            ) : (
+              <p>
+                Located <strong>{geocodeResult.geocoded}</strong> of{" "}
+                {geocodeResult.scanned} listings without a pin
+                {geocodeResult.not_found > 0 && <> · {geocodeResult.not_found} could not be resolved</>}.
+                {geocodeResult.remaining > 0 && (
+                  <> <strong>{geocodeResult.remaining}</strong> left — run it again to continue.</>
+                )}
+              </p>
+            )}
           </div>
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"

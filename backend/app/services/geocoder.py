@@ -38,8 +38,12 @@ logger = logging.getLogger(__name__)
 # instance; a self-hosted one does not care but the pause is harmless.
 PACE_SECONDS = 1.0
 _USER_AGENT = "RealEstateSearch/1.0 (local personal use)"
-# One call must not stall the request forever: a batch is paced anyway.
-MAX_PER_CALL = 200
+# One call must not stall the request forever. The public Nominatim instance is
+# capped at 1 req/s, so this is roughly the wall-clock seconds a single click
+# costs (cache hits are free): kept modest so the request returns in under a
+# minute and the UI's "run it again to continue" (via `remaining`) carries the
+# rest, rather than one click blocking for minutes with no progress.
+MAX_PER_CALL = 40
 
 
 def _normalize(text: str) -> str:
