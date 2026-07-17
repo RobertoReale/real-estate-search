@@ -81,6 +81,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [apiToken, setApiToken] = useState("");
   const [grabbing, setGrabbing] = useState(false);
   const [stoppingGrab, setStoppingGrab] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [installingHarvester, setInstallingHarvester] = useState(false);
   const [installingCamoufox, setInstallingCamoufox] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -258,6 +259,37 @@ export default function SettingsModal({ onClose }: Props) {
   function stopGrabbingCookie() {
     setStoppingGrab(true);
     api.cancelDatadomeRefresh().catch(() => {});
+  }
+
+  /** Restart the backend and wait for it to come back, then reload the page so
+   *  the whole UI is talking to the fresh process. Used after pulling a code
+   *  update so the user need not hunt for the terminal window. */
+  async function restartBackend() {
+    if (!window.confirm(
+      "Restart the backend now? The dashboard is unavailable for a few seconds, then reloads itself.")) return;
+    setRestarting(true);
+    setFeedback(null);
+    try {
+      await api.restartBackend();
+    } catch {
+      // the socket can drop before the response arrives — the poll below is the
+      // real signal that it worked, so a thrown error here is not a failure
+    }
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    await sleep(1500); // give it a moment to actually go down first
+    const deadline = Date.now() + 40000;
+    while (Date.now() < deadline) {
+      try {
+        await api.getScanStatus();
+        window.location.reload();
+        return;
+      } catch {
+        await sleep(1000);
+      }
+    }
+    setRestarting(false);
+    setFeedback({ where: "global", ok: false,
+      text: "The backend did not come back on its own — check its terminal window (or re-run start.bat / serve.bat)." });
   }
 
   async function installHarvester() {
@@ -848,6 +880,20 @@ export default function SettingsModal({ onClose }: Props) {
           value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
 
         <Result where="global" />
+
+        <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
+          🔄 Backend
+        </h3>
+        <p className="text-xs t-dim mb-2">
+          Restart the backend process — use this after updating the app so new
+          features take effect, instead of closing and re-opening the terminal
+          window. The dashboard goes offline for a few seconds and then reloads
+          on its own.
+        </p>
+        <button className="btn-ghost w-full sm:w-auto" onClick={restartBackend}
+          disabled={restarting || anyBusy}>
+          {restarting ? "⏳ Restarting… (waiting for the backend)" : "🔄 Restart backend"}
+        </button>
 
         <div className="mt-8 pt-5 border-t border-rose-300/40 dark:border-rose-800/40">
           <h3 className="font-semibold text-sm uppercase text-rose-600 dark:text-rose-400 mb-1">

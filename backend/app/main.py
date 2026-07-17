@@ -972,6 +972,52 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
         raise HTTPException(500, str(e))
 
 
+# --- Restart ---
+
+@app.post("/api/system/restart")
+def system_restart():
+    """Restart the backend process so a code update takes effect without hunting
+    for the terminal window.
+
+    Two paths, because `start.bat` runs uvicorn with `APP_RELOAD=1` (a file
+    watcher) while `serve.bat` and a plain `run.py` do not:
+
+    * reload on  -> touch a watched source file; uvicorn's own reloader kills and
+      respawns the worker cleanly. Re-exec here would fight that supervisor and
+      risk a port clash, so we let it do its job.
+    * reload off -> re-exec the current process (`python run.py`), which rebinds
+      the port fresh.
+
+    Refused mid-scan (409): a scan writes the DB and the ListingProfile links,
+    and yanking the process out from under it would leave them half-written —
+    same guard the destructive resets use. The restart is deferred a beat so this
+    HTTP response reaches the browser before the process goes down; the UI then
+    polls until the API answers again and reloads itself.
+    """
+    if scan_state["running"]:
+        raise HTTPException(
+            409, "A scan is running: wait for it to finish before restarting"
+        )
+    import os
+    import sys
+    import time
+
+    reload_on = os.environ.get("APP_RELOAD") == "1"
+
+    def _restart():
+        time.sleep(0.5)  # let the response flush to the client first
+        try:
+            if reload_on:
+                (BASE_DIR / "app" / "main.py").touch()
+            else:
+                os.execv(sys.executable, [sys.executable, *sys.argv])
+        except Exception:
+            logging.getLogger(__name__).exception("restart failed")
+
+    threading.Thread(target=_restart, daemon=True).start()
+    return {"ok": True, "reload": reload_on}
+
+
 # --- Logs ---
 
 LOG_PATH = BASE_DIR / "app.log"

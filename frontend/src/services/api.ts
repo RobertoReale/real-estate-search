@@ -256,6 +256,12 @@ export const api = {
     return request(`/maintenance/reset/${scope}`, { method: "POST" });
   },
 
+  /** Restart the backend process so a code update takes effect. The connection
+   *  drops briefly; the caller polls a lightweight endpoint until it answers. */
+  restartBackend(): Promise<{ ok: boolean; reload: boolean }> {
+    return request("/system/restart", { method: "POST" });
+  },
+
   /** Load current user preferences and API credentials. */
   getSettings(): Promise<Settings> {
     return request("/settings");
