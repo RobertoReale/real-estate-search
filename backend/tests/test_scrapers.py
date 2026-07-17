@@ -129,6 +129,61 @@ def test_empty_page_does_not_crash():
     assert listings == []
 
 
+# The portals' real "nothing matched" pages, reduced to what decides the case.
+# Idealista serves this with HTTP 404 — the same status as a dead slug — while
+# Immobiliare serves its own with 200.
+IDEALISTA_NO_RESULTS = """
+<html><body><h1>Abbiamo guardato dappertutto, ma non abbiamo trovato quello
+che stavi cercando.</h1><p>Con i tuoi criteri di ricerca non ci sono annunci
+che corrispondano ai tuoi criteri a City Life, Milano</p></body></html>
+"""
+IMMOBILIARE_NO_RESULTS = """
+<html><body><h1>Nessun risultato per case in vendita Milano</h1>
+<p>Oops ... non ci sono annunci per la tua ricerca. Rimuovi dei filtri o
+aumenta l'area di ricerca.</p></body></html>
+"""
+
+
+def test_empty_search_is_an_answer_not_a_failure():
+    """A zone can be alive and simply hold nothing today: City Life answers
+    "non ci sono annunci ... a City Life, Milano" and names the zone back, so
+    the slug plainly resolved.
+
+    Both portals were reporting this as a broken profile — Idealista because it
+    serves the page with HTTP 404, Immobiliare because an empty parse tripped
+    the "no listings extracted" alarm. The dashboard then showed a permanent
+    "Error", and the health streak (invariant 11) counted it towards alerting
+    about a scraper that was working perfectly.
+    """
+    from app.scrapers.base import text_says_no_results
+
+    assert text_says_no_results(IDEALISTA_NO_RESULTS) is True
+    assert text_says_no_results(IMMOBILIARE_NO_RESULTS) is True
+
+
+def test_a_real_markup_change_still_raises_the_alarm():
+    """The dangerous direction: if an empty page were assumed harmless, a portal
+    rewriting its markup would go unnoticed and the searches would quietly
+    return nothing forever. Only the portal's own words may excuse an empty
+    parse — a page that says nothing must still be an error."""
+    from app.scrapers.base import text_says_no_results
+
+    assert text_says_no_results("<html><body>Case in vendita</body></html>") is False
+    assert text_says_no_results("") is False
+
+
+def test_no_results_message_hidden_in_scripts_does_not_count():
+    """Matched against VISIBLE text only, like the gone markers (invariant 16):
+    the portals ship their i18n dictionaries inside the page's JSON, so a raw
+    substring scan would call a page full of listings "empty" and silence the
+    markup-change alarm on every scan."""
+    from app.scrapers.base import text_says_no_results
+
+    html = ('<html><body><script>var i18n = {"empty": "non ci sono annunci '
+            'per la tua ricerca"};</script><div>30 case</div></body></html>')
+    assert text_says_no_results(html) is False
+
+
 def test_parse_helpers():
     assert parse_price("da € 1.250.000 trattabili") == 1_250_000
     assert parse_price("€ 5.000") is None  # below plausible range

@@ -140,7 +140,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 397 tests
+│   ├── tests/                    # 401 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -250,13 +250,22 @@ Four lessons outlived the fix, and this entry was rewritten twice while learning
 
 The failure hid three more bugs: on `/cerca/` the contract segment no longer leads the path, so reading `segments[0]` labelled every zone rental a sale; Immobiliare's `con-ascensore` sits exactly where a zone would, so it parsed as a district named "Con Ascensore"; and `/multi/vendita-case/aOA,aOw/` yielded a *city* of "Aoa,Aow" — the opaque ids read as a place name, straight into the dedup fingerprint, where a bogus city silently blocks every cross-portal merge (invariant 1).
 
+### 8.11 "Re-generating a stored URL from its parsed parameters is a safe repair" — **False**
+Parsing the eight broken Idealista URLs in the live database and rebuilding them looked like a free migration. A dry run said otherwise. Two of them carry *two* `con-` segments (`/milano/con-ascensore/con-prezzo_260000,dimensione_50/`); the parser stopped at the first, read no price and no size, and rebuilt a search for the whole of Milano — ~7.800 listings where the user wanted ~50. The parse is now over every `con-` segment, but the deeper point stands: a parse→rebuild round-trip is lossy exactly where the URL holds something the builder has no parameter for, and it fails *silently*, in the direction that floods the dashboard rather than emptying it. Three of the eight still cannot be repaired mechanically — a multi-zone Immobiliare slug ("fiera-sempione-city-life-portello") is not free-text Idealista can resolve, and it returns 3 results instead of 47 — so the repair is offered per search with its result count shown, never applied as an automatic migration.
+
+The lossy direction bit again, in the same file: `elevator` and `exclude_auctions` were hardcoded `False` when parsing an Idealista URL, under a comment stating the portal had neither filter. It has both, and the builder was already writing them — so opening an Idealista search in the edit form (which prefills by re-parsing the profile's own URL) and pressing Save dropped both filters without a word. Parsing now derives from `IDEALISTA_FEATURES` itself, so a token cannot be written without being read back, and a test loops over the table rather than over the filters someone remembered.
+
 ### 8.12 "quadrilocali-4 is Idealista's 4-or-more bucket" — **False**
 A comment said so and a test asserted it, since July. The portal's own UI disproves it: picking "2 o più locali" produces `bilocali-2,trilocali-3,quadrilocali-4,5-locali-o-piu`, and the totals are **exactly additive** — `quadrilocali-4` alone 367, `5-locali-o-piu` alone 141, the two together 508. Overlapping buckets cannot add up like that, so `quadrilocali-4` means exactly four and there is a separate open-ended bucket at five.
 
 For as long as 4 was treated as open-ended, **every "4+ rooms" search silently dropped every five-room flat** — measured at 1.339 of them in Milan for a plain "3+ rooms" search. The failure shape of §3's warning: a 200, a plausible page, and quietly the wrong set. This one survived a live-verification pass too, because the URL it built was valid and returned results; only arithmetic across two separate totals could expose it.
 
-### 8.11 "Re-generating a stored URL from its parsed parameters is a safe repair" — **False**
-Parsing the eight broken Idealista URLs in the live database and rebuilding them looked like a free migration. A dry run said otherwise. Two of them carry *two* `con-` segments (`/milano/con-ascensore/con-prezzo_260000,dimensione_50/`); the parser stopped at the first, read no price and no size, and rebuilt a search for the whole of Milano — ~7.800 listings where the user wanted ~50. The parse is now over every `con-` segment, but the deeper point stands: a parse→rebuild round-trip is lossy exactly where the URL holds something the builder has no parameter for, and it fails *silently*, in the direction that floods the dashboard rather than emptying it. Three of the eight still cannot be repaired mechanically — a multi-zone Immobiliare slug ("fiera-sempione-city-life-portello") is not free-text Idealista can resolve, and it returns 3 results instead of 47 — so the repair is offered per search with its result count shown, never applied as an automatic migration.
+### 8.13 "An HTTP 404 on a search URL means the search is broken" — **False**
+Idealista answers **404 for a search that simply matched nothing**, serving its "abbiamo guardato dappertutto" page in full — the same status a dead slug gets. The two are distinguishable only by the page: a live-but-empty zone names itself back ("non ci sono annunci che corrispondano ai tuoi criteri **a City Life, Milano**"), while a dead slug says "non corrisponde a nessuna pagina".
+
+Both portals were reporting an empty search as a broken profile, by two different routes: Idealista through `raise_for_status()` on that 404, Immobiliare — which answers 200 — through the "no listings extracted" alarm that an empty parse trips. Either way the dashboard showed a permanent `Error`, and the health streak (invariant 11) counted it towards alerting about a scraper that was working perfectly. Fixed by asking the portal's own words (`text_says_no_results`, visible text only, exactly as for the gone markers in invariant 16). The asymmetry is deliberate: only an explicit "nothing matched" may excuse an empty parse, because assuming empty pages are harmless would silence the alarm that catches a portal rewriting its markup.
+
+This also measured a smaller trap: the marker phrases had to survive the portal wrapping a sentence across lines, so `_visible_text` now collapses whitespace runs — a reader does not see the line break, and a marker must not depend on where the markup happens to wrap.
 
 ---
 

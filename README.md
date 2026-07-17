@@ -473,7 +473,15 @@ Both portals sit behind **DataDome**, an anti-bot system that occasionally
 answers a scan with a block instead of listings. This is expected, not a bug:
 a blocked profile shows `Blocked (will retry)` and is retried on the next scan,
 and you are alerted only if it fails several scans in a row (see *Scraper health
-alerts*). The single most effective way to prevent blocks is to hand the scraper
+alerts*).
+
+A search that finds **nothing** is not an error either: it reports 0 listings and
+stays healthy. (Idealista answers such a search with an HTTP 404 — the same code
+it gives a URL that does not exist — so the scan reads the page itself to tell
+"no flats here today" from "no such zone". A genuine `Error` on a profile means
+its URL is wrong or the portal changed its markup.)
+
+The single most effective way to prevent blocks is to hand the scraper
 a **`datadome` cookie** earned by a real browser on your own connection.
 
 You can provide that cookie in three ways, from most to least automatic:

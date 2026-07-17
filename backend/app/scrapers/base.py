@@ -316,6 +316,13 @@ class BaseScraper:
             raise BlockedError(
                 f"{self.portal}: blocked (HTTP {resp.status_code}) on {url}"
             )
+        # Idealista answers 404 for a search that simply matched nothing, serving
+        # its "abbiamo guardato dappertutto" page in full — the same status a
+        # dead slug gets. Raising here turned every empty search into a permanent
+        # "Error: HTTP 404" on the dashboard, and fed the health streak
+        # (invariant 11) until it alerted about a scraper that was working fine.
+        if resp.status_code == 404 and text_says_no_results(resp.text):
+            return resp.text
         resp.raise_for_status()
         return resp.text
 
@@ -384,7 +391,12 @@ class BaseScraper:
             result.pages_fetched += 1
             result.strategy_used = strategy or result.strategy_used
             if not listings:
-                if page == 1:
+                # An empty first page is only an alarm when the portal does not
+                # say it meant it: "no listings extracted" is how a markup change
+                # shows up, but a search whose filters match nothing looks
+                # identical from here. Trusting the portal's own words keeps the
+                # alarm for the case it was built for.
+                if page == 1 and not text_says_no_results(html):
                     result.error = (
                         f"{self.portal}: no listings extracted — possible site "
                         "structure change, check logs"
@@ -428,6 +440,17 @@ AD_GONE_MARKERS = (
     "immobile non disponibile",
 )
 
+# What the portals write on a search whose filters matched nothing. Idealista
+# serves this page with HTTP 404 — the very status a dead slug gets — so the
+# status code alone cannot tell "no flats here today" from "no such zone": only
+# the page can. Measured live on both portals; Immobiliare answers 200 instead,
+# so it reaches us as an empty parse rather than an exception.
+SEARCH_EMPTY_MARKERS = (
+    "non abbiamo trovato quello che stavi cercando",   # Idealista
+    "non ci sono annunci che corrispondano ai tuoi criteri",
+    "non ci sono annunci per la tua ricerca",          # Immobiliare
+)
+
 # DataDome's interstitial "block" wall (the "Access is temporarily restricted"
 # page). Not necessarily a solvable CAPTCHA widget — often just static text —
 # but always a block, never the ad. Confirmed ABSENT from live ad pages, so it
@@ -459,7 +482,10 @@ def _visible_text(html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "template", "noscript"]):
             tag.decompose()
-        return soup.get_text(" ", strip=True).lower()
+        # Runs of whitespace collapse to one space: a reader does not see the
+        # line break a portal happens to put inside a sentence, so a marker
+        # phrase must not depend on where the markup wraps.
+        return re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).lower()
     except Exception:
         return ""
 
@@ -468,6 +494,20 @@ def text_says_gone(html: str) -> bool:
     """True when the page's VISIBLE text carries a portal "ad gone" message."""
     text = _visible_text(html)
     return any(m in text for m in AD_GONE_MARKERS)
+
+
+def text_says_no_results(html: str) -> bool:
+    """True when the page's VISIBLE text is the portal's own "nothing matched"
+    page — a real answer about an empty search, not a failure.
+
+    Visible text only, for the same reason as text_says_gone: the portals ship
+    their i18n dictionaries inside the page's JSON, so a raw substring scan would
+    call every page empty. Getting that backwards is the dangerous direction —
+    it would silence the "no listings extracted" alarm that catches a portal
+    changing its markup.
+    """
+    text = _visible_text(html)
+    return any(m in text for m in SEARCH_EMPTY_MARKERS)
 
 
 def has_block_marker(html: str) -> bool:
