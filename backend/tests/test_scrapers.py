@@ -250,9 +250,18 @@ def test_idealista_multi_word_city_zones_and_polygons():
     assert i._city_from_url(
         "https://www.idealista.it/aree/vendita-case/?shape=abc"
     ) == ""
-    # zone page: /municipality/zone/
+    # zone search: the free-text /cerca/ endpoint (see search_builder — the
+    # /municipality/zone/ page this once asserted is a 404 on the real site).
+    # The segment after "vendita-case" here is the FILTER list, so the
+    # positional rule read a city of "Con Prezzo 380000,dimensione" — straight
+    # into the dedup fingerprint, where a bogus city silently blocks every
+    # cross-portal merge for the whole search.
     assert i._city_from_url(
-        "https://www.idealista.it/vendita-case/milano/navigli/"
+        "https://www.idealista.it/cerca/vendita-case/con-prezzo_380000,dimensione_65/Bovisa_Milano/"
+    ) == "Milano"
+    # multi-word zone, and pagination on top of it
+    assert i._city_from_url(
+        "https://www.idealista.it/cerca/vendita-case/Udine_Lambrate_Milano/lista-2.htm"
     ) == "Milano"
 
 

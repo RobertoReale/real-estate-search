@@ -10,6 +10,8 @@ The generated URLs use only *documented-by-usage* formats:
 - Idealista filters travel in a "con-…" path segment; the city segment is
   "municipality-province" (see idealista._city_from_url, which parses it
   back the same way).
+- Idealista zone searches go through its free-text endpoint,
+  /cerca/<base>/con-<filters>/<Zone_City>/ — see build_idealista_url.
 
 The UI always shows the generated URL with an "open in browser" link before
 saving: if a portal changes its URL grammar, the user sees it immediately.
@@ -33,6 +35,42 @@ def _slug(name: str) -> str:
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-")
+
+
+def cerca_location(city: str, zone: str = "") -> str:
+    """"Milano" + "Udine Lambrate" -> "Udine_Lambrate_Milano".
+
+    The free-text query Idealista's /cerca/ endpoint resolves server-side:
+    words underscore-joined, zone first (it is the narrowing term), city last.
+    """
+    words = f"{zone} {city}".split() if zone else (city or "").split()
+    return "_".join(w.title() if w.islower() else w for w in words)
+
+
+def split_cerca_location(location: str) -> tuple[str, str]:
+    """Inverse of cerca_location: "Udine_Lambrate_Milano" -> ("Milano",
+    "Udine Lambrate").
+
+    The split is ambiguous by construction — nothing in "Navigli_Sesto_San_
+    Giovanni" marks where the zone ends — so known city spellings decide it,
+    longest tail first. An unrecognised city falls back to "last token is the
+    city", which is right for the one-word cities that dominate and wrong only
+    for a multi-word city absent from CITY_SPELLINGS. That failure is safe:
+    a wrong city blocks a cross-portal merge (invariant 1 demands proof of
+    location), it can never forge one.
+    """
+    tokens = [t for t in (location or "").replace("%20", " ").split("_") if t]
+    if not tokens:
+        return "", ""
+    try:
+        from .query_parser import CITY_SPELLINGS
+    except ImportError:
+        CITY_SPELLINGS = {}
+    for n in range(min(len(tokens), 4), 0, -1):
+        proper = CITY_SPELLINGS.get(" ".join(tokens[-n:]).lower())
+        if proper:
+            return proper, " ".join(tokens[:-n]).title()
+    return tokens[-1].title(), " ".join(tokens[:-1]).title()
 
 
 def build_immobiliare_url(
@@ -70,15 +108,6 @@ def build_idealista_url(
     min_sqm: int | None = None, **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
-    # city segment is "municipality-province"; without a province the
-    # municipality usually is the province capital (e.g. milano-milano).
-    # Zone pages use a different grammar the scraper already parses back
-    # (idealista._city_from_url): /vendita-case/milano/navigli/ — bare
-    # municipality (NO province suffix), zone as the next segment.
-    if zone:
-        city_seg = f"{_slug(city)}/{_slug(zone)}"
-    else:
-        city_seg = f"{_slug(city)}-{_slug(province or city)}"
     filters = []
     if max_price:
         filters.append(f"prezzo_{max_price}")
@@ -97,8 +126,25 @@ def build_idealista_url(
         high = min(max_rooms, 4) if max_rooms else 4
         for n in range(low, max(high, low) + 1):
             filters.append(IDEALISTA_ROOMS[n])
-    url = f"https://www.idealista.it/{base}/{city_seg}/"
-    return f"{url}con-{','.join(filters)}/" if filters else url
+    con_seg = f"con-{','.join(filters)}/" if filters else ""
+
+    # A zone cannot be addressed by name: Idealista's zone pages are keyed by
+    # slugs of its own that are not derivable from the zone's name, so the
+    # obvious /vendita-case/milano/bovisa/ is a 404 — measured live on
+    # 2026-07-17, with and without the province suffix, while the same page
+    # without the zone answers 200. Its free-text endpoint resolves the
+    # location server-side instead, and honours the very same con- filters
+    # (verified: the result total moves, 179 -> 112 with trilocali-3, and
+    # /lista-N.htm still paginates). Plain city searches keep the canonical
+    # municipality-province page: it works, and it is the URL the user
+    # recognises from the browser.
+    if zone:
+        return (f"https://www.idealista.it/cerca/{base}/{con_seg}"
+                f"{cerca_location(city, zone)}/")
+    # without a province the municipality usually is the province capital
+    # (e.g. milano-milano).
+    city_seg = f"{_slug(city)}-{_slug(province or city)}"
+    return f"https://www.idealista.it/{base}/{city_seg}/{con_seg}"
 
 
 def build_search_urls(params: dict) -> dict[str, str]:
@@ -149,16 +195,24 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
     segments = [s for s in parsed.path.split("/") if s]
     contract = "rent" if segments and segments[0].startswith("affitto") else "sale"
 
+    # "con-ascensore" & co. are FILTER segments, not zones: Immobiliare puts
+    # them exactly where a zone would sit (/vendita-case/milano/con-ascensore/).
+    # Reading one as a zone produced a search for a district named "Con
+    # Ascensore" — and, once fed to build_idealista_url, the sibling URL
+    # /vendita-case/milano/con-ascensore/con-prezzo_260000/ (two con- segments,
+    # a guaranteed 404). Two such searches are saved in the live database.
+    _NOT_A_ZONE = ("pag", "search-list", "con-", "?")
+
     city = ""
     zone = ""
     if segments and segments[0] in ("vendita-case", "affitto-case", "vendita", "affitto"):
         if len(segments) >= 2:
             city = _unslug_city(segments[1])
-            if len(segments) >= 3 and not segments[2].startswith(("pag", "search-list", "?")):
+            if len(segments) >= 3 and not segments[2].startswith(_NOT_A_ZONE):
                 zone = _unslug_zone(segments[2])
     elif segments and segments[0] not in ("search-list", "aree", "annunci"):
         city = _unslug_city(segments[0])
-        if len(segments) >= 2 and not segments[1].startswith(("pag", "search-list", "?")):
+        if len(segments) >= 2 and not segments[1].startswith(_NOT_A_ZONE):
             zone = _unslug_zone(segments[1])
 
     qs = parse_qs(parsed.query)
@@ -178,44 +232,60 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
 def parse_idealista_url(url: str) -> dict[str, Any]:
     parsed = urlparse((url or "").strip())
     segments = [s for s in parsed.path.split("/") if s]
-    contract = "rent" if segments and segments[0].startswith("affitto") else "sale"
+    # the contract segment leads the path on a city page but trails /cerca/,
+    # so it is matched wherever it sits: keying off segments[0] read every
+    # /cerca/ URL — zone searches, now all of them — as a sale.
+    contract = "rent" if any(s.startswith("affitto") for s in segments) else "sale"
+
+    city = ""
+    zone = ""
+    province = ""
+    if segments and segments[0] == "cerca":
+        # /cerca/<base>/con-<filters>/<Zone_City>/: the location is free text
+        # and trails the filters, so it is found by exclusion, not by position.
+        loc = next((s for s in segments[1:] if not s.startswith(
+            ("vendita-", "affitto-", "con-", "lista-", "pag-"))), "")
+        city, zone = split_cerca_location(loc)
+        return _idealista_params(city, province, zone, contract, segments)
 
     loc_segments = []
-    start_idx = 1 if segments and segments[0] in ("vendita-case", "affitto-case", "vendita", "affitto") else 0
+    start_idx = 1 if segments[0] in ("vendita-case", "affitto-case", "vendita", "affitto") else 0
     for s in segments[start_idx:]:
         if s.startswith(("con-", "lista-", "pag-", "aree", "mappa")) or s == "?":
             break
         loc_segments.append(s)
 
-    city = ""
-    province = ""
-    zone = ""
-    if len(loc_segments) >= 2:
-        city_slug = loc_segments[0]
-        zone = _unslug_zone(loc_segments[1])
-        tokens = [t for t in city_slug.split("-") if t]
+    if loc_segments:
+        tokens = [t for t in loc_segments[0].split("-") if t]
         if len(tokens) > 1:
             city = _unslug_city("-".join(tokens[:-1]))
             province = _unslug_city(tokens[-1])
         else:
-            city = _unslug_city(city_slug)
-    elif len(loc_segments) == 1:
-        city_slug = loc_segments[0]
-        tokens = [t for t in city_slug.split("-") if t]
-        if len(tokens) > 1:
-            city = _unslug_city("-".join(tokens[:-1]))
-            province = _unslug_city(tokens[-1])
-        else:
-            city = _unslug_city(city_slug)
+            city = _unslug_city(loc_segments[0])
+        if len(loc_segments) >= 2:
+            zone = _unslug_zone(loc_segments[1])
 
+    return _idealista_params(city, province, zone, contract, segments)
+
+
+def _idealista_params(city: str, province: str, zone: str, contract: str,
+                      segments: list[str]) -> dict[str, Any]:
+    """Reads the con-… filter segment. Shared by both location grammars: the
+    /cerca/ endpoint takes the very same filters as a city page (verified
+    live), so parsing them twice would only let the two copies drift."""
     min_price = None
     max_price = None
     min_sqm = None
     rooms_found: list[int] = []
 
-    filter_seg = next((s for s in segments if s.startswith("con-")), "")
-    if filter_seg:
-        filters = [f.strip() for f in filter_seg[4:].split(",") if f.strip()]
+    # EVERY con- segment, not just the first: a URL carried over from
+    # Immobiliare can hold two (/milano/con-ascensore/con-prezzo_260000/), and
+    # stopping at the first one read the price/size filters as absent. That is
+    # the dangerous direction — the rebuilt URL was a search for the whole of
+    # Milano, ~7.800 listings instead of ~50.
+    filters = [f.strip() for s in segments if s.startswith("con-")
+               for f in s[4:].split(",") if f.strip()]
+    if filters:
         for f in filters:
             if f.startswith(("prezzo-min_", "prezzo-min-")):
                 min_price = _safe_int(f.split("_")[-1] if "_" in f else f.split("-")[-1])

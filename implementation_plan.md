@@ -140,7 +140,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 382 tests
+│   ├── tests/                    # 385 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
@@ -233,6 +233,14 @@ The same email links an ad from its photo, from a call-to-action button, and onc
 
 ### 8.9 "`last_run_at is None` means first scan" — **False**
 §8.6's silent-first-scan fix used `profile.last_run_at is None` as the "is this the first scan" test. But `last_run_at` is stamped on *any* scan attempt, including one that gets blocked or errored before fetching a single listing — needed so the scheduler knows the profile was attempted. A profile blocked on its very first try then "used up" its silent baseline: the next attempt, the first to actually see real listings, treated all of them as newly discovered and fired a notification for each. Fixed with a dedicated `SearchProfile.baseline_done` flag, set only once listings have actually been processed into a baseline — independent of how many attempts it took to get there.
+
+### 8.10 "Idealista addresses a zone by its name, like Immobiliare" — **False**
+The search builder emitted `/vendita-case/milano/bovisa/` for a zone search, by symmetry with Immobiliare's `/vendita-case/milano/bovisa/`. It is a 404 — and so is `/vendita-case/milano-milano/bovisa/`, so the missing province suffix, the obvious suspect, was never the cause: Idealista keys its zone pages by internal slugs that a zone's *name* does not yield, and no offline rule can produce one. Every zone search the app had ever generated was therefore a guaranteed 404, while the same search without the zone answered 200 — which is why it read as an intermittent portal problem rather than a bug of ours. The fix is the portal's own free-text endpoint, `/cerca/vendita-case/con-<filters>/<Zone_City>/`, which resolves the location server-side, accepts the identical `con-` filters and still paginates with `/lista-N.htm`.
+
+Two lessons outlived the fix. First, a code comment asserted the false grammar and a test asserted the comment, so the suite was green *because* it encoded the bug — offline tests cannot validate a URL grammar, only that we still build the string we decided to build. Live verification means checking the portal's own result *total* moves when a filter is added (179 → 112 for `trilocali-3`), never the card count: a page holds 30 either way, so counting cards "confirms" any filter, including one the portal ignored. Second, the failure hid two more: on `/cerca/` the contract segment no longer leads the path, so reading `segments[0]` labelled every zone rental a sale, and Immobiliare's `con-ascensore` sits exactly where a zone would, so it parsed as a district named "Con Ascensore".
+
+### 8.11 "Re-generating a stored URL from its parsed parameters is a safe repair" — **False**
+Parsing the eight broken Idealista URLs in the live database and rebuilding them looked like a free migration. A dry run said otherwise. Two of them carry *two* `con-` segments (`/milano/con-ascensore/con-prezzo_260000,dimensione_50/`); the parser stopped at the first, read no price and no size, and rebuilt a search for the whole of Milano — ~7.800 listings where the user wanted ~50. The parse is now over every `con-` segment, but the deeper point stands: a parse→rebuild round-trip is lossy exactly where the URL holds something the builder has no parameter for, and it fails *silently*, in the direction that floods the dashboard rather than emptying it. Three of the eight still cannot be repaired mechanically — a multi-zone Immobiliare slug ("fiera-sempione-city-life-portello") is not free-text Idealista can resolve, and it returns 3 results instead of 47 — so the repair is offered per search with its result count shown, never applied as an automatic migration.
 
 ---
 

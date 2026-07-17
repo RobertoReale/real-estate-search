@@ -361,19 +361,89 @@ def test_patch_property_updates_favorite_and_notes(db):
 
 
 def test_zone_urls_use_the_zone_page_grammar():
-    """Immobiliare: zone as an extra path segment. Idealista: zone pages drop
-    the "-province" suffix from the city segment (/milano/navigli/, exactly
-    the format idealista._city_from_url documents and parses back)."""
+    """Immobiliare: zone as an extra path segment.
+
+    Idealista: the free-text /cerca/ endpoint, because it has NO addressable
+    zone page. This test used to assert /vendita-case/milano/navigli/ on the
+    strength of a code comment; measured live on 2026-07-17 that grammar is a
+    404, and so is /milano-milano/navigli/ — the province suffix was never the
+    issue, Idealista simply keys its zone pages by internal slugs that a zone's
+    name does not yield. Every zone search the app generated was therefore a
+    guaranteed 404, which no offline test could have seen. /cerca/ resolves the
+    location server-side and takes the same con- filters (verified: the result
+    total moves 179 -> 112 when trilocali-3 is added).
+    """
     assert build_immobiliare_url(city="Milano", zone="Navigli") == (
         "https://www.immobiliare.it/vendita-case/milano/navigli/"
     )
     assert build_idealista_url(city="Milano", zone="Navigli") == (
-        "https://www.idealista.it/vendita-case/milano/navigli/"
+        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/"
     )
-    # filters still append after the zone segment
+    # filters keep their con- segment, which on /cerca/ PRECEDES the location
     assert build_idealista_url(
         city="Milano", zone="Porta Romana", max_price=300_000
-    ) == "https://www.idealista.it/vendita-case/milano/porta-romana/con-prezzo_300000/"
+    ) == ("https://www.idealista.it/cerca/vendita-case/con-prezzo_300000/"
+          "Porta_Romana_Milano/")
+    # a plain city keeps the canonical municipality-province page: it works,
+    # and it is the URL the user recognises from their own browser
+    assert build_idealista_url(city="Milano") == (
+        "https://www.idealista.it/vendita-case/milano-milano/"
+    )
+
+
+def test_immobiliare_filter_segment_is_not_mistaken_for_a_zone():
+    """Immobiliare puts filter segments where a zone would sit
+    (/vendita-case/milano/con-ascensore/). Taken as a zone it became a search
+    for a district called "Con Ascensore", and the Idealista twin built from it
+    was /vendita-case/milano/con-ascensore/con-prezzo_260000/ — two con-
+    segments, a certain 404. Found in the live DB, twice."""
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=260000")
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == ""
+    # a real zone still reads through, filters after it or not
+    parsed = parse_search_url(
+        "https://www.immobiliare.it/vendita-case/milano/bovisa/con-ascensore/?prezzoMassimo=380000")
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == "Bovisa"
+
+
+def test_idealista_url_with_two_con_segments_keeps_its_filters():
+    """A URL can carry more than one con- segment. Reading only the first one
+    dropped price and size silently, and the URL rebuilt from that parse was a
+    search for the entire city (~7.800 listings against ~50) — the failure
+    direction that floods the dashboard rather than emptying it. Two such URLs
+    are saved in the live database."""
+    parsed = parse_search_url(
+        "https://www.idealista.it/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50/")
+    assert parsed["city"] == "Milano"
+    assert parsed["max_price"] == 260000
+    assert parsed["min_sqm"] == 50
+
+
+def test_idealista_cerca_url_parses_back_to_city_zone_and_contract():
+    """The /cerca/ location is free text ("Udine_Lambrate_Milano"): nothing in
+    it marks where the zone ends, so known city spellings decide the split.
+
+    The contract is the trap: on /cerca/ the "affitto-case" segment no longer
+    leads the path, and reading segments[0] (= "cerca") reported every zone
+    rental as a sale — silently, since the URL still scraped fine."""
+    parsed = parse_search_url(
+        "https://www.idealista.it/cerca/affitto-case/con-prezzo_1500/Udine_Lambrate_Milano/")
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == "Udine Lambrate"
+    assert parsed["contract"] == "rent"
+    assert parsed["max_price"] == 1500
+
+    # round-trip through the builder, zone included
+    url = build_idealista_url(city="Milano", zone="Bovisa", max_price=380_000,
+                              min_sqm=65, contract="sale")
+    parsed = parse_search_url(url)
+    assert parsed["city"] == "Milano"
+    assert parsed["zone"] == "Bovisa"
+    assert parsed["contract"] == "sale"
+    assert parsed["max_price"] == 380000
+    assert parsed["min_sqm"] == 65
 
 
 # --- Settings persistence -----------------------------------------------------

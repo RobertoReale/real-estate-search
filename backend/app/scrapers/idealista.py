@@ -60,7 +60,7 @@ class IdealistaScraper(BaseScraper):
         Real Idealista formats (city segment is "municipality-province"):
           /vendita-case/milano-milano/               -> Milano
           /vendita-case/sesto-san-giovanni-milano/   -> Sesto San Giovanni
-          /vendita-case/milano/navigli/              -> Milano (zone page)
+          /cerca/vendita-case/con-x/Bovisa_Milano/   -> Milano (zone search)
           /aree/vendita-case/?shape=...              -> "" (polygon: city unknown)
 
         Better "" than an incorrect city: the city enters the fingerprint and
@@ -68,6 +68,15 @@ class IdealistaScraper(BaseScraper):
         merging (or worse, create false merges).
         """
         segments = [s for s in urlparse(page_url).path.split("/") if s]
+        # zone searches ride the free-text /cerca/ endpoint (search_builder
+        # explains why), where the segment after "vendita-case" is the filter
+        # list, not the city: the loop below would have read a city of
+        # "Con Prezzo 380000,dimensione" straight into the dedup fingerprint.
+        if segments and segments[0] == "cerca":
+            from ..services.search_builder import split_cerca_location
+            loc = next((s for s in segments[1:] if not s.startswith(
+                ("vendita-", "affitto-", "con-", "lista-", "pag-"))), "")
+            return split_cerca_location(loc)[0]
         # the city segment immediately follows "vendita-case"/"affitto-case"
         city_seg = ""
         for i, seg in enumerate(segments):
