@@ -213,10 +213,10 @@ def build_idealista_url(
     # byte-identical URL, or search_validator would read two spellings of one
     # search as two different searches (invariant 20's duplicate check
     # normalizes the query string, not the order of a path segment).
-    wanted = {"balcony": balcony, "garden": garden, "parking": parking,
-              "elevator": elevator, "exclude_auctions": exclude_auctions}
-    for key in ("balcony", "garden", "parking", "elevator", "exclude_auctions"):
-        if wanted[key]:
+    for key, requested in (("balcony", balcony), ("garden", garden),
+                           ("parking", parking), ("elevator", elevator),
+                           ("exclude_auctions", exclude_auctions)):
+        if requested:
             filters.append(IDEALISTA_FEATURES[key])
     if floor in IDEALISTA_FLOORS:
         filters.append(IDEALISTA_FLOORS[floor])
