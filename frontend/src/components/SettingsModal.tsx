@@ -271,9 +271,19 @@ export default function SettingsModal({ onClose }: Props) {
     setFeedback(null);
     try {
       await api.restartBackend();
-    } catch {
-      // the socket can drop before the response arrives — the poll below is the
-      // real signal that it worked, so a thrown error here is not a failure
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      // A 404/405 means THIS backend predates the restart route, so it cannot
+      // restart itself — the classic bootstrap trap. Say so plainly instead of
+      // polling (the process never went down) and pretending it worked.
+      if (/Method Not Allowed|Not Found|Error 40[45]/i.test(raw)) {
+        setRestarting(false);
+        setFeedback({ where: "global", ok: false,
+          text: "This running backend is too old to restart itself — close its terminal window and re-run start.bat / serve.bat once. After that this button (and the newest features) will work." });
+        return;
+      }
+      // Otherwise the socket dropped as the process went down — that is the
+      // expected path; the poll below is the real "did it come back?" signal.
     }
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     await sleep(1500); // give it a moment to actually go down first

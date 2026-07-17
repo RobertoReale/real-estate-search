@@ -7,6 +7,7 @@ which is why a minimum sample size is enforced — a "median" of two listings
 would just be noise presented as insight.
 """
 import logging
+import threading
 from datetime import date
 from statistics import median
 
@@ -16,6 +17,13 @@ from sqlalchemy.orm import Session
 from ..models import PricingSnapshot, Property
 
 logger = logging.getLogger(__name__)
+
+# Serialises the "already captured today?" check against the insert. Without it,
+# two callers that both finish a scan on a fresh day (or a scan and the daily
+# scheduler job) each pass the check before either commits, and both write the
+# full set of rows — the day then holds two snapshots per area, and the trend
+# chart plots each twice. A single-process app, so a module lock is enough.
+_snapshot_lock = threading.Lock()
 
 # below this many comparable listings the median is not meaningful
 MIN_SAMPLE = 3
@@ -131,26 +139,29 @@ def capture_snapshots(db: Session, today: date | None = None) -> int:
     number of rows written (0 if today is already captured or nothing qualifies).
     """
     today = today or date.today()
-    already = db.scalar(
-        select(PricingSnapshot.id).where(PricingSnapshot.captured_on == today)
-    )
-    if already is not None:
-        return 0
-    zone_medians, city_medians = compute_sqm_price_medians(db)
-    rows = 0
-    for (city, contract), (med, n) in city_medians.items():
-        db.add(PricingSnapshot(captured_on=today, city=city, zone="",
-                               contract=contract, median_sqm_price=round(med, 2),
-                               sample_count=n))
-        rows += 1
-    for (city, zone, contract), (med, n) in zone_medians.items():
-        db.add(PricingSnapshot(captured_on=today, city=city, zone=zone,
-                               contract=contract, median_sqm_price=round(med, 2),
-                               sample_count=n))
-        rows += 1
-    if rows:
-        db.commit()
-    return rows
+    # Hold the lock across the check AND the write: the whole point is that a
+    # second caller cannot slip between "nothing for today yet" and the commit.
+    with _snapshot_lock:
+        already = db.scalar(
+            select(PricingSnapshot.id).where(PricingSnapshot.captured_on == today)
+        )
+        if already is not None:
+            return 0
+        zone_medians, city_medians = compute_sqm_price_medians(db)
+        rows = 0
+        for (city, contract), (med, n) in city_medians.items():
+            db.add(PricingSnapshot(captured_on=today, city=city, zone="",
+                                   contract=contract, median_sqm_price=round(med, 2),
+                                   sample_count=n))
+            rows += 1
+        for (city, zone, contract), (med, n) in zone_medians.items():
+            db.add(PricingSnapshot(captured_on=today, city=city, zone=zone,
+                                   contract=contract, median_sqm_price=round(med, 2),
+                                   sample_count=n))
+            rows += 1
+        if rows:
+            db.commit()
+        return rows
 
 
 def maybe_snapshot(db: Session) -> int:
@@ -178,14 +189,18 @@ def get_trends(db: Session, city: str, zone: str, contract: str) -> dict:
         .where(PricingSnapshot.city == city_norm,
                PricingSnapshot.zone == zone_norm,
                PricingSnapshot.contract == contract)
-        .order_by(PricingSnapshot.captured_on)
+        .order_by(PricingSnapshot.captured_on, PricingSnapshot.id)
     ).all()
+    # Collapse to one point per day. New rows can no longer duplicate (see
+    # `_snapshot_lock`), but databases written before that fix may hold two rows
+    # for a day; two points at the same x drew the chart's line back on itself
+    # and left stray dots. Keep the last row of each day (ordered by id).
+    by_day: dict = {}
+    for d, m, n in rows:
+        by_day[d] = {"captured_on": d, "median_sqm_price": m, "sample_count": n}
     return {
         "city": city_norm, "zone": zone_norm, "contract": contract,
-        "points": [
-            {"captured_on": d, "median_sqm_price": m, "sample_count": n}
-            for d, m, n in rows
-        ],
+        "points": list(by_day.values()),
     }
 
 
@@ -195,15 +210,17 @@ def list_trend_areas(db: Session, contract: str) -> list[dict]:
     each ordered by how much history backs it."""
     rows = db.execute(
         select(PricingSnapshot.city, PricingSnapshot.zone,
-               PricingSnapshot.contract)
+               PricingSnapshot.contract, PricingSnapshot.captured_on)
         .where(PricingSnapshot.contract == contract)
     ).all()
-    counts: dict[tuple[str, str, str], int] = {}
-    for city, zone, ctr in rows:
-        counts[(city, zone, ctr)] = counts.get((city, zone, ctr), 0) + 1
+    # Count DISTINCT days, not rows: a pre-fix duplicate would otherwise inflate
+    # the "N days" label and could pass the >= 2 trend gate on a single day.
+    days: dict[tuple[str, str, str], set] = {}
+    for city, zone, ctr, day in rows:
+        days.setdefault((city, zone, ctr), set()).add(day)
     areas = [
-        {"city": city, "zone": zone, "contract": ctr, "point_count": n}
-        for (city, zone, ctr), n in counts.items() if n >= 2
+        {"city": city, "zone": zone, "contract": ctr, "point_count": len(ds)}
+        for (city, zone, ctr), ds in days.items() if len(ds) >= 2
     ]
     # whole-city aggregates first, then most-observed
     areas.sort(key=lambda a: (a["zone"] != "", -a["point_count"], a["city"]))

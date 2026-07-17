@@ -85,6 +85,32 @@ def test_get_trends_returns_ordered_series(db):
         series["points"][0]["median_sqm_price"]
 
 
+def test_get_trends_collapses_same_day_duplicates(db):
+    """Databases written before the capture lock existed can hold two snapshots
+    for one day (a race between the scan and the daily job). Two points at the
+    same x drew the chart's line back on itself and stranded dots, so the query
+    keeps one point per day (the last by id)."""
+    for median, sc in ((3200.0, 3), (3300.0, 4)):  # two rows, same day/area
+        db.add(PricingSnapshot(captured_on=date(2026, 7, 1), city="milano",
+                               zone="isola", contract="sale",
+                               median_sqm_price=median, sample_count=sc))
+    db.commit()
+    series = get_trends(db, city="milano", zone="isola", contract="sale")
+    assert len(series["points"]) == 1
+    assert series["points"][0]["median_sqm_price"] == 3300.0  # last by id wins
+
+
+def test_list_trend_areas_counts_distinct_days_not_rows(db):
+    """A single day duplicated must NOT masquerade as two days of history and
+    slip past the >= 2 trend gate."""
+    for median in (3200.0, 3300.0):  # two rows, but the SAME single day
+        db.add(PricingSnapshot(captured_on=date(2026, 7, 1), city="milano",
+                               zone="isola", contract="sale",
+                               median_sqm_price=median, sample_count=3))
+    db.commit()
+    assert list_trend_areas(db, "sale") == []  # one real day is not a trend
+
+
 def test_get_trends_city_aggregate_uses_empty_zone(db):
     _three_comparables(db)
     capture_snapshots(db, today=date(2026, 7, 1))
