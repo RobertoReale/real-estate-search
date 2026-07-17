@@ -60,21 +60,28 @@ IMMOBILIARE_CONDITION = {"new": 1, "good": 2, "excellent": 6}
 # "ascensori". A 404 means "not this word", never "no such filter" — when a
 # token is wanted, read it off the portal's UI rather than inventing it.
 IDEALISTA_FEATURES = {
-    "balcony": "balcone",        # 3.477 -> 1.960
-    "garden": "giardino",        # -> 1.203
-    "parking": "garage",         # -> 763
-    "elevator": "ascensori",     # 7.843 -> 5.331 (plural!)
+    "balcony": "balcone",           # 3.477 -> 1.960
+    "garden": "giardino",           # -> 1.203
+    "parking": "garage",            # -> 763
+    "elevator": "ascensori",        # 7.843 -> 5.331 (plural!)
+    "exclude_auctions": "aste_no",  # 7.843 -> 6.899
 }
 IDEALISTA_FLOORS = {"ground": "piano-terra", "middle": "piani-intermedi",
                     "top": "ultimo-piano"}
 IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato"}
 # Measured on Idealista but deliberately NOT offered: "piscina" (-> 30) and
 # "ristrutturare" (-> 739, "da ristrutturare"). Immobiliare renders both only
-# as path segments (/con-piscina/, /da-ristrutturare/) and its query-param
-# spelling is unknown, so offering them would filter Idealista while leaving
-# Immobiliare wide open — the same silent asymmetry idealista_unsupported
-# exists to prevent, only in the direction nothing reports. Add them once the
-# Immobiliare params are read off its UI.
+# as path segments (/con-piscina/, /da-ristrutturare/), and it keeps them there
+# even when a second filter is added, so no query spelling has ever surfaced —
+# /da-ristrutturare/?bagni=3 is the portal's own output. Offering them would
+# filter Idealista while leaving Immobiliare wide open: the same silent
+# asymmetry idealista_unsupported exists to prevent, in the direction nothing
+# reports. Add them once Immobiliare's params are read off its UI.
+#
+# Both tokens here were also a reminder that guessing loses: four spellings of
+# an auction filter (escludi-aste, senza-asta, non-asta, no-aste) 404'd before
+# the portal's own UI produced "aste_no" — the syntax was wrong, not just the
+# word.
 
 
 def _slug(name: str) -> str:
@@ -172,7 +179,8 @@ def build_idealista_url(
     min_rooms: int | None = None, max_rooms: int | None = None,
     min_sqm: int | None = None, zone_page: bool = False, balcony: bool = False,
     garden: bool = False, parking: bool = False, elevator: bool = False,
-    floor: str = "", condition: str = "", **_ignored,
+    exclude_auctions: bool = False, floor: str = "", condition: str = "",
+    **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
     filters = []
@@ -200,8 +208,8 @@ def build_idealista_url(
     # search as two different searches (invariant 20's duplicate check
     # normalizes the query string, not the order of a path segment).
     wanted = {"balcony": balcony, "garden": garden, "parking": parking,
-              "elevator": elevator}
-    for key in ("balcony", "garden", "parking", "elevator"):
+              "elevator": elevator, "exclude_auctions": exclude_auctions}
+    for key in ("balcony", "garden", "parking", "elevator", "exclude_auctions"):
         if wanted[key]:
             filters.append(IDEALISTA_FEATURES[key])
     if floor in IDEALISTA_FLOORS:
@@ -314,17 +322,18 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
 def idealista_unsupported(params: dict) -> list[str]:
     """Which of the requested filters Idealista cannot apply.
 
-    Only the auction exclusion, so far: Immobiliare has noAste=1 and no token
-    tried on Idealista matches (its sidebar does show an "Asta" dropdown, so
-    one likely exists under a name not yet read off its UI — the entry stays
-    here until it is, since claiming a filter we do not apply is the worse
-    error). Left unsaid, the Idealista half of a paired search would quietly be
-    the wider one, and the extra listings would read as a deduplication failure
-    rather than a filter that is not there.
+    Only "excellent/renovated" condition, so far: Immobiliare has stato=6 and
+    Idealista's dropdown offers no equivalent. Left unsaid, the Idealista half
+    of a paired search would quietly be the wider one, and the extra listings
+    would read as a deduplication failure rather than a filter that is not
+    there.
+
+    Everything else once listed here turned out to exist under a name that had
+    simply not been read off the portal yet — the elevator ("ascensori") and
+    the auction exclusion ("aste_no"). Before adding an entry, check the
+    portal's UI rather than a failed guess.
     """
     out = []
-    if params.get("exclude_auctions"):
-        out.append("exclude_auctions")
     if params.get("floor") and params["floor"] not in IDEALISTA_FLOORS:
         out.append("floor")
     if params.get("condition") and params["condition"] not in IDEALISTA_CONDITION:

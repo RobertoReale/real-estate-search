@@ -435,33 +435,31 @@ def test_feature_filters_map_to_each_portal_measured_grammar():
         assert expected in imm, expected
 
     ide = build_idealista_url(**params)
-    assert "balcone,giardino,garage,ascensori,piani-intermedi,buono-stato" in ide
-    # Idealista's elevator token is PLURAL. Probing declared the filter absent
-    # because every spelling tried was singular, and the portal's own UI says
-    # "ascensori" — a 404 means "not this word", never "no such filter".
+    assert ("balcone,giardino,garage,ascensori,aste_no,piani-intermedi,"
+            "buono-stato") in ide
+    # Both of these were once believed absent from Idealista, because guessing
+    # can only refute the strings you think of. The elevator token is PLURAL
+    # ("ascensori"), and the auction one uses the underscore syntax of
+    # prezzo_380000 ("aste_no") — four hyphenated guesses had 404'd. A 404
+    # means "not this word", never "no such filter".
     assert "ascensore," not in ide
-    # no auction filter is known on Idealista: it must not leak in as an
-    # invented token, which the portal would 404 on — taking the whole search
-    # down rather than merely widening it
-    assert "aste" not in ide
+    assert "no-aste" not in ide and "escludi-aste" not in ide
 
 
 def test_filters_idealista_cannot_apply_are_reported_not_swallowed():
     """The Idealista half of a paired search is quietly the wider one whenever
     a filter exists only on Immobiliare. Unsaid, the extra listings read as a
     deduplication failure rather than a filter the portal does not have."""
-    # Immobiliare has noAste=1; no Idealista token for it is known yet
-    out = build_search_urls(dict(city="Milano", exclude_auctions=True))
-    assert out["idealista_unsupported"] == ["exclude_auctions"]
-
     # "ottimo/ristrutturato" is Immobiliare's stato=6 with no Idealista twin
     out = build_search_urls(dict(city="Milano", condition="excellent"))
     assert out["idealista_unsupported"] == ["condition"]
 
-    # everything both portals can do reports nothing — including the elevator
-    # and the ground floor, which were wrongly believed Immobiliare-only
+    # everything both portals can do reports nothing — including the elevator,
+    # the ground floor and the auction exclusion, each of which was wrongly
+    # believed Immobiliare-only until the portal's own UI named the token
     out = build_search_urls(dict(city="Milano", balcony=True, elevator=True,
-                                 floor="ground", condition="new"))
+                                 exclude_auctions=True, floor="ground",
+                                 condition="new"))
     assert out["idealista_unsupported"] == []
 
 

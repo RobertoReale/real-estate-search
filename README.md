@@ -99,11 +99,13 @@ phone without any of this. The dashboard is for browsing and triaging.
      unreachable at that moment, it uses the text search — a check that fails
      costs precision, never a working search.
    - The **"Build a search"** form covers city, price, rooms, surface, plus
-     balcony, garden, garage, lift, floor band and condition. **Excluding
-     auctions is Immobiliare-only** — Idealista's search URLs have no such
-     filter — and the form says so when it applies: that half of the pair is
-     then the wider search. For anything beyond this (hand-drawn map polygons,
-     multi-zone selections), set it on the portal and paste the URL.
+     balcony, garden, garage, lift, excluding auctions, floor band (ground /
+     middle / top) and condition — all applied on **both** portals. The one
+     exception is the *"Excellent / renovated"* condition, which only
+     Immobiliare offers; pick it and the form says so, because the Idealista
+     half of the pair is then the wider search. For anything beyond this
+     (hand-drawn map polygons, multi-zone selections, bathrooms, heating,
+     energy class), set it on the portal and paste the URL.
 2. **Add Profile**: In the dashboard, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list. To remove one, click **🗑** — see *Deleting a search* below, since you get to decide what happens to the listings it found.
    - *No accidental duplicates*: a search that resolves to the same portal URL and the same excluded keywords as one you already monitor is refused (the comparison ignores irrelevant differences like trailing slashes, tracking parameters, or keyword order/case), so the same listings aren't scanned and notified twice. Any pre-existing duplicates are merged into the oldest copy at startup, preserving which searches found what.
    - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening a modal.

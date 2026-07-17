@@ -33,18 +33,12 @@ const FEATURES = [
   ["garden", "Garden"],
   ["parking", "Garage / parking"],
   ["elevator", "Lift"],
-] as const;
-
-/** Filters only Immobiliare has (noAste=1): no Idealista token for it is known,
- *  so its half of a paired search stays the wider one — which the form says
- *  rather than leaving the extra listings to look like a dedup failure. */
-const IMMOBILIARE_ONLY = [
   ["exclude_auctions", "Exclude auctions"],
 ] as const;
 
-/** Backend filter keys → what to call them when Idealista cannot apply them. */
+/** Backend filter keys → what to call them when Idealista cannot apply them.
+ *  Only "Excellent / renovated" lands here today (Immobiliare's stato=6). */
 const UNSUPPORTED_LABELS: Record<string, string> = {
-  exclude_auctions: "excluding auctions",
   floor: "this floor band",
   condition: "this condition",
 };
@@ -994,14 +988,6 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 <input type="checkbox" checked={params[key]}
                   onChange={(e) => setParam({ [key]: e.target.checked })} />
                 {label}
-              </label>
-            ))}
-            {IMMOBILIARE_ONLY.map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0"
-                title="Immobiliare only: Idealista's search URLs have no such filter">
-                <input type="checkbox" checked={params[key]}
-                  onChange={(e) => setParam({ [key]: e.target.checked })} />
-                {label} <span className="t-dim text-xs">(Immobiliare only)</span>
               </label>
             ))}
           </div>
