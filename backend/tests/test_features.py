@@ -421,6 +421,37 @@ def test_zone_page_is_used_only_on_positive_proof():
     assert asked == ["https://www.idealista.it/vendita-case/milano/forlanini/"]
 
 
+def test_search_builder_endpoint_forwards_verify_to_the_probe():
+    """Regression: `verify` was declared on SearchBuilderParamsOut — the
+    *response* model of /search-builder/parse — instead of SearchBuilderIn.
+    Pydantic ignores unknown fields, so the flag silently vanished and the
+    endpoint never probed: the zone-page lookup was dead on arrival while every
+    unit test passed, because they all called build_search_urls directly and
+    none crossed the schema. The endpoint function is called here rather than
+    TestClient, which would start the real scheduler via the app lifespan.
+    """
+    from app import schemas
+    from app.main import search_builder as endpoint
+    from app.services import search_builder as sb
+
+    asked: list[str] = []
+    original, sb.probe_zone_page = sb.probe_zone_page, lambda u: asked.append(u) or True
+    try:
+        out = endpoint(schemas.SearchBuilderIn(city="Milano", zone="Forlanini",
+                                               max_price=380_000, verify=True))
+        assert asked, "verify=True did not reach the probe"
+        assert out["idealista_zone_page"] is True
+        assert out["idealista"] == ("https://www.idealista.it/vendita-case/milano/"
+                                    "forlanini/con-prezzo_380000/")
+
+        # and the default stays off: no field, no live request
+        asked.clear()
+        endpoint(schemas.SearchBuilderIn(city="Milano", zone="Forlanini"))
+        assert not asked
+    finally:
+        sb.probe_zone_page = original
+
+
 def test_build_search_urls_does_not_touch_the_network_unless_asked():
     """The UI re-derives URLs to prefill its edit form; only pressing Generate
     means "go ask the portal". A probe on every call would put a live request

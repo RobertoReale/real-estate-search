@@ -166,9 +166,6 @@ class SearchBuilderParamsOut(BaseModel):
     min_rooms: int | None = None
     max_rooms: int | None = None
     min_sqm: int | None = None
-    # Costs one live request to Idealista (see search_builder.
-    # resolve_idealista_url), so it stays off unless the user asked for a URL.
-    verify: bool = False
 
 
 class SearchProfileOut(BaseModel):
@@ -266,13 +263,18 @@ class SearchBuilderIn(BaseModel):
     """Structured parameters the search builder turns into portal URLs."""
     city: str
     province: str = ""
-    zone: str = ""  # neighborhood; slugs are best-effort (verified by the user)
+    zone: str = ""  # neighborhood; Immobiliare slugs are best-effort
     contract: str = "sale"  # sale | rent
     min_price: int | None = None
     max_price: int | None = None
     min_rooms: int | None = None
     max_rooms: int | None = None
     min_sqm: int | None = None
+    # Asks Idealista whether it knows this zone's slug, so the precise zone page
+    # can be used instead of the broader free-text search (search_builder.
+    # resolve_idealista_url). One live request, hence off unless the user
+    # pressed Generate.
+    verify: bool = False
 
     @field_validator("city")
     @classmethod
