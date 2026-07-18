@@ -253,7 +253,12 @@ contrast, stops scanning it altogether.
   area you track. The app records one median per area per day, so the line starts
   after a couple of days of scans and grows more useful the longer it runs. It
   reflects *your* sample — the listings this app was watching each day — not the
-  whole market, which the panel states plainly.
+  whole market, which the panel states plainly. Under the chart, **🔍 Show the
+  listings behind this median** reveals the exact properties that make up the
+  area's current number — sorted by €/sqm, each showing how far it sits from the
+  median, and clickable to open its full detail. These are the *current*
+  comparables (the daily history keeps only each past point's count, not its
+  listings), so it answers "which ads is today's number actually built from?".
 * **Market velocity**: how long listings survive before disappearing, broken down
   by zone and agency. It is built from properties that have actually left the
   market, so it becomes meaningful after a few months of scanning. Listings you

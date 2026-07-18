@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../services/api";
-import type { PricingTrend, TrendArea } from "../types";
+import { api, formatPrice } from "../services/api";
+import type { PricingTrend, Property, TrendArea } from "../types";
 
 interface Props {
   contract: "sale" | "rent";
   city: string;
+  /** Open a comparable in the shared detail modal (App owns the selection). */
+  onOpenProperty: (p: Property) => void;
 }
 
 const areaKey = (a: { city: string; zone: string }) => `${a.city}|${a.zone}`;
@@ -63,13 +65,19 @@ function TrendChart({ points }: { points: PricingTrend["points"] }) {
   );
 }
 
-export default function PriceTrends({ contract, city }: Props) {
+export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
   const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState<TrendArea[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [trend, setTrend] = useState<PricingTrend | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // The listings behind the current median, revealed on demand. Reset whenever
+  // the selected area changes, so the list never lags behind the chart above it.
+  const [comps, setComps] = useState<Property[] | null>(null);
+  const [compsOpen, setCompsOpen] = useState(false);
+  const [compsLoading, setCompsLoading] = useState(false);
+  const compsSeq = useRef(0);
 
   // monotonic ids per request (like App.tsx's refreshSeq): `city` changes on
   // every keystroke, so a slow older response must never overwrite the state
@@ -124,6 +132,35 @@ export default function PriceTrends({ contract, city }: Props) {
         }
       });
   }, [open, selected, areas, contract]);
+
+  // A new area (or contract) invalidates any revealed comparable list.
+  useEffect(() => {
+    setComps(null);
+    setCompsOpen(false);
+  }, [selected, contract]);
+
+  async function toggleComparables() {
+    if (compsOpen) {
+      setCompsOpen(false);
+      return;
+    }
+    setCompsOpen(true);
+    if (comps) return; // already loaded for this area
+    const area = areas.find((a) => areaKey(a) === selected);
+    if (!area) return;
+    const seq = ++compsSeq.current;
+    setCompsLoading(true);
+    try {
+      const list = await api.getPricingTrendComparables(contract, area.city, area.zone);
+      if (seq === compsSeq.current) setComps(list);
+    } catch (e) {
+      if (seq === compsSeq.current) {
+        setError(e instanceof Error ? e.message : "Could not load the listings");
+      }
+    } finally {
+      if (seq === compsSeq.current) setCompsLoading(false);
+    }
+  }
 
   const stats = useMemo(() => {
     if (!trend || trend.points.length < 2) return null;
@@ -201,6 +238,81 @@ export default function PriceTrends({ contract, city }: Props) {
                   Only one day recorded for this area so far — the line appears
                   once there are at least two.
                 </p>
+              )}
+
+              {/* The concrete listings behind the median. Loaded on demand:
+                  most users just want the trend line, and this is a full
+                  property fetch. Necessarily the CURRENT set — snapshots keep
+                  only each past point's count, never its members. */}
+              {trend && (
+                <div className="pt-1">
+                  <button
+                    className="text-sm accent-link hover:underline"
+                    onClick={toggleComparables}>
+                    {compsOpen
+                      ? "Hide the listings behind this median ▲"
+                      : "🔍 Show the listings behind this median ▼"}
+                  </button>
+
+                  {compsOpen && (
+                    <div className="mt-2">
+                      {compsLoading && <p className="text-sm t-muted">Loading…</p>}
+                      {comps && comps.length === 0 && (
+                        <p className="text-sm t-muted">
+                          No priced listings in this area right now.
+                        </p>
+                      )}
+                      {comps && comps.length > 0 && (() => {
+                        const med = trend.points[trend.points.length - 1]?.median_sqm_price;
+                        return (
+                          <>
+                            <p className="text-xs t-dim mb-2">
+                              The {comps.length} listing{comps.length > 1 ? "s" : ""}{" "}
+                              currently priced in this area — the live set today's
+                              median is computed from. Earlier points on the chart
+                              kept only their count, so their exact listings can no
+                              longer be shown. Click one to open its details.
+                            </p>
+                            <ul className="space-y-1">
+                              {comps.map((p) => {
+                                const sqm = p.current_min_price && p.sqm
+                                  ? p.current_min_price / p.sqm : null;
+                                const delta = sqm && med ? (sqm - med) / med * 100 : null;
+                                return (
+                                  <li key={p.id}>
+                                    <button
+                                      onClick={() => onOpenProperty(p)}
+                                      className="w-full text-left flex flex-wrap items-baseline gap-x-2 gap-y-0.5 p-2 rounded-lg panel hover:border-blue-500/50 transition">
+                                      <span className="text-sm font-medium truncate max-w-full">
+                                        {p.title || "Untitled"}
+                                      </span>
+                                      {p.zone && (
+                                        <span className="text-xs t-dim">· {p.zone}</span>
+                                      )}
+                                      <span className="text-sm ml-auto">
+                                        {formatPrice(p.current_min_price, p.contract)}
+                                      </span>
+                                      {sqm && (
+                                        <span className="text-xs t-muted w-full sm:w-auto">
+                                          {Math.round(sqm).toLocaleString("en-IE")} €/sqm
+                                          {delta !== null && (
+                                            <span className={delta <= 0 ? "accent-good" : "accent-bad"}>
+                                              {" "}({delta > 0 ? "+" : ""}{delta.toFixed(0)}% vs median)
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}

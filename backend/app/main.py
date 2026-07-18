@@ -29,7 +29,7 @@ from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import annotate_match_scores
 from .services.pricing_stats import (
-    annotate_market_position, get_trends, list_trend_areas,
+    annotate_market_position, area_comparables, get_trends, list_trend_areas,
 )
 from .services.query_parser import parse_query_auto
 from .services.scanner import run_scan, scan_state
@@ -1033,6 +1033,24 @@ def pricing_trends(
     is built from daily snapshots (pricing_snapshots), so it only starts saying
     something after the app has run for several days."""
     return get_trends(db, city=city, zone=zone, contract=contract)
+
+
+@app.get("/api/pricing-trends/comparables",
+         response_model=list[schemas.PropertyOut])
+def pricing_trend_comparables(
+    db: Session = Depends(get_db),
+    city: str = Query(..., min_length=1),
+    zone: str = "",
+    contract: str = Query("sale", pattern="^(sale|rent)$"),
+):
+    """The listings behind an area's *current* median €/sqm — the concrete data
+    the chart's latest point summarises. Snapshots keep only the median and the
+    count, so this is necessarily the set as it stands today, not a past point's
+    (see pricing_stats.area_comparables). Same properties, annotated exactly like
+    the grid, so the same detail modal opens from the chart."""
+    props = area_comparables(db, city=city, zone=zone, contract=contract)
+    _annotate(db, props)
+    return props
 
 
 # --- Scan ---

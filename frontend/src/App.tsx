@@ -301,7 +301,8 @@ export default function App() {
         )}
 
         {hasProfiles && (
-          <PriceTrends contract={filters.contract} city={filters.city} />
+          <PriceTrends contract={filters.contract} city={filters.city}
+            onOpenProperty={setSelected} />
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}

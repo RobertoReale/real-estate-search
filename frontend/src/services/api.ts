@@ -245,6 +245,15 @@ export const api = {
     if (zone) params.set("zone", zone);
     return request(`/pricing-trends?${params}`);
   },
+  /** The listings behind an area's current median €/sqm (the chart's latest
+   *  point). Necessarily today's set: snapshots don't store past membership. */
+  getPricingTrendComparables(
+    contract: string, city: string, zone = "",
+  ): Promise<Property[]> {
+    const params = new URLSearchParams({ contract, city });
+    if (zone) params.set("zone", zone);
+    return request(`/pricing-trends/comparables?${params}`);
+  },
 
   /** Immediately launch an asynchronous scrape across all active search profiles. */
   triggerScan(): Promise<{ status: string }> {

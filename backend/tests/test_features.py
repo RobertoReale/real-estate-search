@@ -13,7 +13,7 @@ from app.models import Property
 from app.scrapers.base import RawListing, detect_contract, parse_price
 from app.services import notifier
 from app.services.deduplicator import upsert_listing
-from app.services.pricing_stats import annotate_market_position
+from app.services.pricing_stats import annotate_market_position, area_comparables
 from app.services.search_builder import (
     build_idealista_url, build_immobiliare_url, build_search_urls, parse_search_url,
 )
@@ -182,6 +182,40 @@ def test_rent_and_sale_medians_are_separate(db):
     db.commit()
     annotate_market_position(db, [rental])
     assert rental.area_median_sqm_price is None  # only 1 rent comparable
+
+
+def test_area_comparables_are_the_current_members_of_the_zone_median(db):
+    """The chart's "listings behind this median" must be exactly the set the
+    zone median is computed from — same status/price/surface filter, same
+    zone/contract, and only that area (a different zone or contract is out)."""
+    members = [_prop(current_min_price=300_000.0 + i) for i in range(3)]
+    db.add_all(members)
+    db.add(_prop(zone="Isola"))               # different zone
+    db.add(_prop(contract="rent", current_min_price=1_000.0))  # different contract
+    db.add(_prop(status="hidden"))            # excluded status
+    db.add(_prop(sqm=None))                   # no surface -> not a comparable
+    db.commit()
+
+    comps = area_comparables(db, city="Milano", zone="Navigli", contract="sale")
+    assert len(comps) == 3
+    assert all(c.zone == "Navigli" and c.contract == "sale" for c in comps)
+    # ordered by €/sqm ascending (cheapest per sqm first)
+    sqm_prices = [
+        c.current_min_price / c.sqm for c in comps
+        if c.current_min_price is not None and c.sqm
+    ]
+    assert sqm_prices == sorted(sqm_prices)
+
+
+def test_area_comparables_whole_city_spans_every_zone(db):
+    """An empty zone asks for the whole-city aggregate: every priced comparable
+    in the city, regardless of zone (matching capture_snapshots' city medians)."""
+    db.add_all([_prop(zone="Navigli"), _prop(zone="Isola"), _prop(zone="Brera")])
+    db.add(_prop(city="Pavia"))  # another city — must not leak in
+    db.commit()
+    comps = area_comparables(db, city="Milano", zone="", contract="sale")
+    assert len(comps) == 3
+    assert {c.zone for c in comps} == {"Navigli", "Isola", "Brera"}
 
 
 # --- Search builder ---------------------------------------------------------

@@ -32,25 +32,30 @@ ZoneKey = tuple[str, str, str]   # (city, zone, contract)
 CityKey = tuple[str, str]        # (city, contract)
 
 
+def _comparable_filter():
+    """The single rule for what counts as a comparable listing, shared by the
+    median computation and the "which listings are behind this median" lookup so
+    the two can never disagree about membership. Uses active + filtered
+    properties with a real price and surface: "filtered" ones are still real
+    market data points (a ground-floor flat has a valid price), while "gone" and
+    "hidden" may carry stale prices."""
+    return (
+        Property.status.in_(("active", "filtered")),
+        Property.current_min_price.is_not(None),
+        Property.sqm.is_not(None),
+        Property.sqm > 0,
+    )
+
+
 def compute_sqm_price_medians(
     db: Session,
 ) -> tuple[dict[ZoneKey, tuple[float, int]], dict[CityKey, tuple[float, int]]]:
-    """Returns ({zone_key: (median, n)}, {city_key: (median, n)}).
-
-    Uses active + filtered properties: "filtered" ones are still real market
-    data points (a ground-floor flat has a valid price), while "gone" and
-    "hidden" may carry stale prices.
-    """
+    """Returns ({zone_key: (median, n)}, {city_key: (median, n)})."""
     rows = db.execute(
         select(
             Property.city, Property.zone, Property.contract,
             Property.current_min_price, Property.sqm,
-        ).where(
-            Property.status.in_(("active", "filtered")),
-            Property.current_min_price.is_not(None),
-            Property.sqm.is_not(None),
-            Property.sqm > 0,
-        )
+        ).where(*_comparable_filter())
     ).all()
 
     zone_samples: dict[ZoneKey, list[float]] = {}
@@ -225,3 +230,35 @@ def list_trend_areas(db: Session, contract: str) -> list[dict]:
     # whole-city aggregates first, then most-observed
     areas.sort(key=lambda a: (a["zone"] != "", -a["point_count"], a["city"]))
     return areas
+
+
+def area_comparables(
+    db: Session, city: str, zone: str, contract: str
+) -> list[Property]:
+    """The listings that make up an area's median €/sqm *right now* — the set
+    the user sees behind the chart's latest point.
+
+    Deliberately the CURRENT set, not a historical one: a PricingSnapshot stores
+    only the median and the sample count, never which listings composed it, so a
+    past point's membership cannot be reconstructed. This mirrors
+    compute_sqm_price_medians' own bucketing (same `_comparable_filter`, same
+    normalization, same zone-vs-whole-city split) so the returned rows are
+    exactly the ones that produced today's number. An empty `zone` asks for the
+    whole-city aggregate (every comparable in the city, any zone). Ordered by
+    €/sqm ascending, so the cheapest-per-sqm listings lead."""
+    city_norm = (city or "").strip().lower()
+    zone_norm = (zone or "").strip().lower()
+    if not city_norm:
+        return []
+    rows = db.scalars(
+        select(Property).where(
+            *_comparable_filter(), Property.contract == contract
+        )
+    ).all()
+    out = [
+        p for p in rows
+        if (p.city or "").strip().lower() == city_norm
+        and (not zone_norm or (p.zone or "").strip().lower() == zone_norm)
+    ]
+    out.sort(key=lambda p: p.current_min_price / p.sqm)  # type: ignore[operator]
+    return out
