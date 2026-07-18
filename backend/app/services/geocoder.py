@@ -151,8 +151,8 @@ def _clean_street_name(place: str) -> str:
         s = s.split(" - ")[0].strip()
     if "," in s:
         s = s.split(",")[0].strip()
-    s = re.sub(r"\s+\b\d+([a-zA-Z/0-9-]*)?\b.*$", "", s).strip()
     s = re.sub(r"\s+\b(?:n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$", "", s, flags=re.I).strip()
+    s = re.sub(r"\s+\b\d+([a-zA-Z/0-9-]*)$", "", s).strip()
     return s
 
 

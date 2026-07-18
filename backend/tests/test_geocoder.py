@@ -194,6 +194,9 @@ def test_clean_street_name():
     assert geocoder._clean_street_name("Via Tolmezzo, 2") == "Via Tolmezzo"
     assert geocoder._clean_street_name("Via Dante Alighieri 15/B - piano 3") == "Via Dante Alighieri"
     assert geocoder._clean_street_name("Corso Buenos Aires 45") == "Corso Buenos Aires"
+    assert geocoder._clean_street_name("Via 24 Maggio") == "Via 24 Maggio"
+    assert geocoder._clean_street_name("Viale 25 Aprile 12") == "Viale 25 Aprile"
+    assert geocoder._clean_street_name("Piazza 5 Giornate, 10") == "Piazza 5 Giornate"
 
 
 def test_is_valid_coordinate_for_city():
