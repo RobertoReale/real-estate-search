@@ -74,7 +74,7 @@ def test_a_property_with_only_a_city_is_skipped(db, monkeypatch):
 def test_cache_hit_skips_the_network(db, monkeypatch):
     db.add(_prop(address="Via Dante 5"))
     db.add(GeocodeCache(query="via dante 5, milano, italia",
-                        latitude=45.1, longitude=9.2))
+                        latitude=45.46, longitude=9.19))
     db.commit()
 
     def boom(q, base):
@@ -83,7 +83,7 @@ def test_cache_hit_skips_the_network(db, monkeypatch):
     monkeypatch.setattr(geocoder, "_nominatim_lookup", boom)
     summary = geocoder.geocode_missing_properties(db)
     assert summary["cached"] == 1 and summary["geocoded"] == 1
-    assert db.scalars(select(Property)).one().latitude == 45.1
+    assert db.scalars(select(Property)).one().latitude == 45.46
 
 
 def test_a_miss_is_cached_negatively_and_not_retried(db, monkeypatch):

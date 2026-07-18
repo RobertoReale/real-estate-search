@@ -81,7 +81,7 @@ def _normalize(text: str) -> str:
 
 KNOWN_CITY_BOXES: dict[str, tuple[float, float, float, float]] = {
     # lat_min, lat_max, lon_min, lon_max
-    "milano": (44.9, 45.52, 8.9, 9.27),
+    "milano": (45.34, 45.56, 9.01, 9.31),
     "roma": (41.65, 42.05, 12.20, 12.75),
     "torino": (44.95, 45.16, 7.55, 7.78),
     "bologna": (44.40, 44.57, 11.23, 11.45),
