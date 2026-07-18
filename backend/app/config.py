@@ -1,6 +1,7 @@
 """Application configuration: paths, defaults, and settings persisted to JSON file."""
+
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # backend/ folder
@@ -79,9 +80,9 @@ DEFAULT_SETTINGS = {
     # self-hosted instance for unlimited, fully-offline use.
     "nominatim_url": "https://nominatim.openstreetmap.org",
     "nl_parser_backend": "deterministic",  # deterministic | llm
-    "llm_base_url": "",   # OpenAI-compatible base, e.g. http://localhost:11434/v1
-    "llm_api_key": "",    # blank for a local Ollama server
-    "llm_model": "",      # e.g. "llama3.1" / "qwen2.5" / "gpt-4o-mini"
+    "llm_base_url": "",  # OpenAI-compatible base, e.g. http://localhost:11434/v1
+    "llm_api_key": "",  # blank for a local Ollama server
+    "llm_model": "",  # e.g. "llama3.1" / "qwen2.5" / "gpt-4o-mini"
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,
     "max_pages_per_search": 10,
@@ -161,8 +162,14 @@ def load_settings() -> dict:
 # users paste them verbatim. smtplib/imaplib forward the spaces to the server,
 # which answers with an opaque AUTHENTICATIONFAILED. No provider allows spaces
 # in a password, so stripping them can only help.
-_SPACELESS_SECRETS = ("smtp_password", "imap_password", "telegram_bot_token",
-                      "datadome_cookie", "scrape_api_key", "llm_api_key")
+_SPACELESS_SECRETS = (
+    "smtp_password",
+    "imap_password",
+    "telegram_bot_token",
+    "datadome_cookie",
+    "scrape_api_key",
+    "llm_api_key",
+)
 
 
 def save_settings(new_values: dict) -> dict:
@@ -176,14 +183,12 @@ def save_settings(new_values: dict) -> dict:
     if new_values.get("datadome_cookie") and "datadome_cookie_updated_at" not in new_values:
         new_values = {
             **new_values,
-            "datadome_cookie_updated_at": datetime.now(timezone.utc).isoformat(),
+            "datadome_cookie_updated_at": datetime.now(UTC).isoformat(),
         }
     settings.update({k: v for k, v in new_values.items() if k in DEFAULT_SETTINGS})
     for key in _SPACELESS_SECRETS:
         value = settings.get(key)
         if isinstance(value, str):
             settings[key] = "".join(value.split())
-    SETTINGS_PATH.write_text(
-        json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    SETTINGS_PATH.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
     return settings

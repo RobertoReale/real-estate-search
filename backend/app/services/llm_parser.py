@@ -14,6 +14,7 @@ parser. The HTTP call is isolated in `_chat_completion` so tests exercise the
 whole prompt/validate/convert path with a mocked client and never hit a network
 (the same "no network in tests" rule as invariant 17).
 """
+
 import json
 import logging
 import urllib.request
@@ -47,8 +48,7 @@ Rules:
 - Never invent a city that is not implied by the query."""
 
 
-def _chat_completion(base_url: str, api_key: str, model: str,
-                     system: str, user: str) -> str:
+def _chat_completion(base_url: str, api_key: str, model: str, system: str, user: str) -> str:
     """POST one chat completion and return the assistant message text.
 
     Isolated so tests can monkeypatch it: everything above and below is pure.
@@ -69,7 +69,9 @@ def _chat_completion(base_url: str, api_key: str, model: str,
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(
-        url, data=json.dumps(payload).encode("utf-8"), headers=headers,
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -90,7 +92,7 @@ def _extract_json(text: str) -> dict:
     except json.JSONDecodeError:
         start, end = text.find("{"), text.rfind("}")
         if start != -1 and end > start:
-            return json.loads(text[start:end + 1])
+            return json.loads(text[start : end + 1])
         raise
 
 
@@ -119,6 +121,7 @@ def _clean_params(raw: dict) -> dict:
 def parse_with_llm(query: str) -> dict | None:
     """Return the same shape as query_parser.parse_query, or None to fall back."""
     from ..config import load_settings
+
     settings = load_settings()
     base_url = (settings.get("llm_base_url") or "").strip()
     model = (settings.get("llm_model") or "").strip()
@@ -145,18 +148,21 @@ def parse_with_llm(query: str) -> dict | None:
         if not isinstance(raw, dict):
             continue
         params = _clean_params(raw)
-        searches.append(build_search_entry(
-            params,
-            # if the user never said sale/rent, flag the "sale" default out loud,
-            # exactly as the deterministic parser does
-            contract_assumed=(params["contract"] == "sale" and not contract_hint),
-        ))
+        searches.append(
+            build_search_entry(
+                params,
+                # if the user never said sale/rent, flag the "sale" default out loud,
+                # exactly as the deterministic parser does
+                contract_assumed=(params["contract"] == "sale" and not contract_hint),
+            )
+        )
     if not searches:
         return None
     return {"searches": searches}
 
 
 def _mentions_contract(query: str) -> bool:
-    from .query_parser import _parse_contract, _normalize
+    from .query_parser import _normalize, _parse_contract
+
     _, explicit = _parse_contract(_normalize(query))
     return explicit

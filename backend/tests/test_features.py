@@ -2,6 +2,8 @@
 rent-range price parsing), contract-aware deduplication, local pricing
 statistics, search URL builder, notification channel routing, additive DB
 migrations, and the property PATCH endpoint (favorites/notes)."""
+
+from datetime import UTC
 from typing import Any
 
 import pytest
@@ -15,7 +17,10 @@ from app.services import notifier
 from app.services.deduplicator import upsert_listing
 from app.services.pricing_stats import annotate_market_position, area_comparables
 from app.services.search_builder import (
-    build_idealista_url, build_immobiliare_url, build_search_urls, parse_search_url,
+    build_idealista_url,
+    build_immobiliare_url,
+    build_search_urls,
+    parse_search_url,
 )
 
 
@@ -30,13 +35,11 @@ def db():
 
 # --- Rental support ---------------------------------------------------------
 
+
 def test_contract_detected_from_url():
-    assert detect_contract(
-        "https://www.immobiliare.it/affitto-case/milano/") == "rent"
-    assert detect_contract(
-        "https://www.idealista.it/affitto-case/milano-milano/") == "rent"
-    assert detect_contract(
-        "https://www.immobiliare.it/vendita-case/milano/") == "sale"
+    assert detect_contract("https://www.immobiliare.it/affitto-case/milano/") == "rent"
+    assert detect_contract("https://www.idealista.it/affitto-case/milano-milano/") == "rent"
+    assert detect_contract("https://www.immobiliare.it/vendita-case/milano/") == "sale"
 
 
 def test_rent_price_within_monthly_range_is_parsed():
@@ -50,10 +53,16 @@ def test_rent_price_within_monthly_range_is_parsed():
 
 def _raw(**kwargs) -> RawListing:
     base: dict[str, Any] = dict(
-        portal="immobiliare", portal_id="111",
+        portal="immobiliare",
+        portal_id="111",
         url="https://www.immobiliare.it/annunci/111/",
-        title="Trilocale via Roma", city="Milano", rooms=3, sqm=90.0,
-        price=300_000.0, latitude=45.4642, longitude=9.19,
+        title="Trilocale via Roma",
+        city="Milano",
+        rooms=3,
+        sqm=90.0,
+        price=300_000.0,
+        latitude=45.4642,
+        longitude=9.19,
         address="Via Roma, 12",
     )
     base.update(kwargs)
@@ -64,17 +73,23 @@ def test_sale_and_rent_of_same_house_are_not_merged(db):
     """The same physical house listed for sale AND for rent must stay two
     records: different price scale, different meaning for the user."""
     prop_sale, _, _ = upsert_listing(db, _raw(contract="sale"))
-    prop_rent, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        url="https://www.idealista.it/immobile/999/",
-        contract="rent", price=1_200.0,
-    ))
+    prop_rent, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+            contract="rent",
+            price=1_200.0,
+        ),
+    )
     assert is_new is True
     assert prop_sale.id != prop_rent.id
     assert prop_rent.contract == "rent"
 
 
 # --- Provenance: which searches found a property (card "Found by") -----------
+
 
 def test_provenance_annotates_the_searches_that_found_a_property(db):
     """The card must show which monitored searches found a property. The links
@@ -84,10 +99,16 @@ def test_provenance_annotates_the_searches_that_found_a_property(db):
     from app.main import _annotate_provenance
     from app.models import SearchProfile
 
-    prof1 = SearchProfile(name="Milano trilocali", portal="immobiliare",
-                          search_url="https://www.immobiliare.it/vendita-case/milano/")
-    prof2 = SearchProfile(name="Milano Navigli", portal="immobiliare",
-                          search_url="https://www.immobiliare.it/vendita-case/milano/navigli/")
+    prof1 = SearchProfile(
+        name="Milano trilocali",
+        portal="immobiliare",
+        search_url="https://www.immobiliare.it/vendita-case/milano/",
+    )
+    prof2 = SearchProfile(
+        name="Milano Navigli",
+        portal="immobiliare",
+        search_url="https://www.immobiliare.it/vendita-case/milano/navigli/",
+    )
     db.add_all([prof1, prof2])
     db.commit()
 
@@ -132,11 +153,18 @@ def test_existing_listing_heals_migrated_contract(db):
 
 # --- Pricing statistics -----------------------------------------------------
 
+
 def _prop(**kwargs) -> Property:
     base: dict[str, Any] = dict(
-        fingerprint="fp", title="Casa", city="Milano", zone="Navigli",
-        contract="sale", sqm=100.0, current_min_price=300_000.0,
-        status="active")
+        fingerprint="fp",
+        title="Casa",
+        city="Milano",
+        zone="Navigli",
+        contract="sale",
+        sqm=100.0,
+        current_min_price=300_000.0,
+        status="active",
+    )
     base.update(kwargs)
     return Property(**base)
 
@@ -190,10 +218,10 @@ def test_area_comparables_are_the_current_members_of_the_zone_median(db):
     zone/contract, and only that area (a different zone or contract is out)."""
     members = [_prop(current_min_price=300_000.0 + i) for i in range(3)]
     db.add_all(members)
-    db.add(_prop(zone="Isola"))               # different zone
+    db.add(_prop(zone="Isola"))  # different zone
     db.add(_prop(contract="rent", current_min_price=1_000.0))  # different contract
-    db.add(_prop(status="hidden"))            # excluded status
-    db.add(_prop(sqm=None))                   # no surface -> not a comparable
+    db.add(_prop(status="hidden"))  # excluded status
+    db.add(_prop(sqm=None))  # no surface -> not a comparable
     db.commit()
 
     comps = area_comparables(db, city="Milano", zone="Navigli", contract="sale")
@@ -201,8 +229,7 @@ def test_area_comparables_are_the_current_members_of_the_zone_median(db):
     assert all(c.zone == "Navigli" and c.contract == "sale" for c in comps)
     # ordered by €/sqm ascending (cheapest per sqm first)
     sqm_prices = [
-        c.current_min_price / c.sqm for c in comps
-        if c.current_min_price is not None and c.sqm
+        c.current_min_price / c.sqm for c in comps if c.current_min_price is not None and c.sqm
     ]
     assert sqm_prices == sorted(sqm_prices)
 
@@ -220,13 +247,17 @@ def test_area_comparables_whole_city_spans_every_zone(db):
 
 # --- Search builder ---------------------------------------------------------
 
+
 def test_immobiliare_url_generation():
     url = build_immobiliare_url(
-        city="Sesto San Giovanni", contract="sale",
-        min_price=100_000, max_price=300_000, min_rooms=3, min_sqm=80,
+        city="Sesto San Giovanni",
+        contract="sale",
+        min_price=100_000,
+        max_price=300_000,
+        min_rooms=3,
+        min_sqm=80,
     )
-    assert url.startswith(
-        "https://www.immobiliare.it/vendita-case/sesto-san-giovanni/?")
+    assert url.startswith("https://www.immobiliare.it/vendita-case/sesto-san-giovanni/?")
     assert "prezzoMinimo=100000" in url
     assert "prezzoMassimo=300000" in url
     assert "localiMinimo=3" in url
@@ -247,8 +278,11 @@ def test_idealista_url_city_province_and_filters():
     "min N rooms" is the union of the discrete room categories from N up to
     quadrilocali-4 (the portal's own "4 or more" bucket)."""
     url = build_idealista_url(
-        city="Sesto San Giovanni", province="Milano", contract="sale",
-        max_price=300_000, min_rooms=3,
+        city="Sesto San Giovanni",
+        province="Milano",
+        contract="sale",
+        max_price=300_000,
+        min_rooms=3,
     )
     assert "/vendita-case/sesto-san-giovanni-milano/" in url
     assert "con-" in url and "prezzo_300000" in url
@@ -268,7 +302,7 @@ def test_idealista_room_union_is_capped_by_max_rooms():
 
 
 def test_five_plus_rooms_is_its_own_bucket_not_folded_into_four():
-    """"quadrilocali-4" means EXACTLY four. This code treated it as the
+    """ "quadrilocali-4" means EXACTLY four. This code treated it as the
     portal's "4 or more" bucket — a comment said so, and a test asserted the
     comment — so every "4+ rooms" search silently dropped all five-room flats.
 
@@ -305,8 +339,13 @@ def test_accents_are_stripped_from_slugs():
 
 def test_parse_search_url_roundtrip_immobiliare():
     url = build_immobiliare_url(
-        city="Sesto San Giovanni", contract="sale", zone="Centro",
-        min_price=100_000, max_price=300_000, min_rooms=3, min_sqm=80,
+        city="Sesto San Giovanni",
+        contract="sale",
+        zone="Centro",
+        min_price=100_000,
+        max_price=300_000,
+        min_rooms=3,
+        min_sqm=80,
     )
     parsed = parse_search_url(url)
     assert parsed["city"] == "Sesto San Giovanni"
@@ -320,8 +359,11 @@ def test_parse_search_url_roundtrip_immobiliare():
 
 def test_parse_search_url_roundtrip_idealista():
     url = build_idealista_url(
-        city="Sesto San Giovanni", province="Milano", contract="sale",
-        max_price=300_000, min_rooms=3,
+        city="Sesto San Giovanni",
+        province="Milano",
+        contract="sale",
+        max_price=300_000,
+        min_rooms=3,
     )
     parsed = parse_search_url(url)
     assert parsed["city"] == "Sesto San Giovanni"
@@ -333,12 +375,15 @@ def test_parse_search_url_roundtrip_idealista():
 
 # --- Notification channel routing -------------------------------------------
 
+
 def test_broadcast_respects_channel_selection(monkeypatch):
     calls = []
-    monkeypatch.setattr(notifier, "send_telegram_message",
-                        lambda text: calls.append("telegram") or True)
-    monkeypatch.setattr(notifier, "send_email_message",
-                        lambda text, subject=None: calls.append("email") or True)
+    monkeypatch.setattr(
+        notifier, "send_telegram_message", lambda text: calls.append("telegram") or True
+    )
+    monkeypatch.setattr(
+        notifier, "send_email_message", lambda text, subject=None: calls.append("email") or True
+    )
 
     notifier.broadcast("hi", ["email"])
     assert calls == ["email"]
@@ -350,8 +395,7 @@ def test_broadcast_respects_channel_selection(monkeypatch):
 
 
 def test_parse_channels_csv_ignores_unknown_channels():
-    assert notifier.parse_channels_csv("email, whatsapp, telegram") == [
-        "email", "telegram"]
+    assert notifier.parse_channels_csv("email, whatsapp, telegram") == ["email", "telegram"]
     assert notifier.parse_channels_csv("") == []
 
 
@@ -366,10 +410,12 @@ def test_profile_channels_tells_muted_apart_from_unspecified():
 
 def test_a_muted_selection_broadcasts_nowhere(monkeypatch):
     calls: list[str] = []
-    monkeypatch.setattr(notifier, "send_telegram_message",
-                        lambda text: calls.append("telegram") or True)
-    monkeypatch.setattr(notifier, "send_email_message",
-                        lambda text, subject=None: calls.append("email") or True)
+    monkeypatch.setattr(
+        notifier, "send_telegram_message", lambda text: calls.append("telegram") or True
+    )
+    monkeypatch.setattr(
+        notifier, "send_email_message", lambda text, subject=None: calls.append("email") or True
+    )
 
     assert notifier.broadcast("hi", []) is False
     assert calls == []
@@ -384,6 +430,7 @@ def test_disabled_channels_send_nothing():
 
 # --- Additive DB migration ---------------------------------------------------
 
+
 def test_missing_columns_are_added_to_existing_db(tmp_path, monkeypatch):
     """Regression path for the "no Alembic" constraint: opening an old DB
     (created before new columns existed) must not break queries nor require
@@ -394,10 +441,12 @@ def test_missing_columns_are_added_to_existing_db(tmp_path, monkeypatch):
     engine = create_engine(f"sqlite:///{db_file}")
     # simulate a pre-upgrade properties table without the new columns
     with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
-            "fingerprint VARCHAR, title VARCHAR)"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
+                "fingerprint VARCHAR, title VARCHAR)"
+            )
+        )
     monkeypatch.setattr(database, "engine", engine)
     database.init_db()
 
@@ -405,10 +454,8 @@ def test_missing_columns_are_added_to_existing_db(tmp_path, monkeypatch):
     assert {"contract", "is_favorite", "notes"} <= cols
     # existing rows readable with defaults applied
     with engine.connect() as conn:
-        conn.execute(text("INSERT INTO properties (fingerprint, title) "
-                          "VALUES ('f', 't')"))
-        row = conn.execute(text(
-            "SELECT contract, is_favorite, notes FROM properties")).one()
+        conn.execute(text("INSERT INTO properties (fingerprint, title) VALUES ('f', 't')"))
+        row = conn.execute(text("SELECT contract, is_favorite, notes FROM properties")).one()
     assert row[0] == "sale"
 
 
@@ -440,6 +487,7 @@ def test_profile_out_includes_computed_params(db):
 
 # --- PATCH endpoint (favorites & notes) --------------------------------------
 
+
 def test_patch_property_updates_favorite_and_notes(db):
     # the endpoint function is called directly: spinning up TestClient would
     # also start the real scheduler via the app lifespan
@@ -450,15 +498,12 @@ def test_patch_property_updates_favorite_and_notes(db):
     db.add(prop)
     db.commit()
 
-    out = patch_property(prop.id,
-                         schemas.PropertyPatch(is_favorite=True,
-                                               notes="call agent"), db)
+    out = patch_property(prop.id, schemas.PropertyPatch(is_favorite=True, notes="call agent"), db)
     assert out.is_favorite is True
     assert out.notes == "call agent"
 
     # partial patch must not clear the other field
-    out = patch_property(prop.id,
-                         schemas.PropertyPatch(notes="viewing Friday"), db)
+    out = patch_property(prop.id, schemas.PropertyPatch(notes="viewing Friday"), db)
     assert out.is_favorite is True
     assert out.notes == "viewing Friday"
 
@@ -483,10 +528,9 @@ def test_zone_urls_use_the_zone_page_grammar():
         "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/"
     )
     # filters keep their con- segment, which on /cerca/ PRECEDES the location
-    assert build_idealista_url(
-        city="Milano", zone="Porta Romana", max_price=300_000
-    ) == ("https://www.idealista.it/cerca/vendita-case/con-prezzo_300000/"
-          "Porta_Romana_Milano/")
+    assert build_idealista_url(city="Milano", zone="Porta Romana", max_price=300_000) == (
+        "https://www.idealista.it/cerca/vendita-case/con-prezzo_300000/Porta_Romana_Milano/"
+    )
     # a plain city keeps the canonical municipality-province page: it works,
     # and it is the URL the user recognises from their own browser
     assert build_idealista_url(city="Milano") == (
@@ -506,19 +550,33 @@ def test_feature_filters_map_to_each_portal_measured_grammar():
     token here passed silently.
     """
     params: dict[str, Any] = dict(
-        city="Milano", max_price=380_000, balcony=True, garden=True,
-        parking=True, elevator=True, exclude_auctions=True, pool=True,
-        floor="middle", condition="good")
+        city="Milano",
+        max_price=380_000,
+        balcony=True,
+        garden=True,
+        parking=True,
+        elevator=True,
+        exclude_auctions=True,
+        pool=True,
+        floor="middle",
+        condition="good",
+    )
 
     imm = build_immobiliare_url(**params)
-    for expected in ("balconeOterrazzo[]=balcone", "giardino[]=10", "boxAuto[]=1",
-                     "ascensore=1", "noAste=1", "piscina=1", "fasciaPiano[]=20",
-                     "stato=2"):
+    for expected in (
+        "balconeOterrazzo[]=balcone",
+        "giardino[]=10",
+        "boxAuto[]=1",
+        "ascensore=1",
+        "noAste=1",
+        "piscina=1",
+        "fasciaPiano[]=20",
+        "stato=2",
+    ):
         assert expected in imm, expected
 
     ide = build_idealista_url(**params)
-    assert ("balcone,giardino,garage,ascensori,aste_no,piscina,piani-intermedi,"
-            "buono-stato") in ide
+    assert ("balcone,giardino,garage,ascensori,aste_no,piscina,piani-intermedi,buono-stato") in ide
 
     # "da ristrutturare": Immobiliare only ever renders it as a path segment, so
     # its query name (stato=5) was found by matching result totals, not read.
@@ -546,9 +604,16 @@ def test_filters_idealista_cannot_apply_are_reported_not_swallowed():
     # everything both portals can do reports nothing — including the elevator,
     # the ground floor and the auction exclusion, each of which was wrongly
     # believed Immobiliare-only until the portal's own UI named the token
-    out = build_search_urls(dict(city="Milano", balcony=True, elevator=True,
-                                 exclude_auctions=True, floor="ground",
-                                 condition="new"))
+    out = build_search_urls(
+        dict(
+            city="Milano",
+            balcony=True,
+            elevator=True,
+            exclude_auctions=True,
+            floor="ground",
+            condition="new",
+        )
+    )
     assert out["idealista_unsupported"] == []
 
 
@@ -566,13 +631,12 @@ def test_a_room_cap_alone_still_filters_idealista():
 
 
 def test_a_room_cap_idealista_cannot_express_is_reported():
-    """"5 locali o più" is Idealista's only open-ended bucket, so any cap that
+    """ "5 locali o più" is Idealista's only open-ended bucket, so any cap that
     needs it is not a cap at all: Immobiliare's localiMassimo=5 excludes a
     6-room flat and Idealista's 5-locali-o-piu returns it. Same failure shape as
     treating quadrilocali-4 as "4 or more" — an open-ended bucket read as exact.
     """
-    out = build_search_urls(dict(city="Milano", province="Milano",
-                                 min_rooms=2, max_rooms=5))
+    out = build_search_urls(dict(city="Milano", province="Milano", min_rooms=2, max_rooms=5))
     assert "5-locali-o-piu" in out["idealista"]
     assert out["idealista_unsupported"] == ["max_rooms"]
 
@@ -590,8 +654,15 @@ def test_every_idealista_filter_survives_a_build_parse_round_trip():
     from app.services.search_builder import IDEALISTA_FEATURES
 
     flags: dict[str, Any] = {key: True for key in IDEALISTA_FEATURES}
-    url = build_idealista_url(city="Milano", province="Milano", max_price=380_000,
-                              min_sqm=65, floor="middle", condition="good", **flags)
+    url = build_idealista_url(
+        city="Milano",
+        province="Milano",
+        max_price=380_000,
+        min_sqm=65,
+        floor="middle",
+        condition="good",
+        **flags,
+    )
     back = parse_search_url(url)
 
     for key in IDEALISTA_FEATURES:
@@ -608,12 +679,14 @@ def test_immobiliare_filters_parse_back_from_path_or_query():
     had made pretty — /vendita-case/milano/con-ascensore/ is exactly the shape
     two of the saved searches have."""
     parsed = parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=380000")
+        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=380000"
+    )
     assert parsed["elevator"] is True
 
     parsed = parse_search_url(
         "https://www.immobiliare.it/vendita-case/milano/?ascensore=1&noAste=1"
-        "&balconeOterrazzo%5B0%5D=balcone&fasciaPiano%5B0%5D=20&stato=6")
+        "&balconeOterrazzo%5B0%5D=balcone&fasciaPiano%5B0%5D=20&stato=6"
+    )
     assert parsed["elevator"] is True
     assert parsed["exclude_auctions"] is True
     assert parsed["balcony"] is True
@@ -628,16 +701,21 @@ def test_immobiliare_filters_parse_back_from_path_or_query():
     # own /da-ristrutturare/?bagni=3 must read as the filter, not a district
     # named "Da Ristrutturare" (the con-ascensore trap, one filter over).
     parsed = parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/da-ristrutturare/?bagni=3")
+        "https://www.immobiliare.it/vendita-case/milano/da-ristrutturare/?bagni=3"
+    )
     assert parsed["condition"] == "to_renovate"
     assert parsed["zone"] == ""
     assert parsed["city"] == "Milano"
 
     # pool travels as /con-piscina/ (path) or ?piscina=1 (query)
-    assert parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/con-piscina/")["pool"] is True
-    assert parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/?piscina=1")["pool"] is True
+    assert (
+        parse_search_url("https://www.immobiliare.it/vendita-case/milano/con-piscina/")["pool"]
+        is True
+    )
+    assert (
+        parse_search_url("https://www.immobiliare.it/vendita-case/milano/?piscina=1")["pool"]
+        is True
+    )
 
 
 def test_idealista_opaque_location_urls_yield_no_city():
@@ -665,8 +743,7 @@ def test_idealista_zone_sits_under_a_macro_area():
     This is also why /vendita-case/milano/bovisa/ is a 404 while
     /vendita-case/milano/forlanini/ is not: Forlanini is a macro-area, Bovisa a
     zone whose macro-area the name alone never yields."""
-    parsed = parse_search_url(
-        "https://www.idealista.it/vendita-case/milano/fiera-de-angeli/fiera/")
+    parsed = parse_search_url("https://www.idealista.it/vendita-case/milano/fiera-de-angeli/fiera/")
     assert parsed["city"] == "Milano"
     assert parsed["zone"] == "Fiera"
 
@@ -690,11 +767,12 @@ def test_zone_page_is_used_only_on_positive_proof():
 
     url, zone_page = resolve_idealista_url(params, probe=lambda _u: True)
     assert zone_page is True
-    assert url == ("https://www.idealista.it/vendita-case/milano/forlanini/"
-                   "con-prezzo_380000,dimensione_65/")
+    assert url == (
+        "https://www.idealista.it/vendita-case/milano/forlanini/con-prezzo_380000,dimensione_65/"
+    )
 
     for answer in (False, None):  # 404, and "blocked/timed out: unknown"
-        url, zone_page = resolve_idealista_url(params, probe=lambda _u: answer)
+        url, zone_page = resolve_idealista_url(params, probe=lambda _u, answer=answer: answer)
         assert zone_page is False
         assert url.startswith("https://www.idealista.it/cerca/")
 
@@ -722,12 +800,14 @@ def test_search_builder_endpoint_forwards_verify_to_the_probe():
     asked: list[str] = []
     original, sb.probe_zone_page = sb.probe_zone_page, lambda u: asked.append(u) or True
     try:
-        out = endpoint(schemas.SearchBuilderIn(city="Milano", zone="Forlanini",
-                                               max_price=380_000, verify=True))
+        out = endpoint(
+            schemas.SearchBuilderIn(city="Milano", zone="Forlanini", max_price=380_000, verify=True)
+        )
         assert asked, "verify=True did not reach the probe"
         assert out["idealista_zone_page"] is True
-        assert out["idealista"] == ("https://www.idealista.it/vendita-case/milano/"
-                                    "forlanini/con-prezzo_380000/")
+        assert out["idealista"] == (
+            "https://www.idealista.it/vendita-case/milano/forlanini/con-prezzo_380000/"
+        )
 
         # and the default stays off: no field, no live request
         asked.clear()
@@ -741,10 +821,12 @@ def test_build_search_urls_does_not_touch_the_network_unless_asked():
     """The UI re-derives URLs to prefill its edit form; only pressing Generate
     means "go ask the portal". A probe on every call would put a live request
     behind opening a dialog."""
+
     def explode(_url):
         raise AssertionError("probed without verify=True")
 
     from app.services import search_builder as sb
+
     original, sb.probe_zone_page = sb.probe_zone_page, explode
     try:
         urls = sb.build_search_urls(dict(city="Milano", zone="Bovisa"))
@@ -760,10 +842,12 @@ def test_immobiliare_zona_prefix_is_url_furniture_not_part_of_the_name():
     as "Zona_Navigli_Milano", asking the portal to match the literal word
     "zona" — one of the saved searches did exactly that."""
     parsed = parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/zona-navigli/?prezzoMassimo=350000")
+        "https://www.immobiliare.it/vendita-case/milano/zona-navigli/?prezzoMassimo=350000"
+    )
     assert parsed["zone"] == "Navigli"
     assert build_idealista_url(city="Milano", zone=parsed["zone"]) == (
-        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/")
+        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/"
+    )
 
 
 def test_immobiliare_filter_segment_is_not_mistaken_for_a_zone():
@@ -773,12 +857,14 @@ def test_immobiliare_filter_segment_is_not_mistaken_for_a_zone():
     was /vendita-case/milano/con-ascensore/con-prezzo_260000/ — two con-
     segments, a certain 404. Found in the live DB, twice."""
     parsed = parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=260000")
+        "https://www.immobiliare.it/vendita-case/milano/con-ascensore/?prezzoMassimo=260000"
+    )
     assert parsed["city"] == "Milano"
     assert parsed["zone"] == ""
     # a real zone still reads through, filters after it or not
     parsed = parse_search_url(
-        "https://www.immobiliare.it/vendita-case/milano/bovisa/con-ascensore/?prezzoMassimo=380000")
+        "https://www.immobiliare.it/vendita-case/milano/bovisa/con-ascensore/?prezzoMassimo=380000"
+    )
     assert parsed["city"] == "Milano"
     assert parsed["zone"] == "Bovisa"
 
@@ -790,7 +876,8 @@ def test_idealista_url_with_two_con_segments_keeps_its_filters():
     direction that floods the dashboard rather than emptying it. Two such URLs
     are saved in the live database."""
     parsed = parse_search_url(
-        "https://www.idealista.it/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50/")
+        "https://www.idealista.it/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50/"
+    )
     assert parsed["city"] == "Milano"
     assert parsed["max_price"] == 260000
     assert parsed["min_sqm"] == 50
@@ -804,15 +891,17 @@ def test_idealista_cerca_url_parses_back_to_city_zone_and_contract():
     leads the path, and reading segments[0] (= "cerca") reported every zone
     rental as a sale — silently, since the URL still scraped fine."""
     parsed = parse_search_url(
-        "https://www.idealista.it/cerca/affitto-case/con-prezzo_1500/Udine_Lambrate_Milano/")
+        "https://www.idealista.it/cerca/affitto-case/con-prezzo_1500/Udine_Lambrate_Milano/"
+    )
     assert parsed["city"] == "Milano"
     assert parsed["zone"] == "Udine Lambrate"
     assert parsed["contract"] == "rent"
     assert parsed["max_price"] == 1500
 
     # round-trip through the builder, zone included
-    url = build_idealista_url(city="Milano", zone="Bovisa", max_price=380_000,
-                              min_sqm=65, contract="sale")
+    url = build_idealista_url(
+        city="Milano", zone="Bovisa", max_price=380_000, min_sqm=65, contract="sale"
+    )
     parsed = parse_search_url(url)
     assert parsed["city"] == "Milano"
     assert parsed["zone"] == "Bovisa"
@@ -823,6 +912,7 @@ def test_idealista_cerca_url_parses_back_to_city_zone_and_contract():
 
 # --- Settings persistence -----------------------------------------------------
 
+
 def test_saved_secrets_lose_their_display_spaces():
     """Gmail renders an app password as "abcd efgh ijkl mnop" and users paste it
     as shown. imaplib/smtplib forward the spaces and Gmail answers with a bare
@@ -832,12 +922,14 @@ def test_saved_secrets_lose_their_display_spaces():
     Writes to the throwaway settings.json of the `isolated_settings` fixture."""
     from app import config
 
-    saved = config.save_settings({
-        "smtp_password": "jetd xuwl wvpy embm",
-        "imap_password": " jetd\txuwl\nwvpy embm ",
-        "telegram_bot_token": "123456:AAH ExampleToken",
-        "smtp_user": "someone@gmail.com",
-    })
+    saved = config.save_settings(
+        {
+            "smtp_password": "jetd xuwl wvpy embm",
+            "imap_password": " jetd\txuwl\nwvpy embm ",
+            "telegram_bot_token": "123456:AAH ExampleToken",
+            "smtp_user": "someone@gmail.com",
+        }
+    )
 
     assert saved["smtp_password"] == "jetdxuwlwvpyembm"
     assert saved["imap_password"] == "jetdxuwlwvpyembm"
@@ -864,10 +956,12 @@ def test_manual_cookie_paste_stamps_its_own_timestamp():
     assert config.save_settings({"proxy_url": "x"})["datadome_cookie_updated_at"] == stamp
 
     # the harvester passes its timestamp explicitly: it must not be overridden
-    saved = config.save_settings({
-        "datadome_cookie": "harvestedToken",
-        "datadome_cookie_updated_at": "2026-01-01T00:00:00+00:00",
-    })
+    saved = config.save_settings(
+        {
+            "datadome_cookie": "harvestedToken",
+            "datadome_cookie_updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
     assert saved["datadome_cookie_updated_at"] == "2026-01-01T00:00:00+00:00"
 
 
@@ -884,13 +978,11 @@ def test_properties_status_param_rejects_typos():
     from app.main import app
 
     route = next(
-        r for r in app.router.routes
-        if isinstance(r, APIRoute) and r.path == "/api/properties"
-        and "GET" in (r.methods or set())
+        r
+        for r in app.router.routes
+        if isinstance(r, APIRoute) and r.path == "/api/properties" and "GET" in (r.methods or set())
     )
-    status_param = next(
-        p for p in route.dependant.query_params if p.name == "status"
-    )
+    status_param = next(p for p in route.dependant.query_params if p.name == "status")
 
     for good in ("active", "filtered", "gone", "hidden", "all"):
         _, errors = status_param.validate(good, {}, loc=("query", "status"))
@@ -909,20 +1001,18 @@ def test_callable_default_columns_are_backfilled(tmp_path, monkeypatch):
     db_file = tmp_path / "old.db"
     engine = create_engine(f"sqlite:///{db_file}")
     with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
-            "fingerprint VARCHAR, title VARCHAR)"
-        ))
-        conn.execute(text(
-            "INSERT INTO properties (fingerprint, title) VALUES ('f', 't')"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
+                "fingerprint VARCHAR, title VARCHAR)"
+            )
+        )
+        conn.execute(text("INSERT INTO properties (fingerprint, title) VALUES ('f', 't')"))
     monkeypatch.setattr(database, "engine", engine)
     database.init_db()
 
     with engine.connect() as conn:
-        row = conn.execute(text(
-            "SELECT first_seen_at, last_seen_at FROM properties"
-        )).one()
+        row = conn.execute(text("SELECT first_seen_at, last_seen_at FROM properties")).one()
     assert row[0] is not None, "utcnow-defaulted column must be backfilled"
     assert row[1] is not None
 
@@ -931,28 +1021,39 @@ def test_updating_a_profile_url_rearms_the_baseline(db):
     """Regression (invariant 3): editing search_url left baseline_done=True
     from the old search, so the next scan — effectively the first on the new
     search — notified every single listing as "new"."""
+    from datetime import datetime
+
     from app import schemas
     from app.main import update_profile
     from app.models import SearchProfile
-    from datetime import datetime, timezone
 
     profile = SearchProfile(
-        name="Test", portal="immobiliare",
+        name="Test",
+        portal="immobiliare",
         search_url="https://www.immobiliare.it/vendita-case/milano/",
-        baseline_done=True, last_run_at=datetime.now(timezone.utc),
-        last_run_status="ok", consecutive_failures=2, health_alert_sent=True,
+        baseline_done=True,
+        last_run_at=datetime.now(UTC),
+        last_run_status="ok",
+        consecutive_failures=2,
+        health_alert_sent=True,
     )
     db.add(profile)
     db.commit()
 
     # same URL: baseline untouched
-    update_profile(profile.id, schemas.SearchProfileIn(
-        name="Renamed", search_url=profile.search_url), db)
+    update_profile(
+        profile.id, schemas.SearchProfileIn(name="Renamed", search_url=profile.search_url), db
+    )
     assert profile.baseline_done is True
 
     # new URL: a new search — the next scan must be a silent baseline
-    update_profile(profile.id, schemas.SearchProfileIn(
-        name="Renamed", search_url="https://www.immobiliare.it/vendita-case/torino/"), db)
+    update_profile(
+        profile.id,
+        schemas.SearchProfileIn(
+            name="Renamed", search_url="https://www.immobiliare.it/vendita-case/torino/"
+        ),
+        db,
+    )
     assert profile.baseline_done is False
     assert profile.last_run_at is None
     assert profile.consecutive_failures == 0

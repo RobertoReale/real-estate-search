@@ -1,0 +1,9 @@
+# Dev-only tooling. NEVER installed on the Raspberry Pi runtime — the product
+# ships from requirements.txt alone. Install locally with:
+#   pip install -r requirements-dev.txt
+ruff>=0.6
+hypothesis>=6.100
+pytest-cov>=5.0
+pytest-xdist>=3.6
+pip-audit>=2.7
+pre-commit>=3.7

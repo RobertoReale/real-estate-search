@@ -1,4 +1,5 @@
 """Pydantic schemas for REST API input/output."""
+
 from datetime import date, datetime
 from typing import Literal
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 class ListingOut(BaseModel):
     """API response model representing a single portal ad linked to a Property."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -23,6 +25,7 @@ class ListingOut(BaseModel):
 
 class PriceHistoryOut(BaseModel):
     """API response model recording a historical price variation of a Property."""
+
     model_config = ConfigDict(from_attributes=True)
 
     old_price: float | None
@@ -34,6 +37,7 @@ class TagOut(BaseModel):
     """API response model for a user-defined tag. `count` (usage across
     properties) is populated only by GET /api/tags; when nested inside
     PropertyOut.tags it stays at its default and is not meaningful there."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -43,12 +47,14 @@ class TagOut(BaseModel):
 
 class TagCreate(BaseModel):
     """Payload to create (or reuse, if a case-insensitive match exists) a tag."""
+
     name: str
 
 
 class ProfileRef(BaseModel):
     """A monitored search that found a property, as shown on its card: just the
     id (to link back to the search) and its name."""
+
     id: int
     name: str
 
@@ -56,6 +62,7 @@ class ProfileRef(BaseModel):
 class PropertyOut(BaseModel):
     """Comprehensive API response model for a deduplicated physical property,
     including its associated listings, price changes, and transient market statistics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -114,6 +121,7 @@ class PropertyOut(BaseModel):
 
 class PropertyPatch(BaseModel):
     """User-curated fields; scans never touch them."""
+
     is_favorite: bool | None = None
     notes: str | None = None
     # None = don't touch tags; a list is a full replace of the property's tag
@@ -124,11 +132,13 @@ class PropertyPatch(BaseModel):
 
 class PropertyCheckIn(BaseModel):
     """Payload for live availability verification (`AdProbe`) of dashboard properties."""
+
     ids: list[int]
 
 
 class PropertyBulkIn(BaseModel):
     """Payload for a bulk action on many selected properties at once."""
+
     ids: list[int]
     # hide/restore mirror the single-property DELETE/restore; favorite/unfavorite
     # mirror the PATCH is_favorite flag; sold mirrors the mark-sold route —
@@ -141,6 +151,7 @@ class PropertyBulkIn(BaseModel):
 
 class PricingTrendPoint(BaseModel):
     """One dated median €/sqm reading for an area."""
+
     captured_on: date
     median_sqm_price: float
     sample_count: int
@@ -148,6 +159,7 @@ class PricingTrendPoint(BaseModel):
 
 class PricingTrendOut(BaseModel):
     """Median €/sqm over time for one (city, zone, contract) area."""
+
     city: str
     zone: str
     contract: str
@@ -156,6 +168,7 @@ class PricingTrendOut(BaseModel):
 
 class TrendAreaOut(BaseModel):
     """An area with enough snapshot history to plot (>= 2 points)."""
+
     city: str
     zone: str
     contract: str
@@ -164,6 +177,7 @@ class TrendAreaOut(BaseModel):
 
 class SearchProfileIn(BaseModel):
     """Input payload for creating or modifying a monitored portal search profile."""
+
     name: str
     search_url: str
     excluded_keywords: str = ""
@@ -175,14 +189,13 @@ class SearchProfileIn(BaseModel):
     def validate_portal_url(cls, v: str) -> str:
         v = v.strip()
         if "immobiliare.it" not in v and "idealista.it" not in v:
-            raise ValueError(
-                "The URL must come from immobiliare.it or idealista.it"
-            )
+            raise ValueError("The URL must come from immobiliare.it or idealista.it")
         return v
 
 
 class SearchProfileIdsIn(BaseModel):
     """The searches a bulk preview ("what would deleting these cost?") is about."""
+
     ids: list[int]
 
 
@@ -193,6 +206,7 @@ class SearchProfileBulkIn(SearchProfileIdsIn):
     by "delete" — the alternative (one endpoint per action) would fork the
     ownership rules the delete depends on across four routes.
     """
+
     action: Literal["activate", "pause", "notify", "delete"]
     notify_channels: str = ""  # "" = all enabled, CSV = those, "none" = muted
     delete_results: bool = False
@@ -200,6 +214,7 @@ class SearchProfileBulkIn(SearchProfileIdsIn):
 
 class SearchBuilderParamsOut(BaseModel):
     """Parameters extracted from or used to build a portal search URL."""
+
     city: str = ""
     province: str = ""
     zone: str = ""
@@ -215,7 +230,7 @@ class SearchBuilderParamsOut(BaseModel):
     elevator: bool = False
     exclude_auctions: bool = False
     pool: bool = False
-    floor: str = ""                 # ground | middle | top
+    floor: str = ""  # ground | middle | top
     # new | good | excellent | to_renovate — "excellent" is Immobiliare's stato=6
     # and the one condition Idealista has no equivalent for, so it is the only
     # value idealista_unsupported reports.
@@ -224,6 +239,7 @@ class SearchBuilderParamsOut(BaseModel):
 
 class SearchProfileOut(BaseModel):
     """API response model detailing a search profile along with its execution diagnostics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -242,16 +258,19 @@ class SearchProfileOut(BaseModel):
     @property
     def params(self) -> SearchBuilderParamsOut:
         from .services.search_builder import parse_search_url
+
         return SearchBuilderParamsOut(**parse_search_url(self.search_url))
 
 
 class UrlIn(BaseModel):
     """Payload for extracting builder parameters from a URL."""
+
     url: str
 
 
 class SettingsIn(BaseModel):
     """Input payload representing user-configurable application preferences."""
+
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_enabled: bool | None = None
@@ -326,8 +345,7 @@ class SettingsIn(BaseModel):
             raise ValueError("must be >= 1 hour")
         return v
 
-    @field_validator("dream_max_price", "dream_min_rooms", "dream_min_sqm",
-                     "dream_min_floor")
+    @field_validator("dream_max_price", "dream_min_rooms", "dream_min_sqm", "dream_min_floor")
     @classmethod
     def dream_fields_not_negative(cls, v: int | None) -> int | None:
         # 0 is the "no constraint" sentinel; a negative is a client bug
@@ -338,6 +356,7 @@ class SettingsIn(BaseModel):
 
 class SearchBuilderIn(BaseModel):
     """Structured parameters the search builder turns into portal URLs."""
+
     city: str
     province: str = ""
     zone: str = ""  # neighborhood; Immobiliare slugs are best-effort
@@ -353,7 +372,7 @@ class SearchBuilderIn(BaseModel):
     elevator: bool = False
     exclude_auctions: bool = False
     pool: bool = False
-    floor: str = ""                 # ground | middle | top
+    floor: str = ""  # ground | middle | top
     # new | good | excellent | to_renovate — "excellent" is Immobiliare's stato=6
     # and the one condition Idealista has no equivalent for, so it is the only
     # value idealista_unsupported reports.
@@ -381,12 +400,14 @@ class SearchBuilderIn(BaseModel):
 
 class AssistantQueryIn(BaseModel):
     """Free-text query for the natural-language search assistant."""
+
     query: str
 
 
 class AssistantParams(BaseModel):
     """What the parser understood: same shape as SearchBuilderIn, except
     `city` may be empty (the parser could not identify one)."""
+
     city: str = ""
     province: str = ""
     zone: str = ""
@@ -402,11 +423,12 @@ class AssistantSearch(BaseModel):
     """One search alternative the assistant understood. A query with
     disjunctions ("bilocale in zona X o trilocale in zona Y") yields one of
     these per alternative."""
+
     params: AssistantParams
     # human-readable read-back of the query, shown before anything is saved
     interpretation: list[str] = []
-    notes: list[str] = []       # assumptions the parser had to make
-    warnings: list[str] = []    # what it could not resolve
+    notes: list[str] = []  # assumptions the parser had to make
+    warnings: list[str] = []  # what it could not resolve
     # None when no city was found: a city-less portal URL would silently
     # search all of Italy (see invariant #7)
     urls: dict[str, str] | None = None
@@ -418,11 +440,12 @@ class AssistantOut(BaseModel):
 
 class EmailImportScanIn(BaseModel):
     """How to look for listing emails in the user's inbox (IMAP read-only)."""
+
     # portals = messages sent by the portals' own alert addresses
     # address = messages from user-specified senders (agencies, etc.)
     # any     = any message mentioning the portals anywhere (slowest net)
     mode: str = "portals"
-    senders: str = ""        # CSV, used by mode="address"
+    senders: str = ""  # CSV, used by mode="address"
     since_days: int = 365
     max_emails: int = 200
 
@@ -443,6 +466,7 @@ class EmailImportScanIn(BaseModel):
 
 class ImportedListingOut(BaseModel):
     """API response model representing a listing extracted from an alert email."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -470,6 +494,7 @@ class ImportedListingOut(BaseModel):
 
 class ImportBulkIn(BaseModel):
     """Payload for bulk acceptance or rejection of email-staged listings."""
+
     ids: list[int]
     action: str  # accept | discard
 
@@ -485,16 +510,18 @@ class ImportCheckIn(BaseModel):
     """Which staged listings to verify against the portal — one HTTP request
     each, spaced by `request_delay_seconds`. Capped server-side: this is an
     on-demand probe, not a crawl."""
+
     ids: list[int]
 
 
 class AreaVelocityOut(BaseModel):
     """Aggregated market speed metrics for a specific neighborhood or city."""
+
     city: str
     zone: str
-    scope: str            # "zone" | "city"
+    scope: str  # "zone" | "city"
     sample: int
-    closed: int           # how many left the market ("gone")
+    closed: int  # how many left the market ("gone")
     median_days_to_gone: float | None = None
     median_days_listed: float | None = None
     sell_through_pct: float
@@ -503,6 +530,7 @@ class AreaVelocityOut(BaseModel):
 
 class AgencyBehaviorOut(BaseModel):
     """Aggregated pricing and discounting behavior metrics for a real estate agency."""
+
     agency: str
     sample: int
     price_drop_pct: float
@@ -515,6 +543,7 @@ class AgencyBehaviorOut(BaseModel):
 
 class MarketVelocityOut(BaseModel):
     """Comprehensive API response detailing area velocities and agency pricing signatures."""
+
     contract: str
     city: str
     generated_at: datetime

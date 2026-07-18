@@ -59,7 +59,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 /** The current filters as query params — shared by the grid fetch and the
  *  export download so a dossier holds exactly the filtered set on screen. */
-function propertyParams(filters: PropertyFilters): URLSearchParams {
+export function propertyParams(filters: PropertyFilters): URLSearchParams {
   const params = new URLSearchParams();
   params.set("status", filters.status);
   params.set("contract", filters.contract);

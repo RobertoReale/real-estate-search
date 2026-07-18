@@ -4,7 +4,8 @@ simulated — see developer notes §Testing). What IS testable is every decision
 the launch: which cookie to pick, when a cookie is stale, and the scanner's
 opt-in gating. Those are the parts that would silently misbehave, so those are
 the parts covered here."""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -28,7 +29,7 @@ def test_pick_datadome_ignores_placeholder_and_missing():
 
 
 def test_cookie_is_stale_true_when_unknown_or_unparseable():
-    now = datetime(2026, 7, 11, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 11, tzinfo=UTC)
     # no timestamp: cannot prove freshness, so refresh
     assert ch.cookie_is_stale("", 50, now) is True
     assert ch.cookie_is_stale(None, 50, now) is True
@@ -36,7 +37,7 @@ def test_cookie_is_stale_true_when_unknown_or_unparseable():
 
 
 def test_cookie_is_stale_respects_ttl():
-    now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
     fresh = (now - timedelta(minutes=10)).isoformat()
     old = (now - timedelta(minutes=55)).isoformat()
     assert ch.cookie_is_stale(fresh, 50, now) is False
@@ -46,7 +47,7 @@ def test_cookie_is_stale_respects_ttl():
 def test_cookie_is_stale_reattaches_utc_to_naive_timestamp():
     # save_settings writes an aware ISO string, but a hand-edited settings.json
     # could carry a naive one; comparing naive vs aware would raise
-    now = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
     naive_recent = datetime(2026, 7, 11, 11, 55).isoformat()  # no tzinfo
     assert ch.cookie_is_stale(naive_recent, 50, now) is False
 
@@ -60,15 +61,20 @@ def test_maybe_auto_refresh_is_noop_when_disabled():
 def test_maybe_auto_refresh_skips_a_fresh_cookie(monkeypatch):
     called = {"n": 0}
     monkeypatch.setattr(ch, "is_available", lambda: True)
-    monkeypatch.setattr(ch, "refresh_into_settings",
-                        lambda **_: called.__setitem__("n", called["n"] + 1) or {"ok": True})
-    fresh = datetime.now(timezone.utc).isoformat()
-    refreshed = ch.maybe_auto_refresh({
-        "datadome_auto_refresh": True,
-        "datadome_cookie": "sometoken",
-        "datadome_cookie_updated_at": fresh,
-        "datadome_cookie_ttl_minutes": 50,
-    })
+    monkeypatch.setattr(
+        ch,
+        "refresh_into_settings",
+        lambda **_: called.__setitem__("n", called["n"] + 1) or {"ok": True},
+    )
+    fresh = datetime.now(UTC).isoformat()
+    refreshed = ch.maybe_auto_refresh(
+        {
+            "datadome_auto_refresh": True,
+            "datadome_cookie": "sometoken",
+            "datadome_cookie_updated_at": fresh,
+            "datadome_cookie_ttl_minutes": 50,
+        }
+    )
     assert refreshed is False
     assert called["n"] == 0, "a still-fresh cookie must not trigger a browser launch"
 
@@ -76,13 +82,18 @@ def test_maybe_auto_refresh_skips_a_fresh_cookie(monkeypatch):
 def test_maybe_auto_refresh_harvests_a_stale_cookie(monkeypatch):
     monkeypatch.setattr(ch, "is_available", lambda: True)
     monkeypatch.setattr(ch, "refresh_into_settings", lambda **_: {"ok": True})
-    stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-    assert ch.maybe_auto_refresh({
-        "datadome_auto_refresh": True,
-        "datadome_cookie": "sometoken",
-        "datadome_cookie_updated_at": stale,
-        "datadome_cookie_ttl_minutes": 50,
-    }) is True
+    stale = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    assert (
+        ch.maybe_auto_refresh(
+            {
+                "datadome_auto_refresh": True,
+                "datadome_cookie": "sometoken",
+                "datadome_cookie_updated_at": stale,
+                "datadome_cookie_ttl_minutes": 50,
+            }
+        )
+        is True
+    )
 
 
 def test_refresh_waits_longer_for_a_human_than_for_headless(monkeypatch):
@@ -113,7 +124,6 @@ def test_harvest_fails_open_when_playwright_absent(monkeypatch):
 
 
 def test_ensure_browsers_path_and_find_chromium(monkeypatch, tmp_path):
-    import os
     # simulate a fake browser path candidate
     fake_candidate = tmp_path / "browser_binaries"
     fake_candidate.mkdir()
@@ -128,8 +138,8 @@ def test_ensure_browsers_path_and_find_chromium(monkeypatch, tmp_path):
 
 
 def test_update_settings_preserves_harvester_flag(monkeypatch):
-    from app.main import get_settings, update_settings
     from app import schemas
+    from app.main import get_settings, update_settings
 
     monkeypatch.setattr(ch, "is_available", lambda: True)
 
@@ -138,7 +148,9 @@ def test_update_settings_preserves_harvester_flag(monkeypatch):
     assert get_resp.get("datadome_harvester_available") is True
 
     # update_settings should also return datadome_harvester_available: true and save availability_browser_first
-    put_resp = update_settings(schemas.SettingsIn(datadome_auto_refresh=True, availability_browser_first=True))
+    put_resp = update_settings(
+        schemas.SettingsIn(datadome_auto_refresh=True, availability_browser_first=True)
+    )
     assert put_resp.get("datadome_harvester_available") is True
     assert put_resp.get("availability_browser_first") is True
 
@@ -170,12 +182,15 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
     class FakeCtx:
         pages: list = []
         _page: FakePage
+
         def new_page(self):
             return FakePage()
+
         def cookies(self):
             if hasattr(self, "_page") and self._page.checks > 2:
                 return [{"name": "datadome", "value": "clearanceCookieAfterSolving12345"}]
             return []
+
         def close(self):
             pass
 
@@ -186,6 +201,7 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
     class FakePW:
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -204,6 +220,7 @@ def test_harvest_inner_stops_promptly_when_cancelled(monkeypatch):
     the full timeout with no way to stop it from the UI, leaving the visible
     browser window stuck open. `request_cancel_harvest` must be picked up
     within one poll instead of running out the clock."""
+
     class FakeResp:
         status = 403
 
@@ -234,6 +251,7 @@ def test_harvest_inner_stops_promptly_when_cancelled(monkeypatch):
     ch.request_cancel_harvest()
     try:
         import time
+
         start = time.monotonic()
         res = ch._harvest_inner("immobiliare", headless=False, timeout_seconds=5.0)
         elapsed = time.monotonic() - start
@@ -391,4 +409,3 @@ def test_launch_stops_playwright_when_every_channel_fails(monkeypatch, tmp_path)
     with pytest.raises(RuntimeError):
         ch._launch(lambda: FakeP(), headless=True)
     assert stopped == [1]
-

@@ -12,9 +12,10 @@ lives 24 hours would never fire (the same reasoning as the scheduler's
 catch-up scan). The backups folder is local — syncing it to a second drive or
 a cloud-synced folder is up to the user (see README).
 """
+
 import logging
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ..config import BASE_DIR, DB_PATH
@@ -26,8 +27,9 @@ BACKUP_EVERY = timedelta(hours=24)
 BACKUP_KEEP = 14
 
 
-def maybe_backup(db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR,
-                 force: bool = False) -> Path | None:
+def maybe_backup(
+    db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR, force: bool = False
+) -> Path | None:
     """Copies the database unless a recent backup already exists.
 
     Returns the new backup file, or None when skipped. Never raises: a failed
@@ -40,14 +42,10 @@ def maybe_backup(db_path: Path = DB_PATH, backup_dir: Path = BACKUP_DIR,
             # fresh install: nothing to protect yet
             return None
         backup_dir.mkdir(parents=True, exist_ok=True)
-        existing = sorted(
-            backup_dir.glob("case-*.db"), key=lambda p: p.stat().st_mtime
-        )
+        existing = sorted(backup_dir.glob("case-*.db"), key=lambda p: p.stat().st_mtime)
         if existing and not force:
-            newest = datetime.fromtimestamp(
-                existing[-1].stat().st_mtime, tz=timezone.utc
-            )
-            if datetime.now(timezone.utc) - newest < BACKUP_EVERY:
+            newest = datetime.fromtimestamp(existing[-1].stat().st_mtime, tz=UTC)
+            if datetime.now(UTC) - newest < BACKUP_EVERY:
                 return None
         target = backup_dir / f"case-{datetime.now():%Y%m%d-%H%M%S}.db"
         src = sqlite3.connect(db_path)

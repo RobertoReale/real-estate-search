@@ -8,10 +8,11 @@ on demand. It features:
 - Polite delay (`request_delay_seconds` & portal floors) between URL probes.
 - Automatic DataDome cookie recovery if the portal blocks mid-batch.
 """
+
 import logging
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -63,12 +64,14 @@ def request_cancel() -> None:
 def _is_recently_checked(dt, hours: float = 6.0) -> bool:
     if dt is None or hours <= 0:
         return False
-    now = datetime.now(timezone.utc)
-    dt_tz = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(UTC)
+    dt_tz = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
     return (now - dt_tz).total_seconds() < hours * 3600
 
 
-def check_properties_availability(db: Session, properties: list[Property], skip_recent_hours: float = 6.0) -> dict:
+def check_properties_availability(
+    db: Session, properties: list[Property], skip_recent_hours: float = 6.0
+) -> dict:
     """Checks whether the given properties (`Property`) are still online on their portals.
 
     For each property, `AdProbe` checks all its associated `listings`.
@@ -88,7 +91,9 @@ def check_properties_availability(db: Session, properties: list[Property], skip_
         _check_run_lock.release()
 
 
-def _check_properties_availability_inner(db: Session, properties: list[Property], skip_recent_hours: float = 6.0) -> dict:
+def _check_properties_availability_inner(
+    db: Session, properties: list[Property], skip_recent_hours: float = 6.0
+) -> dict:
     settings = load_settings()
     configured = float(settings.get("request_delay_seconds") or 6.0)
     # The slowest portal among the listings sets the delay floor
@@ -97,31 +102,52 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
     probe = AdProbe(delay_seconds=delay, cancel_event=_prop_check_cancel_event)
 
     summary = {
-        "checked": 0, "gone": 0, "online": 0, "unknown": 0,
-        "aborted": False, "capped": False, "cancelled": False, "last_error": None,
-        "cookie_refreshed": 0, "transport": "fast requests (curl)",
+        "checked": 0,
+        "gone": 0,
+        "online": 0,
+        "unknown": 0,
+        "aborted": False,
+        "capped": False,
+        "cancelled": False,
+        "last_error": None,
+        "cookie_refreshed": 0,
+        "transport": "fast requests (curl)",
     }
-    _prop_check_progress.update(active=True, done=0, total=len(properties),
-                                gone=0, online=0, unknown=0, last_error=None,
-                                transport=summary["transport"])
-    logger.info("availability_check: starting batch of %d properties (delay=%.1fs, skip_recent_hours=%.1f)",
-                len(properties), delay, skip_recent_hours)
+    _prop_check_progress.update(
+        active=True,
+        done=0,
+        total=len(properties),
+        gone=0,
+        online=0,
+        unknown=0,
+        last_error=None,
+        transport=summary["transport"],
+    )
+    logger.info(
+        "availability_check: starting batch of %d properties (delay=%.1fs, skip_recent_hours=%.1f)",
+        len(properties),
+        delay,
+        skip_recent_hours,
+    )
 
     try:
-        if settings.get("availability_browser_first") and hasattr(
-                probe, "start_browser_session"):
+        if settings.get("availability_browser_first") and hasattr(probe, "start_browser_session"):
             if probe.start_browser_session():
                 probe._browser_primary = True
                 summary["transport"] = getattr(probe, "browser_status", "") or "browser"
-                logger.info("availability_check: running browser-first (curl_cffi bypassed) — %s",
-                            summary["transport"])
+                logger.info(
+                    "availability_check: running browser-first (curl_cffi bypassed) — %s",
+                    summary["transport"],
+                )
             else:
                 # Surface WHY the browser did not take over (engine missing,
                 # option off, session-0…) so the UI can explain instead of
                 # silently falling back to the curl path that gets blocked.
                 why = getattr(probe, "browser_status", "") or "unavailable"
                 summary["transport"] = f"fast requests (curl) — browser {why}"
-                logger.info("availability_check: browser-first requested but %s; using curl_cffi", why)
+                logger.info(
+                    "availability_check: browser-first requested but %s; using curl_cffi", why
+                )
         _prop_check_progress.update(transport=summary["transport"])
         block_streak = 0
         refreshes_used = 0
@@ -129,8 +155,9 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
         for index, prop in enumerate(properties):
             if _prop_check_cancel_event.is_set():
                 summary["cancelled"] = True
-                logger.info("availability_check: cancelled by user after %d properties",
-                            summary["checked"])
+                logger.info(
+                    "availability_check: cancelled by user after %d properties", summary["checked"]
+                )
                 break
 
             if not prop.listings:
@@ -144,13 +171,22 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                 # advances by up to MAX_CHECKS_PER_CALL live probes per run
                 # and the next run resumes past them (smart resume).
                 summary["capped"] = True
-                logger.info("availability_check: probe budget (%d) spent, "
-                            "stopping after %d properties", MAX_CHECKS_PER_CALL, index)
+                logger.info(
+                    "availability_check: probe budget (%d) spent, stopping after %d properties",
+                    MAX_CHECKS_PER_CALL,
+                    index,
+                )
                 break
 
-            if (skip_recent_hours > 0 and len(properties) > 1 and prop.listings
-                    and all(_is_recently_checked(l.last_seen_at, skip_recent_hours) for l in prop.listings)
-                    and prop.status in ("active", "filtered", "hidden")):
+            if (
+                skip_recent_hours > 0
+                and len(properties) > 1
+                and prop.listings
+                and all(
+                    _is_recently_checked(l.last_seen_at, skip_recent_hours) for l in prop.listings
+                )
+                and prop.status in ("active", "filtered", "hidden")
+            ):
                 summary["online"] += 1
                 summary["checked"] += 1
                 _prop_check_progress.update(done=index + 1, gone=summary["gone"])
@@ -161,22 +197,25 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                 probes_used += 1
                 res = probe.check(listing.url)
                 if res is not None:
-                    listing.last_seen_at = datetime.now(timezone.utc)
+                    listing.last_seen_at = datetime.now(UTC)
                 results.append(res)
                 if res is True and getattr(probe, "last_soup", None):
                     soup = probe.last_soup
                     if not listing.image_url:
-                        og_img = (soup.find("meta", property="og:image")
-                                  or soup.find("meta", attrs={"name": "twitter:image"}))
+                        og_img = soup.find("meta", property="og:image") or soup.find(
+                            "meta", attrs={"name": "twitter:image"}
+                        )
                         if og_img and og_img.get("content"):
                             listing.image_url = str(og_img["content"]).strip()[:500]
                     if not prop.image_url and listing.image_url:
                         prop.image_url = listing.image_url
                     from .repair_listings import is_bad_title
+
                     if is_bad_title(prop.title):
                         og_title = soup.find("meta", property="og:title")
                         if og_title and og_title.get("content"):
                             from .email_import import _clean_title
+
                             clean_og = _clean_title(str(og_title["content"]))
                             if clean_og and not is_bad_title(clean_og):
                                 prop.title = clean_og
@@ -191,8 +230,10 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                     # rotation, switching to the browser) are worth running
                     # once the user has asked to stop.
                     summary["cancelled"] = True
-                    logger.info("availability_check: cancelled by user mid-property after %d properties",
-                                summary["checked"])
+                    logger.info(
+                        "availability_check: cancelled by user mid-property after %d properties",
+                        summary["checked"],
+                    )
                     break
 
                 if block_streak >= BLOCK_STREAK_ABORT:
@@ -211,14 +252,19 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                         )
                         summary["aborted"] = True
                         break
-                    if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
-                            and _try_cookie_recovery(
-                                probe, listing.portal, settings, summary)):
+                    if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK and _try_cookie_recovery(
+                        probe, listing.portal, settings, summary
+                    ):
                         refreshes_used += 1
                         block_streak = 0
                         continue
-                    if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
-                        logger.info("availability_check: portal rate limit / block streak reached, sleeping 12s and rotating session")
+                    if (
+                        refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2
+                        and len(getattr(probe, "impersonations", [])) > 1
+                    ):
+                        logger.info(
+                            "availability_check: portal rate limit / block streak reached, sleeping 12s and rotating session"
+                        )
                         time.sleep(12.0)
                         probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
                         if hasattr(probe, "_new_session"):
@@ -228,9 +274,11 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                         refreshes_used += 1
                         block_streak = 0
                         continue
-                    if (hasattr(probe, "start_browser_session")
-                            and not getattr(probe, "_browser_primary", False)
-                            and probe.start_browser_session()):
+                    if (
+                        hasattr(probe, "start_browser_session")
+                        and not getattr(probe, "_browser_primary", False)
+                        and probe.start_browser_session()
+                    ):
                         # Last resort, opt-in (invariant 18): switch the rest of
                         # the batch to the persistent browser instead of
                         # hammering a TLS session the portal already refused.
@@ -241,8 +289,10 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                         probe._browser_primary = True
                         summary["transport"] = getattr(probe, "browser_status", "") or "browser"
                         _prop_check_progress.update(transport=summary["transport"])
-                        logger.info("availability_check: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session — %s",
-                                    summary["transport"])
+                        logger.info(
+                            "availability_check: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session — %s",
+                            summary["transport"],
+                        )
                         time.sleep(6.0)
                         block_streak = 0
                         continue
@@ -273,20 +323,30 @@ def _check_properties_availability_inner(db: Session, properties: list[Property]
                 if prop.status != "gone":
                     prop.status = "gone"
                     if prop.gone_at is None:
-                        prop.gone_at = datetime.now(timezone.utc)
+                        prop.gone_at = datetime.now(UTC)
             else:
                 summary["unknown"] += 1
 
-            logger.info("availability_check: [%d/%d] property %s -> %s (online=%d, gone=%d, unknown=%d)",
-                        index + 1, len(properties), prop.id, prop.status,
-                        summary["online"], summary["gone"], summary["unknown"])
+            logger.info(
+                "availability_check: [%d/%d] property %s -> %s (online=%d, gone=%d, unknown=%d)",
+                index + 1,
+                len(properties),
+                prop.id,
+                prop.status,
+                summary["online"],
+                summary["gone"],
+                summary["unknown"],
+            )
             summary["checked"] += 1
-            prop.last_seen_at = datetime.now(timezone.utc)
+            prop.last_seen_at = datetime.now(UTC)
             db.commit()
-            _prop_check_progress.update(done=index + 1, gone=summary["gone"],
-                                        online=summary["online"],
-                                        unknown=summary["unknown"],
-                                        last_error=summary["last_error"])
+            _prop_check_progress.update(
+                done=index + 1,
+                gone=summary["gone"],
+                online=summary["online"],
+                unknown=summary["unknown"],
+                last_error=summary["last_error"],
+            )
 
             if index + 1 < len(properties):
                 probe.polite_sleep()

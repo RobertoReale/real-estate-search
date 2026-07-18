@@ -5,6 +5,7 @@ row in the property_tags association table.
 
 Endpoint functions are called directly (like test_dashboard_management), so
 the app lifespan and scheduler never start."""
+
 from typing import Any
 
 import pytest
@@ -14,7 +15,11 @@ from sqlalchemy.orm import sessionmaker
 from app import schemas
 from app.database import Base
 from app.main import (
-    _select_properties, bulk_properties, create_tag, delete_tag, list_tags,
+    _select_properties,
+    bulk_properties,
+    create_tag,
+    delete_tag,
+    list_tags,
     patch_property,
 )
 from app.models import Property, Tag, property_tags
@@ -24,9 +29,16 @@ from app.services.deduplicator import upsert_listing
 
 def list_properties(*, db, **kw):
     params: dict[str, Any] = dict(
-        status="active", contract=None, city=None, min_price=None,
-        max_price=None, min_sqm=None, rooms=None, only_price_drops=False,
-        only_favorites=False, sort="newest",
+        status="active",
+        contract=None,
+        city=None,
+        min_price=None,
+        max_price=None,
+        min_sqm=None,
+        rooms=None,
+        only_price_drops=False,
+        only_favorites=False,
+        sort="newest",
     )
     params.update(kw)
     return _select_properties(db, **params)
@@ -43,11 +55,18 @@ def db():
 
 def _raw(**kwargs) -> RawListing:
     base: dict[str, Any] = dict(
-        portal="immobiliare", portal_id="111",
+        portal="immobiliare",
+        portal_id="111",
         url="https://www.immobiliare.it/annunci/111/",
-        title="Trilocale via Roma", city="Milano", zone="Navigli",
-        rooms=3, sqm=90.0, price=300_000.0,
-        latitude=45.4642, longitude=9.19, address="Via Roma, 12",
+        title="Trilocale via Roma",
+        city="Milano",
+        zone="Navigli",
+        rooms=3,
+        sqm=90.0,
+        price=300_000.0,
+        latitude=45.4642,
+        longitude=9.19,
+        address="Via Roma, 12",
     )
     base.update(kwargs)
     return RawListing(**base)
@@ -61,11 +80,15 @@ def _property(db, *, portal_id: str = "111", **kwargs) -> Property:
     kwargs.setdefault("address", f"Via Prova, {n}")
     kwargs.setdefault("latitude", 45.4642 + n * 0.01)
     kwargs.setdefault("longitude", 9.19 + n * 0.01)
-    prop, _, _ = upsert_listing(db, _raw(portal_id=portal_id, url=f"https://www.immobiliare.it/annunci/{portal_id}/", **kwargs))
+    prop, _, _ = upsert_listing(
+        db,
+        _raw(portal_id=portal_id, url=f"https://www.immobiliare.it/annunci/{portal_id}/", **kwargs),
+    )
     return prop
 
 
 # --- Creation / dedup --------------------------------------------------------
+
 
 def test_create_tag_dedup_case_insensitive(db):
     a = create_tag(schemas.TagCreate(name="Con giardino"), db)
@@ -89,6 +112,7 @@ def test_list_tags_returns_usage_count(db):
 
 
 # --- PATCH full-replace semantics --------------------------------------------
+
 
 def test_patch_replaces_tag_set(db):
     prop = _property(db)
@@ -115,6 +139,7 @@ def test_patch_tag_ids_none_leaves_tags_untouched(db):
 
 # --- Filter -------------------------------------------------------------------
 
+
 def test_filter_by_tag_name_case_insensitive(db):
     tagged = _property(db, portal_id="1")
     untagged = _property(db, portal_id="2")
@@ -136,17 +161,34 @@ def test_export_respects_tag_filter(db):
     patch_property(tagged.id, schemas.PropertyPatch(tag_ids=[tag.id]), db)
 
     body = export_properties(
-        db=db, fmt="csv", title="Property shortlist",
-        status="active", contract=None, city=None, zone=None, q=None,
-        source=None, profile_id=None, tag="con giardino",
-        min_price=None, max_price=None, min_sqm=None, max_sqm=None,
-        floor_band=None, rooms=None, portal=None, deal=None,
-        only_price_drops=False, only_favorites=False, sort="newest",
+        db=db,
+        fmt="csv",
+        title="Property shortlist",
+        status="active",
+        contract=None,
+        city=None,
+        zone=None,
+        q=None,
+        source=None,
+        profile_id=None,
+        tag="con giardino",
+        min_price=None,
+        max_price=None,
+        min_sqm=None,
+        max_sqm=None,
+        floor_band=None,
+        rooms=None,
+        portal=None,
+        deal=None,
+        only_price_drops=False,
+        only_favorites=False,
+        sort="newest",
     )
     assert "Trilocale" in bytes(body.body).decode("utf-8")
 
 
 # --- Bulk ---------------------------------------------------------------------
+
 
 def test_bulk_add_remove_tag(db):
     p1 = _property(db, portal_id="1")
@@ -172,6 +214,7 @@ def test_bulk_add_remove_tag(db):
 
 # --- Cascade behavior -----------------------------------------------------------
 
+
 def test_delete_property_leaves_no_orphaned_association_row(db):
     prop = _property(db)
     tag = create_tag(schemas.TagCreate(name="a"), db)
@@ -180,9 +223,7 @@ def test_delete_property_leaves_no_orphaned_association_row(db):
     db.delete(prop)
     db.commit()
 
-    rows = list(db.execute(
-        select(property_tags).where(property_tags.c.property_id == prop.id)
-    ))
+    rows = list(db.execute(select(property_tags).where(property_tags.c.property_id == prop.id)))
     assert rows == []
 
 

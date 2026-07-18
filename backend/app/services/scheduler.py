@@ -1,7 +1,8 @@
 """APScheduler: executes automatic scanning at configurable intervals
 without blocking API requests."""
+
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
@@ -33,6 +34,7 @@ def _snapshot_job() -> None:
     finally:
         db.close()
 
+
 # An interval trigger first fires one *full interval* after startup — and on a
 # PC that is switched on occasionally that moment may never come: with an
 # 8-hour interval, sessions shorter than 8 hours never run a scheduled scan at
@@ -48,10 +50,9 @@ def _scan_overdue(db: Session, interval_minutes: int) -> bool:
     """True when the newest scan across active profiles is older than the
     configured interval (or never happened). No active profiles means there is
     nothing to catch up on."""
-    last_runs = list(db.scalars(
-        select(SearchProfile.last_run_at)
-        .where(SearchProfile.is_active.is_(True))
-    ))
+    last_runs = list(
+        db.scalars(select(SearchProfile.last_run_at).where(SearchProfile.is_active.is_(True)))
+    )
     if not last_runs:
         return False
     newest = max((t for t in last_runs if t is not None), default=None)
@@ -59,8 +60,8 @@ def _scan_overdue(db: Session, interval_minutes: int) -> bool:
         return True
     if newest.tzinfo is None:
         # SQLite returns naive datetimes; values are written as UTC
-        newest = newest.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) - newest > timedelta(minutes=interval_minutes)
+        newest = newest.replace(tzinfo=UTC)
+    return datetime.now(UTC) - newest > timedelta(minutes=interval_minutes)
 
 
 def start_scheduler():
@@ -69,31 +70,44 @@ def start_scheduler():
     db = SessionLocal()
     try:
         if _scan_overdue(db, interval):
-            first_run = datetime.now(timezone.utc) + timedelta(
-                seconds=CATCHUP_DELAY_SECONDS)
+            first_run = datetime.now(UTC) + timedelta(seconds=CATCHUP_DELAY_SECONDS)
             scan_job_args["next_run_time"] = first_run
             logger.info(
-                "Last scan is older than the %s-minute interval: "
-                "catch-up scan in %s seconds", interval, CATCHUP_DELAY_SECONDS,
+                "Last scan is older than the %s-minute interval: catch-up scan in %s seconds",
+                interval,
+                CATCHUP_DELAY_SECONDS,
             )
     finally:
         db.close()
     _scheduler.add_job(
-        run_scan, "interval", minutes=interval, id=JOB_ID,
-        max_instances=1, coalesce=True, **scan_job_args,
+        run_scan,
+        "interval",
+        minutes=interval,
+        id=JOB_ID,
+        max_instances=1,
+        coalesce=True,
+        **scan_job_args,
     )
     # freshness check at startup (see backup.py for why a daily job alone
     # would not be enough), plus a daily job for long-running sessions
     backup.maybe_backup()
     _scheduler.add_job(
-        backup.maybe_backup, "interval", hours=24, id=BACKUP_JOB_ID,
-        max_instances=1, coalesce=True,
+        backup.maybe_backup,
+        "interval",
+        hours=24,
+        id=BACKUP_JOB_ID,
+        max_instances=1,
+        coalesce=True,
     )
     _configure_email_import(load_settings())
     _snapshot_job()  # capture today's medians at startup if not done yet
     _scheduler.add_job(
-        _snapshot_job, "interval", hours=24, id=SNAPSHOT_JOB_ID,
-        max_instances=1, coalesce=True,
+        _snapshot_job,
+        "interval",
+        hours=24,
+        id=SNAPSHOT_JOB_ID,
+        max_instances=1,
+        coalesce=True,
     )
     _scheduler.start()
     logger.info("Scheduler started: scan every %s minutes", interval)
@@ -131,12 +145,15 @@ def _configure_email_import(settings: dict) -> None:
             logger.info("Email-import auto-scan disabled")
         return
     if existing:
-        _scheduler.reschedule_job(
-            EMAIL_IMPORT_JOB_ID, trigger="interval", hours=hours)
+        _scheduler.reschedule_job(EMAIL_IMPORT_JOB_ID, trigger="interval", hours=hours)
     else:
         _scheduler.add_job(
-            email_import.auto_scan_job, "interval", hours=hours,
-            id=EMAIL_IMPORT_JOB_ID, max_instances=1, coalesce=True,
+            email_import.auto_scan_job,
+            "interval",
+            hours=hours,
+            id=EMAIL_IMPORT_JOB_ID,
+            max_instances=1,
+            coalesce=True,
         )
     logger.info("Email-import auto-scan every %s hours", hours)
 

@@ -1,6 +1,7 @@
 """Opt-in geocoding backfill for the map. All offline: the Nominatim HTTP call
 (`_nominatim_lookup`) is mocked, so the cache/batch/fail-open logic is exercised
 with no network and no per-second wait."""
+
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -47,12 +48,17 @@ def test_uses_zone_when_no_street_and_anchors_to_the_city(db, monkeypatch):
     db.add(_prop(address="", zone="Navigli"))
     db.commit()
     seen = {}
-    monkeypatch.setattr(geocoder, "_nominatim_lookup",
-                        lambda q, base: seen.setdefault("q", q) and None or (45.4, 9.1))
+    monkeypatch.setattr(
+        geocoder,
+        "_nominatim_lookup",
+        lambda q, base: seen.setdefault("q", q) and None or (45.4, 9.1),
+    )
+
     # capture the query string properly
     def cap(q, base):
         seen["q"] = q
         return (45.4, 9.1)
+
     monkeypatch.setattr(geocoder, "_nominatim_lookup", cap)
 
     geocoder.geocode_missing_properties(db)
@@ -64,8 +70,9 @@ def test_a_property_with_only_a_city_is_skipped(db, monkeypatch):
     db.add(_prop(address="", zone=""))
     db.commit()
     called = {"n": 0}
-    monkeypatch.setattr(geocoder, "_nominatim_lookup",
-                        lambda q, base: called.update(n=called["n"] + 1) or (1, 1))
+    monkeypatch.setattr(
+        geocoder, "_nominatim_lookup", lambda q, base: called.update(n=called["n"] + 1) or (1, 1)
+    )
 
     summary = geocoder.geocode_missing_properties(db)
     assert called["n"] == 0 and summary["scanned"] == 0
@@ -73,8 +80,7 @@ def test_a_property_with_only_a_city_is_skipped(db, monkeypatch):
 
 def test_cache_hit_skips_the_network(db, monkeypatch):
     db.add(_prop(address="Via Dante 5"))
-    db.add(GeocodeCache(query="via dante 5, milano, italia",
-                        latitude=45.46, longitude=9.19))
+    db.add(GeocodeCache(query="via dante 5, milano, italia", latitude=45.46, longitude=9.19))
     db.commit()
 
     def boom(q, base):
@@ -172,7 +178,11 @@ def test_concurrent_run_raises_geocoder_error(db):
 
 
 def test_geocode_endpoints_directly(db, monkeypatch):
-    from app.main import geocode_cancel_endpoint, geocode_missing_endpoint, geocode_progress_endpoint
+    from app.main import (
+        geocode_cancel_endpoint,
+        geocode_missing_endpoint,
+        geocode_progress_endpoint,
+    )
 
     prog = geocode_progress_endpoint()
     assert prog["active"] is False
@@ -267,6 +277,7 @@ def test_geocode_property_stops_and_fails_open_on_a_block(db, monkeypatch):
     # A 429/403 from Nominatim must not become a wrong pin, and must stop the
     # per-query loop rather than hammer the blocked host.
     import urllib.error
+
     prop = _prop(address="Via Roma 1", zone="Centro")
     db.add(prop)
     db.commit()
@@ -308,7 +319,9 @@ def test_geocode_single_property_endpoint_already_located_skips_network(db, monk
 
 def test_clean_street_name():
     assert geocoder._clean_street_name("Via Tolmezzo, 2") == "Via Tolmezzo"
-    assert geocoder._clean_street_name("Via Dante Alighieri 15/B - piano 3") == "Via Dante Alighieri"
+    assert (
+        geocoder._clean_street_name("Via Dante Alighieri 15/B - piano 3") == "Via Dante Alighieri"
+    )
     assert geocoder._clean_street_name("Corso Buenos Aires 45") == "Corso Buenos Aires"
     assert geocoder._clean_street_name("Via 24 Maggio") == "Via 24 Maggio"
     assert geocoder._clean_street_name("Viale 25 Aprile 12") == "Viale 25 Aprile"
@@ -328,8 +341,7 @@ def test_snc_address_falls_back_to_the_bare_street(db, monkeypatch):
     db.add(prop)
     db.commit()
     resolved = {"Via Camaldoli, Milano, Italia": (45.4414, 9.2660)}
-    monkeypatch.setattr(geocoder, "_nominatim_lookup",
-                        lambda q, base: resolved.get(q))
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: resolved.get(q))
     coords = geocoder.geocode_property(db, prop)
     assert coords == (45.4414, 9.2660)
     assert prop.latitude == 45.4414
@@ -345,7 +357,12 @@ def test_is_valid_coordinate_for_city():
 
 def test_is_in_city_validation():
     # Cernusco sul Naviglio or Torino must be rejected when Milano is requested
-    cernusco_addr = {"road": "Via Tolmezzo", "house_number": "2", "town": "Cernusco sul Naviglio", "county": "Milano"}
+    cernusco_addr = {
+        "road": "Via Tolmezzo",
+        "house_number": "2",
+        "town": "Cernusco sul Naviglio",
+        "county": "Milano",
+    }
     torino_addr = {"suburb": "Dergano", "city": "Torino"}
     milano_addr = {"road": "Via Tolmezzo", "suburb": "Feltre", "city": "Milano"}
     assert geocoder._is_in_city(cernusco_addr, "Milano") is False
@@ -365,7 +382,9 @@ def test_build_queries_fallback_order():
 
 def test_geocode_missing_properties_clears_out_of_bounds_existing_pins(db, monkeypatch):
     # A property originally geocoded wrongly to Cernusco sul Naviglio (45.524, 9.333)
-    prop = _prop(address="Via Tolmezzo, 2", zone="Udine", city="Milano", latitude=45.524, longitude=9.333)
+    prop = _prop(
+        address="Via Tolmezzo, 2", zone="Udine", city="Milano", latitude=45.524, longitude=9.333
+    )
     db.add(prop)
     db.commit()
 
@@ -377,17 +396,21 @@ def test_geocode_missing_properties_clears_out_of_bounds_existing_pins(db, monke
 
 
 def test_geocode_missing_properties_aborts_on_rate_limit(db, monkeypatch):
-    import urllib.error
     import email.message
+    import urllib.error
+
     for i in range(5):
         db.add(_prop(fingerprint=f"fp{i}", address=f"Via Test {i}"))
     db.commit()
 
     called = {"n": 0}
+
     def lookup_rate_limit(q, base, **kw):
         called["n"] += 1
         if called["n"] == 2:
-            raise urllib.error.HTTPError("url", 429, "Too Many Requests", email.message.Message(), None)
+            raise urllib.error.HTTPError(
+                "url", 429, "Too Many Requests", email.message.Message(), None
+            )
         return (45.46, 9.19)
 
     monkeypatch.setattr(geocoder, "_nominatim_lookup", lookup_rate_limit)
@@ -396,4 +419,3 @@ def test_geocode_missing_properties_aborts_on_rate_limit(db, monkeypatch):
     assert summary["cancelled"] is True
     assert summary["remaining"] == 4
     assert "429" in geocoder._geocode_progress["last_error"]
-

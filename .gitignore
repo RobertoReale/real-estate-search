@@ -21,6 +21,14 @@ frontend/node_modules/
 __pycache__/
 .pytest_cache/
 
+# Dev-tooling caches and reports (ruff / hypothesis / coverage / vitest):
+# local only, regenerated on demand, never part of the source
+backend/.ruff_cache/
+backend/.hypothesis/
+backend/.coverage
+backend/htmlcov/
+frontend/coverage/
+
 # Build and temporary files
 frontend/dist/
 frontend/*.tsbuildinfo

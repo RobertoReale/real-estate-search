@@ -3,18 +3,16 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-
 from app import schemas
 from app.database import Base
 from app.main import create_profile, update_profile
-from app.models import Listing, ListingProfile, SearchProfile
+from app.models import SearchProfile
 from app.services.search_validator import (
     check_duplicate_profile,
     deduplicate_search_profiles,
     normalize_profile_keywords,
     normalize_profile_url,
 )
-
 
 
 @pytest.fixture
@@ -31,7 +29,9 @@ def db():
 
 def test_normalize_profile_url():
     url1 = "https://www.idealista.it/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50/"
-    url2 = "HTTPS://WWW.IDEALISTA.IT/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50"
+    url2 = (
+        "HTTPS://WWW.IDEALISTA.IT/vendita-case/milano/con-ascensore/con-prezzo_260000,dimensione_50"
+    )
     assert normalize_profile_url(url1) == normalize_profile_url(url2)
 
     imm1 = "https://www.immobiliare.it/search-list/?idCategoria=1&idContratto=1&id=181029720&imm_source=bookmarkricerche&pag=1"
@@ -65,19 +65,25 @@ def test_check_duplicate_profile(db):
     assert dup.id == p1.id
 
     # Exclude self ID
-    assert check_duplicate_profile(
-        db,
-        "https://www.idealista.it/vendita-case/milano/est",
-        "garage, box",
-        exclude_profile_id=p1.id,
-    ) is None
+    assert (
+        check_duplicate_profile(
+            db,
+            "https://www.idealista.it/vendita-case/milano/est",
+            "garage, box",
+            exclude_profile_id=p1.id,
+        )
+        is None
+    )
 
     # Different keywords -> not a duplicate
-    assert check_duplicate_profile(
-        db,
-        "https://www.idealista.it/vendita-case/milano/est",
-        "terrazzo",
-    ) is None
+    assert (
+        check_duplicate_profile(
+            db,
+            "https://www.idealista.it/vendita-case/milano/est",
+            "terrazzo",
+        )
+        is None
+    )
 
 
 def test_deduplicate_search_profiles(db):
@@ -102,7 +108,6 @@ def test_deduplicate_search_profiles(db):
     remaining = list(db.scalars(select(SearchProfile)))
     assert len(remaining) == 1
     assert remaining[0].name == "Bicocca 1"
-
 
 
 def test_api_create_and_update_duplicate_prevention(db):
@@ -139,4 +144,3 @@ def test_api_create_and_update_duplicate_prevention(db):
         update_profile(bovisa_id, payload, db=db)
     assert exc_info2.value.status_code == 400
     assert "Esiste già una ricerca monitorata identica" in exc_info2.value.detail
-

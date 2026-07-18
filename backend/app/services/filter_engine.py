@@ -5,6 +5,7 @@ Comparison is case-insensitive, accent-insensitive, and bound to word
 boundaries: without the latter constraint, "asta" (auction) would discard
 properties located in the "Castanese" zone or described as having "vasta metratura".
 """
+
 import re
 import unicodedata
 from collections.abc import Sequence
@@ -27,9 +28,7 @@ def _pattern(keyword: str) -> re.Pattern | None:
     return re.compile(rf"(?<!\w){body}(?!\w)")
 
 
-def find_excluded_keyword(
-    texts: Sequence[str | None], excluded_keywords: list[str]
-) -> str | None:
+def find_excluded_keyword(texts: Sequence[str | None], excluded_keywords: list[str]) -> str | None:
     """Returns the first forbidden keyword found in the texts, or None if clean."""
     haystack = _normalize(" ".join(t for t in texts if t))
     if not haystack:

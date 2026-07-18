@@ -1,9 +1,19 @@
 """ORM Models: Property (deduplicated real estate property), Listing (portal ad),
 PriceHistory (price variations), SearchProfile (monitored search URL)."""
-from datetime import date, datetime, timezone
+
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Table, Text,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,7 +21,7 @@ from .database import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Plain association table (no payload beyond the two FKs, unlike ListingProfile):
@@ -90,13 +100,15 @@ class Property(Base):
     # listings[0].url as "the primary listing", which without order_by is
     # whatever the database happens to return
     listings: Mapped[list["Listing"]] = relationship(
-        back_populates="property", cascade="all, delete-orphan",
+        back_populates="property",
+        cascade="all, delete-orphan",
         order_by="Listing.id",
     )
     # ordered by id: the scanner reads price_history[-1] as the "latest
     # recorded change", and without order_by the order would not be guaranteed
     price_history: Mapped[list["PriceHistory"]] = relationship(
-        back_populates="property", cascade="all, delete-orphan",
+        back_populates="property",
+        cascade="all, delete-orphan",
         order_by="PriceHistory.id",
     )
 
@@ -142,7 +154,8 @@ class Listing(Base):
     property: Mapped[Property] = relationship(back_populates="listings")
     # deleting a Listing must not leave its provenance rows behind
     profile_links: Mapped[list["ListingProfile"]] = relationship(
-        back_populates="listing", cascade="all, delete-orphan",
+        back_populates="listing",
+        cascade="all, delete-orphan",
     )
 
 
@@ -160,11 +173,10 @@ class ListingProfile(Base):
     recorded the next time it runs. Rows predating this table simply have no
     link: the purge leaves them alone rather than guessing (see data_reset).
     """
+
     __tablename__ = "listing_profiles"
 
-    listing_id: Mapped[int] = mapped_column(
-        ForeignKey("listings.id"), primary_key=True
-    )
+    listing_id: Mapped[int] = mapped_column(ForeignKey("listings.id"), primary_key=True)
     profile_id: Mapped[int] = mapped_column(
         ForeignKey("search_profiles.id"), primary_key=True, index=True
     )
@@ -180,6 +192,7 @@ class Tag(Base):
     (stripped/lowercased) enforces case-insensitive uniqueness so retyping an
     existing tag with different casing reuses it instead of creating a
     near-duplicate; `name` keeps the user's original casing for display."""
+
     __tablename__ = "tags"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -210,6 +223,7 @@ class ImportedListing(Base):
     `property_id` set) or discarded. Discarded rows are kept: they are the
     memory that makes a re-scan of the same inbox idempotent.
     """
+
     __tablename__ = "imported_listings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -230,9 +244,7 @@ class ImportedListing(Base):
     email_subject: Mapped[str] = mapped_column(String, default="")
     email_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String, default="pending", index=True)
-    property_id: Mapped[int | None] = mapped_column(
-        ForeignKey("properties.id"), nullable=True
-    )
+    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True)
     # Filled by an explicit availability check (AdProbe), never by the scan:
     # NULL means "never checked", which is not the same as "gone". The check
     # itself answers None when the portal blocks it, so the column keeps its
@@ -253,6 +265,7 @@ class PricingSnapshot(Base):
     holds the whole-city aggregate. City/zone are stored normalized (lowercased)
     exactly as the median keys are, so the trends query matches without guessing.
     """
+
     __tablename__ = "pricing_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -277,6 +290,7 @@ class GeocodeCache(Base):
     negative result cached on purpose (do not ask again). Never a source of a
     *wrong* pin — a failed lookup leaves the property's coordinates untouched.
     """
+
     __tablename__ = "geocode_cache"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -322,5 +336,6 @@ class SearchProfile(Base):
     # profile drops the links; whether the properties behind them go too is the
     # user's call at delete time (data_reset.delete_profile_results).
     listing_links: Mapped[list["ListingProfile"]] = relationship(
-        back_populates="profile", cascade="all, delete-orphan",
+        back_populates="profile",
+        cascade="all, delete-orphan",
     )

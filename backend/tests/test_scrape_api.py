@@ -5,6 +5,7 @@ one thing that changes is the fetch choke point (`_fetch_once`); every parser
 downstream still receives ordinary HTML. All offline: the provider HTTP call is
 faked, so CI never touches a network or spends a credit.
 """
+
 import base64
 
 import pytest
@@ -35,18 +36,24 @@ class _ApiResponse:
 
 
 def _with_key(monkeypatch, provider="scrapfly", key="SECRET"):
-    monkeypatch.setattr(config, "load_settings", lambda: {
-        **config.DEFAULT_SETTINGS,
-        "scrape_api_provider": provider,
-        "scrape_api_key": key,
-    })
+    monkeypatch.setattr(
+        config,
+        "load_settings",
+        lambda: {
+            **config.DEFAULT_SETTINGS,
+            "scrape_api_provider": provider,
+            "scrape_api_key": key,
+        },
+    )
 
 
 # --- request building / response unwrapping -----------------------------------
 
+
 def test_scrapfly_request_encodes_the_target_url():
     req = build_scrape_api_request(
-        "scrapfly", "KEY", "https://www.immobiliare.it/vendita-case/milano/")
+        "scrapfly", "KEY", "https://www.immobiliare.it/vendita-case/milano/"
+    )
     assert req.method == "GET"
     assert req.url.startswith("https://api.scrapfly.io/scrape")
     assert "key=KEY" in req.url and "asp=true" in req.url
@@ -86,6 +93,7 @@ def test_malformed_provider_response_is_a_block_not_a_crash():
 
 
 # --- the choke point: _fetch_once ---------------------------------------------
+
 
 def test_fetch_once_routes_through_the_api_when_a_key_is_set(monkeypatch):
     _with_key(monkeypatch)

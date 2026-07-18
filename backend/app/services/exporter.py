@@ -11,10 +11,11 @@ It renders whatever the caller selected under the current dashboard filters,
 including the transient Deal/Match/market annotations when they were computed,
 so the file mirrors exactly what the user was looking at.
 """
+
 import csv
 import html as html_lib
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ..models import Property
 
@@ -47,6 +48,7 @@ def _sources(p: Property) -> str:
 # a leading =, +, - or @ makes Excel execute the cell as a formula
 # (CSV/formula injection); the conventional defence is a quote prefix.
 
+
 def _md(value: str) -> str:
     return html_lib.escape(value or "")
 
@@ -59,32 +61,61 @@ def _csv_text(value: str) -> str:
 def properties_to_csv(props: list[Property]) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([
-        "Title", "City", "Zone", "Address", "Contract", "Price", "Sqm",
-        "Rooms", "Floor", "EUR/sqm", "Status", "Deal score", "Match score",
-        "Favorite", "First seen", "URLs",
-    ])
+    writer.writerow(
+        [
+            "Title",
+            "City",
+            "Zone",
+            "Address",
+            "Contract",
+            "Price",
+            "Sqm",
+            "Rooms",
+            "Floor",
+            "EUR/sqm",
+            "Status",
+            "Deal score",
+            "Match score",
+            "Favorite",
+            "First seen",
+            "URLs",
+        ]
+    )
     for p in props:
-        writer.writerow([
-            _csv_text(p.title), _csv_text(p.city), _csv_text(p.zone),
-            _csv_text(p.address), p.contract,
-            p.current_min_price if p.current_min_price is not None else "",
-            p.sqm if p.sqm is not None else "",
-            p.rooms if p.rooms is not None else "",
-            _csv_text(p.floor), _sqm_price(p) or "", p.status,
-            getattr(p, "deal_score", None) if getattr(p, "deal_score", None) is not None else "",
-            getattr(p, "match_score", None) if getattr(p, "match_score", None) is not None else "",
-            "yes" if p.is_favorite else "no",
-            p.first_seen_at.date().isoformat() if p.first_seen_at else "",
-            _sources(p),
-        ])
+        writer.writerow(
+            [
+                _csv_text(p.title),
+                _csv_text(p.city),
+                _csv_text(p.zone),
+                _csv_text(p.address),
+                p.contract,
+                p.current_min_price if p.current_min_price is not None else "",
+                p.sqm if p.sqm is not None else "",
+                p.rooms if p.rooms is not None else "",
+                _csv_text(p.floor),
+                _sqm_price(p) or "",
+                p.status,
+                getattr(p, "deal_score", None)
+                if getattr(p, "deal_score", None) is not None
+                else "",
+                getattr(p, "match_score", None)
+                if getattr(p, "match_score", None) is not None
+                else "",
+                "yes" if p.is_favorite else "no",
+                p.first_seen_at.date().isoformat() if p.first_seen_at else "",
+                _sources(p),
+            ]
+        )
     return buffer.getvalue()
 
 
 def properties_to_markdown(props: list[Property], title: str) -> str:
-    lines = [f"# {title}", "",
-             f"_{len(props)} properties · generated "
-             f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}_", ""]
+    lines = [
+        f"# {title}",
+        "",
+        f"_{len(props)} properties · generated {datetime.now(UTC):%Y-%m-%d %H:%M UTC}_",
+        "",
+    ]
     for p in props:
         sqm_price = _sqm_price(p)
         lines.append(f"## {_md(p.title) or 'Untitled'}")
@@ -105,15 +136,13 @@ def properties_to_markdown(props: list[Property], title: str) -> str:
             lines.append(f"- **Details:** {', '.join(facts)}")
         deal = getattr(p, "deal_score", None)
         if deal is not None and getattr(p, "deal_label", None) != "fair":
-            lines.append(f"- **Deal score:** {deal:+d}% "
-                         f"({getattr(p, 'deal_label', '')})")
+            lines.append(f"- **Deal score:** {deal:+d}% ({getattr(p, 'deal_label', '')})")
         match = getattr(p, "match_score", None)
         if match is not None:
             lines.append(f"- **Match:** {match}%")
         if len(p.price_history) > 0:
             hist = ", ".join(
-                f"{_fmt_price(h.old_price, p.contract)}→"
-                f"{_fmt_price(h.new_price, p.contract)}"
+                f"{_fmt_price(h.old_price, p.contract)}→{_fmt_price(h.new_price, p.contract)}"
                 for h in p.price_history
             )
             lines.append(f"- **Price history:** {hist}")
@@ -162,14 +191,15 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 def _card_html(p: Property) -> str:
     esc = html_lib.escape
     sqm_price = _sqm_price(p)
-    img = (f'<img src="{esc(p.image_url)}" alt="" loading="lazy">'
-           if p.image_url else "")
+    img = f'<img src="{esc(p.image_url)}" alt="" loading="lazy">' if p.image_url else ""
     badges = []
     deal = getattr(p, "deal_score", None)
     if deal is not None and getattr(p, "deal_label", None) != "fair":
         cls = "good" if deal > 0 else "warn"
-        badges.append(f'<span class="badge {cls}">🎯 {abs(deal)}% '
-                      f'{"below" if deal > 0 else "above"} market</span>')
+        badges.append(
+            f'<span class="badge {cls}">🎯 {abs(deal)}% '
+            f"{'below' if deal > 0 else 'above'} market</span>"
+        )
     match = getattr(p, "match_score", None)
     if match is not None:
         badges.append(f'<span class="badge muted">🎯 {match}% match</span>')
@@ -183,24 +213,25 @@ def _card_html(p: Property) -> str:
     if p.floor:
         facts.append(f"🏢 floor {esc(p.floor)}")
     location = " · ".join(esc(x) for x in (p.city, p.zone, p.address) if x)
-    sqm_span = (f'<span class="sqm">{sqm_price:,} €/sqm</span>'.replace(",", ".")
-                if sqm_price else "")
+    sqm_span = (
+        f'<span class="sqm">{sqm_price:,} €/sqm</span>'.replace(",", ".") if sqm_price else ""
+    )
     hist = ""
     if len(p.price_history) > 0:
-        parts = " → ".join(_fmt_price(h.new_price, p.contract)
-                           for h in p.price_history)
+        parts = " → ".join(_fmt_price(h.new_price, p.contract) for h in p.price_history)
         hist = f'<div class="hist">📉 {_fmt_price(p.first_price, p.contract)} → {parts}</div>'
     links = "".join(
-        f'<a href="{html_lib.escape(l.url)}" target="_blank" rel="noreferrer">'
-        f'{esc(l.portal)} ↗</a>'
+        f'<a href="{html_lib.escape(l.url)}" target="_blank" rel="noreferrer">{esc(l.portal)} ↗</a>'
         for l in p.listings
     )
     target = ""
     low = getattr(p, "target_price_low", None)
     high = getattr(p, "target_price_high", None)
     if low and high:
-        target = (f'<div class="hist">💬 Suggested proposal: '
-                  f'{_fmt_price(low, p.contract)} – {_fmt_price(high, p.contract)}</div>')
+        target = (
+            f'<div class="hist">💬 Suggested proposal: '
+            f"{_fmt_price(low, p.contract)} – {_fmt_price(high, p.contract)}</div>"
+        )
     return (
         f'<div class="card">{img}<div class="body">'
         f'<div><span class="price">{_fmt_price(p.current_min_price, p.contract)}</span>{sqm_span}</div>'
@@ -208,18 +239,18 @@ def _card_html(p: Property) -> str:
         f'<div class="loc">📍 {location or "—"}</div>'
         f'<div class="badges">{"".join(badges)}</div>'
         f'<div class="facts">{" · ".join(facts)}</div>'
-        f'{hist}{target}'
+        f"{hist}{target}"
         f'<div class="links">{links}</div>'
-        f'</div></div>'
+        f"</div></div>"
     )
 
 
 def properties_to_html(props: list[Property], title: str) -> str:
     cards = "\n".join(_card_html(p) for p in props)
-    generated = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}"
+    generated = f"{datetime.now(UTC):%Y-%m-%d %H:%M UTC}"
     return (
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f"<title>{html_lib.escape(title)}</title><style>{_HTML_STYLE}</style></head>"
         f"<body><h1>{html_lib.escape(title)}</h1>"
         f'<div class="meta">{len(props)} properties · generated {generated}</div>'

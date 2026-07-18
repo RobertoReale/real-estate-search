@@ -9,6 +9,7 @@ MUTED sentinel means "no notification at all for this search".
 Telegram uses the raw Bot API (no external library); email uses stdlib
 smtplib so no new dependencies are required.
 """
+
 import html
 import logging
 import re
@@ -79,11 +80,13 @@ def send_email_message(text: str, subject: str | None = None) -> bool:
     msg["To"] = to_addr
     plain = re.sub(r"<[^>]+>", "", text)
     msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(
-        f'<div style="font-family:sans-serif;font-size:14px;white-space:pre-line">'
-        f"{text}</div>",
-        "html", "utf-8",
-    ))
+    msg.attach(
+        MIMEText(
+            f'<div style="font-family:sans-serif;font-size:14px;white-space:pre-line">{text}</div>',
+            "html",
+            "utf-8",
+        )
+    )
 
     try:
         port = int(settings.get("smtp_port") or 587)
@@ -110,8 +113,7 @@ def send_email_message(text: str, subject: str | None = None) -> bool:
 
 
 def parse_channels_csv(csv: str) -> list[str]:
-    return [c.strip().lower() for c in (csv or "").split(",")
-            if c.strip().lower() in CHANNELS]
+    return [c.strip().lower() for c in (csv or "").split(",") if c.strip().lower() in CHANNELS]
 
 
 def profile_channels(csv: str) -> list[str] | None:
@@ -128,8 +130,7 @@ def profile_channels(csv: str) -> list[str] | None:
     return parse_channels_csv(csv) or None
 
 
-def broadcast(text: str, channels: list[str] | None = None,
-              subject: str | None = None) -> bool:
+def broadcast(text: str, channels: list[str] | None = None, subject: str | None = None) -> bool:
     """Sends to every requested channel; None = all channels, [] = none.
 
     Whether a channel actually fires still depends on its own "enabled"
@@ -167,8 +168,7 @@ def _deal_line(prop: Property) -> str:
     high = getattr(prop, "target_price_high", None)
     target = ""
     if low and high:
-        target = (f" · Target {_fmt_price(low, prop.contract)}–"
-                  f"{_fmt_price(high, prop.contract)}")
+        target = f" · Target {_fmt_price(low, prop.contract)}–{_fmt_price(high, prop.contract)}"
     return f"\n🎯 <b>Below market ({score:+d}%)</b>{target}"
 
 
@@ -179,7 +179,8 @@ def notify_new_property(prop: Property, channels: list[str] | None = None) -> bo
     rooms_part = f" · {prop.rooms} rooms" if prop.rooms else ""
     price_sqm = (
         f"\n📐 {prop.current_min_price / prop.sqm:,.0f} €/sqm".replace(",", ".")
-        if prop.current_min_price and prop.sqm else ""
+        if prop.current_min_price and prop.sqm
+        else ""
     )
     label = "New rental" if prop.contract == "rent" else "New property"
     text = (
@@ -196,8 +197,9 @@ def notify_new_property(prop: Property, channels: list[str] | None = None) -> bo
     return broadcast(text, channels, subject=subject)
 
 
-def notify_price_drop(prop: Property, old_price: float, new_price: float,
-                      channels: list[str] | None = None) -> bool:
+def notify_price_drop(
+    prop: Property, old_price: float, new_price: float, channels: list[str] | None = None
+) -> bool:
     pct = (new_price - old_price) / old_price * 100 if old_price else 0
     url = prop.listings[0].url if prop.listings else ""
     text = (
@@ -212,15 +214,15 @@ def notify_price_drop(prop: Property, old_price: float, new_price: float,
     return broadcast(text, channels, subject=subject)
 
 
-def notify_property_reactivated(prop: Property, previous_status: str,
-                                channels: list[str] | None = None) -> bool:
+def notify_property_reactivated(
+    prop: Property, previous_status: str, channels: list[str] | None = None
+) -> bool:
     """A property that left the visible market came back: "gone" reappeared on
     the portal, or "filtered" no longer matches an exclusion keyword. Without
     this the transition happened silently, and a returned listing is exactly
     as actionable as a new one."""
     reason = (
-        "back on the market" if previous_status == "gone"
-        else "no longer excluded by your keywords"
+        "back on the market" if previous_status == "gone" else "no longer excluded by your keywords"
     )
     url = prop.listings[0].url if prop.listings else ""
     text = (
@@ -234,8 +236,9 @@ def notify_property_reactivated(prop: Property, previous_status: str,
     return broadcast(text, channels, subject=subject)
 
 
-def notify_scraper_failure(profile: SearchProfile, failures: int,
-                           channels: list[str] | None = None) -> bool:
+def notify_scraper_failure(
+    profile: SearchProfile, failures: int, channels: list[str] | None = None
+) -> bool:
     """Warns that a search has stopped producing listings.
 
     A broken scraper is silent by nature: no listings means no notifications,
@@ -258,8 +261,9 @@ def notify_scraper_failure(profile: SearchProfile, failures: int,
     return broadcast(text, channels, subject=subject)
 
 
-def notify_scraper_recovered(profile: SearchProfile, failures: int,
-                             channels: list[str] | None = None) -> bool:
+def notify_scraper_recovered(
+    profile: SearchProfile, failures: int, channels: list[str] | None = None
+) -> bool:
     """Closes an outage the user was alerted about; sent only in that case,
     so it can never arrive without a preceding alert."""
     text = (

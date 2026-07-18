@@ -16,6 +16,7 @@ The generated URLs use only *documented-by-usage* formats:
 The UI always shows the generated URL with an "open in browser" link before
 saving: if a portal changes its URL grammar, the user sees it immediately.
 """
+
 import re
 import unicodedata
 from typing import Any
@@ -32,8 +33,13 @@ from urllib.parse import parse_qs, urlparse
 # exactly additive (quadrilocali-4 = 367, 5-locali-o-piu = 141, both together
 # = 508). While 4 was treated as the open-ended bucket, every "4+ rooms" search
 # silently dropped all five-room flats — the failure shape of invariant 7.
-IDEALISTA_ROOMS = {1: "monolocali-1", 2: "bilocali-2", 3: "trilocali-3",
-                   4: "quadrilocali-4", 5: "5-locali-o-piu"}
+IDEALISTA_ROOMS = {
+    1: "monolocali-1",
+    2: "bilocali-2",
+    3: "trilocali-3",
+    4: "quadrilocali-4",
+    5: "5-locali-o-piu",
+}
 IDEALISTA_MAX_ROOM_BUCKET = 5  # the only open-ended one: "5 locali o più"
 
 # --- Feature filters -------------------------------------------------------
@@ -64,17 +70,19 @@ IMMOBILIARE_CONDITION = {"new": 1, "good": 2, "excellent": 6, "to_renovate": 5}
 # "ascensori". A 404 means "not this word", never "no such filter" — when a
 # token is wanted, read it off the portal's UI rather than inventing it.
 IDEALISTA_FEATURES = {
-    "balcony": "balcone",           # 3.477 -> 1.960
-    "garden": "giardino",           # -> 1.203
-    "parking": "garage",            # -> 763
-    "elevator": "ascensori",        # 7.843 -> 5.331 (plural!)
+    "balcony": "balcone",  # 3.477 -> 1.960
+    "garden": "giardino",  # -> 1.203
+    "parking": "garage",  # -> 763
+    "elevator": "ascensori",  # 7.843 -> 5.331 (plural!)
     "exclude_auctions": "aste_no",  # 7.843 -> 6.899
-    "pool": "piscina",              # 15.391 -> 201
+    "pool": "piscina",  # 15.391 -> 201
 }
-IDEALISTA_FLOORS = {"ground": "piano-terra", "middle": "piani-intermedi",
-                    "top": "ultimo-piano"}
-IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato",
-                       "to_renovate": "ristrutturare"}  # 15.391 -> 1.602
+IDEALISTA_FLOORS = {"ground": "piano-terra", "middle": "piani-intermedi", "top": "ultimo-piano"}
+IDEALISTA_CONDITION = {
+    "new": "nuova-costruzione",
+    "good": "buono-stato",
+    "to_renovate": "ristrutturare",
+}  # 15.391 -> 1.602
 #
 # "piscina" and "ristrutturare" were measured on Idealista months before they
 # could be offered, because Immobiliare renders both only as path segments and
@@ -94,7 +102,7 @@ IDEALISTA_CONDITION = {"new": "nuova-costruzione", "good": "buono-stato",
 
 
 def _slug(name: str) -> str:
-    """"Sesto San Giovanni" -> "sesto-san-giovanni" (accents stripped)."""
+    """ "Sesto San Giovanni" -> "sesto-san-giovanni" (accents stripped)."""
     text = unicodedata.normalize("NFKD", (name or "").strip().lower())
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"[^a-z0-9]+", "-", text)
@@ -102,7 +110,7 @@ def _slug(name: str) -> str:
 
 
 def cerca_location(city: str, zone: str = "") -> str:
-    """"Milano" + "Udine Lambrate" -> "Udine_Lambrate_Milano".
+    """ "Milano" + "Udine Lambrate" -> "Udine_Lambrate_Milano".
 
     The free-text query Idealista's /cerca/ endpoint resolves server-side:
     words underscore-joined, zone first (it is the narrowing term), city last.
@@ -138,12 +146,21 @@ def split_cerca_location(location: str) -> tuple[str, str]:
 
 
 def build_immobiliare_url(
-    city: str, contract: str = "sale", zone: str = "",
-    min_price: int | None = None, max_price: int | None = None,
-    min_rooms: int | None = None, max_rooms: int | None = None,
-    min_sqm: int | None = None, balcony: bool = False, garden: bool = False,
-    parking: bool = False, elevator: bool = False,
-    exclude_auctions: bool = False, pool: bool = False, floor: str = "",
+    city: str,
+    contract: str = "sale",
+    zone: str = "",
+    min_price: int | None = None,
+    max_price: int | None = None,
+    min_rooms: int | None = None,
+    max_rooms: int | None = None,
+    min_sqm: int | None = None,
+    balcony: bool = False,
+    garden: bool = False,
+    parking: bool = False,
+    elevator: bool = False,
+    exclude_auctions: bool = False,
+    pool: bool = False,
+    floor: str = "",
     condition: str = "",
     **_ignored,
 ) -> str:
@@ -186,12 +203,23 @@ def build_immobiliare_url(
 
 
 def build_idealista_url(
-    city: str, contract: str = "sale", province: str = "", zone: str = "",
-    min_price: int | None = None, max_price: int | None = None,
-    min_rooms: int | None = None, max_rooms: int | None = None,
-    min_sqm: int | None = None, zone_page: bool = False, balcony: bool = False,
-    garden: bool = False, parking: bool = False, elevator: bool = False,
-    exclude_auctions: bool = False, pool: bool = False, floor: str = "",
+    city: str,
+    contract: str = "sale",
+    province: str = "",
+    zone: str = "",
+    min_price: int | None = None,
+    max_price: int | None = None,
+    min_rooms: int | None = None,
+    max_rooms: int | None = None,
+    min_sqm: int | None = None,
+    zone_page: bool = False,
+    balcony: bool = False,
+    garden: bool = False,
+    parking: bool = False,
+    elevator: bool = False,
+    exclude_auctions: bool = False,
+    pool: bool = False,
+    floor: str = "",
     condition: str = "",
     **_ignored,
 ) -> str:
@@ -218,18 +246,21 @@ def build_idealista_url(
         # the whole city — the wider half reads as broken deduplication, not
         # as a missing filter.
         low = min(max(min_rooms or 1, 1), IDEALISTA_MAX_ROOM_BUCKET)
-        high = (min(max_rooms, IDEALISTA_MAX_ROOM_BUCKET) if max_rooms
-                else IDEALISTA_MAX_ROOM_BUCKET)
+        high = min(max_rooms, IDEALISTA_MAX_ROOM_BUCKET) if max_rooms else IDEALISTA_MAX_ROOM_BUCKET
         for n in range(low, max(high, low) + 1):
             filters.append(IDEALISTA_ROOMS[n])
     # Fixed order, not set iteration: the same criteria must always produce a
     # byte-identical URL, or search_validator would read two spellings of one
     # search as two different searches (invariant 20's duplicate check
     # normalizes the query string, not the order of a path segment).
-    for key, requested in (("balcony", balcony), ("garden", garden),
-                           ("parking", parking), ("elevator", elevator),
-                           ("exclude_auctions", exclude_auctions),
-                           ("pool", pool)):
+    for key, requested in (
+        ("balcony", balcony),
+        ("garden", garden),
+        ("parking", parking),
+        ("elevator", elevator),
+        ("exclude_auctions", exclude_auctions),
+        ("pool", pool),
+    ):
         if requested:
             filters.append(IDEALISTA_FEATURES[key])
     if floor in IDEALISTA_FLOORS:
@@ -248,8 +279,7 @@ def build_idealista_url(
     # user generates the search. `zone_page=True` is that proof, and the /cerca/
     # fallback below is what the other zones get until their macro-area is known.
     if zone and zone_page:
-        return (f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/"
-                f"{con_seg}")
+        return f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/{con_seg}"
     # Unproven (or unprobed) zone: the free-text endpoint, which resolves the
     # location server-side and always answers. It honours the same con- filters
     # (the result total moves, 179 -> 112 with trilocali-3) and still paginates
@@ -257,8 +287,7 @@ def build_idealista_url(
     # zone page — Forlanini gives 220 against the zone page's 124 — which is
     # why it is the fallback and not the first choice.
     if zone:
-        return (f"https://www.idealista.it/cerca/{base}/{con_seg}"
-                f"{cerca_location(city, zone)}/")
+        return f"https://www.idealista.it/cerca/{base}/{con_seg}{cerca_location(city, zone)}/"
     # without a province the municipality usually is the province capital
     # (e.g. milano-milano).
     city_seg = f"{_slug(city)}-{_slug(province or city)}"
@@ -285,6 +314,7 @@ def probe_zone_page(url: str) -> bool | None:
     the distinction keeps the caller's log honest about *why* it fell back.
     """
     from ..scrapers.base import AdProbe, BlockedError  # lazy: scrapers import us
+
     probe = AdProbe()
     try:
         probe.warm_host(url)
@@ -313,8 +343,9 @@ def resolve_idealista_url(params: dict, probe=None) -> tuple[str, bool]:
     if not zone:
         return build_idealista_url(**params), False
     check = probe or probe_zone_page
-    ok = check(idealista_zone_page_url(
-        params.get("city", ""), zone, params.get("contract", "sale")))
+    ok = check(
+        idealista_zone_page_url(params.get("city", ""), zone, params.get("contract", "sale"))
+    )
     if ok:
         return build_idealista_url(**{**params, "zone_page": True}), True
     return build_idealista_url(**params), False
@@ -328,8 +359,7 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
     re-deriving a URL to prefill an edit form.
     """
     idealista, zone_page = (
-        resolve_idealista_url(params) if verify
-        else (build_idealista_url(**params), False)
+        resolve_idealista_url(params) if verify else (build_idealista_url(**params), False)
     )
     return {
         "immobiliare": build_immobiliare_url(**params),
@@ -392,6 +422,7 @@ def _unslug_city(slug: str) -> str:
     text = slug.replace("-", " ").strip()
     try:
         from .query_parser import CITY_SPELLINGS
+
         for name, proper in CITY_SPELLINGS.items():
             if _slug(name) == slug or name.lower() == text:
                 return proper
@@ -429,8 +460,7 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
     # adjectives ("da-ristrutturare", "nuove-costruzioni"), and the portal's own
     # /vendita-case/milano/da-ristrutturare/?bagni=3 would otherwise parse as a
     # district named "Da Ristrutturare".
-    _NOT_A_ZONE = ("pag", "search-list", "con-", "?", "da-ristrutturare",
-                   "nuove-costruzioni")
+    _NOT_A_ZONE = ("pag", "search-list", "con-", "?", "da-ristrutturare", "nuove-costruzioni")
 
     city = ""
     zone = ""
@@ -460,8 +490,11 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
     for name, code in IMMOBILIARE_FLOORS.items():
         if str(code) in (qs.get("fasciaPiano[]") or qs.get("fasciaPiano[0]") or []):
             floor = name
-    for name, seg in (("ground", "con-piano-terra"), ("middle", "con-piani-intermedi"),
-                      ("top", "con-ultimo-piano")):
+    for name, seg in (
+        ("ground", "con-piano-terra"),
+        ("middle", "con-piani-intermedi"),
+        ("top", "con-ultimo-piano"),
+    ):
         if seg in segs:
             floor = name
 
@@ -470,8 +503,7 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         if str(code) in (qs.get("stato") or []):
             condition = name
     # the condition filters also travel as bare path segments
-    for name, seg in (("to_renovate", "da-ristrutturare"),
-                      ("new", "nuove-costruzioni")):
+    for name, seg in (("to_renovate", "da-ristrutturare"), ("new", "nuove-costruzioni")):
         if seg in segs:
             condition = name
 
@@ -516,8 +548,14 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
     if segments and segments[0] == "cerca":
         # /cerca/<base>/con-<filters>/<Zone_City>/: the location is free text
         # and trails the filters, so it is found by exclusion, not by position.
-        loc = next((s for s in segments[1:] if not s.startswith(
-            ("vendita-", "affitto-", "con-", "lista-", "pag-"))), "")
+        loc = next(
+            (
+                s
+                for s in segments[1:]
+                if not s.startswith(("vendita-", "affitto-", "con-", "lista-", "pag-"))
+            ),
+            "",
+        )
         city, zone = split_cerca_location(loc)
         return _idealista_params(city, province, zone, contract, segments)
 
@@ -545,8 +583,9 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
     return _idealista_params(city, province, zone, contract, segments)
 
 
-def _idealista_params(city: str, province: str, zone: str, contract: str,
-                      segments: list[str]) -> dict[str, Any]:
+def _idealista_params(
+    city: str, province: str, zone: str, contract: str, segments: list[str]
+) -> dict[str, Any]:
     """Reads the con-… filter segment. Shared by both location grammars: the
     /cerca/ endpoint takes the very same filters as a city page (verified
     live), so parsing them twice would only let the two copies drift."""
@@ -560,8 +599,9 @@ def _idealista_params(city: str, province: str, zone: str, contract: str,
     # stopping at the first one read the price/size filters as absent. That is
     # the dangerous direction — the rebuilt URL was a search for the whole of
     # Milano, ~7.800 listings instead of ~50.
-    filters = [f.strip() for s in segments if s.startswith("con-")
-               for f in s[4:].split(",") if f.strip()]
+    filters = [
+        f.strip() for s in segments if s.startswith("con-") for f in s[4:].split(",") if f.strip()
+    ]
     if filters:
         for f in filters:
             if f.startswith(("prezzo-min_", "prezzo-min-")):
@@ -578,7 +618,11 @@ def _idealista_params(city: str, province: str, zone: str, contract: str,
                 m = re.match(r"^[a-z]+-(\d+)$", f)
                 if m:
                     rn = int(m.group(1))
-                    if 1 <= rn <= 10 and rn not in rooms_found and not f.startswith(("prezzo", "dimensione")):
+                    if (
+                        1 <= rn <= 10
+                        and rn not in rooms_found
+                        and not f.startswith(("prezzo", "dimensione"))
+                    ):
                         rooms_found.append(rn)
 
     min_rooms = None
@@ -628,10 +672,20 @@ def parse_search_url(url: str) -> dict[str, Any]:
     if "immobiliare.it" in url_str:
         return parse_immobiliare_url(url_str)
     return {
-        "city": "", "province": "", "zone": "", "contract": "sale",
-        "min_price": None, "max_price": None, "min_rooms": None,
-        "max_rooms": None, "min_sqm": None, "balcony": False, "garden": False,
-        "parking": False, "elevator": False, "exclude_auctions": False,
-        "floor": "", "condition": "",
+        "city": "",
+        "province": "",
+        "zone": "",
+        "contract": "sale",
+        "min_price": None,
+        "max_price": None,
+        "min_rooms": None,
+        "max_rooms": None,
+        "min_sqm": None,
+        "balcony": False,
+        "garden": False,
+        "parking": False,
+        "elevator": False,
+        "exclude_auctions": False,
+        "floor": "",
+        "condition": "",
     }
-

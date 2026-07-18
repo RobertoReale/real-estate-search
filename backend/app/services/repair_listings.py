@@ -13,12 +13,14 @@ produces two Property cards pointing at the same real ad. Comparing the
 listing URLs directly catches that case regardless of which portal_id each
 side landed on.
 """
+
 import logging
 import re
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Property, Listing, ListingProfile, ImportedListing, SearchProfile
+from ..models import ImportedListing, Listing, ListingProfile, Property, SearchProfile
 from .deduplicator import _refresh_min_price
 
 logger = logging.getLogger(__name__)
@@ -142,7 +144,11 @@ def merge_duplicate_listings(db: Session) -> dict:
         props.sort(key=lambda p: (p.first_seen_at, p.id))
         survivor, *dupes = props
         for dupe in dupes:
-            logger.info("Repair: merging duplicate property #%s into #%s (shared listing URL)", dupe.id, survivor.id)
+            logger.info(
+                "Repair: merging duplicate property #%s into #%s (shared listing URL)",
+                dupe.id,
+                survivor.id,
+            )
             _merge_property_into(db, survivor, dupe)
             summary["properties_merged"] += 1
         db.flush()
@@ -180,10 +186,13 @@ def merge_duplicate_listings(db: Session) -> dict:
             keeper_profiles = {link.profile_id for link in keeper.profile_links}
             for link in list(listing.profile_links):
                 if link.profile_id not in keeper_profiles:
-                    db.add(ListingProfile(
-                        listing_id=keeper.id, profile_id=link.profile_id,
-                        first_seen_at=link.first_seen_at,
-                    ))
+                    db.add(
+                        ListingProfile(
+                            listing_id=keeper.id,
+                            profile_id=link.profile_id,
+                            first_seen_at=link.first_seen_at,
+                        )
+                    )
                     keeper_profiles.add(link.profile_id)
             db.delete(listing)
             summary["duplicate_listings_removed"] += 1
@@ -192,18 +201,74 @@ def merge_duplicate_listings(db: Session) -> dict:
 
 
 KNOWN_CITIES = [
-    "Milano", "Roma", "Torino", "Bologna", "Firenze", "Napoli", "Genova",
-    "Palermo", "Bari", "Catania", "Verona", "Padova", "Trieste", "Brescia",
-    "Parma", "Taranto", "Modena", "Reggio Calabria", "Reggio Emilia",
-    "Perugia", "Livorno", "Ravenna", "Cagliari", "Foggia", "Rimini",
-    "Salerno", "Ferrara", "Latina", "Giugliano in Campania", "Monza",
-    "Siracusa", "Pescara", "Bergamo", "Forlì", "Trento", "Vicenza",
-    "Terni", "Bolzano", "Novara", "Piacenza", "Ancona", "Andria",
-    "Arezzo", "Udine", "Cesena", "Lecce", "Pesaro", "Barletta",
-    "Alessandria", "La Spezia", "Pistoia", "Pisa", "Catanzaro", "Lucca",
-    "Brindisi", "Treviso", "Como", "Busto Arsizio", "Varese",
-    "Sesto San Giovanni", "Pozzuoli", "Casoria", "Cinisello Balsamo",
-    "Gela", "Cremona", "Pavia", "Imola", "Cellio con Breia"
+    "Milano",
+    "Roma",
+    "Torino",
+    "Bologna",
+    "Firenze",
+    "Napoli",
+    "Genova",
+    "Palermo",
+    "Bari",
+    "Catania",
+    "Verona",
+    "Padova",
+    "Trieste",
+    "Brescia",
+    "Parma",
+    "Taranto",
+    "Modena",
+    "Reggio Calabria",
+    "Reggio Emilia",
+    "Perugia",
+    "Livorno",
+    "Ravenna",
+    "Cagliari",
+    "Foggia",
+    "Rimini",
+    "Salerno",
+    "Ferrara",
+    "Latina",
+    "Giugliano in Campania",
+    "Monza",
+    "Siracusa",
+    "Pescara",
+    "Bergamo",
+    "Forlì",
+    "Trento",
+    "Vicenza",
+    "Terni",
+    "Bolzano",
+    "Novara",
+    "Piacenza",
+    "Ancona",
+    "Andria",
+    "Arezzo",
+    "Udine",
+    "Cesena",
+    "Lecce",
+    "Pesaro",
+    "Barletta",
+    "Alessandria",
+    "La Spezia",
+    "Pistoia",
+    "Pisa",
+    "Catanzaro",
+    "Lucca",
+    "Brindisi",
+    "Treviso",
+    "Como",
+    "Busto Arsizio",
+    "Varese",
+    "Sesto San Giovanni",
+    "Pozzuoli",
+    "Casoria",
+    "Cinisello Balsamo",
+    "Gela",
+    "Cremona",
+    "Pavia",
+    "Imola",
+    "Cellio con Breia",
 ]
 
 
@@ -222,19 +287,38 @@ def is_bad_title(title: str) -> bool:
         return True
     tl = title.casefold().strip(" .-")
     if tl in (
-        "appartamento in vendita", "n/a", "",
-        "in vendita a milano, milano", "vendita a milano, milano",
-        "residenziale in vendita a milano, milano", "residenziale in vendita a milano",
+        "appartamento in vendita",
+        "n/a",
+        "",
+        "in vendita a milano, milano",
+        "vendita a milano, milano",
+        "residenziale in vendita a milano, milano",
+        "residenziale in vendita a milano",
         "immobile residenziale in vendita",
         # rent mirrors the sale placeholders above: the portal (and email
         # alerts) generate the same kind of generic auto-title for affitto
         "appartamento in affitto",
-        "in affitto a milano, milano", "affitto a milano, milano",
-        "residenziale in affitto a milano, milano", "residenziale in affitto a milano",
+        "in affitto a milano, milano",
+        "affitto a milano, milano",
+        "residenziale in affitto a milano, milano",
+        "residenziale in affitto a milano",
         "immobile residenziale in affitto",
     ):
         return True
-    if any(k in tl for k in ("ti propone un immobile", "ti propone:", "affiliato ", "gabetti ", "tempocasa ", "studio quattro", "strategie immobiliari", "dhome real estate", "cosetta fiori")):
+    if any(
+        k in tl
+        for k in (
+            "ti propone un immobile",
+            "ti propone:",
+            "affiliato ",
+            "gabetti ",
+            "tempocasa ",
+            "studio quattro",
+            "strategie immobiliari",
+            "dhome real estate",
+            "cosetta fiori",
+        )
+    ):
         return True
     return False
 
@@ -242,33 +326,55 @@ def is_bad_title(title: str) -> bool:
 def _extract_zone_and_title(subject: str, city: str, orig_title: str) -> tuple[str, str]:
     raw = subject if subject and len(subject) > len(orig_title) else (orig_title or subject or "")
     # Remove agency / alert email prefixes
-    cleaned = re.sub(r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*", "", raw, flags=re.I)
-    cleaned = re.sub(r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(
+        r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*",
+        "",
+        raw,
+        flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*",
+        "",
+        cleaned,
+        flags=re.I,
+    )
     cleaned = re.sub(r"\s*\|\s*(?:Immobiliare\.it|Idealista|Casa\.it).*$", "", cleaned, flags=re.I)
-    
+
     lines = [l.strip() for l in re.split(r"[\r\n]+", cleaned) if l.strip()]
     detail = lines[-1] if lines else cleaned
     detail = " ".join(detail.split()).strip(" :-")
-    
+
     zone = ""
     title = orig_title
-    if detail and detail.casefold() not in ("appartamento in vendita", "residenziale in vendita a milano", "residenziale in affitto a milano", "in vendita a milano", "vendita a milano"):
+    if detail and detail.casefold() not in (
+        "appartamento in vendita",
+        "residenziale in vendita a milano",
+        "residenziale in affitto a milano",
+        "in vendita a milano",
+        "vendita a milano",
+    ):
         parts = [p.strip() for p in re.split(r"[-–—]", detail) if p.strip()]
         if len(parts) >= 2:
-            if any(w in parts[-1].casefold() for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")):
+            if any(
+                w in parts[-1].casefold()
+                for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")
+            ):
                 zone = parts[0]
                 title = f"{parts[-1]} - {parts[0]}, {city or 'Italia'}"
-            elif any(w in parts[0].casefold() for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")):
+            elif any(
+                w in parts[0].casefold()
+                for w in ("locale", "attico", "villa", "loft", "casa", "appartamento")
+            ):
                 zone = parts[-1]
                 title = f"{parts[0]} - {parts[-1]}, {city or 'Italia'}"
             else:
                 title = f"{detail}, {city or 'Italia'}"
         else:
             title = f"{detail}, {city or 'Italia'}"
-            
+
     if is_bad_title(title):
         title = f"Immobile residenziale - {zone or city or 'Milano'}"
-        
+
     return zone[:100], title[:150]
 
 
@@ -280,7 +386,7 @@ def repair_empty_listings_locally(db: Session) -> dict:
     summary.update(merge_duplicate_listings(db))
 
     default_city = ""
-    profiles = list(db.scalars(select(SearchProfile).where(SearchProfile.is_active == True)))
+    profiles = list(db.scalars(select(SearchProfile).where(SearchProfile.is_active.is_(True))))
     if profiles:
         for p in profiles:
             c = _detect_city(p.search_url or p.name)
@@ -291,9 +397,9 @@ def repair_empty_listings_locally(db: Session) -> dict:
     properties = list(db.scalars(select(Property)))
     for prop in properties:
         changed = False
-        
+
         imp = db.scalar(select(ImportedListing).where(ImportedListing.property_id == prop.id))
-        
+
         # 1. Recover city
         if not prop.city or prop.city == "N/A" or prop.city == "":
             c = ""
@@ -310,10 +416,18 @@ def repair_empty_listings_locally(db: Session) -> dict:
                 changed = True
 
         # 2. Recover zone & title
-        if is_bad_title(prop.title) or not prop.zone or prop.zone == "" or prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):
+        if (
+            is_bad_title(prop.title)
+            or not prop.zone
+            or prop.zone == ""
+            or prop.zone.casefold() in ("in vendita a milano", "vendita a milano")
+        ):
             subj = imp.email_subject if imp else ""
             zone, new_title = _extract_zone_and_title(subj, prop.city, prop.title)
-            if zone and (not prop.zone or prop.zone.casefold() in ("in vendita a milano", "vendita a milano", "")):
+            if zone and (
+                not prop.zone
+                or prop.zone.casefold() in ("in vendita a milano", "vendita a milano", "")
+            ):
                 prop.zone = zone
                 changed = True
             elif prop.zone and prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):

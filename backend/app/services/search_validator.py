@@ -4,6 +4,7 @@ Enforces uniqueness of monitored searches (`SearchProfile`) across the applicati
 Two searches are considered exactly equal (`ricerche esattamente uguali`) when
 their normalized portal URL and normalized excluded keywords match.
 """
+
 import logging
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -35,7 +36,8 @@ def normalize_profile_url(url: str) -> str:
         # Parse query params, filtering out tracking/pagination params
         ignore_params = {"id", "imm_source", "pag"}
         query_items = [
-            (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+            (k, v)
+            for k, v in parse_qsl(parsed.query, keep_blank_values=True)
             if k.lower() not in ignore_params
         ]
         query_items.sort()
@@ -86,14 +88,17 @@ def deduplicate_search_profiles(db: Session) -> int:
         groups.setdefault(key, []).append(p)
 
     removed_count = 0
-    for key, group in groups.items():
+    for _key, group in groups.items():
         if len(group) <= 1:
             continue
         canonical = group[0]
         duplicates = group[1:]
         logger.info(
             "Found %d duplicates for search profile '%s' (id=%d). Merging into id=%d...",
-            len(duplicates), canonical.name, canonical.id, canonical.id,
+            len(duplicates),
+            canonical.name,
+            canonical.id,
+            canonical.id,
         )
         for dup in duplicates:
             for link in list(dup.listing_links):

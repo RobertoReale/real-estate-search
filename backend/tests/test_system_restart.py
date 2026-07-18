@@ -2,6 +2,7 @@
 run would touch a source file or (with reload off) os.execv the pytest process
 itself, so every test asserts the endpoint's decision without ever executing the
 restart body."""
+
 import pytest
 from fastapi import HTTPException
 
@@ -10,6 +11,7 @@ from app import main
 
 class _FakeThread:
     """Captures the worker target without ever running it."""
+
     instances: list = []
 
     def __init__(self, target=None, daemon=None):

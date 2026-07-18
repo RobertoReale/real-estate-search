@@ -1,6 +1,7 @@
 """Scraper base: HTTP client with TLS impersonation, normalized listing dataclass,
 and 3-strategy pipeline (JSON-LD -> embedded state -> heuristic parsing)
 implemented in subclasses."""
+
 import base64
 import json
 import logging
@@ -61,7 +62,7 @@ class BlockedError(Exception):
 
 
 def detect_contract(search_url: str) -> str:
-    """"sale" or "rent", inferred from the search URL.
+    """ "sale" or "rent", inferred from the search URL.
 
     Both portals encode the contract in the first path segment
     ("vendita-case" / "affitto-case"); Immobiliare's api-next fallback
@@ -84,6 +85,7 @@ def detect_contract(search_url: str) -> str:
 @dataclass
 class RawListing:
     """Normalized listing produced by any parsing strategy."""
+
     portal: str
     portal_id: str
     url: str
@@ -105,8 +107,16 @@ class RawListing:
 
     def merge_missing(self, other: "RawListing") -> None:
         """Completes empty fields with those found by another strategy."""
-        for f in ("title", "floor", "city", "zone", "address", "agency",
-                  "description", "image_url"):
+        for f in (
+            "title",
+            "floor",
+            "city",
+            "zone",
+            "address",
+            "agency",
+            "description",
+            "image_url",
+        ):
             if not getattr(self, f) and getattr(other, f):
                 setattr(self, f, getattr(other, f))
         for f in ("price", "sqm", "rooms", "latitude", "longitude"):
@@ -131,8 +141,7 @@ PRICE_RE = re.compile(r"€\s*([\d.,]+)|([\d.,]+)\s*€")
 PRICE_PER_SQM_RE = re.compile(r"[\d.,]+\s*€\s*/\s*m", re.IGNORECASE)
 # Large plots write the surface with a thousands separator ("5.000 m²"):
 # the first alternative captures that form so it is not read as 5.0 sqm.
-SQM_RE = re.compile(r"(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d{1,2})?)\s*m[q²]",
-                    re.IGNORECASE)
+SQM_RE = re.compile(r"(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d{1,2})?)\s*m[q²]", re.IGNORECASE)
 ROOMS_RE = re.compile(r"(\d+)\s*local[ei]", re.IGNORECASE)
 
 MIN_PRICE, MAX_PRICE = 10_000, 20_000_000
@@ -142,7 +151,7 @@ MIN_RENT, MAX_RENT = 100, 50_000
 
 
 def _to_number(raw: str) -> float | None:
-    """"1.250.000" -> 1250000.0 (the period is the thousands separator)."""
+    """ "1.250.000" -> 1250000.0 (the period is the thousands separator)."""
     raw = raw.strip().rstrip(".,")
     if not raw:
         return None
@@ -225,6 +234,7 @@ def to_int(value) -> int | None:
 # test asserts the request is rewritten to the provider and the wrapper JSON is
 # unwrapped back to raw HTML.
 
+
 @dataclass
 class _ScrapeApiRequest:
     method: str
@@ -237,6 +247,7 @@ class _ScrapeApiRequest:
 def scrape_api_config() -> tuple[str, str]:
     """(provider, key) from settings; key is "" when the local path should run."""
     from ..config import load_settings
+
     s = load_settings()
     provider = (s.get("scrape_api_provider") or "scrapfly").strip().lower()
     key = (s.get("scrape_api_key") or "").strip()
@@ -300,12 +311,12 @@ def unwrap_scrape_api_response(provider: str, resp) -> str:
                 return body
             return base64.b64decode(body).decode("utf-8", "replace")
         except (ValueError, KeyError) as e:
-            raise BlockedError(f"zyte: unreadable response ({e})")
+            raise BlockedError(f"zyte: unreadable response ({e})") from e
     # Scrapfly
     try:
         content = resp.json()["result"]["content"]
     except (ValueError, KeyError, TypeError) as e:
-        raise BlockedError(f"scrapfly: unreadable response ({e})")
+        raise BlockedError(f"scrapfly: unreadable response ({e})") from e
     return content or ""
 
 
@@ -314,12 +325,15 @@ class BaseScraper:
     # ORDERED list by preference, not random: portals only accept certain
     # TLS handshakes (Safari passes on both portals, Chrome does not).
     impersonations: list[BrowserTypeLiteral] = [
-        "safari184", "chrome131_android", "safari180",
+        "safari184",
+        "chrome131_android",
+        "safari180",
         # Appended July 2026 after the ad-probe measured all three profiles
         # above blocked by DataDome on Immobiliare: iOS Safari and Firefox
         # handshakes are scored on different fingerprint pools than desktop
         # Safari/Chrome, so they extend the rotation rather than replace it.
-        "safari18_4_ios", "firefox147",
+        "safari18_4_ios",
+        "firefox147",
         # Current-generation Safari (26.x), added to keep the rotation abreast
         # of real browser evolution. It trails the measured-good profiles: an
         # untested handshake only gets tried once those ahead of it are blocked.
@@ -341,10 +355,9 @@ class BaseScraper:
         # hatch to react to a new block wave without a code change); either way
         # anything the installed curl_cffi no longer supports is filtered out.
         from ..config import load_settings
+
         configured = load_settings().get("tls_impersonations") or []
-        self.impersonations = resolve_impersonations(
-            configured, list(type(self).impersonations)
-        )
+        self.impersonations = resolve_impersonations(configured, list(type(self).impersonations))
         self.session = self._new_session()
 
     def _new_session(self):
@@ -352,16 +365,19 @@ class BaseScraper:
             impersonate=self.impersonations[self._imp_index],
             timeout=30,
         )
-        session.headers.update({
-            "Accept-Language": "it-IT,it;q=0.9,en;q=0.6",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-        })
+        session.headers.update(
+            {
+                "Accept-Language": "it-IT,it;q=0.9,en;q=0.6",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+            }
+        )
         from ..config import load_settings
+
         settings = load_settings()
         # A configured proxy that fails to apply means the user thinks traffic
         # is proxied when it is not: that must not be silent, so no try here.
@@ -386,7 +402,11 @@ class BaseScraper:
         if self._imp_index + 1 >= len(self.impersonations):
             if self.portal == "ad-probe" and len(self.impersonations) > 1:
                 import time
-                logger.info("ad-probe: impersonation cycle completed, resting 4s and wrapping around to %s", self.impersonations[0])
+
+                logger.info(
+                    "ad-probe: impersonation cycle completed, resting 4s and wrapping around to %s",
+                    self.impersonations[0],
+                )
                 time.sleep(4.0)
                 self._imp_index = 0
             else:
@@ -395,7 +415,8 @@ class BaseScraper:
             self._imp_index += 1
         logger.info(
             "%s: switching impersonation -> %s",
-            self.portal, self.impersonations[self._imp_index],
+            self.portal,
+            self.impersonations[self._imp_index],
         )
         self.session = self._new_session()
         self._warmed = False
@@ -419,13 +440,16 @@ class BaseScraper:
         # and always get a Response, so go through an untyped handle.
         send = typing.cast(typing.Any, self.session.request)
         resp = send(
-            req.method, req.url, params=req.params,
-            headers=req.headers, json=req.json_body, allow_redirects=True,
+            req.method,
+            req.url,
+            params=req.params,
+            headers=req.headers,
+            json=req.json_body,
+            allow_redirects=True,
         )
         if resp.status_code in (401, 402, 403, 429):
             raise BlockedError(
-                f"{self.portal}: scrape API ({provider}) refused "
-                f"(HTTP {resp.status_code}) on {url}"
+                f"{self.portal}: scrape API ({provider}) refused (HTTP {resp.status_code}) on {url}"
             )
         resp.raise_for_status()
         return unwrap_scrape_api_response(provider, resp)
@@ -436,9 +460,7 @@ class BaseScraper:
             return self._fetch_via_scrape_api(url, provider, key)
         resp = self.session.get(url, allow_redirects=True)
         if resp.status_code in (403, 429) or "captcha" in resp.text[:4000].lower():
-            raise BlockedError(
-                f"{self.portal}: blocked (HTTP {resp.status_code}) on {url}"
-            )
+            raise BlockedError(f"{self.portal}: blocked (HTTP {resp.status_code}) on {url}")
         # Idealista answers 404 for a search that simply matched nothing, serving
         # its "abbiamo guardato dappertutto" page in full — the same status a
         # dead slug gets. Raising here turned every empty search into a permanent
@@ -457,7 +479,7 @@ class BaseScraper:
             except BlockedError as e:
                 last_error = e
                 if not self.rotate_on_block or not self._rotate_session():
-                    raise last_error
+                    raise last_error from e
 
     def polite_sleep(self):
         time.sleep(self.delay_seconds * random.uniform(0.7, 1.4))
@@ -557,8 +579,8 @@ class BaseScraper:
 # What the portals write when the ad is gone. Kept in Italian for the same
 # reason as DEFAULT_EXCLUDED_KEYWORDS: it must match their pages verbatim.
 AD_GONE_MARKERS = (
-    "non è presente sul nostro sito",     # Immobiliare's 404 page
-    "non è più disponibile",              # both portals
+    "non è presente sul nostro sito",  # Immobiliare's 404 page
+    "non è più disponibile",  # both portals
     "annuncio non disponibile",
     "immobile non disponibile",
 )
@@ -569,9 +591,9 @@ AD_GONE_MARKERS = (
 # the page can. Measured live on both portals; Immobiliare answers 200 instead,
 # so it reaches us as an empty parse rather than an exception.
 SEARCH_EMPTY_MARKERS = (
-    "non abbiamo trovato quello che stavi cercando",   # Idealista
+    "non abbiamo trovato quello che stavi cercando",  # Idealista
     "non ci sono annunci che corrispondano ai tuoi criteri",
-    "non ci sono annunci per la tua ricerca",          # Immobiliare
+    "non ci sono annunci per la tua ricerca",  # Immobiliare
 )
 
 # DataDome's interstitial "block" wall (the "Access is temporarily restricted"
@@ -602,6 +624,7 @@ def _visible_text(html: str) -> str:
         return ""
     try:
         from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "template", "noscript"]):
             tag.decompose()
@@ -656,6 +679,7 @@ class AdProbe(BaseScraper):
     rather than merely unreachable: the caller stops the batch on a streak of
     those instead of hammering a portal that has already said no.
     """
+
     portal = "ad-probe"
     # How long a headful CAPTCHA waits for the watching user to solve it before
     # giving up and treating the ad as blocked. Generous — solving a DataDome
@@ -733,11 +757,13 @@ class AdProbe(BaseScraper):
         """
         if self._pw_pool is None:
             from concurrent.futures import ThreadPoolExecutor
+
             self._pw_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="adprobe_pw")
         return self._pw_pool
 
     def _start_browser_session_inner(self) -> bool:
         from ..services import cookie_harvester
+
         # `p_factory` is called lazily by `_launch` — only if Camoufox is
         # skipped or fails. Starting a plain Playwright sync instance up front
         # (before Camoufox gets a turn) trips Camoufox's own "nested sync API"
@@ -746,6 +772,7 @@ class AdProbe(BaseScraper):
 
         def make_p():
             from playwright.sync_api import sync_playwright
+
             pw = sync_playwright().start()
             pw_holder["pw"] = pw
             return pw
@@ -759,7 +786,9 @@ class AdProbe(BaseScraper):
         # persistent profile and the rest of the batch flows unchallenged.
         self._browser_ctx = cookie_harvester._launch(make_p, headless=not self._browser_headful)
         self._pw = pw_holder.get("pw")
-        self._browser_page = self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
+        self._browser_page = (
+            self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
+        )
         self._browser_warmed_hosts = set()
         engine = getattr(self._browser_ctx, "_engine_label", "browser")
         if self._browser_headful:
@@ -783,18 +812,22 @@ class AdProbe(BaseScraper):
             return True
         try:
             from ..services import cookie_harvester
+
             if not cookie_harvester.is_available():
                 self.browser_status = "unavailable: browser engine not installed"
                 return False
             from ..config import load_settings
+
             s = load_settings()
             # Any of these switches is an explicit opt-in to a browser launch
             # (invariant 18): the reactive cookie/refresh machinery, the
             # availability check's browser-first transport, or its headful
             # "let me solve the CAPTCHA myself" mode.
-            if not (s.get("datadome_auto_refresh")
-                    or s.get("availability_browser_first")
-                    or s.get("availability_browser_headful")):
+            if not (
+                s.get("datadome_auto_refresh")
+                or s.get("availability_browser_first")
+                or s.get("availability_browser_headful")
+            ):
                 self.browser_status = "off: no browser option enabled in Settings"
                 return False
             # Headful only where a human can actually see the window: a Windows
@@ -831,6 +864,7 @@ class AdProbe(BaseScraper):
             # and must be closed through its launcher, not just .close()
             try:
                 from ..services import cookie_harvester
+
                 cookie_harvester._close_ctx(self._browser_ctx)
             except Exception:
                 pass
@@ -874,16 +908,20 @@ class AdProbe(BaseScraper):
             # anti-bot script, and "captcha" as a bare substring would otherwise
             # divert a plainly-gone ad down the blocked/None branch instead of
             # answering False. A real block carries neither signal.
-            if (resp.status_code in (404, 410)
-                    or text_says_gone(resp.text)):
+            if resp.status_code in (404, 410) or text_says_gone(resp.text):
                 return False
-            blocked = (resp.status_code in (403, 429)
-                       or "captcha" in resp.text[:4000].lower()
-                       or has_block_marker(resp.text))
+            blocked = (
+                resp.status_code in (403, 429)
+                or "captcha" in resp.text[:4000].lower()
+                or has_block_marker(resp.text)
+            )
             if blocked and attempt == 0 and self._rotate_session():
                 continue
             if blocked:
-                logger.info("ad-probe: %s -> unknown (blocked via curl_cffi), trying _browser_check fallback", url)
+                logger.info(
+                    "ad-probe: %s -> unknown (blocked via curl_cffi), trying _browser_check fallback",
+                    url,
+                )
                 browser_res = self._browser_check(url)
                 if browser_res is not None:
                     return browser_res
@@ -905,6 +943,7 @@ class AdProbe(BaseScraper):
         if is_online:
             try:
                 from bs4 import BeautifulSoup
+
                 self.last_soup = BeautifulSoup(resp.text, "html.parser")
             except Exception:
                 pass
@@ -969,17 +1008,20 @@ class AdProbe(BaseScraper):
             # cannot swallow a genuine block.
             if self._page_says_gone(resp, page):
                 return False
-            if (resp.status in (403, 429)
-                    or "captcha" in page.content()[:4000].lower()
-                    or has_block_marker(page.content())):
+            if (
+                resp.status in (403, 429)
+                or "captcha" in page.content()[:4000].lower()
+                or has_block_marker(page.content())
+            ):
                 page.wait_for_timeout(5000)
                 if "captcha" in page.content()[:4000].lower():
                     if self._browser_headful and self._wait_for_human_solve(page):
                         # The user solved the challenge in the visible window:
                         # the shared profile now holds a real DataDome cookie.
                         # Re-navigate to read the ad through the cleared session.
-                        resp = page.goto(url, referer=home_ref,
-                                         wait_until="domcontentloaded", timeout=25000)
+                        resp = page.goto(
+                            url, referer=home_ref, wait_until="domcontentloaded", timeout=25000
+                        )
                         if not resp:
                             return None
                         if self._page_says_gone(resp, page):
@@ -1012,6 +1054,7 @@ class AdProbe(BaseScraper):
             if is_online:
                 try:
                     from bs4 import BeautifulSoup
+
                     self.last_soup = BeautifulSoup(page.content(), "html.parser")
                 except Exception:
                     pass
@@ -1060,9 +1103,12 @@ class AdProbe(BaseScraper):
         request lands within one poll instead of up to 180s later.
         """
         import time as _time
+
         deadline = _time.monotonic() + self._HEADFUL_SOLVE_TIMEOUT_MS / 1000.0
-        logger.info("ad-probe: headful CAPTCHA — waiting up to %ds for the user to solve it",
-                    int(self._HEADFUL_SOLVE_TIMEOUT_MS / 1000))
+        logger.info(
+            "ad-probe: headful CAPTCHA — waiting up to %ds for the user to solve it",
+            int(self._HEADFUL_SOLVE_TIMEOUT_MS / 1000),
+        )
         while _time.monotonic() < deadline:
             if self._cancel_event is not None and self._cancel_event.is_set():
                 logger.info("ad-probe: headful CAPTCHA wait cancelled by the user")
@@ -1100,6 +1146,7 @@ def find_card_container(anchor, ad_path_re: re.Pattern):
     `ad_path_re` must also match relative hrefs ("/annunci/123/"):
     this is how portals link ads within results pages.
     """
+
     def ad_ids(node) -> set[str]:
         ids = set()
         for a in node.find_all("a", href=True):
@@ -1122,7 +1169,8 @@ def extract_json_ld_blocks(html: str) -> list[dict]:
     blocks = []
     for m in re.finditer(
         r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
-        html, re.DOTALL | re.IGNORECASE,
+        html,
+        re.DOTALL | re.IGNORECASE,
     ):
         try:
             data = json.loads(m.group(1).strip())

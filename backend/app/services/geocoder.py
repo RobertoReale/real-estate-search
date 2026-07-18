@@ -19,6 +19,7 @@ paced maintenance endpoint), never inside the hot scan path. The outbound HTTP
 call lives in `_nominatim_lookup` alone, so tests drive the whole cache/batch
 logic with it mocked — no network, fully reproducible (invariant 17's spirit).
 """
+
 import json
 import logging
 import re
@@ -39,15 +40,20 @@ logger = logging.getLogger(__name__)
 # User-Agent identifying the app. Both are non-negotiable for the public
 # instance; a self-hosted one does not care but the pause is harmless.
 PACE_SECONDS = 1.0
+
+
 def _get_user_agent() -> str:
     try:
         from ..config import load_settings
+
         email = (load_settings().get("email_from") or "").strip()
         if email:
             return f"RealEstateSearch/1.0 (local personal use; contact: {email})"
     except Exception:
         pass
     return "RealEstateSearch/1.0 (local personal use)"
+
+
 # One call must not stall the request forever. The public Nominatim instance is
 # capped at 1 req/s, so this is roughly the wall-clock seconds a single click
 # costs (cache hits are free): kept modest so the request returns in under a
@@ -163,7 +169,11 @@ def _is_in_city(item_address: dict, expected_city: str) -> bool:
         val = item_address.get(key)
         if val and _normalize(val) == exp:
             return True
-    local_places = [item_address.get(k) for k in ("city", "town", "village", "municipality", "hamlet") if item_address.get(k)]
+    local_places = [
+        item_address.get(k)
+        for k in ("city", "town", "village", "municipality", "hamlet")
+        if item_address.get(k)
+    ]
     if local_places:
         return False
     for key in ("suburb", "city_district", "county"):
@@ -186,7 +196,12 @@ def _clean_street_name(place: str) -> str:
     # number would go, and Nominatim returns 0 results for "Via Camaldoli s.n.c"
     # while "Via Camaldoli" resolves cleanly — so it must be stripped like the
     # other civic-address tokens, or the fallback query fails too.
-    s = re.sub(r"\s+\b(?:s\.?n\.?c\.?|n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$", "", s, flags=re.I).strip()
+    s = re.sub(
+        r"\s+\b(?:s\.?n\.?c\.?|n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$",
+        "",
+        s,
+        flags=re.I,
+    ).strip()
     s = re.sub(r"\s+\b\d+([a-zA-Z/0-9-]*)$", "", s).strip()
     return s
 
@@ -241,11 +256,23 @@ def build_query(prop: Property) -> str:
     return queries[0] if queries else ""
 
 
-def _nominatim_lookup(query: str, base_url: str, expected_city: str = "") -> tuple[float, float] | None:
+def _nominatim_lookup(
+    query: str, base_url: str, expected_city: str = ""
+) -> tuple[float, float] | None:
     """Single geocoding request. Isolated so tests can mock it."""
-    url = base_url.rstrip("/") + "/search?" + urllib.parse.urlencode({
-        "q": query, "format": "json", "limit": 5, "addressdetails": 1, "countrycodes": "it",
-    })
+    url = (
+        base_url.rstrip("/")
+        + "/search?"
+        + urllib.parse.urlencode(
+            {
+                "q": query,
+                "format": "json",
+                "limit": 5,
+                "addressdetails": 1,
+                "countrycodes": "it",
+            }
+        )
+    )
     req = urllib.request.Request(url, headers={"User-Agent": _get_user_agent()})
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read().decode("utf-8"))
@@ -258,13 +285,16 @@ def _nominatim_lookup(query: str, base_url: str, expected_city: str = "") -> tup
         except (KeyError, IndexError, TypeError, ValueError):
             continue
         item_address = item.get("address", {}) if isinstance(item, dict) else {}
-        if _is_in_city(item_address, expected_city) and is_valid_coordinate_for_city(lat, lon, expected_city):
+        if _is_in_city(item_address, expected_city) and is_valid_coordinate_for_city(
+            lat, lon, expected_city
+        ):
             return lat, lon
     return None
 
 
-def geocode(db: Session, query: str, base_url: str, expected_city: str = "",
-            retry_negative: bool = False) -> tuple[float, float] | None:
+def geocode(
+    db: Session, query: str, base_url: str, expected_city: str = "", retry_negative: bool = False
+) -> tuple[float, float] | None:
     """Resolve `query` to (lat, lng), consulting and populating the cache.
 
     A cached row — hit or miss — short-circuits the network entirely; only a
@@ -327,8 +357,10 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
     writing a wrong pin.
     """
     from ..config import load_settings
-    base_url = (load_settings().get("nominatim_url")
-                or "https://nominatim.openstreetmap.org").strip()
+
+    base_url = (
+        load_settings().get("nominatim_url") or "https://nominatim.openstreetmap.org"
+    ).strip()
     for query in build_queries(prop):
         key = _normalize(query)
         cached_row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
@@ -337,8 +369,7 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
         # pacing — we may still spend a real request on it.
         cached = cached_row is not None and cached_row.latitude is not None
         try:
-            coords = geocode(db, query, base_url, expected_city=prop.city,
-                             retry_negative=True)
+            coords = geocode(db, query, base_url, expected_city=prop.city, retry_negative=True)
         except Exception as e:
             # geocode() re-raises 403/429: Nominatim is blocking, so stop and
             # fail open (no pin) rather than hammering it for the next query.
@@ -372,20 +403,25 @@ def geocode_missing_properties(db: Session, max_calls: int | None = -1) -> dict:
 
 def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -> dict:
     from ..config import load_settings
-    base_url = (load_settings().get("nominatim_url")
-                or "https://nominatim.openstreetmap.org").strip()
+
+    base_url = (
+        load_settings().get("nominatim_url") or "https://nominatim.openstreetmap.org"
+    ).strip()
 
     # Clear out any existing coordinates that fall clearly outside the property's city
     # (repairing old mis-geocodings like 'Via Tolmezzo, 2' -> Cernusco or 'Dergano' -> Torino).
     existing_geocoded = db.scalars(
-        select(Property)
-        .where(Property.latitude.is_not(None))
-        .where(Property.city != "")
+        select(Property).where(Property.latitude.is_not(None)).where(Property.city != "")
     ).all()
     for p in existing_geocoded:
         if not is_valid_coordinate_for_city(p.latitude, p.longitude, p.city):
-            logger.info("geocoder: clearing out-of-bounds coords for property #%s (%s: %s, %s)",
-                        p.id, p.city, p.latitude, p.longitude)
+            logger.info(
+                "geocoder: clearing out-of-bounds coords for property #%s (%s: %s, %s)",
+                p.id,
+                p.city,
+                p.latitude,
+                p.longitude,
+            )
             p.latitude, p.longitude = None, None
     db.commit()
 
@@ -397,8 +433,14 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
         .order_by(Property.id)
     ).all()
 
-    summary = {"scanned": 0, "geocoded": 0, "cached": 0,
-               "not_found": 0, "remaining": 0, "cancelled": False}
+    summary = {
+        "scanned": 0,
+        "geocoded": 0,
+        "cached": 0,
+        "not_found": 0,
+        "remaining": 0,
+        "cancelled": False,
+    }
     if max_calls is None:
         budget = float("inf")
     elif max_calls == -1:
@@ -406,9 +448,16 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
     else:
         budget = max_calls
 
-    _geocode_progress.update(active=True, done=0, total=len(candidates),
-                             geocoded=0, cached=0, not_found=0,
-                             remaining=0, last_error=None)
+    _geocode_progress.update(
+        active=True,
+        done=0,
+        total=len(candidates),
+        geocoded=0,
+        cached=0,
+        not_found=0,
+        remaining=0,
+        last_error=None,
+    )
     try:
         for index, prop in enumerate(candidates):
             if _geocode_cancel_event.is_set():
@@ -428,9 +477,7 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
             try:
                 for query in queries:
                     key = _normalize(query)
-                    cached_row = db.scalar(
-                        select(GeocodeCache).where(GeocodeCache.query == key)
-                    )
+                    cached_row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
                     cached_exists = cached_row is not None
                     if not cached_exists:
                         if budget <= 0:
@@ -467,11 +514,13 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
 
             # Commit progressively so user doesn't lose pins if stopped or interrupted
             db.commit()
-            _geocode_progress.update(done=index + 1,
-                                     geocoded=summary["geocoded"],
-                                     cached=summary["cached"],
-                                     not_found=summary["not_found"],
-                                     remaining=summary["remaining"])
+            _geocode_progress.update(
+                done=index + 1,
+                geocoded=summary["geocoded"],
+                cached=summary["cached"],
+                not_found=summary["not_found"],
+                remaining=summary["remaining"],
+            )
     finally:
         _geocode_progress.update(active=False)
     return summary

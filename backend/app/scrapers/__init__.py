@@ -3,8 +3,9 @@
 Provides a unified factory to instantiate the appropriate scraper instance
 and detect the target portal from a search URL.
 """
-from .immobiliare import ImmobiliareScraper
+
 from .idealista import IdealistaScraper
+from .immobiliare import ImmobiliareScraper
 
 
 def get_scraper(portal: str):

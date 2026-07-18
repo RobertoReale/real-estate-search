@@ -18,6 +18,7 @@ Strategies 1-3 stay as a deliberate fallback for the day the internal endpoint
 changes or is removed: they cost nothing while the API works, and a passive
 safety net is cheaper than no fallback at all.
 """
+
 import json
 import logging
 import re
@@ -26,9 +27,19 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from bs4 import BeautifulSoup
 
 from .base import (
-    BaseScraper, BlockedError, RawListing, ScrapeResult, detect_contract,
-    extract_json_ld_blocks, find_card_container, parse_price, parse_rooms,
-    parse_sqm, plausible_price, to_float, to_int,
+    BaseScraper,
+    BlockedError,
+    RawListing,
+    ScrapeResult,
+    detect_contract,
+    extract_json_ld_blocks,
+    find_card_container,
+    parse_price,
+    parse_rooms,
+    parse_sqm,
+    plausible_price,
+    to_float,
+    to_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,8 +118,7 @@ class ImmobiliareScraper(BaseScraper):
             address=location.get("address") or "",
             latitude=to_float(location.get("latitude")),
             longitude=to_float(location.get("longitude")),
-            agency=((estate.get("advertiser") or {}).get("agency") or {}).get(
-                "displayName", ""),
+            agency=((estate.get("advertiser") or {}).get("agency") or {}).get("displayName", ""),
             description=props.get("description") or estate.get("caption") or "",
             image_url=image,
         )
@@ -122,11 +132,18 @@ class ImmobiliareScraper(BaseScraper):
             items = []
             if block.get("@type") == "ItemList":
                 items = [
-                    e.get("item", e) for e in block.get("itemListElement", [])
+                    e.get("item", e)
+                    for e in block.get("itemListElement", [])
                     if isinstance(e, dict)
                 ]
-            elif block.get("@type") in ("RealEstateListing", "Product", "Offer",
-                                        "Apartment", "House", "SingleFamilyResidence"):
+            elif block.get("@type") in (
+                "RealEstateListing",
+                "Product",
+                "Offer",
+                "Apartment",
+                "House",
+                "SingleFamilyResidence",
+            ):
                 items = [block]
             for item in items:
                 listing = self._from_schema_org(item)
@@ -171,9 +188,7 @@ class ImmobiliareScraper(BaseScraper):
     # Strategy 2: __NEXT_DATA__
     # ------------------------------------------------------------------
     def parse_embedded_state(self, html: str, page_url: str) -> list[RawListing]:
-        m = re.search(
-            r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL
-        )
+        m = re.search(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
         if not m:
             return []
         try:
@@ -193,8 +208,11 @@ class ImmobiliareScraper(BaseScraper):
         if isinstance(data, dict):
             for key in ("results", "resultsList"):
                 v = data.get(key)
-                if isinstance(v, list) and v and isinstance(v[0], dict) and (
-                    "realEstate" in v[0] or "id" in v[0]
+                if (
+                    isinstance(v, list)
+                    and v
+                    and isinstance(v[0], dict)
+                    and ("realEstate" in v[0] or "id" in v[0])
                 ):
                     return v
             for v in data.values():
@@ -228,17 +246,19 @@ class ImmobiliareScraper(BaseScraper):
             container = find_card_container(items[0][0], AD_PATH_RE)
             text = container.get_text(" ", strip=True)
             img = container.find("img")
-            out.append(RawListing(
-                portal=self.portal,
-                portal_id=ad_id,
-                url=full,
-                title=best.get_text(" ", strip=True) or best.get("title", ""),
-                price=parse_price(text, self.contract),
-                sqm=parse_sqm(text),
-                rooms=parse_rooms(text),
-                description=text[:800],
-                image_url=(img.get("src") or img.get("data-src") or "") if img else "",
-            ))
+            out.append(
+                RawListing(
+                    portal=self.portal,
+                    portal_id=ad_id,
+                    url=full,
+                    title=best.get_text(" ", strip=True) or best.get("title", ""),
+                    price=parse_price(text, self.contract),
+                    sqm=parse_sqm(text),
+                    rooms=parse_rooms(text),
+                    description=text[:800],
+                    image_url=(img.get("src") or img.get("data-src") or "") if img else "",
+                )
+            )
         return out
 
     def next_page_url(self, search_url: str, page: int) -> str:
@@ -254,7 +274,8 @@ class ImmobiliareScraper(BaseScraper):
         """Translates a location name (municipality or zone) into geographical
         parameters required by the API. Returns {} if unresolved."""
         resp = self.session.get(
-            API_GEO, params={"query": query},
+            API_GEO,
+            params={"query": query},
             headers={"Referer": "https://www.immobiliare.it/"},
         )
         if resp.status_code != 200:
@@ -334,7 +355,8 @@ class ImmobiliareScraper(BaseScraper):
         """Single api-next page request. Reads `self.session` at call time so a
         rotation or a cookie recovery between attempts takes effect."""
         return self.session.get(
-            API_LISTINGS, params={**params, "pag": str(page)},
+            API_LISTINGS,
+            params={**params, "pag": str(page)},
             headers={"Referer": referer},
         )
 
@@ -347,9 +369,11 @@ class ImmobiliareScraper(BaseScraper):
         session around it, re-warm the homepage so the new cookie is carried in.
         Returns whether it recovered. Never raises into the scrape."""
         from ..config import load_settings
+
         if not load_settings().get("datadome_auto_refresh"):
             return False
         from ..services import cookie_harvester
+
         if not cookie_harvester.is_available():
             return False
         logger.info("immobiliare: api-next blocking; grabbing a fresh DataDome cookie")
@@ -369,10 +393,7 @@ class ImmobiliareScraper(BaseScraper):
     def _api_search(self, search_url: str, result: ScrapeResult) -> None:
         params = self._api_params(search_url)
         if params is None:
-            result.error = (
-                "immobiliare: unable to parse search URL "
-                "(unrecognized location)"
-            )
+            result.error = "immobiliare: unable to parse search URL (unrecognized location)"
             return
 
         referer = urlunparse(urlparse(search_url)._replace(query=""))
@@ -384,8 +405,11 @@ class ImmobiliareScraper(BaseScraper):
             if resp.status_code in (403, 429) and self._rotate_session():
                 # retry the same page under a different TLS impersonation
                 resp = self._api_get(params, referer, page)
-            if (resp.status_code in (403, 429)
-                    and not self._cookie_recovered and self._recover_cookie()):
+            if (
+                resp.status_code in (403, 429)
+                and not self._cookie_recovered
+                and self._recover_cookie()
+            ):
                 # every handshake blocked: the cookie has demonstrably burned —
                 # mint a fresh one once and retry the page through it
                 self._cookie_recovered = True

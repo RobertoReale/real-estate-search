@@ -606,11 +606,31 @@ DataDome most of the time on its own. These are the levers for when it isn't.
 
 ## Testing & Verification
 
-Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason.
+Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason. The frontend has its own unit tests for the pure logic (filter querystring codec).
 
-Run tests using the local Python virtual environment:
+Run the backend tests using the local Python virtual environment:
 ```bash
 cd backend
 & .venv/Scripts/python.exe -m pytest
 ```
+
+Run the frontend tests:
+```bash
+cd frontend
+npm test
+```
 *(All tests must pass before committing changes).*
+
+### Optional developer tooling
+
+Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,
+property-based tests, dependency CVE scanning, and a pre-commit hook) lives in
+`backend/requirements-dev.txt`. It is **never** installed on the target device —
+only in a development checkout:
+```bash
+cd backend
+& .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+& .venv/Scripts/ruff.exe check app tests      # lint
+& .venv/Scripts/ruff.exe format app tests     # format
+& .venv/Scripts/python.exe -m pip_audit -r requirements.txt   # CVE scan
+```

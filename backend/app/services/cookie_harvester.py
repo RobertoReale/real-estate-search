@@ -31,12 +31,13 @@ Every design choice here is deliberate:
     the caller keeps whatever cookie it already had. It must never crash a scan —
     the same fail-open discipline as the availability probe (invariant 16).
 """
+
 import logging
 import os
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -116,10 +117,11 @@ def _ensure_browsers_path() -> None:
         users_dir = Path("C:/Users")
         if users_dir.exists():
             for user_folder in users_dir.iterdir():
-                if (
-                    user_folder.is_dir()
-                    and user_folder.name
-                    not in ("Public", "Default", "Default User", "All Users")
+                if user_folder.is_dir() and user_folder.name not in (
+                    "Public",
+                    "Default",
+                    "Default User",
+                    "All Users",
                 ):
                     ms_pw = user_folder / "AppData" / "Local" / "ms-playwright"
                     if ms_pw.exists():
@@ -167,6 +169,7 @@ def is_available() -> bool:
     _ensure_browsers_path()
     try:
         import playwright.sync_api  # type: ignore[import-not-found] # noqa: F401
+
         return True
     except Exception:
         return False
@@ -188,8 +191,7 @@ def _pick_datadome(cookies: Sequence[Mapping[str, Any]]) -> str | None:
     return None
 
 
-def cookie_is_stale(updated_at: str | None, ttl_minutes: int,
-                    now: datetime) -> bool:
+def cookie_is_stale(updated_at: str | None, ttl_minutes: int, now: datetime) -> bool:
     """Whether a cookie saved at `updated_at` (ISO string) is past its TTL.
 
     An unknown or unparseable timestamp counts as stale: if we cannot prove the
@@ -202,7 +204,7 @@ def cookie_is_stale(updated_at: str | None, ttl_minutes: int,
     except ValueError:
         return True
     if saved.tzinfo is None:
-        saved = saved.replace(tzinfo=timezone.utc)
+        saved = saved.replace(tzinfo=UTC)
     return now - saved >= timedelta(minutes=max(ttl_minutes, 1))
 
 
@@ -214,6 +216,7 @@ def is_camoufox_available() -> bool:
     exactly like Playwright: importable → offer it, absent → stay on Chromium."""
     try:
         import camoufox.sync_api  # type: ignore[import-not-found] # noqa: F401
+
         return True
     except Exception:
         return False
@@ -225,6 +228,7 @@ def _use_camoufox() -> bool:
     uses Camoufox when it is installed and falls back otherwise — so installing
     the package is itself the opt-in."""
     from ..config import load_settings
+
     engine = str(load_settings().get("browser_engine") or "auto").lower()
     if engine == "chromium":
         return False
@@ -242,14 +246,19 @@ def _launch_camoufox(headless: bool) -> Any:
     cam = None
     try:
         from camoufox.sync_api import Camoufox
+
         # no_viewport=True is required against a newer Playwright (1.5x+): its
         # launch_persistent_context sends a `viewport.isMobile` field that the
         # Firefox build Camoufox bundles (older juggler protocol) rejects with
         # "Browser.setDefaultViewport … not described in this scheme", failing
         # the launch. Skipping the default viewport sidesteps it; Camoufox sizes
         # its own window from its fingerprint anyway.
-        cam = Camoufox(persistent_context=True, user_data_dir=str(PROFILE_DIR),
-                       headless=headless, no_viewport=True)
+        cam = Camoufox(
+            persistent_context=True,
+            user_data_dir=str(PROFILE_DIR),
+            headless=headless,
+            no_viewport=True,
+        )
         ctx = cam.__enter__()  # start now; teardown is via _close_ctx below
         try:
             setattr(ctx, "_camoufox_owner", cam)  # keep launcher alive for teardown
@@ -342,7 +351,9 @@ def _launch(p_factory, headless: bool) -> Any:
                     kwargs["executable_path"] = exe_path
             ctx = p.chromium.launch_persistent_context(**kwargs)
             try:
-                ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+                ctx.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+                )
                 setattr(ctx, "_engine_label", "chromium")
             except Exception:
                 pass
@@ -369,7 +380,9 @@ def _is_page_blocked(page) -> bool:
         if any(w in title for w in ("captcha", "blocked", "attention required", "datadome")):
             return True
         content = page.content()[:4000].lower()
-        if "geo.captcha-delivery.com" in content or ("datadome" in content and "captcha" in content):
+        if "geo.captcha-delivery.com" in content or (
+            "datadome" in content and "captcha" in content
+        ):
             return True
         return False
     except Exception:
@@ -385,6 +398,7 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
 
         def make_p():
             from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+
             pw = sync_playwright().start()
             pw_holder["pw"] = pw
             return pw
@@ -392,8 +406,7 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
         ctx = _launch(make_p, headless)
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
-            resp = page.goto(home, wait_until="domcontentloaded",
-                             timeout=timeout_seconds * 1000)
+            resp = page.goto(home, wait_until="domcontentloaded", timeout=timeout_seconds * 1000)
             deadline = time.monotonic() + timeout_seconds
             while time.monotonic() < deadline:
                 if _harvest_cancel_event.is_set():
@@ -401,17 +414,21 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
                     return HarvestResult(error="Cancelled.")
                 blocked = _is_page_blocked(page)
                 if headless and (blocked or (resp and resp.status in (403, 429))):
-                    return HarvestResult(error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)")
+                    return HarvestResult(
+                        error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)"
+                    )
                 if not blocked:
                     cookie = _pick_datadome(ctx.cookies())
                     if cookie:
                         logger.info("cookie-harvest: got datadome from %s", portal)
                         return HarvestResult(cookie=cookie)
                 page.wait_for_timeout(1500)
-            return HarvestResult(error=(
-                "No datadome cookie appeared before timeout. A CAPTCHA may "
-                "be blocking — try the visible-browser grab and solve it once."
-            ))
+            return HarvestResult(
+                error=(
+                    "No datadome cookie appeared before timeout. A CAPTCHA may "
+                    "be blocking — try the visible-browser grab and solve it once."
+                )
+            )
         finally:
             _close_ctx(ctx)
             if "pw" in pw_holder:
@@ -421,8 +438,11 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
         return HarvestResult(error=f"{type(e).__name__}: {e}")
 
 
-def harvest(portal: str = "immobiliare", headless: bool = True,
-            timeout_seconds: float = HEADLESS_TIMEOUT_SECONDS) -> HarvestResult:
+def harvest(
+    portal: str = "immobiliare",
+    headless: bool = True,
+    timeout_seconds: float = HEADLESS_TIMEOUT_SECONDS,
+) -> HarvestResult:
     """Launch a browser, load the portal home, and read its `datadome` cookie.
 
     Returns a HarvestResult; `cookie` is None on any failure, with a
@@ -450,6 +470,7 @@ def _is_session_zero_nt() -> bool:
         return False
     try:
         import ctypes
+
         session_id = ctypes.c_uint()
         ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(session_id))
         return session_id.value == 0
@@ -459,9 +480,9 @@ def _is_session_zero_nt() -> bool:
 
 def _refresh_via_active_session_nt(portal: str) -> dict:
     import ctypes
-    from ctypes import wintypes
     import subprocess
     import sys
+    from ctypes import wintypes
 
     wtsapi32 = ctypes.windll.wtsapi32
     kernel32 = ctypes.windll.kernel32
@@ -470,18 +491,28 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
 
     session_id = kernel32.WTSGetActiveConsoleSessionId()
     if session_id == 0xFFFFFFFF:
-        return {"ok": False, "error": "No active user desktop session found to display the browser window."}
+        return {
+            "ok": False,
+            "error": "No active user desktop session found to display the browser window.",
+        }
 
     h_token = wintypes.HANDLE()
     if not wtsapi32.WTSQueryUserToken(session_id, ctypes.byref(h_token)):
-        return {"ok": False, "error": f"Failed to get user session token (Win32 error {kernel32.GetLastError()})."}
+        return {
+            "ok": False,
+            "error": f"Failed to get user session token (Win32 error {kernel32.GetLastError()}).",
+        }
 
     lpEnv = ctypes.c_void_p()
     if not userenv.CreateEnvironmentBlock(ctypes.byref(lpEnv), h_token, False):
         kernel32.CloseHandle(h_token)
-        return {"ok": False, "error": f"Failed to create user environment block (Win32 error {kernel32.GetLastError()})."}
+        return {
+            "ok": False,
+            "error": f"Failed to create user environment block (Win32 error {kernel32.GetLastError()}).",
+        }
 
     try:
+
         class STARTUPINFOW(ctypes.Structure):
             _fields_ = [
                 ("cb", wintypes.DWORD),
@@ -518,7 +549,14 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
 
         pi = PROCESS_INFORMATION()
 
-        cmd = [sys.executable, "-m", "app.services.cookie_harvester", "--portal", portal, "--refresh-headful"]
+        cmd = [
+            sys.executable,
+            "-m",
+            "app.services.cookie_harvester",
+            "--portal",
+            portal,
+            "--refresh-headful",
+        ]
         cmd_buf = ctypes.create_unicode_buffer(subprocess.list2cmdline(cmd))
 
         # CREATE_UNICODE_ENVIRONMENT (0x00000400) | CREATE_NO_WINDOW (0x08000000) = 0x08000400
@@ -537,7 +575,10 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
         )
         if not success:
             err = kernel32.GetLastError()
-            return {"ok": False, "error": f"Failed to launch browser inside interactive session (Win32 error {err})."}
+            return {
+                "ok": False,
+                "error": f"Failed to launch browser inside interactive session (Win32 error {err}).",
+            }
 
         # Wait up to 5 minutes (300,000 ms) for the user to finish in the popup window
         kernel32.WaitForSingleObject(pi.hProcess, 300_000)
@@ -556,16 +597,17 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
                     "updated_at": settings.get("datadome_cookie_updated_at"),
                     "cookie_preview": str(cookie)[:6] + "…",
                 }
-        return {"ok": False, "error": "Browser window closed or timed out before saving a fresh cookie."}
+        return {
+            "ok": False,
+            "error": "Browser window closed or timed out before saving a fresh cookie.",
+        }
     finally:
         if lpEnv:
             userenv.DestroyEnvironmentBlock(lpEnv)
         kernel32.CloseHandle(h_token)
 
 
-
-def refresh_into_settings(portal: str = "immobiliare",
-                          headless: bool = True) -> dict:
+def refresh_into_settings(portal: str = "immobiliare", headless: bool = True) -> dict:
     """Harvest a cookie and, on success, persist it (with a timestamp) into
     settings.json so the scrapers pick it up on their next session."""
     if not headless and _is_session_zero_nt():
@@ -574,11 +616,13 @@ def refresh_into_settings(portal: str = "immobiliare",
     result = harvest(portal, headless=headless, timeout_seconds=timeout)
     if not result.cookie:
         return {"ok": False, "error": result.error or "No cookie obtained"}
-    now = datetime.now(timezone.utc)
-    save_settings({
-        "datadome_cookie": result.cookie,
-        "datadome_cookie_updated_at": now.isoformat(),
-    })
+    now = datetime.now(UTC)
+    save_settings(
+        {
+            "datadome_cookie": result.cookie,
+            "datadome_cookie_updated_at": now.isoformat(),
+        }
+    )
     return {
         "ok": True,
         "portal": portal,
@@ -596,7 +640,7 @@ def maybe_auto_refresh(settings: dict) -> bool:
         return False
     ttl = int(settings.get("datadome_cookie_ttl_minutes") or DEFAULT_TTL_MINUTES)
     fresh = settings.get("datadome_cookie") and not cookie_is_stale(
-        settings.get("datadome_cookie_updated_at"), ttl, datetime.now(timezone.utc)
+        settings.get("datadome_cookie_updated_at"), ttl, datetime.now(UTC)
     )
     if fresh:
         return False
@@ -610,9 +654,12 @@ def maybe_auto_refresh(settings: dict) -> bool:
 if __name__ == "__main__":
     import argparse
     import sys
+
     parser = argparse.ArgumentParser(description="Automated DataDome cookie harvesting CLI")
     parser.add_argument("--portal", default="immobiliare", choices=["immobiliare", "idealista"])
-    parser.add_argument("--refresh-headful", action="store_true", help="Run headful refresh_into_settings directly")
+    parser.add_argument(
+        "--refresh-headful", action="store_true", help="Run headful refresh_into_settings directly"
+    )
     args = parser.parse_args()
     if args.refresh_headful:
         res = refresh_into_settings(args.portal, headless=False)
@@ -621,4 +668,3 @@ if __name__ == "__main__":
             sys.exit(1)
         print(f"Successfully harvested and saved cookie for {args.portal}")
         sys.exit(0)
-

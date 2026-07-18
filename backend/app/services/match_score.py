@@ -18,6 +18,7 @@ Design choices worth stating, because unstated they read as bugs:
   against a €350k budget is "almost", not "no". A 2-room flat against a 3-room
   wish scores 2/3, not 0.
 """
+
 import re
 
 from ..models import Property
@@ -73,11 +74,8 @@ def _at_least(value: float | None, minimum: int) -> float:
 def _keyword_fraction(prop: Property, keywords: list[str]) -> float:
     """Fraction of desired features present in the property's text, matched on
     word boundaries and accent-insensitively (reusing the filter engine)."""
-    texts = [prop.title, prop.address, prop.zone,
-             *(l.description for l in prop.listings)]
-    found = sum(
-        1 for kw in keywords if find_excluded_keyword(texts, [kw]) is not None
-    )
+    texts = [prop.title, prop.address, prop.zone, *(l.description for l in prop.listings)]
+    found = sum(1 for kw in keywords if find_excluded_keyword(texts, [kw]) is not None)
     return found / len(keywords)
 
 

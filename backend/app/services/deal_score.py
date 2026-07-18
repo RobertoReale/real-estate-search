@@ -22,6 +22,9 @@ Like the market-position and match annotations it is transient (never persisted)
 and needs the market position computed first (it reads `sqm_price_delta_pct`).
 With no median available the score is None — the badge simply does not appear.
 """
+
+from datetime import UTC
+
 from ..models import Property
 from .filter_engine import find_excluded_keyword
 
@@ -29,14 +32,22 @@ from .filter_engine import find_excluded_keyword
 # own wording. "Needs work" cues justify a low price (the discount is not a
 # deal); "renovated / high class" cues justify a premium.
 CONDITION_NEGATIVE = [
-    "da ristrutturare", "da ristrutturare completamente",
-    "necessita di ristrutturazione", "da rimodernare", "da ammodernare",
+    "da ristrutturare",
+    "da ristrutturare completamente",
+    "necessita di ristrutturazione",
+    "da rimodernare",
+    "da ammodernare",
     "al grezzo",
 ]
 CONDITION_POSITIVE = [
-    "ristrutturato", "ristrutturata", "finemente ristrutturato",
-    "completamente ristrutturato", "nuova costruzione",
-    "di recente costruzione", "classe a", "classe energetica a",
+    "ristrutturato",
+    "ristrutturata",
+    "finemente ristrutturato",
+    "completamente ristrutturato",
+    "nuova costruzione",
+    "di recente costruzione",
+    "classe a",
+    "classe energetica a",
 ]
 NEGATIVE_MODIFIER = -15
 POSITIVE_MODIFIER = 10
@@ -79,9 +90,7 @@ def _round_k(value: float) -> int:
     return int(round(value / 1000.0) * 1000)
 
 
-def _target_range(
-    prop: Property, expected_discount: float | None
-) -> tuple[int | None, int | None]:
+def _target_range(prop: Property, expected_discount: float | None) -> tuple[int | None, int | None]:
     """A suggested offer band, only for sales priced above an estimable value.
 
     The estimate is the lower of the fair value implied by the area median and
@@ -123,9 +132,7 @@ def _score_property(prop: Property, signatures: dict[str, dict]) -> None:
     if expected_discount:
         reasons.append(f"agency typically cuts {expected_discount:.0f}%")
 
-    prop.expected_discount_pct = (
-        round(expected_discount, 1) if expected_discount else None
-    )
+    prop.expected_discount_pct = round(expected_discount, 1) if expected_discount else None
     if base is None:
         # Without a local median there is no fair-value anchor: no score, and
         # the agency headroom alone is not enough to suggest a target.
@@ -139,8 +146,10 @@ def _score_property(prop: Property, signatures: dict[str, dict]) -> None:
     score = round(max(-50.0, min(50.0, base + cond_adj)))
     prop.deal_score = score
     prop.deal_label = (
-        "undervalued" if score >= UNDERVALUED_AT
-        else "overpriced" if score <= OVERPRICED_AT
+        "undervalued"
+        if score >= UNDERVALUED_AT
+        else "overpriced"
+        if score <= OVERPRICED_AT
         else "fair"
     )
     prop.deal_reasons = reasons
@@ -155,19 +164,21 @@ def _agency_signatures(db) -> dict[str, dict]:
     Built over the whole tracked set (not just the page being scored) so the
     per-agency medians rest on all the evidence, and gated by the same
     MIN_SAMPLE rule market_velocity applies."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
     from .market_velocity import compute_agency_behavior
 
-    props = list(db.scalars(
-        select(Property).options(selectinload(Property.listings)).where(
-            Property.status.in_(("active", "filtered", "gone"))
+    props = list(
+        db.scalars(
+            select(Property)
+            .options(selectinload(Property.listings))
+            .where(Property.status.in_(("active", "filtered", "gone")))
         )
-    ))
-    rows = compute_agency_behavior(db, props, datetime.now(timezone.utc))
+    )
+    rows = compute_agency_behavior(db, props, datetime.now(UTC))
     return {r["agency"].casefold(): r for r in rows}
 
 

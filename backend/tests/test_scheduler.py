@@ -8,7 +8,8 @@ interval-triggered scan. `_scan_overdue` is the pure decision behind the
 catch-up: these tests pin down when a startup scan is due. The APScheduler
 wiring itself stays untested, like the rest of the scheduling machinery.
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -46,7 +47,7 @@ def test_never_scanned_profile_is_overdue(db):
 
 
 def test_recent_scan_is_not_overdue(db):
-    db.add(_profile(last_run_at=datetime.now(timezone.utc) - timedelta(minutes=5)))
+    db.add(_profile(last_run_at=datetime.now(UTC) - timedelta(minutes=5)))
     db.commit()
     assert _scan_overdue(db, 60) is False
 
@@ -54,7 +55,7 @@ def test_recent_scan_is_not_overdue(db):
 def test_stale_scan_is_overdue_even_when_sqlite_returns_naive(db):
     # SQLite strips tzinfo: the helper must reattach UTC, not crash on
     # naive-vs-aware comparison (project-wide convention, see developer notes)
-    naive_stale = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=9)
+    naive_stale = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=9)
     db.add(_profile(last_run_at=naive_stale))
     db.commit()
     assert _scan_overdue(db, 480) is True
@@ -71,13 +72,14 @@ def test_newest_scan_wins_across_profiles(db):
     """One stale profile among fresh ones is the normal state right after a
     profile is added: the *newest* run decides, or every new profile would
     look like an outage."""
-    db.add(_profile(name="fresh", last_run_at=datetime.now(timezone.utc)))
+    db.add(_profile(name="fresh", last_run_at=datetime.now(UTC)))
     db.add(_profile(name="stale", last_run_at=None))
     db.commit()
     assert _scan_overdue(db, 60) is False
 
 
 # --- Inbox re-scan schedule decision -----------------------------------------
+
 
 def test_email_import_off_by_default():
     """Opt-in: an unset flag must leave the job disabled — the app must never
@@ -86,26 +88,32 @@ def test_email_import_off_by_default():
 
 
 def test_email_import_enabled_with_interval():
-    assert _email_import_schedule({
-        "email_import_auto_scan": True,
-        "email_import_auto_scan_interval_hours": 12,
-    }) == (True, 12)
+    assert _email_import_schedule(
+        {
+            "email_import_auto_scan": True,
+            "email_import_auto_scan_interval_hours": 12,
+        }
+    ) == (True, 12)
 
 
 def test_email_import_interval_falls_back_when_zero():
     """A hand-edited settings.json with 0 hours falls back to the daily default
     rather than meaning 'every tick'."""
-    assert _email_import_schedule({
-        "email_import_auto_scan": True,
-        "email_import_auto_scan_interval_hours": 0,
-    }) == (True, 24)
+    assert _email_import_schedule(
+        {
+            "email_import_auto_scan": True,
+            "email_import_auto_scan_interval_hours": 0,
+        }
+    ) == (True, 24)
 
 
 def test_email_import_interval_floored_at_one_hour():
     """A negative interval (only reachable by editing settings.json by hand,
     the schema rejects it) is clamped to hourly instead of hammering the
     mailbox — or worse, tripping APScheduler with a non-positive interval."""
-    assert _email_import_schedule({
-        "email_import_auto_scan": True,
-        "email_import_auto_scan_interval_hours": -5,
-    }) == (True, 1)
+    assert _email_import_schedule(
+        {
+            "email_import_auto_scan": True,
+            "email_import_auto_scan_interval_hours": -5,
+        }
+    ) == (True, 1)

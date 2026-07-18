@@ -1,8 +1,9 @@
 """Scan Orchestrator: executes active search profiles, normalizes,
 deduplicates, filters by keywords, and sends Telegram notifications."""
+
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -60,10 +61,18 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     if not _scan_lock.acquire(blocking=False):
         return {"status": "already_running"}
     scan_state["running"] = True
-    scan_state["last_started_at"] = datetime.now(timezone.utc).isoformat()
-    summary = {"new": 0, "updated": 0, "filtered": 0, "price_changes": 0,
-               "gone": 0, "notified": 0, "health_alerts": 0,
-               "blocked_portals": [], "errors": []}
+    scan_state["last_started_at"] = datetime.now(UTC).isoformat()
+    summary = {
+        "new": 0,
+        "updated": 0,
+        "filtered": 0,
+        "price_changes": 0,
+        "gone": 0,
+        "notified": 0,
+        "health_alerts": 0,
+        "blocked_portals": [],
+        "errors": [],
+    }
     try:
         settings = load_settings()
         # opt-in: refresh a stale/missing DataDome cookie in a local browser
@@ -72,6 +81,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         # Best-effort and lazily imported (Playwright is optional); a failure
         # here must never stop the scan, so settings are simply re-read.
         from . import cookie_harvester
+
         if cookie_harvester.maybe_auto_refresh(settings):
             settings = load_settings()
         db = SessionLocal()
@@ -90,7 +100,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
                     # an unhandled exception is a failure like any other:
                     # _scan_profile never got to record it, so record it here
                     # or the health streak would silently reset to zero
-                    profile.last_run_at = datetime.now(timezone.utc)
+                    profile.last_run_at = datetime.now(UTC)
                     profile.last_run_status = "error"
                     profile.last_run_detail = str(e)[:300]
                 _update_profile_health(profile, settings, summary)
@@ -106,9 +116,9 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
             if profile_id is None:
                 if summary["blocked_portals"] or summary["errors"]:
                     logger.info(
-                        "skipping 'gone' marking: %d blocked portal(s), "
-                        "%d error(s) this scan",
-                        len(summary["blocked_portals"]), len(summary["errors"]),
+                        "skipping 'gone' marking: %d blocked portal(s), %d error(s) this scan",
+                        len(summary["blocked_portals"]),
+                        len(summary["errors"]),
                     )
                 else:
                     summary["gone"] = _mark_vanished_properties(db)
@@ -124,7 +134,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         summary["errors"].append(str(e))
     finally:
         scan_state["running"] = False
-        scan_state["last_finished_at"] = datetime.now(timezone.utc).isoformat()
+        scan_state["last_finished_at"] = datetime.now(UTC).isoformat()
         scan_state["last_summary"] = (
             f"{summary['new']} new, {summary['updated']} updated, "
             f"{summary['filtered']} filtered, {summary['price_changes']} price changes"
@@ -136,14 +146,14 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
 def _mark_vanished_properties(db) -> int:
     """Marks "gone" those properties that no scan has seen for GONE_AFTER_DAYS
     days: almost always means sold or withdrawn from the market."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=GONE_AFTER_DAYS)
+    cutoff = datetime.now(UTC) - timedelta(days=GONE_AFTER_DAYS)
     count = 0
     query = select(Property).where(Property.status.in_(("active", "filtered")))
     for prop in db.scalars(query):
         last_seen = prop.last_seen_at
         if last_seen.tzinfo is None:
             # SQLite returns naive datetime: they were saved in UTC
-            last_seen = last_seen.replace(tzinfo=timezone.utc)
+            last_seen = last_seen.replace(tzinfo=UTC)
         if last_seen < cutoff:
             prop.status = "gone"
             # the listing disappeared when it was last seen, not today:
@@ -152,13 +162,11 @@ def _mark_vanished_properties(db) -> int:
             prop.gone_at = last_seen
             count += 1
     if count:
-        logger.info("%d properties not seen for %d days marked as 'gone'",
-                    count, GONE_AFTER_DAYS)
+        logger.info("%d properties not seen for %d days marked as 'gone'", count, GONE_AFTER_DAYS)
     return count
 
 
-def _update_profile_health(profile: SearchProfile, settings: dict,
-                           summary: dict) -> None:
+def _update_profile_health(profile: SearchProfile, settings: dict, summary: dict) -> None:
     """Tracks the failure streak of a profile and alerts when it crosses the
     threshold, then announces the recovery.
 
@@ -175,13 +183,12 @@ def _update_profile_health(profile: SearchProfile, settings: dict,
     # notifications. The streak is still counted, so the dashboard shows it.
     channels = notifier.profile_channels(profile.notify_channels)
     muted = channels is not None and not channels
-    failures = (profile.consecutive_failures or 0)
+    failures = profile.consecutive_failures or 0
 
     if profile.last_run_status in ("blocked", "error"):
         failures += 1
         profile.consecutive_failures = failures
-        if muted or threshold <= 0 or failures < threshold \
-                or profile.health_alert_sent:
+        if muted or threshold <= 0 or failures < threshold or profile.health_alert_sent:
             return
         # the flag means "the user was actually told", so it is set only on a
         # delivered message: when no channel is configured broadcast() returns
@@ -216,14 +223,11 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     scraper.max_pages = int(settings.get("max_pages_per_search", 10))
 
     result = scraper.scrape(profile.search_url)
-    profile.last_run_at = datetime.now(timezone.utc)
+    profile.last_run_at = datetime.now(UTC)
 
     if result.blocked:
         profile.last_run_status = "blocked"
-        profile.last_run_detail = (
-            "Portal temporarily blocked (anti-bot). "
-            "Will retry on next scan."
-        )
+        profile.last_run_detail = "Portal temporarily blocked (anti-bot). Will retry on next scan."
         summary["blocked_portals"].append(profile.portal)
         if not result.listings:
             return
@@ -236,10 +240,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     # profile keywords ADD to global keywords (the UI presents them as "extra"):
     # a profile must never lose base protection just because it added its own
     keywords = list(settings.get("excluded_keywords", []))
-    keywords += [
-        k for k in parse_keywords_csv(profile.excluded_keywords)
-        if k not in keywords
-    ]
+    keywords += [k for k in parse_keywords_csv(profile.excluded_keywords) if k not in keywords]
 
     new_properties: list[Property] = []
     price_drops: list[tuple[Property, float, float]] = []
@@ -307,7 +308,8 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         profile.baseline_done = True
         logger.info(
             "Profile '%s': first scan, %d properties acquired without notifications",
-            profile.name, len(new_properties),
+            profile.name,
+            len(new_properties),
         )
         return
 
@@ -346,8 +348,7 @@ def _dispatch_notifications(
     remaining = len(new_properties) - MAX_NOTIFICATIONS_PER_SCAN
     if remaining > 0:
         notifier.broadcast(
-            f"… and <b>{remaining}</b> more new properties. "
-            "Open the dashboard to see them all.",
+            f"… and <b>{remaining}</b> more new properties. Open the dashboard to see them all.",
             channels,
         )
 
@@ -357,8 +358,7 @@ def _dispatch_notifications(
     remaining = len(price_drops) - MAX_NOTIFICATIONS_PER_SCAN
     if remaining > 0:
         notifier.broadcast(
-            f"… and <b>{remaining}</b> more price changes. "
-            "Open the dashboard to see them all.",
+            f"… and <b>{remaining}</b> more price changes. Open the dashboard to see them all.",
             channels,
         )
 

@@ -1,14 +1,15 @@
 """SQLAlchemy connection to local SQLite database (case.db)."""
+
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-logger = logging.getLogger(__name__)
-
 from .config import DB_PATH
+
+logger = logging.getLogger(__name__)
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 ALEMBIC_DIR = Path(__file__).resolve().parent.parent / "alembic"
@@ -55,8 +56,10 @@ def _apply_additive_migrations() -> set[str]:
             for column in table.columns:
                 if column.name in existing:
                     continue
-                ddl = f'ALTER TABLE {table.name} ADD COLUMN {column.name} ' \
-                      f'{column.type.compile(engine.dialect)}'
+                ddl = (
+                    f"ALTER TABLE {table.name} ADD COLUMN {column.name} "
+                    f"{column.type.compile(engine.dialect)}"
+                )
                 default = getattr(column.default, "arg", None)
                 if isinstance(default, bool):
                     ddl += f" DEFAULT {int(default)}"
@@ -82,11 +85,12 @@ def _apply_additive_migrations() -> set[str]:
                     except TypeError:
                         value = default()
                     if isinstance(value, datetime):
-                        value = value.astimezone(timezone.utc).replace(
-                            tzinfo=None).isoformat(sep=" ")
+                        value = value.astimezone(UTC).replace(tzinfo=None).isoformat(sep=" ")
                     conn.execute(
-                        text(f"UPDATE {table.name} SET {column.name} = :v "
-                             f"WHERE {column.name} IS NULL"),
+                        text(
+                            f"UPDATE {table.name} SET {column.name} = :v "
+                            f"WHERE {column.name} IS NULL"
+                        ),
                         {"v": value},
                     )
                 added.add(f"{table.name}.{column.name}")
@@ -106,13 +110,15 @@ def _backfill_property_source():
     deduplicator.upsert_listing on every startup.
     """
     with engine.begin() as conn:
-        conn.execute(text(
-            "UPDATE properties SET source = 'email' "
-            "WHERE source = 'scan' AND id IN ("
-            "  SELECT property_id FROM imported_listings "
-            "  WHERE status = 'accepted' AND property_id IS NOT NULL"
-            ")"
-        ))
+        conn.execute(
+            text(
+                "UPDATE properties SET source = 'email' "
+                "WHERE source = 'scan' AND id IN ("
+                "  SELECT property_id FROM imported_listings "
+                "  WHERE status = 'accepted' AND property_id IS NOT NULL"
+                ")"
+            )
+        )
 
 
 def _run_migrations():
@@ -137,8 +143,9 @@ def _run_migrations():
     taking startup down with it.
     """
     try:
-        from alembic import command
         from alembic.config import Config
+
+        from alembic import command
     except ImportError:
         logger.warning(
             "alembic not installed: skipping migrations "
@@ -167,6 +174,7 @@ def _run_migrations():
 
 def init_db():
     from . import models  # noqa: F401 - registers models on metadata
+
     Base.metadata.create_all(bind=engine)
     added = _apply_additive_migrations()
     if "properties.source" in added:
@@ -174,5 +182,5 @@ def init_db():
     _run_migrations()
     with SessionLocal() as db:
         from .services.search_validator import deduplicate_search_profiles
-        deduplicate_search_profiles(db)
 
+        deduplicate_search_profiles(db)

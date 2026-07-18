@@ -4,7 +4,8 @@ days-on-market, sell-through per neighborhood, and agency pricing behavior.
 Every date here is built relative to "now" so the suite stays deterministic
 regardless of when it runs.
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,7 +14,9 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Listing, Property
 from app.services.market_velocity import (
-    MIN_SAMPLE, _days_on_market, compute_market_velocity,
+    MIN_SAMPLE,
+    _days_on_market,
+    compute_market_velocity,
 )
 
 
@@ -26,21 +29,37 @@ def db():
     session.close()
 
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 def _days_ago(n: float) -> datetime:
     return NOW - timedelta(days=n)
 
 
-def _prop(db, *, city="Milano", zone="Navigli", contract="sale",
-          status="active", first_seen_days_ago=30.0, gone_days_ago=None,
-          first_price=300_000.0, price=300_000.0, sqm=100.0, agency="",
-          **kwargs) -> Property:
+def _prop(
+    db,
+    *,
+    city="Milano",
+    zone="Navigli",
+    contract="sale",
+    status="active",
+    first_seen_days_ago=30.0,
+    gone_days_ago=None,
+    first_price=300_000.0,
+    price=300_000.0,
+    sqm=100.0,
+    agency="",
+    **kwargs,
+) -> Property:
     prop = Property(
         fingerprint=f"fp-{city}-{zone}-{db.query(Property).count()}",
-        city=city, zone=zone, contract=contract, status=status,
-        first_price=first_price, current_min_price=price, sqm=sqm,
+        city=city,
+        zone=zone,
+        contract=contract,
+        status=status,
+        first_price=first_price,
+        current_min_price=price,
+        sqm=sqm,
         first_seen_at=_days_ago(first_seen_days_ago),
         last_seen_at=_days_ago(gone_days_ago) if gone_days_ago else NOW,
         gone_at=_days_ago(gone_days_ago) if gone_days_ago else None,
@@ -49,24 +68,35 @@ def _prop(db, *, city="Milano", zone="Navigli", contract="sale",
     db.add(prop)
     db.flush()
     if agency:
-        db.add(Listing(property_id=prop.id, portal="immobiliare",
-                       portal_id=str(prop.id), url="http://x", price=price,
-                       agency=agency))
+        db.add(
+            Listing(
+                property_id=prop.id,
+                portal="immobiliare",
+                portal_id=str(prop.id),
+                url="http://x",
+                price=price,
+                agency=agency,
+            )
+        )
     db.flush()
     return prop
 
 
 # --- Days on market ----------------------------------------------------------
 
+
 def test_days_on_market_of_a_gone_property_ends_at_gone_at():
-    prop = Property(first_seen_at=_days_ago(50), last_seen_at=_days_ago(20),
-                    gone_at=_days_ago(20), status="gone")
+    prop = Property(
+        first_seen_at=_days_ago(50),
+        last_seen_at=_days_ago(20),
+        gone_at=_days_ago(20),
+        status="gone",
+    )
     assert _days_on_market(prop, NOW) == pytest.approx(30, abs=0.01)
 
 
 def test_days_on_market_of_a_live_property_runs_until_now():
-    prop = Property(first_seen_at=_days_ago(40), last_seen_at=NOW,
-                    status="active")
+    prop = Property(first_seen_at=_days_ago(40), last_seen_at=NOW, status="active")
     assert _days_on_market(prop, NOW) == pytest.approx(40, abs=0.01)
 
 
@@ -74,8 +104,9 @@ def test_legacy_gone_rows_without_gone_at_fall_back_to_last_seen():
     """`gone_at` was added after the first releases: properties marked gone
     before the migration have it NULL, and dating them "now" would inflate
     every median. last_seen_at is the honest proxy."""
-    prop = Property(first_seen_at=_days_ago(60), last_seen_at=_days_ago(25),
-                    gone_at=None, status="gone")
+    prop = Property(
+        first_seen_at=_days_ago(60), last_seen_at=_days_ago(25), gone_at=None, status="gone"
+    )
     assert _days_on_market(prop, NOW) == pytest.approx(35, abs=0.01)
 
 
@@ -83,24 +114,30 @@ def test_days_on_market_of_a_sold_property_ends_at_sold_at():
     """A user-confirmed sale is a precise, real close date — stronger than the
     inferred "gone" heuristic — so the window ends at sold_at, and sold_at wins
     even if gone_at is also present."""
-    prop = Property(first_seen_at=_days_ago(45), last_seen_at=_days_ago(3),
-                    sold_at=_days_ago(15), gone_at=_days_ago(3), status="sold")
+    prop = Property(
+        first_seen_at=_days_ago(45),
+        last_seen_at=_days_ago(3),
+        sold_at=_days_ago(15),
+        gone_at=_days_ago(3),
+        status="sold",
+    )
     assert _days_on_market(prop, NOW) == pytest.approx(30, abs=0.01)
 
 
 def test_days_on_market_is_never_negative():
-    prop = Property(first_seen_at=_days_ago(5), last_seen_at=_days_ago(10),
-                    gone_at=_days_ago(10), status="gone")
+    prop = Property(
+        first_seen_at=_days_ago(5), last_seen_at=_days_ago(10), gone_at=_days_ago(10), status="gone"
+    )
     assert _days_on_market(prop, NOW) == 0.0
 
 
 # --- Area velocity -----------------------------------------------------------
 
+
 def test_zone_median_days_and_sell_through(db):
     # three sold in 10/20/30 days, three still listed for 40 days
     for days in (10, 20, 30):
-        _prop(db, status="gone", first_seen_days_ago=days + 5,
-              gone_days_ago=5)
+        _prop(db, status="gone", first_seen_days_ago=days + 5, gone_days_ago=5)
     for _ in range(3):
         _prop(db, status="active", first_seen_days_ago=40)
 
@@ -127,8 +164,9 @@ def test_median_days_needs_enough_closed_listings(db):
     for _ in range(4):
         _prop(db, status="active")
 
-    zone = next(r for r in compute_market_velocity(db, contract="sale")["areas"]
-                if r["scope"] == "zone")
+    zone = next(
+        r for r in compute_market_velocity(db, contract="sale")["areas"] if r["scope"] == "zone"
+    )
     assert zone["median_days_to_gone"] is None
     assert zone["sell_through_pct"] == 20.0
 
@@ -146,15 +184,14 @@ def test_city_row_aggregates_its_zones(db):
 
 
 def test_areas_are_sorted_fastest_moving_first(db):
-    for days in (5, 6, 7):        # fast zone
-        _prop(db, zone="Fast", status="gone",
-              first_seen_days_ago=days + 1, gone_days_ago=1)
-    for days in (90, 100, 110):   # slow zone
-        _prop(db, zone="Slow", status="gone",
-              first_seen_days_ago=days + 1, gone_days_ago=1)
+    for days in (5, 6, 7):  # fast zone
+        _prop(db, zone="Fast", status="gone", first_seen_days_ago=days + 1, gone_days_ago=1)
+    for days in (90, 100, 110):  # slow zone
+        _prop(db, zone="Slow", status="gone", first_seen_days_ago=days + 1, gone_days_ago=1)
 
-    zones = [r for r in compute_market_velocity(db, contract="sale")["areas"]
-             if r["scope"] == "zone"]
+    zones = [
+        r for r in compute_market_velocity(db, contract="sale")["areas"] if r["scope"] == "zone"
+    ]
     assert [z["zone"] for z in zones] == ["Fast", "Slow"]
 
 
@@ -182,20 +219,19 @@ def test_hidden_properties_are_excluded_but_filtered_ones_count(db):
 
 
 def test_sold_counts_as_a_confirmed_close(db):
-    """"sold" is the confirmed-sale datapoint "gone" only infers: it joins the
+    """ "sold" is the confirmed-sale datapoint "gone" only infers: it joins the
     closed set (feeding sell-through and days-to-gone) and is also broken out
     on its own so the UI can distinguish a real sale from a mere market exit."""
     # three confirmed sold (10/20/30 days on market), one inferred-gone, two live
     for days in (10, 20, 30):
-        _prop(db, status="sold", first_seen_days_ago=days + 5,
-              sold_at=_days_ago(5))
+        _prop(db, status="sold", first_seen_days_ago=days + 5, sold_at=_days_ago(5))
     _prop(db, status="gone", first_seen_days_ago=35, gone_days_ago=5)
     for _ in range(2):
         _prop(db, status="active", first_seen_days_ago=40)
 
     result = compute_market_velocity(db, contract="sale")
     assert result["sold_properties"] == 3
-    assert result["closed_properties"] == 4          # 3 sold + 1 gone
+    assert result["closed_properties"] == 4  # 3 sold + 1 gone
     zone = next(r for r in result["areas"] if r["scope"] == "zone")
     assert zone["closed"] == 4 and zone["sold"] == 3
     # 4 of 6 left the market; the confirmed-sold subset alone medians at 20 days
@@ -215,6 +251,7 @@ def test_city_filter_narrows_the_sample(db):
 
 
 # --- Agency behavior ---------------------------------------------------------
+
 
 def test_agency_price_drop_share_and_median_discount(db):
     # three listings, two of which dropped 10% and 20%
@@ -241,17 +278,14 @@ def test_agency_median_discount_needs_min_sample_of_drops(db):
 
 
 def test_agency_overpricing_measured_against_the_local_median(db):
-    """"Which agencies list overpriced" = median €/sqm delta vs the zone
+    """ "Which agencies list overpriced" = median €/sqm delta vs the zone
     median. Cheap sets the baseline; Pricey must come out above it."""
     for _ in range(3):
-        _prop(db, agency="Cheap", price=200_000.0, first_price=200_000.0,
-              sqm=100.0)                       # 2,000 €/sqm
+        _prop(db, agency="Cheap", price=200_000.0, first_price=200_000.0, sqm=100.0)  # 2,000 €/sqm
     for _ in range(3):
-        _prop(db, agency="Pricey", price=300_000.0, first_price=300_000.0,
-              sqm=100.0)                       # 3,000 €/sqm
+        _prop(db, agency="Pricey", price=300_000.0, first_price=300_000.0, sqm=100.0)  # 3,000 €/sqm
 
-    agencies = {a["agency"]: a for a in
-                compute_market_velocity(db, contract="sale")["agencies"]}
+    agencies = {a["agency"]: a for a in compute_market_velocity(db, contract="sale")["agencies"]}
     # zone median is 2,500 €/sqm: -20% vs +20%
     assert agencies["Cheap"]["median_sqm_price_delta_pct"] == pytest.approx(-20, abs=0.1)
     assert agencies["Pricey"]["median_sqm_price_delta_pct"] == pytest.approx(20, abs=0.1)
@@ -268,8 +302,16 @@ def test_a_property_merged_across_portals_counts_once_per_agency(db):
     for the price it published, but only once — otherwise an agency that
     cross-posts inflates its own sample."""
     prop = _prop(db, agency="Acme")
-    db.add(Listing(property_id=prop.id, portal="idealista", portal_id="dup",
-                   url="http://y", price=300_000.0, agency="Acme"))
+    db.add(
+        Listing(
+            property_id=prop.id,
+            portal="idealista",
+            portal_id="dup",
+            url="http://y",
+            price=300_000.0,
+            agency="Acme",
+        )
+    )
     for _ in range(MIN_SAMPLE - 1):
         _prop(db, agency="Acme")
     db.flush()

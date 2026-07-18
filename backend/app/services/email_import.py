@@ -25,13 +25,14 @@ patterns the portals cannot change without breaking their own links
 (/annunci/<id>, /immobile/<id>), including their percent-encoded forms inside
 click-tracking redirects.
 """
+
 import email
 import imaplib
 import logging
 import re
 import threading
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from email.header import decode_header, make_header
 from email.message import Message
 from email.utils import parseaddr, parsedate_to_datetime
@@ -44,8 +45,15 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..database import SessionLocal
 from ..models import ImportedListing, Listing, Property, SearchProfile
-from ..scrapers.base import MAX_CARD_CLIMB, AdProbe, RawListing, \
-    detect_contract, parse_price, parse_rooms, parse_sqm
+from ..scrapers.base import (
+    MAX_CARD_CLIMB,
+    AdProbe,
+    RawListing,
+    detect_contract,
+    parse_price,
+    parse_rooms,
+    parse_sqm,
+)
 from .deduplicator import upsert_listing
 from .filter_engine import parse_keywords_csv
 
@@ -59,12 +67,8 @@ class ImapError(Exception):
 # Ad URL patterns in both raw and percent-encoded form: alert emails wrap
 # every link in a click-tracking redirect that embeds the target URL encoded.
 PORTAL_AD_RES: dict[str, re.Pattern] = {
-    "immobiliare": re.compile(
-        r"immobiliare\.it(?:/|%2F)annunci(?:/|%2F)(\d+)", re.IGNORECASE
-    ),
-    "idealista": re.compile(
-        r"idealista\.it(?:/|%2F)immobile(?:/|%2F)(\d+)", re.IGNORECASE
-    ),
+    "immobiliare": re.compile(r"immobiliare\.it(?:/|%2F)annunci(?:/|%2F)(\d+)", re.IGNORECASE),
+    "idealista": re.compile(r"idealista\.it(?:/|%2F)immobile(?:/|%2F)(\d+)", re.IGNORECASE),
 }
 CANONICAL_URL = {
     "immobiliare": "https://www.immobiliare.it/annunci/{id}/",
@@ -83,11 +87,25 @@ RENT_HINT_RE = re.compile(r"affitt|locazion|\brent", re.IGNORECASE)
 # deliberate: it must match what the portals actually write, exactly like
 # DEFAULT_EXCLUDED_KEYWORDS.
 _NON_TITLES = {
-    "vedi l'annuncio", "vedi annuncio", "vai all'annuncio", "guarda l'annuncio",
-    "scopri di piu", "scopri di più", "vedi di piu", "vedi di più",
-    "clicca qui", "leggi tutto", "visualizza", "apri", "dettagli",
-    "vedi tutti gli annunci", "vedi altri annunci",
-    "view listing", "see more", "more details", "click here",
+    "vedi l'annuncio",
+    "vedi annuncio",
+    "vai all'annuncio",
+    "guarda l'annuncio",
+    "scopri di piu",
+    "scopri di più",
+    "vedi di piu",
+    "vedi di più",
+    "clicca qui",
+    "leggi tutto",
+    "visualizza",
+    "apri",
+    "dettagli",
+    "vedi tutti gli annunci",
+    "vedi altri annunci",
+    "view listing",
+    "see more",
+    "more details",
+    "click here",
 }
 _URLISH_RE = re.compile(r"^(?:https?://|www\.)\S*$", re.IGNORECASE)
 
@@ -100,14 +118,28 @@ def _clean_title(text: str) -> str:
     if title.casefold().strip(" .!:>›»→") in _NON_TITLES:
         return ""
     # Strip common agency and email alert boilerplate
-    title = re.sub(r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*", "", title, flags=re.I)
-    title = re.sub(r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*", "", title, flags=re.I)
+    title = re.sub(
+        r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*",
+        "",
+        title,
+        flags=re.I,
+    )
+    title = re.sub(
+        r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*",
+        "",
+        title,
+        flags=re.I,
+    )
     title = re.sub(r"\s*\|\s*(?:Immobiliare\.it|Idealista|Casa\.it).*$", "", title, flags=re.I)
     title = " ".join(title.split()).strip(" :-")
-    if not title or title.casefold() in ("residenziale in vendita a milano, milano", "in vendita a milano, milano", "vendita a milano, milano", "residenziale in vendita a milano"):
+    if not title or title.casefold() in (
+        "residenziale in vendita a milano, milano",
+        "in vendita a milano, milano",
+        "vendita a milano, milano",
+        "residenziale in vendita a milano",
+    ):
         return ""
     return title[:200]
-
 
 
 def _has_details(entry: dict) -> bool:
@@ -119,14 +151,12 @@ def _has_details(entry: dict) -> bool:
     judge — and the ad behind it is often long gone, which is precisely the
     thing this panel cannot check without visiting the portal.
     """
-    return bool(entry["title"]) or any(
-        entry[f] is not None for f in ("price", "sqm", "rooms")
-    )
+    return bool(entry["title"]) or any(entry[f] is not None for f in ("price", "sqm", "rooms"))
+
 
 # IMAP dates must use English month abbreviations regardless of the OS
 # locale, so strftime("%b") is not an option.
-_IMAP_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_IMAP_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _imap_date(d: date) -> str:
@@ -164,8 +194,7 @@ def test_connection() -> dict:
         status, data = client.select("INBOX", readonly=True)
         if status != "OK":
             raise ImapError("Connected, but could not open INBOX")
-        return {"ok": True,
-                "detail": f"Connected — INBOX holds {int(data[0] or 0)} messages"}
+        return {"ok": True, "detail": f"Connected — INBOX holds {int(data[0] or 0)} messages"}
     finally:
         _logout(client)
 
@@ -178,13 +207,12 @@ def _search_criteria(mode: str, senders: str, since_days: int) -> str:
         # in they break out of the quoted IMAP string and abort the search
         addresses = [
             s.strip().replace('"', "").replace("\\", "")
-            for s in (senders or "").split(",") if s.strip()
+            for s in (senders or "").split(",")
+            if s.strip()
         ]
         addresses = [a for a in addresses if a]
         if not addresses:
-            raise ImapError(
-                "Searching by sender needs at least one email address or domain"
-            )
+            raise ImapError("Searching by sender needs at least one email address or domain")
         terms = [f'FROM "{a}"' for a in addresses]
     else:  # "any": every message that mentions the portals anywhere
         terms = [f'TEXT "{d}"' for d in ("immobiliare.it", "idealista.it")]
@@ -197,6 +225,7 @@ def _search_criteria(mode: str, senders: str, since_days: int) -> str:
 
 
 # --- Message parsing ---------------------------------------------------------
+
 
 def _part_text(part: Message) -> str:
     payload = part.get_payload(decode=True)
@@ -240,11 +269,30 @@ def _extract_image_from_container(container, anchor) -> str:
         if not src or not src.lower().startswith(("http://", "https://")):
             continue
         src_lower = src.lower()
-        if any(bad in src_lower for bad in (
-            "logo", "pixel", "tracking", "tracker", "spacer", "1x1", "blank",
-            "facebook", "twitter", "instagram", "linkedin", "apple", "google",
-            "playstore", "appstore", "icon", "arrow", "social", "badge"
-        )):
+        if any(
+            bad in src_lower
+            for bad in (
+                "logo",
+                "pixel",
+                "tracking",
+                "tracker",
+                "spacer",
+                "1x1",
+                "blank",
+                "facebook",
+                "twitter",
+                "instagram",
+                "linkedin",
+                "apple",
+                "google",
+                "playstore",
+                "appstore",
+                "icon",
+                "arrow",
+                "social",
+                "badge",
+            )
+        ):
             continue
         width = img.get("width", "")
         height = img.get("height", "")
@@ -307,14 +355,18 @@ def _extract_from_html(html_text: str, contract: str, found: dict) -> None:
             img = anchor.find("img", alt=True)
             title = _clean_title(str(img["alt"])) if img else ""
         image_url = _extract_image_from_container(container, anchor)
-        _merge_entry(found, {
-            "portal": portal, "portal_id": portal_id,
-            "title": title,
-            "price": parse_price(text, contract),
-            "sqm": parse_sqm(text),
-            "rooms": parse_rooms(text),
-            "image_url": image_url,
-        })
+        _merge_entry(
+            found,
+            {
+                "portal": portal,
+                "portal_id": portal_id,
+                "title": title,
+                "price": parse_price(text, contract),
+                "sqm": parse_sqm(text),
+                "rooms": parse_rooms(text),
+                "image_url": image_url,
+            },
+        )
 
 
 def _extract_from_plain(text: str, contract: str, found: dict) -> None:
@@ -324,14 +376,18 @@ def _extract_from_plain(text: str, contract: str, found: dict) -> None:
             if not hit:
                 continue
             portal, portal_id = hit
-            window = text[max(0, m.start() - 250):m.end() + 250]
-            _merge_entry(found, {
-                "portal": portal, "portal_id": portal_id,
-                "title": "",
-                "price": parse_price(window, contract),
-                "sqm": parse_sqm(window),
-                "rooms": parse_rooms(window),
-            })
+            window = text[max(0, m.start() - 250) : m.end() + 250]
+            _merge_entry(
+                found,
+                {
+                    "portal": portal,
+                    "portal_id": portal_id,
+                    "title": "",
+                    "price": parse_price(window, contract),
+                    "sqm": parse_sqm(window),
+                    "rooms": parse_rooms(window),
+                },
+            )
 
 
 def extract_listings(raw_message: bytes) -> tuple[list[dict], dict]:
@@ -347,9 +403,7 @@ def extract_listings(raw_message: bytes) -> tuple[list[dict], dict]:
     htmls, plains = _message_bodies(msg)
     # the contract is guessed from the email text — portal ad URLs do not
     # encode it (unlike search URLs). The user reviews it before accepting.
-    contract = "rent" if RENT_HINT_RE.search(
-        " ".join([subject, *plains]) or subject
-    ) else "sale"
+    contract = "rent" if RENT_HINT_RE.search(" ".join([subject, *plains]) or subject) else "sale"
 
     found: dict = {}
     for html_text in htmls:
@@ -357,8 +411,7 @@ def extract_listings(raw_message: bytes) -> tuple[list[dict], dict]:
     if not found:  # plain-only mails (or html without recognisable links)
         for plain in plains:
             _extract_from_plain(plain, contract, found)
-    meta = {"from": sender, "subject": subject[:300],
-            "date": email_date, "contract": contract}
+    meta = {"from": sender, "subject": subject[:300], "date": email_date, "contract": contract}
     return list(found.values()), meta
 
 
@@ -372,7 +425,10 @@ def extract_listings(raw_message: bytes) -> tuple[list[dict], dict]:
 # field is written by the worker thread and read by the poller, and CPython
 # makes those individual assignments atomic.
 _progress: dict = {
-    "active": False, "phase": "idle", "emails_done": 0, "emails_total": 0,
+    "active": False,
+    "phase": "idle",
+    "emails_done": 0,
+    "emails_total": 0,
     "staged": 0,
 }
 
@@ -399,12 +455,14 @@ def _purge_blank_pending(db: Session) -> int:
     re-scan idempotent. Deleting a blank is safe because extraction no longer
     stages one, so it cannot come back.
     """
-    blanks = db.scalars(select(ImportedListing).where(
-        ImportedListing.status == "pending",
-        ImportedListing.price.is_(None),
-        ImportedListing.sqm.is_(None),
-        ImportedListing.rooms.is_(None),
-    )).all()
+    blanks = db.scalars(
+        select(ImportedListing).where(
+            ImportedListing.status == "pending",
+            ImportedListing.price.is_(None),
+            ImportedListing.sqm.is_(None),
+            ImportedListing.rooms.is_(None),
+        )
+    ).all()
     removed = 0
     for row in blanks:
         if _clean_title(row.title or ""):
@@ -419,22 +477,25 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
     if not _has_details(entry):
         summary["blank_links"] += 1
         return
-    existing_listing = db.scalar(select(Listing).where(
-        Listing.portal == portal, Listing.portal_id == portal_id
-    ))
+    existing_listing = db.scalar(
+        select(Listing).where(Listing.portal == portal, Listing.portal_id == portal_id)
+    )
     if existing_listing:
         summary["already_tracked"] += 1
         if not existing_listing.image_url and entry.get("image_url"):
             existing_listing.image_url = entry["image_url"]
             from ..models import Property as _Property
+
             prop = db.get(_Property, existing_listing.property_id)
             if prop and not prop.image_url:
                 prop.image_url = entry["image_url"]
         return
-    staged = db.scalar(select(ImportedListing).where(
-        ImportedListing.portal == portal,
-        ImportedListing.portal_id == portal_id,
-    ))
+    staged = db.scalar(
+        select(ImportedListing).where(
+            ImportedListing.portal == portal,
+            ImportedListing.portal_id == portal_id,
+        )
+    )
     if staged:
         # keep the row (whatever its status: a discarded ad must not come
         # back), but fill fields a richer email may provide
@@ -445,30 +506,33 @@ def _store_entry(db: Session, entry: dict, meta: dict, summary: dict) -> None:
             staged.image_url = entry["image_url"]
             if getattr(staged, "property_id", None):
                 from ..models import Property as _Property
+
                 prop = db.get(_Property, staged.property_id)
                 if prop and not prop.image_url:
                     prop.image_url = entry["image_url"]
-                for l in (prop.listings if prop else []):
+                for l in prop.listings if prop else []:
                     if not l.image_url:
                         l.image_url = entry["image_url"]
         for f in ("price", "sqm", "rooms"):
             if getattr(staged, f) is None and entry[f] is not None:
                 setattr(staged, f, entry[f])
         return
-    db.add(ImportedListing(
-        portal=portal,
-        portal_id=portal_id,
-        url=CANONICAL_URL[portal].format(id=portal_id),
-        title=entry["title"],
-        price=entry["price"],
-        rooms=entry["rooms"],
-        sqm=entry["sqm"],
-        image_url=entry.get("image_url", ""),
-        contract=meta["contract"],
-        email_from=meta["from"],
-        email_subject=meta["subject"],
-        email_date=meta["date"],
-    ))
+    db.add(
+        ImportedListing(
+            portal=portal,
+            portal_id=portal_id,
+            url=CANONICAL_URL[portal].format(id=portal_id),
+            title=entry["title"],
+            price=entry["price"],
+            rooms=entry["rooms"],
+            sqm=entry["sqm"],
+            image_url=entry.get("image_url", ""),
+            contract=meta["contract"],
+            email_from=meta["from"],
+            email_subject=meta["subject"],
+            email_date=meta["date"],
+        )
+    )
     db.flush()
     summary["imported"] += 1
 
@@ -490,12 +554,16 @@ def scan_inbox(
     if not _scan_run_lock.acquire(blocking=False):
         raise ImapError("An inbox scan is already running: wait for it to finish")
     summary = {
-        "emails_scanned": 0, "emails_with_listings": 0, "listings_found": 0,
-        "imported": 0, "already_tracked": 0, "already_imported": 0,
-        "blank_links": 0, "blank_removed": 0,
+        "emails_scanned": 0,
+        "emails_with_listings": 0,
+        "listings_found": 0,
+        "imported": 0,
+        "already_tracked": 0,
+        "already_imported": 0,
+        "blank_links": 0,
+        "blank_removed": 0,
     }
-    _progress.update(active=True, phase="connecting", emails_done=0,
-                     emails_total=0, staged=0)
+    _progress.update(active=True, phase="connecting", emails_done=0, emails_total=0, staged=0)
     owns_client = client is None
     try:
         # inside the try: a refused login must still clear the progress flag,
@@ -507,9 +575,7 @@ def scan_inbox(
             raise ImapError("Could not open INBOX")
         _progress.update(phase="searching")
         try:
-            status, data = client.search(
-                None, _search_criteria(mode, senders, since_days)
-            )
+            status, data = client.search(None, _search_criteria(mode, senders, since_days))
         except imaplib.IMAP4.error as e:
             raise ImapError(f"IMAP search failed: {e}") from e
         if status != "OK":
@@ -576,16 +642,17 @@ def auto_scan_job() -> None:
     settings = load_settings()
     if not settings.get("email_import_auto_scan"):
         return
-    if not (settings.get("imap_host") and settings.get("imap_user")
-            and settings.get("imap_password")):
-        logger.info(
-            "email-import auto-scan enabled but IMAP is not configured; skipping"
-        )
+    if not (
+        settings.get("imap_host") and settings.get("imap_user") and settings.get("imap_password")
+    ):
+        logger.info("email-import auto-scan enabled but IMAP is not configured; skipping")
         return
     db = SessionLocal()
     try:
         summary = scan_inbox(
-            db, mode=AUTO_SCAN_MODE, since_days=AUTO_SCAN_SINCE_DAYS,
+            db,
+            mode=AUTO_SCAN_MODE,
+            since_days=AUTO_SCAN_SINCE_DAYS,
             max_emails=AUTO_SCAN_MAX_EMAILS,
         )
         logger.info("email-import auto-scan: %s", summary)
@@ -616,6 +683,7 @@ def request_check_cancel() -> None:
     """Signals a running email-import availability check to stop after its
     current listing. A no-op when nothing is running."""
     _check_cancel_event.set()
+
 
 # Serialized for a harsher reason than the scan: two concurrent batches double
 # the request rate to the portals, and the pacing, the block-streak abort and
@@ -660,6 +728,7 @@ def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> b
     if not settings.get("datadome_auto_refresh"):
         return False
     from . import cookie_harvester
+
     if not cookie_harvester.is_available():
         return False
     logger.info("email-import: portal blocking; grabbing a fresh DataDome cookie")
@@ -680,7 +749,9 @@ def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> b
     return True
 
 
-def check_availability(db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0) -> dict:
+def check_availability(
+    db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0
+) -> dict:
     """Asks each portal whether these ads still exist, one at a time.
 
     This is the only place the import touches the portals, and only because
@@ -694,9 +765,7 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
     IP it would get blocked on is the same one the scheduled scans depend on.
     """
     if not _check_run_lock.acquire(blocking=False):
-        raise ImapError(
-            "An availability check is already running: wait for it to finish"
-        )
+        raise ImapError("An availability check is already running: wait for it to finish")
     _check_cancel_event.clear()
     try:
         return _check_availability_inner(db, items, skip_recent_hours)
@@ -704,38 +773,50 @@ def check_availability(db: Session, items: list[ImportedListing], skip_recent_ho
         _check_run_lock.release()
 
 
-def _check_availability_inner(db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0) -> dict:
+def _check_availability_inner(
+    db: Session, items: list[ImportedListing], skip_recent_hours: float = 6.0
+) -> dict:
     settings = load_settings()
     configured = float(settings.get("request_delay_seconds") or 6.0)
     # the slowest portal in the batch sets the pace for all of it
-    delay = max([configured] + [
-        MIN_PROBE_DELAY.get(item.portal, 0.0) for item in items
-    ])
+    delay = max([configured] + [MIN_PROBE_DELAY.get(item.portal, 0.0) for item in items])
     probe = AdProbe(delay_seconds=delay)
     # attribute, not constructor kwarg: tests swap AdProbe for fakes whose
     # __init__ only takes delay_seconds
     probe._cancel_event = _check_cancel_event
-    summary = {"checked": 0, "gone": 0, "online": 0, "unknown": 0,
-               "aborted": False, "capped": False, "cancelled": False,
-               "last_error": None, "cookie_refreshed": 0}
-    _check_progress.update(active=True, done=0, total=len(items), gone=0,
-                           online=0, unknown=0, last_error=None)
+    summary = {
+        "checked": 0,
+        "gone": 0,
+        "online": 0,
+        "unknown": 0,
+        "aborted": False,
+        "capped": False,
+        "cancelled": False,
+        "last_error": None,
+        "cookie_refreshed": 0,
+    }
+    _check_progress.update(
+        active=True, done=0, total=len(items), gone=0, online=0, unknown=0, last_error=None
+    )
     try:
         # Browser-first: open one persistent headless browser up front and run
         # the whole batch through it, so curl_cffi never earns a 403 on the
         # residential IP. Opt-in and best-effort — if Playwright is missing or
         # the flag is off, start_browser_session returns False and the batch
         # proceeds on curl_cffi exactly as before (invariant 16 unchanged).
-        if settings.get("availability_browser_first") and hasattr(
-                probe, "start_browser_session"):
+        if settings.get("availability_browser_first") and hasattr(probe, "start_browser_session"):
             if probe.start_browser_session():
                 probe._browser_primary = True
-                logger.info("email-import: availability check running "
-                            "browser-first (curl_cffi bypassed)")
+                logger.info(
+                    "email-import: availability check running browser-first (curl_cffi bypassed)"
+                )
             else:
-                logger.info("email-import: browser-first requested but the "
-                            "browser is unavailable; using curl_cffi")
+                logger.info(
+                    "email-import: browser-first requested but the "
+                    "browser is unavailable; using curl_cffi"
+                )
         from .availability_check import _is_recently_checked
+
         # How long the dashboard's "active" status stays trustworthy as proof
         # that the ad is still online without probing. A scan re-confirms a
         # live property every cycle, so within a couple of cycles "active" is
@@ -751,8 +832,10 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
         for index, item in enumerate(items):
             if _check_cancel_event.is_set():
                 summary["cancelled"] = True
-                logger.info("email-import: availability check cancelled by "
-                            "user after %d listings", summary["checked"])
+                logger.info(
+                    "email-import: availability check cancelled by user after %d listings",
+                    summary["checked"],
+                )
                 break
             if probes_used >= MAX_CHECKS_PER_CALL:
                 # The cap bounds portal fetches, not selection size: rows
@@ -760,8 +843,11 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                 # free, so re-running the batch resumes past them instead of
                 # re-spending the budget on the same first fifty ids.
                 summary["capped"] = True
-                logger.info("email-import: probe budget (%d) spent, stopping "
-                            "after %d listings", MAX_CHECKS_PER_CALL, index)
+                logger.info(
+                    "email-import: probe budget (%d) spent, stopping after %d listings",
+                    MAX_CHECKS_PER_CALL,
+                    index,
+                )
                 break
             # If the dashboard already tracks this listing, resolve it from
             # the database — but only in the safe direction, and only while the
@@ -776,24 +862,29 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
             # (also true when a profile was deleted/narrowed, or scans blocked).
             db_listing = db.execute(
                 select(Listing).where(
-                    Listing.portal == item.portal,
-                    Listing.portal_id == item.portal_id
+                    Listing.portal == item.portal, Listing.portal_id == item.portal_id
                 )
             ).scalar_one_or_none()
             prop = db_listing.property if db_listing else None
-            if (prop is not None and prop.status in ("active", "filtered",
-                                                     "hidden")
-                    and _is_recently_checked(prop.last_seen_at, db_trust_hours)):
+            if (
+                prop is not None
+                and prop.status in ("active", "filtered", "hidden")
+                and _is_recently_checked(prop.last_seen_at, db_trust_hours)
+            ):
                 item.is_available = True
-                item.last_checked_at = datetime.now(timezone.utc)
+                item.last_checked_at = datetime.now(UTC)
                 summary["online"] += 1
                 summary["checked"] += 1
                 db.commit()
                 _check_progress.update(done=index + 1, gone=summary["gone"])
                 continue
 
-            if (skip_recent_hours > 0 and len(items) > 1 and item.is_available is not None
-                    and _is_recently_checked(item.last_checked_at, skip_recent_hours)):
+            if (
+                skip_recent_hours > 0
+                and len(items) > 1
+                and item.is_available is not None
+                and _is_recently_checked(item.last_checked_at, skip_recent_hours)
+            ):
                 summary["gone" if item.is_available is False else "online"] += 1
                 summary["checked"] += 1
                 _check_progress.update(done=index + 1, gone=summary["gone"])
@@ -801,7 +892,7 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
 
             probes_used += 1
             available = probe.check(item.url)
-            item.last_checked_at = datetime.now(timezone.utc)
+            item.last_checked_at = datetime.now(UTC)
             if available is None:
                 summary["unknown"] += 1
                 if getattr(probe, "last_error", None):
@@ -813,7 +904,9 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                     # Enrich missing image_url or title from live ad page
                     soup = probe.last_soup
                     if not getattr(item, "image_url", ""):
-                        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "twitter:image"})
+                        og_img = soup.find("meta", property="og:image") or soup.find(
+                            "meta", attrs={"name": "twitter:image"}
+                        )
                         if og_img and og_img.get("content"):
                             item.image_url = str(og_img["content"]).strip()[:500]
                     if not item.title:
@@ -824,10 +917,13 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
             # each answer cost seconds of polite pacing: commit it now, so a
             # crash halfway through the batch does not throw the rest away
             db.commit()
-            _check_progress.update(done=index + 1, gone=summary["gone"],
-                                   online=summary["online"],
-                                   unknown=summary["unknown"],
-                                   last_error=summary["last_error"])
+            _check_progress.update(
+                done=index + 1,
+                gone=summary["gone"],
+                online=summary["online"],
+                unknown=summary["unknown"],
+                last_error=summary["last_error"],
+            )
 
             block_streak = block_streak + 1 if probe.was_blocked else 0
             if block_streak >= BLOCK_STREAK_ABORT:
@@ -839,19 +935,24 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                     # relaunches a browser, TLS rotation sleeps 12s, and check()
                     # never touches curl in this mode). Stop now.
                     logger.warning(
-                        "email-import: browser session also blocked, stopping "
-                        "after %s listings", summary["checked"],
+                        "email-import: browser session also blocked, stopping after %s listings",
+                        summary["checked"],
                     )
                     summary["aborted"] = True
                     break
-                if (refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK
-                        and _try_cookie_recovery(
-                            probe, item.portal, settings, summary)):
+                if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK and _try_cookie_recovery(
+                    probe, item.portal, settings, summary
+                ):
                     refreshes_used += 1
                     block_streak = 0
                     continue
-                if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2 and len(getattr(probe, "impersonations", [])) > 1:
-                    logger.info("email-import: portal rate limit / block streak reached, sleeping 12s and rotating session")
+                if (
+                    refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2
+                    and len(getattr(probe, "impersonations", [])) > 1
+                ):
+                    logger.info(
+                        "email-import: portal rate limit / block streak reached, sleeping 12s and rotating session"
+                    )
                     time.sleep(12.0)
                     probe._imp_index = (probe._imp_index + 1) % len(probe.impersonations)
                     if hasattr(probe, "_new_session"):
@@ -861,22 +962,27 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
                     refreshes_used += 1
                     block_streak = 0
                     continue
-                if (hasattr(probe, "start_browser_session")
-                        and not getattr(probe, "_browser_primary", False)
-                        and probe.start_browser_session()):
+                if (
+                    hasattr(probe, "start_browser_session")
+                    and not getattr(probe, "_browser_primary", False)
+                    and probe.start_browser_session()
+                ):
                     # Last resort, opt-in (invariant 18): switch the *rest of
                     # the batch* to the persistent browser instead of hammering
                     # a TLS session the portal already refused. Sticky, not
                     # per-ad: leaving curl_cffi as primary would re-earn a 403
                     # on every remaining listing before falling back here.
                     probe._browser_primary = True
-                    logger.info("email-import: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session")
+                    logger.info(
+                        "email-import: curl_cffi blocked repeatedly, switching the rest of the batch to the persistent browser session"
+                    )
                     time.sleep(6.0)
                     block_streak = 0
                     continue
                 logger.warning(
                     "email-import: portal blocking the availability check, "
-                    "stopping after %s listings", summary["checked"],
+                    "stopping after %s listings",
+                    summary["checked"],
                 )
                 summary["aborted"] = True
                 break
@@ -892,6 +998,7 @@ def _check_availability_inner(db: Session, items: list[ImportedListing], skip_re
 
 
 # --- Review actions ----------------------------------------------------------
+
 
 def accept_import(db: Session, item: ImportedListing) -> Property:
     """Turns a staged listing into a real Property/Listing via the standard

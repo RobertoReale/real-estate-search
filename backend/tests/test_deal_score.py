@@ -5,7 +5,6 @@ later tweak to the weights trips a specific expectation. Scoring is pure over
 transient attributes, so most tests need no DB — the last one exercises the
 agency-signature lookup, which does.
 """
-from datetime import timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,25 +12,41 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Listing, Property
-from app.services import deal_score
 from app.services.deal_score import (
-    _score_property, _target_range, annotate_deal_scores,
+    _score_property,
+    _target_range,
+    annotate_deal_scores,
 )
 from app.services.notifier import _deal_line
 
 
-def _prop(delta=None, scope="zone", descriptions=None, agency="",
-          contract="sale", price=300_000, sqm=100.0,
-          area_median=None) -> Property:
-    p = Property(fingerprint="f", title="", city="milano", zone="isola",
-                 contract=contract, current_min_price=price, sqm=sqm,
-                 status="active")
+def _prop(
+    delta=None,
+    scope="zone",
+    descriptions=None,
+    agency="",
+    contract="sale",
+    price=300_000,
+    sqm=100.0,
+    area_median=None,
+) -> Property:
+    p = Property(
+        fingerprint="f",
+        title="",
+        city="milano",
+        zone="isola",
+        contract=contract,
+        current_min_price=price,
+        sqm=sqm,
+        status="active",
+    )
     p.sqm_price_delta_pct = delta
     p.area_median_scope = scope
     p.area_median_sqm_price = area_median
-    p.listings = [Listing(portal="immobiliare", portal_id=str(i), url="u",
-                          agency=agency, description=d)
-                  for i, d in enumerate(descriptions or [""])]
+    p.listings = [
+        Listing(portal="immobiliare", portal_id=str(i), url="u", agency=agency, description=d)
+        for i, d in enumerate(descriptions or [""])
+    ]
     return p
 
 
@@ -72,7 +87,7 @@ def test_renovated_lifts_a_fairly_priced_listing():
 
 
 def test_condition_cues_respect_word_boundaries():
-    """"da ristrutturare" must not fire on "ristrutturato": they are opposite
+    """ "da ristrutturare" must not fire on "ristrutturato": they are opposite
     signals. The filter engine's boundary matching keeps them apart."""
     p = _score(delta=0, descriptions=["Casa ristrutturata di recente"])
     # only the positive cue counts
@@ -122,6 +137,7 @@ def test_rent_has_no_proposal_target():
 
 # --- notifier integration ----------------------------------------------------
 
+
 def test_deal_line_only_fires_for_undervalued():
     under = _score(delta=-16)
     assert "Below market" in _deal_line(under)
@@ -137,6 +153,7 @@ def test_deal_line_only_fires_for_undervalued():
 
 # --- agency signature lookup (needs a DB) ------------------------------------
 
+
 @pytest.fixture
 def db():
     engine = create_engine("sqlite://")
@@ -151,11 +168,19 @@ def test_annotate_pulls_the_agency_expected_discount(db):
     discount is known and feeds both a reason line and the proposal target —
     while the score itself stays driven by the €/sqm position."""
     for i in range(3):
-        p = Property(fingerprint=f"f{i}", city="milano", zone="isola",
-                     contract="sale", first_price=340_000,
-                     current_min_price=300_000, sqm=100.0, status="active")
-        p.listings = [Listing(portal="immobiliare", portal_id=str(i), url="u",
-                              agency="Studio Rossi")]
+        p = Property(
+            fingerprint=f"f{i}",
+            city="milano",
+            zone="isola",
+            contract="sale",
+            first_price=340_000,
+            current_min_price=300_000,
+            sqm=100.0,
+            status="active",
+        )
+        p.listings = [
+            Listing(portal="immobiliare", portal_id=str(i), url="u", agency="Studio Rossi")
+        ]
         db.add(p)
     db.commit()
 

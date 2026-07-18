@@ -5,6 +5,7 @@ only be answered by opening app.log by hand — this exists so the dashboard
 can show the same file. The endpoint is called directly (see test_features.py):
 spinning up TestClient would also start the real scheduler via the app lifespan.
 """
+
 from app import main as app_main
 
 

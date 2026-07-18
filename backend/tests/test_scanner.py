@@ -1,7 +1,8 @@
 """Scanner test: notification suppression on first scan, send capping,
 structured floor ("T") subjected to keyword filter, additive profile keywords,
 "gone" marking, and protection of hidden properties."""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -10,8 +11,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Property, SearchProfile
-from app.services import scanner
 from app.scrapers.base import RawListing, ScrapeResult
+from app.services import scanner
 
 
 def _prop(**kwargs) -> Property:
@@ -21,8 +22,7 @@ def _prop(**kwargs) -> Property:
 
 
 def _raw(**kwargs) -> RawListing:
-    base: dict[str, Any] = dict(
-        portal="immobiliare", portal_id="1", url="u", title="Trilocale")
+    base: dict[str, Any] = dict(portal="immobiliare", portal_id="1", url="u", title="Trilocale")
     base.update(kwargs)
     return RawListing(**base)
 
@@ -46,13 +46,15 @@ def test_normal_floor_does_not_generate_misleading_text():
 
 def test_limited_notifications_and_final_summary(monkeypatch):
     sent, summaries = [], []
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: sent.append(p) or True)
-    monkeypatch.setattr(scanner.notifier, "notify_price_drop",
-                        lambda p, o, n, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda text, channels=None, subject=None:
-                        summaries.append(text) or True)
+    monkeypatch.setattr(
+        scanner.notifier, "notify_new_property", lambda p, channels=None: sent.append(p) or True
+    )
+    monkeypatch.setattr(scanner.notifier, "notify_price_drop", lambda p, o, n, channels=None: True)
+    monkeypatch.setattr(
+        scanner.notifier,
+        "broadcast",
+        lambda text, channels=None, subject=None: summaries.append(text) or True,
+    )
 
     props = [_prop(title=f"Casa {i}") for i in range(40)]
     scanner._dispatch_notifications(props, [])
@@ -64,11 +66,12 @@ def test_limited_notifications_and_final_summary(monkeypatch):
 
 def test_no_summary_if_below_cap(monkeypatch):
     summaries = []
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda text, channels=None, subject=None:
-                        summaries.append(text) or True)
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(
+        scanner.notifier,
+        "broadcast",
+        lambda text, channels=None, subject=None: summaries.append(text) or True,
+    )
 
     scanner._dispatch_notifications([_prop(), _prop()], [])
     assert summaries == []
@@ -78,13 +81,17 @@ def test_price_drop_overflow_gets_its_own_summary(monkeypatch):
     """Regression: the "… and N more" overflow message existed only for new
     properties — price drops beyond the cap were dropped without a trace."""
     dropped, summaries = [], []
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "notify_price_drop",
-                        lambda p, o, n, channels=None: dropped.append(p) or True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda text, channels=None, subject=None:
-                        summaries.append(text) or True)
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(
+        scanner.notifier,
+        "notify_price_drop",
+        lambda p, o, n, channels=None: dropped.append(p) or True,
+    )
+    monkeypatch.setattr(
+        scanner.notifier,
+        "broadcast",
+        lambda text, channels=None, subject=None: summaries.append(text) or True,
+    )
 
     drops = [(_prop(title=f"Casa {i}"), 300_000.0, 280_000.0) for i in range(20)]
     scanner._dispatch_notifications([], drops)
@@ -99,22 +106,23 @@ def test_reactivated_properties_are_notified(monkeypatch):
     keyword no longer applies) was flipped back to active in silence — a
     returned listing is exactly as actionable as a new one."""
     reactivated = []
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "notify_property_reactivated",
-                        lambda p, previous, channels=None:
-                        reactivated.append((p.title, previous)) or True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda text, channels=None, subject=None: True)
-
-    sent = scanner._dispatch_notifications(
-        [], [], [(_prop(title="Tornato"), "gone")]
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(
+        scanner.notifier,
+        "notify_property_reactivated",
+        lambda p, previous, channels=None: reactivated.append((p.title, previous)) or True,
     )
+    monkeypatch.setattr(
+        scanner.notifier, "broadcast", lambda text, channels=None, subject=None: True
+    )
+
+    sent = scanner._dispatch_notifications([], [], [(_prop(title="Tornato"), "gone")])
     assert sent == 1
     assert reactivated == [("Tornato", "gone")]
 
 
 # --- first scan: acquires without notifying --------------------------------
+
 
 @pytest.fixture
 def db():
@@ -127,6 +135,7 @@ def db():
 
 class _FakeScraper:
     """Returns two listings without touching the network."""
+
     def __init__(self):
         self.delay_seconds = 0
         self.max_pages = 1
@@ -134,14 +143,28 @@ class _FakeScraper:
     def scrape(self, url):
         result = ScrapeResult(pages_fetched=1, strategy_used="fake")
         result.listings = [
-            RawListing(portal="immobiliare", portal_id="1",
-                       url="https://www.immobiliare.it/annunci/1/",
-                       title="Trilocale", city="Milano", rooms=3, sqm=90.0,
-                       price=300_000.0, address="Via Roma, 1"),
-            RawListing(portal="immobiliare", portal_id="2",
-                       url="https://www.immobiliare.it/annunci/2/",
-                       title="Bilocale", city="Milano", rooms=2, sqm=60.0,
-                       price=200_000.0, address="Via Roma, 2"),
+            RawListing(
+                portal="immobiliare",
+                portal_id="1",
+                url="https://www.immobiliare.it/annunci/1/",
+                title="Trilocale",
+                city="Milano",
+                rooms=3,
+                sqm=90.0,
+                price=300_000.0,
+                address="Via Roma, 1",
+            ),
+            RawListing(
+                portal="immobiliare",
+                portal_id="2",
+                url="https://www.immobiliare.it/annunci/2/",
+                title="Bilocale",
+                city="Milano",
+                rooms=2,
+                sqm=60.0,
+                price=200_000.0,
+                address="Via Roma, 2",
+            ),
         ]
         return result
 
@@ -149,12 +172,20 @@ class _FakeScraper:
 def _run_profile(db, monkeypatch, profile) -> tuple[list, dict]:
     notified = []
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _FakeScraper())
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: notified.append(p) or True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda t, channels=None, subject=None: True)
-    summary = {"new": 0, "updated": 0, "filtered": 0, "price_changes": 0,
-               "gone": 0, "notified": 0, "blocked_portals": [], "errors": []}
+    monkeypatch.setattr(
+        scanner.notifier, "notify_new_property", lambda p, channels=None: notified.append(p) or True
+    )
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    summary = {
+        "new": 0,
+        "updated": 0,
+        "filtered": 0,
+        "price_changes": 0,
+        "gone": 0,
+        "notified": 0,
+        "blocked_portals": [],
+        "errors": [],
+    }
     scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
     db.commit()
     return notified, summary
@@ -184,8 +215,11 @@ def test_blocked_first_attempt_does_not_consume_baseline(db, monkeypatch):
     property as if each were newly discovered. `baseline_done` must be the
     only thing that gates the silence, independent of `last_run_at`."""
     profile = SearchProfile(
-        name="Test", portal="immobiliare", search_url="u",
-        last_run_at=datetime.now(timezone.utc), last_run_status="blocked",
+        name="Test",
+        portal="immobiliare",
+        search_url="u",
+        last_run_at=datetime.now(UTC),
+        last_run_status="blocked",
         baseline_done=False,
     )
     db.add(profile)
@@ -201,8 +235,9 @@ def test_blocked_first_attempt_does_not_consume_baseline(db, monkeypatch):
 def test_profile_keywords_add_to_global(db, monkeypatch):
     """Regression: profile keywords previously replaced global keywords, but
     UI presents them as "extra"."""
-    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u",
-                            excluded_keywords="giardino")
+    profile = SearchProfile(
+        name="Test", portal="immobiliare", search_url="u", excluded_keywords="giardino"
+    )
 
     class _KwScraper(_FakeScraper):
         def scrape(self, url):
@@ -214,12 +249,18 @@ def test_profile_keywords_add_to_global(db, monkeypatch):
     db.add(profile)
     db.commit()
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _KwScraper())
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda t, channels=None, subject=None: True)
-    summary = {"new": 0, "updated": 0, "filtered": 0, "price_changes": 0,
-               "gone": 0, "notified": 0, "blocked_portals": [], "errors": []}
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    summary = {
+        "new": 0,
+        "updated": 0,
+        "filtered": 0,
+        "price_changes": 0,
+        "gone": 0,
+        "notified": 0,
+        "blocked_portals": [],
+        "errors": [],
+    }
     scanner._scan_profile(db, profile, {"excluded_keywords": ["asta"]}, summary)
     db.commit()
 
@@ -228,7 +269,7 @@ def test_profile_keywords_add_to_global(db, monkeypatch):
 
 
 def test_properties_not_seen_for_days_become_gone(db):
-    old = datetime.now(timezone.utc) - timedelta(days=scanner.GONE_AFTER_DAYS + 1)
+    old = datetime.now(UTC) - timedelta(days=scanner.GONE_AFTER_DAYS + 1)
     p_old = _prop(title="Sparito", fingerprint="a")
     p_new = _prop(title="Recente", fingerprint="b")
     db.add_all([p_old, p_new])
@@ -245,7 +286,7 @@ def test_properties_not_seen_for_days_become_gone(db):
 
 
 def test_hidden_property_is_not_reactivated(db, monkeypatch):
-    """"Hide property" must resist subsequent scans: hidden status
+    """ "Hide property" must resist subsequent scans: hidden status
     never returns to active on its own (unlike filtered/gone)."""
     profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
     db.add(profile)
@@ -263,7 +304,7 @@ def test_hidden_property_is_not_reactivated(db, monkeypatch):
 
 
 def test_sold_property_is_not_reactivated(db, monkeypatch):
-    """"Mark as sold" is a user choice a scan never reverts (like "hidden",
+    """ "Mark as sold" is a user choice a scan never reverts (like "hidden",
     invariant 5): a "VENDUTO" re-post often stays online for weeks, so the scan
     keeps re-finding it — it must stay sold and silent, not bounce back to
     active and notify as if new."""
@@ -284,20 +325,21 @@ def test_sold_property_is_not_reactivated(db, monkeypatch):
 
 # --- scraper health alerting -----------------------------------------------
 
+
 @pytest.fixture
 def health(monkeypatch):
     """Captures health alerts instead of sending them. `delivered` simulates
     a channel that accepts (True) or drops (False) the message."""
     calls = {"failure": [], "recovery": [], "delivered": True}
     monkeypatch.setattr(
-        scanner.notifier, "notify_scraper_failure",
-        lambda p, failures, channels=None:
-            calls["failure"].append(failures) or calls["delivered"],
+        scanner.notifier,
+        "notify_scraper_failure",
+        lambda p, failures, channels=None: calls["failure"].append(failures) or calls["delivered"],
     )
     monkeypatch.setattr(
-        scanner.notifier, "notify_scraper_recovered",
-        lambda p, failures, channels=None:
-            calls["recovery"].append(failures) or True,
+        scanner.notifier,
+        "notify_scraper_recovered",
+        lambda p, failures, channels=None: calls["recovery"].append(failures) or True,
     )
     return calls
 
@@ -306,9 +348,7 @@ def _health_scan(db, profile, status, threshold=3) -> dict:
     """One scan outcome pushed through the health tracker."""
     profile.last_run_status = status
     summary = {"health_alerts": 0}
-    scanner._update_profile_health(
-        profile, {"health_alert_after_failures": threshold}, summary
-    )
+    scanner._update_profile_health(profile, {"health_alert_after_failures": threshold}, summary)
     db.commit()
     return summary
 
@@ -393,6 +433,7 @@ def test_crashed_profile_counts_as_a_failure(db, profile, health, monkeypatch):
     """A profile whose scrape raises never reaches the code that records
     `last_run_status`: without an explicit write here the streak would reset
     to zero on every crash and the alert would never fire."""
+
     class _Boom:
         delay_seconds = 0
         max_pages = 1
@@ -402,9 +443,11 @@ def test_crashed_profile_counts_as_a_failure(db, profile, health, monkeypatch):
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _Boom())
     monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
-    monkeypatch.setattr(scanner, "load_settings",
-                        lambda: {"excluded_keywords": [],
-                                 "health_alert_after_failures": 2})
+    monkeypatch.setattr(
+        scanner,
+        "load_settings",
+        lambda: {"excluded_keywords": [], "health_alert_after_failures": 2},
+    )
 
     scanner.run_scan()
     assert profile.consecutive_failures == 1
@@ -418,6 +461,7 @@ def test_crashed_profile_counts_as_a_failure(db, profile, health, monkeypatch):
 
 class _BlockedScraper:
     """Simulates DataDome refusing the very first request."""
+
     delay_seconds = 0
     max_pages = 1
 
@@ -438,7 +482,7 @@ def test_blocked_full_scan_does_not_mark_gone(db, profile, monkeypatch):
     stale = _prop(title="Ancora online", fingerprint="a")
     db.add(stale)
     db.commit()
-    stale.last_seen_at = datetime.now(timezone.utc) - timedelta(days=21)
+    stale.last_seen_at = datetime.now(UTC) - timedelta(days=21)
     db.commit()
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _BlockedScraper())
@@ -459,16 +503,14 @@ def test_clean_full_scan_still_marks_gone(db, profile, monkeypatch):
     stale = _prop(title="Sparito davvero", fingerprint="zzz")
     db.add(stale)
     db.commit()
-    stale.last_seen_at = datetime.now(timezone.utc) - timedelta(days=21)
+    stale.last_seen_at = datetime.now(UTC) - timedelta(days=21)
     db.commit()
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _FakeScraper())
     monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
     monkeypatch.setattr(scanner, "load_settings", lambda: {"excluded_keywords": []})
-    monkeypatch.setattr(scanner.notifier, "notify_new_property",
-                        lambda p, channels=None: True)
-    monkeypatch.setattr(scanner.notifier, "broadcast",
-                        lambda t, channels=None, subject=None: True)
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
 
     result = scanner.run_scan()
 
@@ -481,6 +523,7 @@ def test_paused_skips_automatic_scan_but_manual_runs(db, profile, monkeypatch):
     the residential IP), but a user-triggered "Scan now" is explicit intent and
     must run anyway. A scraper that raises when called proves the automatic run
     never reached it."""
+
     class _MustNotScrape:
         delay_seconds = 0
         max_pages = 1
@@ -490,8 +533,9 @@ def test_paused_skips_automatic_scan_but_manual_runs(db, profile, monkeypatch):
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _MustNotScrape())
     monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
-    monkeypatch.setattr(scanner, "load_settings",
-                        lambda: {"excluded_keywords": [], "scanning_paused": True})
+    monkeypatch.setattr(
+        scanner, "load_settings", lambda: {"excluded_keywords": [], "scanning_paused": True}
+    )
 
     assert scanner.run_scan()["status"] == "paused"
 
@@ -507,9 +551,13 @@ def test_a_muted_search_scans_but_never_notifies(db, monkeypatch):
     never pings. The empty string cannot say this (it means "all channels"),
     so the mute rides on its own sentinel. The control is the test below: same
     scan, same two brand-new properties, two notifications."""
-    muted = SearchProfile(name="Muted", portal="immobiliare", search_url="u",
-                          baseline_done=True,
-                          notify_channels=scanner.notifier.MUTED)
+    muted = SearchProfile(
+        name="Muted",
+        portal="immobiliare",
+        search_url="u",
+        baseline_done=True,
+        notify_channels=scanner.notifier.MUTED,
+    )
     db.add(muted)
     db.commit()
 
@@ -518,14 +566,13 @@ def test_a_muted_search_scans_but_never_notifies(db, monkeypatch):
     assert summary["new"] == 2
     assert summary["notified"] == 0
     assert notified == []
-    assert db.query(Property).count() == 2   # scanned all the same
+    assert db.query(Property).count() == 2  # scanned all the same
 
 
 def test_the_same_scan_notifies_when_the_search_is_not_muted(db, monkeypatch):
     """Control for the mute above: with the default channels (empty = all), the
     identical scan on an identical profile sends both notifications."""
-    profile = SearchProfile(name="Loud", portal="immobiliare", search_url="u",
-                            baseline_done=True)
+    profile = SearchProfile(name="Loud", portal="immobiliare", search_url="u", baseline_done=True)
     db.add(profile)
     db.commit()
 
@@ -536,17 +583,26 @@ def test_the_same_scan_notifies_when_the_search_is_not_muted(db, monkeypatch):
 
 
 def test_a_muted_search_keeps_its_health_alert_to_itself(db, monkeypatch):
-    """"No notifications" includes the scraper-health alert: the streak is still
+    """ "No notifications" includes the scraper-health alert: the streak is still
     counted (the dashboard shows it), it is just never announced."""
     alerts = []
-    monkeypatch.setattr(scanner.notifier, "notify_scraper_failure",
-                        lambda p, n, channels=None: alerts.append(p) or True)
-    profile = SearchProfile(name="Muted", portal="immobiliare", search_url="u",
-                            notify_channels=scanner.notifier.MUTED,
-                            last_run_status="blocked", consecutive_failures=2)
+    monkeypatch.setattr(
+        scanner.notifier,
+        "notify_scraper_failure",
+        lambda p, n, channels=None: alerts.append(p) or True,
+    )
+    profile = SearchProfile(
+        name="Muted",
+        portal="immobiliare",
+        search_url="u",
+        notify_channels=scanner.notifier.MUTED,
+        last_run_status="blocked",
+        consecutive_failures=2,
+    )
 
     scanner._update_profile_health(
-        profile, {"health_alert_after_failures": 3}, {"health_alerts": 0})
+        profile, {"health_alert_after_failures": 3}, {"health_alerts": 0}
+    )
 
     assert alerts == []
     assert profile.consecutive_failures == 3
@@ -558,7 +614,7 @@ def test_second_scan_notifies_only_new(db, monkeypatch):
     db.add(profile)
     db.commit()
 
-    _run_profile(db, monkeypatch, profile)          # first pass: baseline
+    _run_profile(db, monkeypatch, profile)  # first pass: baseline
     notified, summary = _run_profile(db, monkeypatch, profile)  # same listings
 
     assert summary["new"] == 0

@@ -7,6 +7,8 @@ Each covers a concrete usability gap: an inbox flooded with imports the user
 cannot tell apart from monitored finds, cannot search by zone, and cannot prune
 in bulk. Endpoint functions are called directly (like test_features) so the app
 lifespan — and the real scheduler — never starts."""
+
+from datetime import UTC
 from typing import Any
 
 import pytest
@@ -28,9 +30,16 @@ def list_properties(*, db, **kw):
     under a request; called directly they leak Query objects into the SQL, so
     tests target the shared `_select_properties` helper instead."""
     params: dict[str, Any] = dict(
-        status="active", contract=None, city=None, min_price=None,
-        max_price=None, min_sqm=None, rooms=None, only_price_drops=False,
-        only_favorites=False, sort="newest",
+        status="active",
+        contract=None,
+        city=None,
+        min_price=None,
+        max_price=None,
+        min_sqm=None,
+        rooms=None,
+        only_price_drops=False,
+        only_favorites=False,
+        sort="newest",
     )
     params.update(kw)
     return _select_properties(db, **params)
@@ -47,17 +56,25 @@ def db():
 
 def _raw(**kwargs) -> RawListing:
     base: dict[str, Any] = dict(
-        portal="immobiliare", portal_id="111",
+        portal="immobiliare",
+        portal_id="111",
         url="https://www.immobiliare.it/annunci/111/",
-        title="Trilocale via Roma", city="Milano", zone="Navigli",
-        rooms=3, sqm=90.0, price=300_000.0,
-        latitude=45.4642, longitude=9.19, address="Via Roma, 12",
+        title="Trilocale via Roma",
+        city="Milano",
+        zone="Navigli",
+        rooms=3,
+        sqm=90.0,
+        price=300_000.0,
+        latitude=45.4642,
+        longitude=9.19,
+        address="Via Roma, 12",
     )
     base.update(kwargs)
     return RawListing(**base)
 
 
 # --- Origin tracking (source) ----------------------------------------------
+
 
 def test_scan_creates_scan_origin_property(db):
     prop, is_new, _ = upsert_listing(db, _raw())
@@ -71,7 +88,7 @@ def test_email_accept_creates_email_origin_property(db):
 
 
 def test_email_origin_upgraded_to_scan_when_a_scan_refinds_it(db):
-    """"email" must mean "only ever seen via the inbox": the moment a monitored
+    """ "email" must mean "only ever seen via the inbox": the moment a monitored
     search covers the same ad, it is a legitimate scan result and the bulk
     "prune all email imports" gesture must no longer catch it."""
     prop, _, _ = upsert_listing(db, _raw(), source="email")
@@ -89,10 +106,15 @@ def test_email_import_into_scan_property_never_downgrades(db):
     prop, _, _ = upsert_listing(db, _raw())
     assert prop.source == "scan"
     # a different portal ad of the same physical house, imported from email
-    same, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        url="https://www.idealista.it/immobile/999/",
-    ), source="email")
+    same, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+        ),
+        source="email",
+    )
     assert is_new is False
     assert same.id == prop.id
     assert same.source == "scan"
@@ -100,14 +122,23 @@ def test_email_import_into_scan_property_never_downgrades(db):
 
 # --- Filters: q / zone / source --------------------------------------------
 
+
 def _seed_mixed(db):
     scan = upsert_listing(db, _raw(portal_id="1"))[0]
-    email = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        title="Nuova costruzione San Siro", zone="San Siro",
-        address="Via Novara, 5", latitude=45.48, longitude=9.12,
-    ), source="email")[0]
+    email = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            title="Nuova costruzione San Siro",
+            zone="San Siro",
+            address="Via Novara, 5",
+            latitude=45.48,
+            longitude=9.12,
+        ),
+        source="email",
+    )[0]
     db.commit()
     return scan, email
 
@@ -151,12 +182,19 @@ def test_q_terms_are_anded_across_fields(db):
     holds the whole phrase."""
     hit = upsert_listing(db, _raw(portal_id="1", title="Attico ristrutturato", zone="Navigli"))[0]
     # same zone but a different type: the "attico" term must exclude it
-    miss = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        title="Bilocale economico", zone="Navigli",
-        latitude=45.99, longitude=9.99, address="Via Altra, 9",
-    ))[0]
+    miss = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            title="Bilocale economico",
+            zone="Navigli",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )[0]
     db.commit()
     out = [p.id for p in list_properties(db=db, q="attico navigli")]
     assert out == [hit.id]
@@ -167,11 +205,18 @@ def test_q_matches_floor(db):
     """The floor is a field a user types ("piano terra"): searching it must
     work, so a listing on the ground floor surfaces without scrolling."""
     ground = upsert_listing(db, _raw(portal_id="1", floor="piano terra"))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        floor="3", latitude=45.99, longitude=9.99, address="Via Altra, 9",
-    ))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            floor="3",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, q="piano terra")] == [ground.id]
 
@@ -181,34 +226,54 @@ def test_q_floor_term_does_not_match_as_substring(db):
     needs word-boundary matching, not substring (same class of bug invariant 4
     forbids for keywords: "asta" must not match inside "Castanese")."""
     first = upsert_listing(db, _raw(portal_id="1", floor="1"))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        floor="17", latitude=45.99, longitude=9.99, address="Via Altra, 9",
-    ))
-    upsert_listing(db, _raw(
-        portal="immobiliare", portal_id="3",
-        url="https://www.immobiliare.it/annunci/3/",
-        floor="21", latitude=45.50, longitude=9.50, address="Via Terza, 9",
-    ))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            floor="17",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )
+    upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="3",
+            url="https://www.immobiliare.it/annunci/3/",
+            floor="21",
+            latitude=45.50,
+            longitude=9.50,
+            address="Via Terza, 9",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, q="1")] == [first.id]
 
 
 def test_q_floor_phrase_does_not_leak_into_other_fields(db):
-    """"1 piano"/"piano 1" is an Italian floor query: pairing a digit with
+    """ "1 piano"/"piano 1" is an Italian floor query: pairing a digit with
     "piano" must filter on the floor field alone. Treating "1" and "piano" as
     two independent AND terms (each matchable in any field) let a floor-17
     listing through: "1" matched a street number in the address and "piano"
     matched the listing description, even though the floor itself was 17."""
     ground = upsert_listing(db, _raw(portal_id="1", floor="1"))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        floor="17", address="Viale Fulvio Testi 110",
-        description="Ultimo piano, vista panoramica",
-        latitude=45.99, longitude=9.99,
-    ))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            floor="17",
+            address="Viale Fulvio Testi 110",
+            description="Ultimo piano, vista panoramica",
+            latitude=45.99,
+            longitude=9.99,
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, q="1 piano")] == [ground.id]
     assert [p.id for p in list_properties(db=db, q="piano 1")] == [ground.id]
@@ -221,13 +286,19 @@ def test_q_floor_phrase_accepts_english_floor_word(db):
     twin above documents). Reported by a user: "4 piano" worked, "floor 4"
     silently returned nothing."""
     fourth = upsert_listing(db, _raw(portal_id="1", floor="4"))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        floor="17", address="Viale Fulvio Testi 4",
-        description="Quarto piano ristrutturato",
-        latitude=45.99, longitude=9.99,
-    ))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            floor="17",
+            address="Viale Fulvio Testi 4",
+            description="Quarto piano ristrutturato",
+            latitude=45.99,
+            longitude=9.99,
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, q="floor 4")] == [fourth.id]
     assert [p.id for p in list_properties(db=db, q="4 floor")] == [fourth.id]
@@ -240,23 +311,55 @@ def test_floor_band_filter_reads_the_free_text_label(db):
     number is present; an unreadable/empty floor matches no band and drops out
     (it cannot be shown to satisfy the filter)."""
     ground = upsert_listing(db, _raw(portal_id="1", floor="piano terra"))[0]
-    second = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        floor="2", latitude=45.99, longitude=9.99, address="Via Altra, 9"))[0]
-    seventh = upsert_listing(db, _raw(
-        portal="immobiliare", portal_id="3",
-        url="https://www.immobiliare.it/annunci/3/",
-        floor="7", latitude=45.50, longitude=9.50, address="Via Terza, 9"))[0]
-    attic = upsert_listing(db, _raw(
-        portal="immobiliare", portal_id="4",
-        url="https://www.immobiliare.it/annunci/4/",
-        floor="Attico", latitude=45.10, longitude=9.10, address="Via Quarta, 9"))[0]
+    second = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            floor="2",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )[0]
+    seventh = upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="3",
+            url="https://www.immobiliare.it/annunci/3/",
+            floor="7",
+            latitude=45.50,
+            longitude=9.50,
+            address="Via Terza, 9",
+        ),
+    )[0]
+    attic = upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="4",
+            url="https://www.immobiliare.it/annunci/4/",
+            floor="Attico",
+            latitude=45.10,
+            longitude=9.10,
+            address="Via Quarta, 9",
+        ),
+    )[0]
     # unreadable floor: excluded from every band
-    upsert_listing(db, _raw(
-        portal="immobiliare", portal_id="5",
-        url="https://www.immobiliare.it/annunci/5/",
-        floor="", latitude=45.20, longitude=9.20, address="Via Quinta, 9"))
+    upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="5",
+            url="https://www.immobiliare.it/annunci/5/",
+            floor="",
+            latitude=45.20,
+            longitude=9.20,
+            address="Via Quinta, 9",
+        ),
+    )
     db.commit()
 
     assert [p.id for p in list_properties(db=db, floor_band="ground")] == [ground.id]
@@ -269,10 +372,18 @@ def test_max_sqm_filter_caps_the_surface(db):
     """Min sqm alone can't express "small flats only"; Max sqm is its symmetric
     twin (a bare number in the DB, so a plain SQL bound)."""
     small = upsert_listing(db, _raw(portal_id="1", sqm=55.0))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        sqm=140.0, latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            sqm=140.0,
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, max_sqm=80.0)] == [small.id]
 
@@ -281,10 +392,17 @@ def test_portal_filter_keeps_cards_present_on_that_portal(db):
     """A card can group ads from several portals; the Portal filter keeps the
     ones with at least one ad on the chosen portal (not "all of its ads there")."""
     imm = upsert_listing(db, _raw(portal_id="1"))[0]
-    ideal = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        latitude=45.99, longitude=9.99, address="Via Altra, 9"))[0]
+    ideal = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )[0]
     db.commit()
     assert [p.id for p in list_properties(db=db, portal="idealista")] == [ideal.id]
     assert [p.id for p in list_properties(db=db, portal="immobiliare")] == [imm.id]
@@ -294,28 +412,43 @@ def test_agency_filter_matches_a_substring(db):
     """Agency is stored on the listing; the filter is a case-insensitive
     substring so "tecnocasa" finds "Tecnocasa Milano Sud"."""
     match = upsert_listing(db, _raw(portal_id="1", agency="Tecnocasa Milano Sud"))[0]
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/", agency="Gabetti",
-        latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            agency="Gabetti",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, agency="tecnocasa")] == [match.id]
 
 
 def test_merged_only_keeps_multi_ad_cards(db):
-    """"Merged only" surfaces the cards the deduplicator folded from more than
+    """ "Merged only" surfaces the cards the deduplicator folded from more than
     one ad (the same home across portals/agencies)."""
     # same location/price/rooms/surface → the two ads merge into one card
     first = upsert_listing(db, _raw(portal="immobiliare", portal_id="1"))[0]
-    merged = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/"))[0]
+    merged = upsert_listing(
+        db, _raw(portal="idealista", portal_id="2", url="https://www.idealista.it/immobile/2/")
+    )[0]
     assert first.id == merged.id  # precondition: they actually merged
     # a lone ad elsewhere: single-listing, must be excluded
-    upsert_listing(db, _raw(
-        portal="immobiliare", portal_id="3",
-        url="https://www.immobiliare.it/annunci/3/",
-        latitude=45.10, longitude=9.10, address="Via Lontana, 1"))
+    upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="3",
+            url="https://www.immobiliare.it/annunci/3/",
+            latitude=45.10,
+            longitude=9.10,
+            address="Via Lontana, 1",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, merged_only=True)] == [merged.id]
 
@@ -324,11 +457,19 @@ def test_sqm_price_band_filters_on_derived_price_per_sqm(db):
     """€/sqm is price ÷ surface, computed on the fly; a card missing either
     can't be placed on that axis and drops out of the band."""
     cheap = upsert_listing(db, _raw(portal_id="1", price=100_000.0, sqm=100.0))[0]  # 1000 €/sqm
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        price=450_000.0, sqm=90.0,  # 5000 €/sqm
-        latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            price=450_000.0,
+            sqm=90.0,  # 5000 €/sqm
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+    )
     db.commit()
     assert [p.id for p in list_properties(db=db, max_sqm_price=2000.0)] == [cheap.id]
 
@@ -344,19 +485,28 @@ def test_deal_filter_excludes_unscored_cards(db):
 
 # --- Filter by a monitored search (profile overlay) ------------------------
 
+
 def test_profile_overlay_applies_contract_city_and_keywords(db):
     """Selecting a monitored search filters the whole grid — including email
     imports, which never passed through the scan's keyword filter — by that
     profile's contract, city and exclusion keywords."""
     clean = upsert_listing(db, _raw(portal_id="1", title="Trilocale luminoso"))[0]
-    auction = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2",
-        url="https://www.idealista.it/immobile/2/",
-        title="Trilocale in asta", latitude=45.99, longitude=9.99,
-        address="Via Altra, 9",
-    ), source="email")[0]
+    auction = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            url="https://www.idealista.it/immobile/2/",
+            title="Trilocale in asta",
+            latitude=45.99,
+            longitude=9.99,
+            address="Via Altra, 9",
+        ),
+        source="email",
+    )[0]
     profile = SearchProfile(
-        name="Milano vendita", portal="immobiliare",
+        name="Milano vendita",
+        portal="immobiliare",
         search_url="https://www.immobiliare.it/vendita-case/milano/",
         excluded_keywords="asta",
     )
@@ -371,10 +521,10 @@ def test_profile_overlay_applies_contract_city_and_keywords(db):
 
 # --- Bulk endpoint ----------------------------------------------------------
 
+
 def test_bulk_hide_and_restore(db):
     scan, email = _seed_mixed(db)
-    res = bulk_properties(
-        schemas.PropertyBulkIn(ids=[scan.id, email.id], action="hide"), db)
+    res = bulk_properties(schemas.PropertyBulkIn(ids=[scan.id, email.id], action="hide"), db)
     assert res["processed"] == 2
     db.refresh(scan)
     db.refresh(email)
@@ -394,10 +544,11 @@ def test_restore_clears_gone_at(db):
     case, so it must clear `gone_at` too instead of leaving a stale date that
     would corrupt days-on-market stats if the property goes "gone" again
     later (the availability check only sets `gone_at` `if ... is None`)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     scan, _ = _seed_mixed(db)
     scan.status = "gone"
-    scan.gone_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    scan.gone_at = datetime(2020, 1, 1, tzinfo=UTC)
     db.commit()
 
     restore_property(scan.id, db)
@@ -408,8 +559,7 @@ def test_restore_clears_gone_at(db):
 
 def test_bulk_favorite(db):
     scan, email = _seed_mixed(db)
-    bulk_properties(
-        schemas.PropertyBulkIn(ids=[scan.id, email.id], action="favorite"), db)
+    bulk_properties(schemas.PropertyBulkIn(ids=[scan.id, email.id], action="favorite"), db)
     db.refresh(scan)
     assert scan.is_favorite is True
     assert len(list_properties(db=db, only_favorites=True)) == 2
@@ -417,6 +567,5 @@ def test_bulk_favorite(db):
 
 def test_bulk_skips_missing_ids(db):
     scan, _ = _seed_mixed(db)
-    res = bulk_properties(
-        schemas.PropertyBulkIn(ids=[scan.id, 999999], action="hide"), db)
+    res = bulk_properties(schemas.PropertyBulkIn(ids=[scan.id, 999999], action="hide"), db)
     assert res["processed"] == 1

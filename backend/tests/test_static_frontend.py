@@ -6,6 +6,7 @@ before the API routes makes the mount a catch-all that swallows every
 answers 404 for data it used to return. Nothing is logged. Both the browser and
 the phone then show an empty dashboard for what looks like a scraper problem.
 """
+
 from typing import cast
 
 from fastapi.routing import Mount
@@ -15,7 +16,8 @@ from app import main as app_main
 
 def _mount_indexes() -> list[int]:
     return [
-        i for i, route in enumerate(app_main.app.router.routes)
+        i
+        for i, route in enumerate(app_main.app.router.routes)
         if isinstance(route, Mount) and route.path == ""
     ]
     # Starlette normalises a mount at "/" to an empty path prefix.
@@ -32,7 +34,8 @@ def test_static_mount_never_shadows_the_api():
         return
 
     api_indexes = [
-        i for i, route in enumerate(app_main.app.router.routes)
+        i
+        for i, route in enumerate(app_main.app.router.routes)
         if getattr(route, "path", "").startswith("/api")
     ]
     assert api_indexes, "no /api routes found: the app layout changed"
@@ -52,7 +55,8 @@ def test_literal_get_routes_precede_their_dynamic_sibling():
     `/api/properties/check-progress` every second: every poll failed, the bar
     never advanced, and the check looked stuck even while it worked."""
     get_paths = [
-        path for route in app_main.app.router.routes
+        path
+        for route in app_main.app.router.routes
         if "GET" in getattr(route, "methods", ())
         and (path := getattr(route, "path", "")).startswith("/api/properties")
     ]

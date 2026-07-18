@@ -21,10 +21,16 @@ def db():
 
 def _raw(**kwargs) -> RawListing:
     base: dict[str, Any] = dict(
-        portal="immobiliare", portal_id="111",
+        portal="immobiliare",
+        portal_id="111",
         url="https://www.immobiliare.it/annunci/111/",
-        title="Trilocale via Roma", city="Milano", rooms=3, sqm=90.0,
-        price=300_000.0, latitude=45.4642, longitude=9.19,
+        title="Trilocale via Roma",
+        city="Milano",
+        rooms=3,
+        sqm=90.0,
+        price=300_000.0,
+        latitude=45.4642,
+        longitude=9.19,
         address="Via Roma, 12",
     )
     base.update(kwargs)
@@ -33,16 +39,24 @@ def _raw(**kwargs) -> RawListing:
 
 # --- Correct merges --------------------------------------------------------
 
+
 def test_same_property_from_two_portals_is_merged(db):
     prop1, new1, _ = upsert_listing(db, _raw())
     # same property on Idealista: different agency, no coordinates,
     # but same street + house number and compatible data
-    prop2, new2, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        url="https://www.idealista.it/immobile/999/",
-        price=310_000.0, sqm=92.0, latitude=None, longitude=None,
-        address="via roma, 12",
-    ))
+    prop2, new2, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+            price=310_000.0,
+            sqm=92.0,
+            latitude=None,
+            longitude=None,
+            address="via roma, 12",
+        ),
+    )
     assert new1 is True
     assert new2 is False, "second listing must be merged into the same property"
     assert prop1.id == prop2.id
@@ -52,22 +66,35 @@ def test_same_property_from_two_portals_is_merged(db):
 
 def test_match_by_coordinates_without_address(db):
     prop1, _, _ = upsert_listing(db, _raw(address=""))
-    prop2, new2, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", address="",
-        latitude=45.46425, longitude=9.19012,  # ~10 m distance
-    ))
+    prop2, new2, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            address="",
+            latitude=45.46425,
+            longitude=9.19012,  # ~10 m distance
+        ),
+    )
     assert new2 is False
     assert prop1.id == prop2.id
 
 
 # --- Protections against false merges (regressions from real data) ---------
 
+
 def test_same_street_different_civic_is_not_merged(db):
     upsert_listing(db, _raw(address="Via Roma, 12", latitude=None, longitude=None))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        address="Via Roma, 88", latitude=None, longitude=None,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            address="Via Roma, 88",
+            latitude=None,
+            longitude=None,
+        ),
+    )
     assert is_new is True
 
 
@@ -75,20 +102,32 @@ def test_without_location_proof_is_not_merged(db):
     """Regression: in a large city, many 90 sqm three-room apartments cost ~300k.
     Without coordinates or street+civic, we cannot conclude they are the same."""
     upsert_listing(db, _raw(latitude=None, longitude=None, address=""))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        latitude=None, longitude=None, address="",
-        price=305_000.0,  # within ±5%
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            latitude=None,
+            longitude=None,
+            address="",
+            price=305_000.0,  # within ±5%
+        ),
+    )
     assert is_new is True
 
 
 def test_address_without_civic_is_not_enough(db):
     upsert_listing(db, _raw(address="Via Ornato", latitude=None, longitude=None))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        address="Via Ornato", latitude=None, longitude=None,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            address="Via Ornato",
+            latitude=None,
+            longitude=None,
+        ),
+    )
     assert is_new is True
 
 
@@ -96,64 +135,104 @@ def test_price_too_different_is_not_merged(db):
     """Regression: 416,000 € and 499,000 € are not the same apartment
     even if street, civic, rooms, and square meters match."""
     upsert_listing(db, _raw(price=499_000.0))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", price=416_000.0,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            price=416_000.0,
+        ),
+    )
     assert is_new is True
 
 
 def test_without_price_is_not_merged(db):
     """Regression: 10 studio apartments of 40 sqm in the same building, all without
     price, were previously merged into a single card."""
-    upsert_listing(db, _raw(portal="idealista", portal_id="1", price=None,
-                            sqm=40.0, rooms=1))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="2", price=None, sqm=40.0, rooms=1,
-    ))
+    upsert_listing(db, _raw(portal="idealista", portal_id="1", price=None, sqm=40.0, rooms=1))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="2",
+            price=None,
+            sqm=40.0,
+            rooms=1,
+        ),
+    )
     assert is_new is True
 
 
 def test_different_floors_are_not_merged(db):
     upsert_listing(db, _raw(floor="2"))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", floor="5",
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            floor="5",
+        ),
+    )
     assert is_new is True
 
 
 def test_different_rooms_are_not_merged(db):
     upsert_listing(db, _raw(rooms=3))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", rooms=2,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            rooms=2,
+        ),
+    )
     assert is_new is True
 
 
 def test_sqm_too_different_is_not_merged(db):
     upsert_listing(db, _raw(sqm=90.0))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", sqm=110.0,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            sqm=110.0,
+        ),
+    )
     assert is_new is True
 
 
 def test_distant_properties_remain_separate(db):
     prop1, _, _ = upsert_listing(db, _raw(address=""))
-    prop2, new2, _ = upsert_listing(db, _raw(
-        portal_id="222", url="https://www.immobiliare.it/annunci/222/",
-        latitude=45.50, longitude=9.25, address="",  # ~5 km distance
-        rooms=2, sqm=55.0, price=180_000.0,
-    ))
+    prop2, new2, _ = upsert_listing(
+        db,
+        _raw(
+            portal_id="222",
+            url="https://www.immobiliare.it/annunci/222/",
+            latitude=45.50,
+            longitude=9.25,
+            address="",  # ~5 km distance
+            rooms=2,
+            sqm=55.0,
+            price=180_000.0,
+        ),
+    )
     assert new2 is True
     assert prop1.id != prop2.id
 
 
 def test_different_cities_are_not_merged(db):
     upsert_listing(db, _raw(city="Milano", latitude=None, longitude=None))
-    _, is_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999",
-        city="Torino", latitude=None, longitude=None,
-    ))
+    _, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            city="Torino",
+            latitude=None,
+            longitude=None,
+        ),
+    )
     assert is_new is True
 
 
@@ -164,19 +243,30 @@ def test_price_must_be_compatible_with_every_merged_listing(db):
     drifted arbitrarily far from its original price band. The tolerance must
     hold against every member."""
     upsert_listing(db, _raw(price=100_000.0))
-    _, second_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="901", price=105_000.0,
-    ))
+    _, second_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="901",
+            price=105_000.0,
+        ),
+    )
     assert second_new is False  # within 5% of the only listing: merges
 
     # within 5% of 105k but 10.3% above 100k: must NOT merge
-    _, third_new, _ = upsert_listing(db, _raw(
-        portal="idealista", portal_id="902", price=110_250.0,
-    ))
+    _, third_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="902",
+            price=110_250.0,
+        ),
+    )
     assert third_new is True
 
 
 # --- Price history ---------------------------------------------------------
+
 
 def test_revisiting_same_listing_updates_price_and_history(db):
     prop, _, _ = upsert_listing(db, _raw())
@@ -196,13 +286,23 @@ def test_variation_on_non_minimum_listing_does_not_signal_price_change(db):
     should be notified.
     Regression: notified by reading an old history row."""
     upsert_listing(db, _raw(price=300_000.0))
-    upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", price=310_000.0,
-    ))
+    upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            price=310_000.0,
+        ),
+    )
     # the most expensive portal drops to 305k: minimum stays 300k
-    prop, _, price_changed = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", price=305_000.0,
-    ))
+    prop, _, price_changed = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            price=305_000.0,
+        ),
+    )
     assert price_changed is False
     assert prop.current_min_price == 300_000.0
     assert prop.price_history == []
@@ -212,9 +312,14 @@ def test_cheaper_twin_listing_lowers_minimum(db):
     """Finding the same house cheaper on another portal is a price change
     to all intents and purposes ("costs less elsewhere")."""
     upsert_listing(db, _raw(price=300_000.0))
-    prop, is_new, price_changed = upsert_listing(db, _raw(
-        portal="idealista", portal_id="999", price=290_000.0,
-    ))
+    prop, is_new, price_changed = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            price=290_000.0,
+        ),
+    )
     assert is_new is False
     assert price_changed is True
     assert prop.current_min_price == 290_000.0
@@ -223,6 +328,7 @@ def test_cheaper_twin_listing_lowers_minimum(db):
 
 
 # --- Provenance: which search found the ad (ListingProfile) ----------------
+
 
 def test_profile_link_is_recorded_once_per_search(db):
     """The link is what makes "delete this search with its results" answerable,
@@ -235,8 +341,8 @@ def test_profile_link_is_recorded_once_per_search(db):
     db.add_all([prof, other])
     db.commit()
 
-    upsert_listing(db, _raw(), profile_id=prof.id)   # first scan: creates it
-    upsert_listing(db, _raw(), profile_id=prof.id)   # second scan: same ad
+    upsert_listing(db, _raw(), profile_id=prof.id)  # first scan: creates it
+    upsert_listing(db, _raw(), profile_id=prof.id)  # second scan: same ad
     upsert_listing(db, _raw(), profile_id=other.id)  # a second search finds it
     db.commit()
 
@@ -254,6 +360,7 @@ def test_an_import_records_no_profile_link(db):
 
 
 # --- Address normalization -------------------------------------------------
+
 
 def test_street_and_civic():
     assert street_and_civic("Via Val Gardena, 17") == ("via val gardena", "17")

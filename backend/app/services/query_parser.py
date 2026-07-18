@@ -19,6 +19,7 @@ reviews and corrects before saving.
 Bilingual by necessity: the portals are Italian, the users think in Italian,
 but the roadmap's own example is in English.
 """
+
 import re
 import unicodedata
 
@@ -26,73 +27,201 @@ import unicodedata
 # exonyms, mostly). Multi-word entries are matched before single words, so
 # "reggio emilia" never degrades into "reggio".
 CITY_SPELLINGS: dict[str, str] = {
-    "milan": "Milano", "milano": "Milano",
-    "rome": "Roma", "roma": "Roma",
-    "turin": "Torino", "torino": "Torino",
-    "naples": "Napoli", "napoli": "Napoli",
-    "florence": "Firenze", "firenze": "Firenze",
-    "venice": "Venezia", "venezia": "Venezia",
-    "genoa": "Genova", "genova": "Genova",
-    "padua": "Padova", "padova": "Padova",
-    "mantua": "Mantova", "mantova": "Mantova",
-    "bologna": "Bologna", "palermo": "Palermo", "bari": "Bari",
-    "catania": "Catania", "verona": "Verona", "messina": "Messina",
-    "trieste": "Trieste", "brescia": "Brescia", "parma": "Parma",
-    "modena": "Modena", "livorno": "Livorno", "cagliari": "Cagliari",
-    "perugia": "Perugia", "salerno": "Salerno", "rimini": "Rimini",
-    "ferrara": "Ferrara", "pescara": "Pescara", "monza": "Monza",
-    "bergamo": "Bergamo", "como": "Como", "pisa": "Pisa", "lecce": "Lecce",
-    "trento": "Trento", "bolzano": "Bolzano", "udine": "Udine",
-    "ancona": "Ancona", "novara": "Novara", "varese": "Varese",
-    "pavia": "Pavia", "cremona": "Cremona", "lodi": "Lodi",
-    "piacenza": "Piacenza", "ravenna": "Ravenna", "siena": "Siena",
-    "lucca": "Lucca", "prato": "Prato", "taranto": "Taranto",
-    "foggia": "Foggia", "reggio emilia": "Reggio Emilia",
-    "reggio calabria": "Reggio Calabria", "la spezia": "La Spezia",
+    "milan": "Milano",
+    "milano": "Milano",
+    "rome": "Roma",
+    "roma": "Roma",
+    "turin": "Torino",
+    "torino": "Torino",
+    "naples": "Napoli",
+    "napoli": "Napoli",
+    "florence": "Firenze",
+    "firenze": "Firenze",
+    "venice": "Venezia",
+    "venezia": "Venezia",
+    "genoa": "Genova",
+    "genova": "Genova",
+    "padua": "Padova",
+    "padova": "Padova",
+    "mantua": "Mantova",
+    "mantova": "Mantova",
+    "bologna": "Bologna",
+    "palermo": "Palermo",
+    "bari": "Bari",
+    "catania": "Catania",
+    "verona": "Verona",
+    "messina": "Messina",
+    "trieste": "Trieste",
+    "brescia": "Brescia",
+    "parma": "Parma",
+    "modena": "Modena",
+    "livorno": "Livorno",
+    "cagliari": "Cagliari",
+    "perugia": "Perugia",
+    "salerno": "Salerno",
+    "rimini": "Rimini",
+    "ferrara": "Ferrara",
+    "pescara": "Pescara",
+    "monza": "Monza",
+    "bergamo": "Bergamo",
+    "como": "Como",
+    "pisa": "Pisa",
+    "lecce": "Lecce",
+    "trento": "Trento",
+    "bolzano": "Bolzano",
+    "udine": "Udine",
+    "ancona": "Ancona",
+    "novara": "Novara",
+    "varese": "Varese",
+    "pavia": "Pavia",
+    "cremona": "Cremona",
+    "lodi": "Lodi",
+    "piacenza": "Piacenza",
+    "ravenna": "Ravenna",
+    "siena": "Siena",
+    "lucca": "Lucca",
+    "prato": "Prato",
+    "taranto": "Taranto",
+    "foggia": "Foggia",
+    "reggio emilia": "Reggio Emilia",
+    "reggio calabria": "Reggio Calabria",
+    "la spezia": "La Spezia",
     "sesto san giovanni": "Sesto San Giovanni",
     "cinisello balsamo": "Cinisello Balsamo",
     "san donato milanese": "San Donato Milanese",
-    "castellanza": "Castellanza", "legnano": "Legnano", "busto arsizio":
-    "Busto Arsizio", "rho": "Rho", "seregno": "Seregno", "desio": "Desio",
+    "castellanza": "Castellanza",
+    "legnano": "Legnano",
+    "busto arsizio": "Busto Arsizio",
+    "rho": "Rho",
+    "seregno": "Seregno",
+    "desio": "Desio",
 }
 
 # Only the provinces of the non-capital municipalities listed above: for a
 # provincial capital the search builder already defaults province = city.
 PROVINCE_CODES: dict[str, str] = {
-    "mi": "Milano", "rm": "Roma", "to": "Torino", "na": "Napoli",
-    "fi": "Firenze", "ve": "Venezia", "ge": "Genova", "bo": "Bologna",
-    "mb": "Monza", "va": "Varese", "co": "Como", "bg": "Bergamo",
-    "bs": "Brescia", "pv": "Pavia", "no": "Novara", "pd": "Padova",
-    "vr": "Verona", "ba": "Bari", "pa": "Palermo", "ct": "Catania",
+    "mi": "Milano",
+    "rm": "Roma",
+    "to": "Torino",
+    "na": "Napoli",
+    "fi": "Firenze",
+    "ve": "Venezia",
+    "ge": "Genova",
+    "bo": "Bologna",
+    "mb": "Monza",
+    "va": "Varese",
+    "co": "Como",
+    "bg": "Bergamo",
+    "bs": "Brescia",
+    "pv": "Pavia",
+    "no": "Novara",
+    "pd": "Padova",
+    "vr": "Verona",
+    "ba": "Bari",
+    "pa": "Palermo",
+    "ct": "Catania",
 }
 
 RENT_WORDS = (
-    "affitto", "affitti", "affittare", "affittasi", "locazione",
-    "rent", "rental", "renting", "to let", "al mese", "/mese", "mensile",
-    "mensili", "per month", "a month", "monthly",
+    "affitto",
+    "affitti",
+    "affittare",
+    "affittasi",
+    "locazione",
+    "rent",
+    "rental",
+    "renting",
+    "to let",
+    "al mese",
+    "/mese",
+    "mensile",
+    "mensili",
+    "per month",
+    "a month",
+    "monthly",
 )
 SALE_WORDS = (
-    "vendita", "vendesi", "comprare", "acquisto", "acquistare", "compro",
-    "buy", "buying", "purchase", "for sale", "sale",
+    "vendita",
+    "vendesi",
+    "comprare",
+    "acquisto",
+    "acquistare",
+    "compro",
+    "buy",
+    "buying",
+    "purchase",
+    "for sale",
+    "sale",
 )
 
 # Ordinals used by Italian portals for room counts.
-ROOM_WORDS = {"monolocale": 1, "monolocali": 1, "bilocale": 2, "bilocali": 2,
-              "trilocale": 3, "trilocali": 3, "quadrilocale": 4,
-              "quadrilocali": 4}
+ROOM_WORDS = {
+    "monolocale": 1,
+    "monolocali": 1,
+    "bilocale": 2,
+    "bilocali": 2,
+    "trilocale": 3,
+    "trilocali": 3,
+    "quadrilocale": 4,
+    "quadrilocali": 4,
+}
 
 # Units that disqualify a number from being read as a price ("80 mq").
 UNIT_WORDS = (
-    "mq", "m2", "m²", "mq.", "metri", "metro", "sqm", "sq m", "square",
-    "locali", "locale", "stanze", "stanza", "vani", "vano", "camere",
-    "camera", "bedroom", "bedrooms", "room", "rooms", "bagni", "bagno",
-    "piano", "km",
+    "mq",
+    "m2",
+    "m²",
+    "mq.",
+    "metri",
+    "metro",
+    "sqm",
+    "sq m",
+    "square",
+    "locali",
+    "locale",
+    "stanze",
+    "stanza",
+    "vani",
+    "vano",
+    "camere",
+    "camera",
+    "bedroom",
+    "bedrooms",
+    "room",
+    "rooms",
+    "bagni",
+    "bagno",
+    "piano",
+    "km",
 )
 
-MAX_WORDS = ("sotto", "sotto i", "under", "max", "massimo", "meno di",
-             "fino a", "entro", "budget", "non oltre", "al massimo", "<")
-MIN_WORDS = ("sopra", "almeno", "over", "min", "minimo", "piu di",
-             "a partire da", "oltre", "at least", "starting", ">")
+MAX_WORDS = (
+    "sotto",
+    "sotto i",
+    "under",
+    "max",
+    "massimo",
+    "meno di",
+    "fino a",
+    "entro",
+    "budget",
+    "non oltre",
+    "al massimo",
+    "<",
+)
+MIN_WORDS = (
+    "sopra",
+    "almeno",
+    "over",
+    "min",
+    "minimo",
+    "piu di",
+    "a partire da",
+    "oltre",
+    "at least",
+    "starting",
+    ">",
+)
 
 # 1.200 / 1200 / 1,2 / 300k / 300 mila / 1,2 mln
 _NUMBER = r"\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?"
@@ -100,9 +229,7 @@ _NUMBER = r"\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?"
 # the bare "m" multiplier only counts when nothing word-like follows it
 _MULT = r"(?:k|mila|mln|mil|milioni|milione|m)?\b"
 _CURRENCY = r"(?:\s*(?:€|euro|eur))?"
-_MONEY_RE = re.compile(
-    rf"({_NUMBER})\s*({_MULT}){_CURRENCY}", re.IGNORECASE
-)
+_MONEY_RE = re.compile(rf"({_NUMBER})\s*({_MULT}){_CURRENCY}", re.IGNORECASE)
 
 
 def _strip_accents(text: str) -> str:
@@ -116,12 +243,12 @@ def _normalize(text: str) -> str:
 
 
 def _parse_number(raw: str, multiplier: str) -> float:
-    """"1.200" -> 1200, "1,2" + "mln" -> 1_200_000, "300" + "k" -> 300_000."""
+    """ "1.200" -> 1200, "1,2" + "mln" -> 1_200_000, "300" + "k" -> 300_000."""
     mult = multiplier.lower()
     if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw):
-        value = float(raw.replace(".", ""))       # dots are thousands
+        value = float(raw.replace(".", ""))  # dots are thousands
     else:
-        value = float(raw.replace(",", "."))      # commas are decimals
+        value = float(raw.replace(",", "."))  # commas are decimals
     if mult in ("k", "mila"):
         return value * 1_000
     if mult in ("mln", "mil", "milioni", "milione", "m"):
@@ -129,12 +256,11 @@ def _parse_number(raw: str, multiplier: str) -> float:
     return value
 
 
-def _is_price_token(text: str, match: re.Match, value: float,
-                    multiplier: str) -> bool:
+def _is_price_token(text: str, match: re.Match, value: float, multiplier: str) -> bool:
     """A bare number is a price only if it is marked as money (€, k, mila,
     mln) or is too large to be anything else. Without this, "80 mq" and
     "3 locali" become a 80 € budget and a 3 € budget."""
-    tail = text[match.end():match.end() + 12].strip()
+    tail = text[match.end() : match.end() + 12].strip()
     if tail.startswith(UNIT_WORDS):
         return False
     if multiplier or "€" in match.group(0) or "eur" in match.group(0).lower():
@@ -156,7 +282,7 @@ def _money_matches(text: str) -> list[tuple[int, int, float]]:
 def _keyword_before(text: str, start: int, words: tuple[str, ...]) -> bool:
     """True when one of `words` sits in the ~24 characters preceding a token:
     that is the window in which "under"/"sotto i"/"max" binds to a number."""
-    window = text[max(0, start - 24):start]
+    window = text[max(0, start - 24) : start]
     return any(re.search(rf"(?:^|\W){re.escape(w)}\W*$", window) for w in words)
 
 
@@ -237,8 +363,11 @@ def _parse_rooms(text: str) -> tuple[int | None, int | None, list[str]]:
         return rooms, rooms, notes
 
     # bedrooms: "2 camere", "2-bedroom", "two bedrooms"
-    m = re.search(r"(\d+)\s*[- ]?\s*(?:camere(?: da letto)?|camera(?: da letto)?"
-                  r"|bedrooms?|bed)", text)
+    m = re.search(
+        r"(\d+)\s*[- ]?\s*(?:camere(?: da letto)?|camera(?: da letto)?"
+        r"|bedrooms?|bed)",
+        text,
+    )
     if m:
         bedrooms = int(m.group(1))
         rooms = bedrooms + 1
@@ -307,8 +436,11 @@ def _parse_city(text: str, original: str) -> tuple[str, str]:
     # fallback: "a Sesto Calende", "in Cernusco sul Naviglio". "zona" is NOT
     # a city preposition anymore: zone names are parsed (and blanked out)
     # separately by _parse_zone, so they can no longer masquerade as cities.
-    m = re.search(r"(?:^|\W)(?:a|ad|in|near|vicino a)\s+"
-                  r"([A-ZÀ-Þ][\w'’-]+(?:\s+[A-ZÀ-Þ][\w'’-]+){0,2})", original)
+    m = re.search(
+        r"(?:^|\W)(?:a|ad|in|near|vicino a)\s+"
+        r"([A-ZÀ-Þ][\w'’-]+(?:\s+[A-ZÀ-Þ][\w'’-]+){0,2})",
+        original,
+    )
     if m:
         return m.group(1).strip(), province
     return "", province
@@ -319,10 +451,36 @@ def _parse_city(text: str, original: str) -> tuple[str, str]:
 # Words that terminate a zone name: the capture regex is greedy on purpose
 # (zone names can be multi-word, "Porta Romana") and is trimmed back here.
 ZONE_STOP_WORDS = {
-    "a", "ad", "in", "con", "sotto", "sopra", "max", "min", "minimo",
-    "massimo", "fino", "entro", "tra", "da", "per", "e", "o", "oppure", "or",
-    "budget", "almeno", "under", "over", "between", "from", "near", "vicino",
-    "euro", "eur", "circa",
+    "a",
+    "ad",
+    "in",
+    "con",
+    "sotto",
+    "sopra",
+    "max",
+    "min",
+    "minimo",
+    "massimo",
+    "fino",
+    "entro",
+    "tra",
+    "da",
+    "per",
+    "e",
+    "o",
+    "oppure",
+    "or",
+    "budget",
+    "almeno",
+    "under",
+    "over",
+    "between",
+    "from",
+    "near",
+    "vicino",
+    "euro",
+    "eur",
+    "circa",
 }
 
 _ZONE_RE = re.compile(
@@ -356,11 +514,11 @@ def _parse_zone(original: str) -> tuple[str, str]:
     # blank exactly the keyword + the accepted tokens, nothing further: any
     # trailing (rejected) token may be the city and must stay readable
     end = m.start(1)
-    for count, tm in enumerate(re.finditer(r"\S+", original[m.start(1):]), 1):
+    for count, tm in enumerate(re.finditer(r"\S+", original[m.start(1) :]), 1):
         if count == len(tokens):
             end = m.start(1) + tm.end()
             break
-    cleaned = original[:m.start()] + " " * (end - m.start()) + original[end:]
+    cleaned = original[: m.start()] + " " * (end - m.start()) + original[end:]
     return zone, cleaned
 
 
@@ -404,10 +562,14 @@ def _parse_segment(original: str) -> dict:
     return {
         "text": original,
         "params": {
-            "city": city, "province": province, "zone": zone,
+            "city": city,
+            "province": province,
+            "zone": zone,
             "contract": contract,
-            "min_price": min_price, "max_price": max_price,
-            "min_rooms": min_rooms, "max_rooms": max_rooms,
+            "min_price": min_price,
+            "max_price": max_price,
+            "min_rooms": min_rooms,
+            "max_rooms": max_rooms,
             "min_sqm": min_sqm,
         },
         "explicit": explicit,
@@ -432,6 +594,7 @@ def _inherit_context(items: list[dict]) -> None:
     explicit city inherits no location at all — "trilocale a Milano zona
     Navigli o a Torino" must not put a Milanese zone in Turin.
     """
+
     def donor(i: int, field: str) -> dict | None:
         for j in [*range(i - 1, -1, -1), *range(i + 1, len(items))]:
             if field in items[j]["explicit"]:
@@ -472,21 +635,15 @@ def _interpretation(item: dict) -> list[str]:
     p = item["params"]
     unit = "€/month" if p["contract"] == "rent" else "€"
     money = lambda v: f"{v:,}".replace(",", ".")  # noqa: E731
-    parts = [
-        "Looking for a rental" if p["contract"] == "rent" else "Looking to buy"
-    ]
+    parts = ["Looking for a rental" if p["contract"] == "rent" else "Looking to buy"]
     if item["contract_assumed"]:
         parts[0] += " (assumed — say “in affitto” or “to rent” to change)"
     if p["city"]:
-        parts.append(
-            f"in {p['city']}" + (f" ({p['province']})" if p["province"] else "")
-        )
+        parts.append(f"in {p['city']}" + (f" ({p['province']})" if p["province"] else ""))
     if p["zone"]:
         parts.append(f"{p['zone']} area")
     if p["min_price"] and p["max_price"]:
-        parts.append(
-            f"between {money(p['min_price'])} and {money(p['max_price'])} {unit}"
-        )
+        parts.append(f"between {money(p['min_price'])} and {money(p['max_price'])} {unit}")
     elif p["max_price"]:
         parts.append(f"up to {money(p['max_price'])} {unit}")
     elif p["min_price"]:
@@ -503,8 +660,17 @@ def _interpretation(item: dict) -> list[str]:
 
 # Params in the shape every search entry (deterministic OR LLM) exposes, so a
 # caller never has to special-case a missing key.
-PARAM_KEYS = ("city", "province", "zone", "contract", "min_price",
-              "max_price", "min_rooms", "max_rooms", "min_sqm")
+PARAM_KEYS = (
+    "city",
+    "province",
+    "zone",
+    "contract",
+    "min_price",
+    "max_price",
+    "min_rooms",
+    "max_rooms",
+    "min_sqm",
+)
 
 _NO_CITY_WARNING = (
     "I could not tell which city you mean. Add it below — without a city the "
@@ -512,9 +678,13 @@ _NO_CITY_WARNING = (
 )
 
 
-def build_search_entry(params: dict, *, contract_assumed: bool = False,
-                       notes: list[str] | None = None,
-                       warnings: list[str] | None = None) -> dict:
+def build_search_entry(
+    params: dict,
+    *,
+    contract_assumed: bool = False,
+    notes: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> dict:
     """Assemble one `{"params","interpretation","notes","warnings"}` entry from a
     bare params dict, reusing the deterministic interpretation/warning text.
 
@@ -534,7 +704,7 @@ def build_search_entry(params: dict, *, contract_assumed: bool = False,
     entry_notes = list(notes or [])
     if normalized["zone"]:
         entry_notes.append(
-            f"Zone \"{normalized['zone']}\" is matched best-effort: open the "
+            f'Zone "{normalized["zone"]}" is matched best-effort: open the '
             "generated links to check the portal recognises it."
         )
     return {
@@ -555,8 +725,10 @@ def parse_query_auto(query: str) -> dict:
     default is never disturbed.
     """
     from ..config import load_settings
+
     if load_settings().get("nl_parser_backend") == "llm":
         from . import llm_parser
+
         result = llm_parser.parse_with_llm(query)
         if result is not None:
             return result
@@ -576,10 +748,16 @@ def parse_query(query: str) -> dict:
     """
     original = (query or "").strip()
     if not _normalize(original):
-        return {"searches": [{
-            "params": {}, "interpretation": [], "notes": [],
-            "warnings": ["Type what you are looking for, in plain words."],
-        }]}
+        return {
+            "searches": [
+                {
+                    "params": {},
+                    "interpretation": [],
+                    "notes": [],
+                    "warnings": ["Type what you are looking for, in plain words."],
+                }
+            ]
+        }
 
     items: list[dict] = []
     for segment in _ALT_SPLIT_RE.split(original):
@@ -611,23 +789,28 @@ def parse_query(query: str) -> dict:
         seen_params.append(item["params"])
         warnings = list(item["warnings"])
         if not item["params"]["city"]:
-            warnings.insert(0, (
-                "I could not tell which city you mean. Add it below — "
-                "without a city the portals would return listings from all "
-                "of Italy."
-            ))
+            warnings.insert(
+                0,
+                (
+                    "I could not tell which city you mean. Add it below — "
+                    "without a city the portals would return listings from all "
+                    "of Italy."
+                ),
+            )
         notes = list(item["notes"])
         if item["params"]["zone"]:
             notes.append(
-                f"Zone \"{item['params']['zone']}\" is matched best-effort: "
+                f'Zone "{item["params"]["zone"]}" is matched best-effort: '
                 "open the generated links to check the portal recognises it."
             )
-        searches.append({
-            "params": item["params"],
-            "interpretation": _interpretation(item),
-            "notes": notes,
-            "warnings": warnings,
-        })
+        searches.append(
+            {
+                "params": item["params"],
+                "interpretation": _interpretation(item),
+                "notes": notes,
+                "warnings": warnings,
+            }
+        )
     if overflow_warning:
         searches[0]["warnings"].append(overflow_warning)
     return {"searches": searches}

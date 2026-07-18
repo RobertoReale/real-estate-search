@@ -1,0 +1,24 @@
+# Dev-only tooling config (ruff). The runtime never reads this file; it exists
+# so `ruff` and coverage share one source of truth. Line length tracks the
+# existing hand-written code rather than imposing a narrower wrap after the fact.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes (dead imports, unused vars), I import order,
+# B bug-bear (mutable defaults, etc.), UP pyupgrade. E501 is left to the
+# formatter, which owns wrapping.
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length: the formatter owns wrapping
+    "B008",  # call in default arg: FastAPI's Depends()/Query() pattern is idiomatic, not a bug
+    "E741",  # ambiguous single-char names: renaming existing loop vars is risky churn for a style nit
+    "B009",  # getattr(x, "const"): used deliberately to read a dynamic attr pyright can't see
+    "B010",  # setattr(x, "const", v): used deliberately to assign to a typed attr (test fakes) without a pyright error
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["alembic/*", "tests/*"]

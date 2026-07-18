@@ -1,10 +1,11 @@
 """FastAPI entrypoint: REST routes for properties, search profiles,
 scans, and settings."""
+
 import hmac
 import logging
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -18,24 +19,30 @@ from . import schemas
 from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
 from .models import (
-    ImportedListing, Listing, ListingProfile, Property, SearchProfile, Tag,
+    ImportedListing,
+    Listing,
+    ListingProfile,
+    Property,
+    SearchProfile,
+    Tag,
     property_tags,
 )
 from .scrapers import detect_portal
-from .services import (availability_check, data_reset, email_import, exporter,
-                       notifier, scheduler)
+from .services import availability_check, data_reset, email_import, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import _parse_floor, annotate_match_scores
 from .services.pricing_stats import (
-    annotate_market_position, area_comparables, get_trends, list_trend_areas,
+    annotate_market_position,
+    area_comparables,
+    get_trends,
+    list_trend_areas,
 )
 from .services.query_parser import parse_query_auto
 from .services.scanner import run_scan, scan_state
 from .services.search_builder import build_search_urls, parse_search_url
 from .services.search_validator import check_duplicate_profile
-
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -46,7 +53,9 @@ logging.basicConfig(
     handlers=[
         logging.StreamHandler(),
         RotatingFileHandler(
-            BASE_DIR / "app.log", maxBytes=1_000_000, backupCount=2,
+            BASE_DIR / "app.log",
+            maxBytes=1_000_000,
+            backupCount=2,
             encoding="utf-8",
         ),
     ],
@@ -89,8 +98,7 @@ async def require_api_token(request: Request, call_next):
     (OPTIONS, which browsers send without the header) is never blocked.
     """
     token = (load_settings().get("api_auth_token") or "").strip()
-    if (token and request.method != "OPTIONS"
-            and request.url.path.startswith("/api/")):
+    if token and request.method != "OPTIONS" and request.url.path.startswith("/api/"):
         provided = request.headers.get("Authorization", "")
         # constant-time compare so a wrong token cannot be timed out character
         # by character
@@ -103,6 +111,7 @@ async def require_api_token(request: Request, call_next):
 
 
 # --- Properties ---
+
 
 def _annotate_provenance(db: Session, props: list[Property]) -> None:
     """Set each property's transient `found_by` to the monitored searches that
@@ -128,10 +137,7 @@ def _annotate_provenance(db: Session, props: list[Property]) -> None:
     for prop_id, profile_id, name in rows:
         by_prop.setdefault(prop_id, {})[profile_id] = name
     for p in props:
-        p.found_by = [
-            {"id": pid, "name": name}
-            for pid, name in by_prop.get(p.id, {}).items()
-        ]
+        p.found_by = [{"id": pid, "name": name} for pid, name in by_prop.get(p.id, {}).items()]
 
 
 def _annotate(db: Session, props: list[Property]) -> None:
@@ -169,15 +175,31 @@ def _floor_in_band(floor: str, band: str) -> bool:
 
 
 def _select_properties(
-    db: Session, *, status: str, contract: str | None, city: str | None,
-    min_price: float | None, max_price: float | None, min_sqm: float | None,
-    max_sqm: float | None = None, floor_band: str | None = None,
-    rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
-    q: str | None = None, zone: str | None = None, source: str | None = None,
-    profile_id: int | None = None, tag: str | None = None,
-    portal: str | None = None, agency: str | None = None,
-    deal: str | None = None, min_sqm_price: float | None = None,
-    max_sqm_price: float | None = None, merged_only: bool = False,
+    db: Session,
+    *,
+    status: str,
+    contract: str | None,
+    city: str | None,
+    min_price: float | None,
+    max_price: float | None,
+    min_sqm: float | None,
+    max_sqm: float | None = None,
+    floor_band: str | None = None,
+    rooms: int | None,
+    only_price_drops: bool,
+    only_favorites: bool,
+    sort: str,
+    q: str | None = None,
+    zone: str | None = None,
+    source: str | None = None,
+    profile_id: int | None = None,
+    tag: str | None = None,
+    portal: str | None = None,
+    agency: str | None = None,
+    deal: str | None = None,
+    min_sqm_price: float | None = None,
+    max_sqm_price: float | None = None,
+    merged_only: bool = False,
 ) -> list[Property]:
     """Shared property selection + annotation for the grid and the exports, so
     a dossier holds exactly what the dashboard is showing under the same
@@ -204,7 +226,8 @@ def _select_properties(
         profile_keywords = crit["keywords"]
 
     query = select(Property).options(
-        selectinload(Property.listings), selectinload(Property.price_history),
+        selectinload(Property.listings),
+        selectinload(Property.price_history),
         selectinload(Property.tags),
     )
     if status != "all":
@@ -227,12 +250,9 @@ def _select_properties(
         # at least one of its ads lives there, not that all do
         query = query.where(Property.listings.any(Listing.portal == portal))
     if agency and agency.strip():
-        query = query.where(Property.listings.any(
-            Listing.agency.ilike(f"%{agency.strip()}%")))
+        query = query.where(Property.listings.any(Listing.agency.ilike(f"%{agency.strip()}%")))
     if tag and tag.strip():
-        query = query.where(
-            Property.tags.any(Tag.name_normalized == tag.strip().lower())
-        )
+        query = query.where(Property.tags.any(Tag.name_normalized == tag.strip().lower()))
     if q and q.strip():
         # Free-text search across the fields a user would actually type
         # (zone "San Siro", a street, "nuova costruzione" in the title or the
@@ -292,16 +312,21 @@ def _select_properties(
                 query = query.where(_floor_match(term))
                 continue
             like = f"%{term}%"
-            query = query.where(or_(
-                Property.title.ilike(like),
-                Property.zone.ilike(like),
-                Property.address.ilike(like),
-                Property.city.ilike(like),
-                _floor_match(term),
-                Property.listings.any(or_(
-                    Listing.agency.ilike(like), Listing.description.ilike(like),
-                )),
-            ))
+            query = query.where(
+                or_(
+                    Property.title.ilike(like),
+                    Property.zone.ilike(like),
+                    Property.address.ilike(like),
+                    Property.city.ilike(like),
+                    _floor_match(term),
+                    Property.listings.any(
+                        or_(
+                            Listing.agency.ilike(like),
+                            Listing.description.ilike(like),
+                        )
+                    ),
+                )
+            )
     # "is not None" and not truthiness: 0 is a legitimate threshold
     if min_price is not None:
         query = query.where(Property.current_min_price >= min_price)
@@ -325,19 +350,24 @@ def _select_properties(
         # email imports never passed through the scan's keyword filter, so this
         # is how "nuda proprietà"/"asta"/… get pruned from them too
         props = [
-            p for p in props
+            p
+            for p in props
             if not find_excluded_keyword(
-                [p.title, p.zone, p.address,
-                 *(l.description for l in p.listings),
-                 *(l.agency for l in p.listings)],
+                [
+                    p.title,
+                    p.zone,
+                    p.address,
+                    *(l.description for l in p.listings),
+                    *(l.agency for l in p.listings),
+                ],
                 profile_keywords,
             )
         ]
     if only_price_drops:
         props = [
-            p for p in props
-            if p.first_price and p.current_min_price
-            and p.current_min_price < p.first_price
+            p
+            for p in props
+            if p.first_price and p.current_min_price and p.current_min_price < p.first_price
         ]
     if merged_only:
         # a property backed by more than one ad: the cross-portal/agency
@@ -347,10 +377,11 @@ def _select_properties(
         # €/sqm is derived (price ÷ surface), not stored: a property missing
         # either can't be placed on that axis, so it drops out of the band
         def _sqm_price(p: Property) -> float | None:
-            return (p.current_min_price / p.sqm
-                    if p.current_min_price and p.sqm else None)
+            return p.current_min_price / p.sqm if p.current_min_price and p.sqm else None
+
         props = [
-            p for p in props
+            p
+            for p in props
             if (sp := _sqm_price(p)) is not None
             and (min_sqm_price is None or sp >= min_sqm_price)
             and (max_sqm_price is None or sp <= max_sqm_price)
@@ -364,13 +395,11 @@ def _select_properties(
         props.sort(key=lambda p: p.current_min_price or 0, reverse=True)
     elif sort == "sqm_price":
         props.sort(
-            key=lambda p: (p.current_min_price / p.sqm)
-            if p.current_min_price and p.sqm else 1e12
+            key=lambda p: (p.current_min_price / p.sqm) if p.current_min_price and p.sqm else 1e12
         )
     elif sort == "match":
         # best matches first; unscored (None) sink to the bottom
-        props.sort(key=lambda p: p.match_score if p.match_score is not None else -1,
-                   reverse=True)
+        props.sort(key=lambda p: p.match_score if p.match_score is not None else -1, reverse=True)
     annotate_market_position(db, props)
     annotate_deal_scores(db, props)
     if deal == "undervalued":
@@ -388,8 +417,7 @@ def list_properties(
     db: Session = Depends(get_db),
     # validated like `contract`/`sort`: a typo'd status would otherwise return
     # an empty list, indistinguishable from "no matches" — a silent failure
-    status: str = Query(
-        "active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
+    status: str = Query("active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
     zone: str | None = None,
@@ -401,8 +429,7 @@ def list_properties(
     max_price: float | None = None,
     min_sqm: float | None = None,
     max_sqm: float | None = None,
-    floor_band: str | None = Query(
-        None, pattern="^(ground|low|mid|high|top)$"),
+    floor_band: str | None = Query(None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
     portal: str | None = Query(None, pattern="^(immobiliare|idealista)$"),
     agency: str | None = None,
@@ -418,13 +445,29 @@ def list_properties(
     ),
 ):
     return _select_properties(
-        db, status=status, contract=contract, city=city, min_price=min_price,
-        max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
-        floor_band=floor_band, rooms=rooms, portal=portal, agency=agency,
-        deal=deal, min_sqm_price=min_sqm_price, max_sqm_price=max_sqm_price,
+        db,
+        status=status,
+        contract=contract,
+        city=city,
+        min_price=min_price,
+        max_price=max_price,
+        min_sqm=min_sqm,
+        max_sqm=max_sqm,
+        floor_band=floor_band,
+        rooms=rooms,
+        portal=portal,
+        agency=agency,
+        deal=deal,
+        min_sqm_price=min_sqm_price,
+        max_sqm_price=max_sqm_price,
         merged_only=merged_only,
-        only_price_drops=only_price_drops, only_favorites=only_favorites,
-        sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
+        only_price_drops=only_price_drops,
+        only_favorites=only_favorites,
+        sort=sort,
+        q=q,
+        zone=zone,
+        source=source,
+        profile_id=profile_id,
         tag=tag,
     )
 
@@ -434,8 +477,7 @@ def export_properties(
     db: Session = Depends(get_db),
     fmt: str = Query("html", pattern="^(html|markdown|csv)$"),
     title: str = "Property shortlist",
-    status: str = Query(
-        "active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
+    status: str = Query("active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
     city: str | None = None,
     zone: str | None = None,
@@ -447,8 +489,7 @@ def export_properties(
     max_price: float | None = None,
     min_sqm: float | None = None,
     max_sqm: float | None = None,
-    floor_band: str | None = Query(
-        None, pattern="^(ground|low|mid|high|top)$"),
+    floor_band: str | None = Query(None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
     portal: str | None = Query(None, pattern="^(immobiliare|idealista)$"),
     agency: str | None = None,
@@ -458,8 +499,7 @@ def export_properties(
     merged_only: bool = False,
     only_price_drops: bool = False,
     only_favorites: bool = False,
-    sort: str = Query(
-        "newest", pattern="^(newest|price_asc|price_desc|sqm_price|match)$"),
+    sort: str = Query("newest", pattern="^(newest|price_asc|price_desc|sqm_price|match)$"),
 ):
     """Download the currently-filtered shortlist as a self-contained dossier.
 
@@ -467,13 +507,29 @@ def export_properties(
     as an attachment (no server, no DB) that can be shared over chat or email —
     the reason the export exists rather than sharing the live dashboard."""
     props = _select_properties(
-        db, status=status, contract=contract, city=city, min_price=min_price,
-        max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
-        floor_band=floor_band, rooms=rooms, portal=portal, agency=agency,
-        deal=deal, min_sqm_price=min_sqm_price, max_sqm_price=max_sqm_price,
+        db,
+        status=status,
+        contract=contract,
+        city=city,
+        min_price=min_price,
+        max_price=max_price,
+        min_sqm=min_sqm,
+        max_sqm=max_sqm,
+        floor_band=floor_band,
+        rooms=rooms,
+        portal=portal,
+        agency=agency,
+        deal=deal,
+        min_sqm_price=min_sqm_price,
+        max_sqm_price=max_sqm_price,
         merged_only=merged_only,
-        only_price_drops=only_price_drops, only_favorites=only_favorites,
-        sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
+        only_price_drops=only_price_drops,
+        only_favorites=only_favorites,
+        sort=sort,
+        q=q,
+        zone=zone,
+        source=source,
+        profile_id=profile_id,
         tag=tag,
     )
     clean_title = (title or "Property shortlist").strip()[:120] or "Property shortlist"
@@ -486,9 +542,10 @@ def export_properties(
     else:
         body = exporter.properties_to_html(props, clean_title)
         media, ext = "text/html; charset=utf-8", "html"
-    filename = f"dossier-{datetime.now(timezone.utc):%Y%m%d}.{ext}"
+    filename = f"dossier-{datetime.now(UTC):%Y%m%d}.{ext}"
     return Response(
-        content=body, media_type=media,
+        content=body,
+        media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -516,9 +573,7 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/properties/{property_id}", response_model=schemas.PropertyOut)
-def patch_property(
-    property_id: int, data: schemas.PropertyPatch, db: Session = Depends(get_db)
-):
+def patch_property(property_id: int, data: schemas.PropertyPatch, db: Session = Depends(get_db)):
     """Updates user-curated fields (favorite flag, personal notes, tags)."""
     prop = db.get(Property, property_id)
     if not prop:
@@ -584,7 +639,7 @@ def mark_property_sold(property_id: int, db: Session = Depends(get_db)):
     if not prop:
         raise HTTPException(404, "Property not found")
     prop.status = "sold"
-    prop.sold_at = datetime.now(timezone.utc)
+    prop.sold_at = datetime.now(UTC)
     prop.filtered_reason = ""
     db.commit()
     return {"ok": True}
@@ -616,7 +671,7 @@ def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db))
             prop.sold_at = None
         elif data.action == "sold":
             prop.status = "sold"
-            prop.sold_at = datetime.now(timezone.utc)
+            prop.sold_at = datetime.now(UTC)
             prop.filtered_reason = ""
         elif data.action == "favorite":
             prop.is_favorite = True
@@ -643,10 +698,7 @@ def list_tags(db: Session = Depends(get_db)):
         .group_by(Tag.id)
         .order_by(Tag.name)
     ).all()
-    return [
-        schemas.TagOut(id=tag.id, name=tag.name, count=count)
-        for tag, count in rows
-    ]
+    return [schemas.TagOut(id=tag.id, name=tag.name, count=count) for tag, count in rows]
 
 
 @app.post("/api/tags", response_model=schemas.TagOut)
@@ -698,7 +750,7 @@ def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db
     try:
         return availability_check.check_properties_availability(db, props)
     except availability_check.AvailabilityCheckError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @app.post("/api/properties/check/cancel")
@@ -719,7 +771,7 @@ def check_single_property(property_id: int, db: Session = Depends(get_db)):
     try:
         summary = availability_check.check_properties_availability(db, [prop])
     except availability_check.AvailabilityCheckError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     _annotate(db, [prop])
     return {
         "property": schemas.PropertyOut.model_validate(prop).model_dump(mode="json"),
@@ -735,6 +787,7 @@ def geocode_single_property(property_id: int, db: Session = Depends(get_db)):
     Fail-open: a lookup the portal's address is too vague to resolve is not an
     error — `located` tells the UI whether a pin now exists."""
     from .services import geocoder
+
     prop = db.get(Property, property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
@@ -748,6 +801,7 @@ def geocode_single_property(property_id: int, db: Session = Depends(get_db)):
 
 
 # --- Search profiles ---
+
 
 @app.get("/api/search-profiles", response_model=list[schemas.SearchProfileOut])
 def list_profiles(db: Session = Depends(get_db)):
@@ -777,9 +831,7 @@ def create_profile(data: schemas.SearchProfileIn, db: Session = Depends(get_db))
 
 
 @app.put("/api/search-profiles/{profile_id}", response_model=schemas.SearchProfileOut)
-def update_profile(
-    profile_id: int, data: schemas.SearchProfileIn, db: Session = Depends(get_db)
-):
+def update_profile(profile_id: int, data: schemas.SearchProfileIn, db: Session = Depends(get_db)):
     profile = db.get(SearchProfile, profile_id)
     if not profile:
         raise HTTPException(404, "Profile not found")
@@ -846,8 +898,11 @@ def bulk_profiles(data: schemas.SearchProfileBulkIn, db: Session = Depends(get_d
             )
         # results first, in the same transaction: the classification reads the
         # profiles' links, and deleting the profiles cascades them away
-        results = (data_reset.delete_profile_results(db, [p.id for p in profiles])
-                   if data.delete_results else None)
+        results = (
+            data_reset.delete_profile_results(db, [p.id for p in profiles])
+            if data.delete_results
+            else None
+        )
         for profile in profiles:
             db.delete(profile)
         db.commit()
@@ -865,6 +920,7 @@ def bulk_profiles(data: schemas.SearchProfileBulkIn, db: Session = Depends(get_d
 
 
 # --- Search builder ---
+
 
 @app.post("/api/search-builder")
 def search_builder(data: schemas.SearchBuilderIn):
@@ -888,6 +944,7 @@ def search_builder_parse(data: schemas.UrlIn):
 
 # --- Search assistant (natural language) ---
 
+
 @app.post("/api/search-assistant", response_model=schemas.AssistantOut)
 def search_assistant(data: schemas.AssistantQueryIn):
     """Turns a plain-language query into search-builder parameters.
@@ -903,17 +960,20 @@ def search_assistant(data: schemas.AssistantQueryIn):
     searches = []
     for search in result["searches"]:
         params = schemas.AssistantParams(**search["params"])
-        searches.append(schemas.AssistantSearch(
-            params=params,
-            interpretation=search["interpretation"],
-            notes=search.get("notes", []),
-            warnings=search["warnings"],
-            urls=build_search_urls(params.model_dump()) if params.city else None,
-        ))
+        searches.append(
+            schemas.AssistantSearch(
+                params=params,
+                interpretation=search["interpretation"],
+                notes=search.get("notes", []),
+                warnings=search["warnings"],
+                urls=build_search_urls(params.model_dump()) if params.city else None,
+            )
+        )
     return schemas.AssistantOut(searches=searches)
 
 
 # --- Email inbox import (IMAP, read-only) ---
+
 
 @app.post("/api/email-import/test")
 def email_import_test():
@@ -921,7 +981,7 @@ def email_import_test():
     try:
         return email_import.test_connection()
     except email_import.ImapError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @app.get("/api/email-import/progress")
@@ -933,9 +993,7 @@ def email_import_progress():
 
 
 @app.post("/api/email-import/scan")
-def email_import_scan(
-    data: schemas.EmailImportScanIn, db: Session = Depends(get_db)
-):
+def email_import_scan(data: schemas.EmailImportScanIn, db: Session = Depends(get_db)):
     """Scans the inbox for listing emails and stages what it finds for review.
     Deliberately a sync `def`: FastAPI then runs it in a threadpool, so the
     event loop stays free to answer /email-import/progress while it works."""
@@ -948,7 +1006,7 @@ def email_import_scan(
             max_emails=data.max_emails,
         )
     except email_import.ImapError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @app.get("/api/email-import", response_model=list[schemas.ImportedListingOut])
@@ -996,20 +1054,18 @@ def list_imported(
         # title/subject text too, otherwise the filter would hide everything
         needle = city.strip().lower()
         items = [
-            i for i in items
-            if needle in i.city.lower() or needle in i.title.lower()
+            i
+            for i in items
+            if needle in i.city.lower()
+            or needle in i.title.lower()
             or needle in i.email_subject.lower()
         ]
     if q:
         needle = q.strip().lower()
-        items = [
-            i for i in items
-            if needle in i.title.lower() or needle in i.email_subject.lower()
-        ]
+        items = [i for i in items if needle in i.title.lower() or needle in i.email_subject.lower()]
     if keywords:
         items = [
-            i for i in items
-            if find_excluded_keyword([i.title, i.email_subject], keywords) is None
+            i for i in items if find_excluded_keyword([i.title, i.email_subject], keywords) is None
         ]
     # newest email first; undated ones sink to the bottom
     items.sort(
@@ -1062,7 +1118,7 @@ def email_import_check(data: schemas.ImportCheckIn, db: Session = Depends(get_db
         return email_import.check_availability(db, items)
     except email_import.ImapError as e:
         # "already running": same user-facing path as a refused scan
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @app.post("/api/email-import/check/cancel")
@@ -1088,6 +1144,7 @@ def bulk_imported(data: schemas.ImportBulkIn, db: Session = Depends(get_db)):
 
 # --- Market velocity ---
 
+
 @app.get("/api/market-velocity", response_model=schemas.MarketVelocityOut)
 def market_velocity(
     db: Session = Depends(get_db),
@@ -1101,6 +1158,7 @@ def market_velocity(
 
 
 # --- Historical price trends ---
+
 
 @app.get("/api/pricing-trends/areas", response_model=list[schemas.TrendAreaOut])
 def pricing_trend_areas(
@@ -1124,8 +1182,7 @@ def pricing_trends(
     return get_trends(db, city=city, zone=zone, contract=contract)
 
 
-@app.get("/api/pricing-trends/comparables",
-         response_model=list[schemas.PropertyOut])
+@app.get("/api/pricing-trends/comparables", response_model=list[schemas.PropertyOut])
 def pricing_trend_comparables(
     db: Session = Depends(get_db),
     city: str = Query(..., min_length=1),
@@ -1144,6 +1201,7 @@ def pricing_trend_comparables(
 
 # --- Scan ---
 
+
 @app.post("/api/scrapers/trigger")
 def trigger_scan(profile_id: int | None = None):
     if scan_state["running"]:
@@ -1151,7 +1209,8 @@ def trigger_scan(profile_id: int | None = None):
     # a user-triggered scan is explicit intent: it runs even while automatic
     # scanning is paused (scanner.run_scan's `manual` flag)
     thread = threading.Thread(
-        target=run_scan, args=(profile_id,), kwargs={"manual": True}, daemon=True)
+        target=run_scan, args=(profile_id,), kwargs={"manual": True}, daemon=True
+    )
     thread.start()
     return {"status": "started"}
 
@@ -1169,6 +1228,7 @@ def scraper_status():
 def repair_listings_endpoint(db: Session = Depends(get_db)):
     """Instantly repairs existing dashboard properties lacking city, zone, title, or photos."""
     from .services.repair_listings import repair_empty_listings_locally
+
     return repair_empty_listings_locally(db)
 
 
@@ -1178,21 +1238,24 @@ def geocode_missing_endpoint(db: Session = Depends(get_db)):
     pin, via Nominatim (opt-in, batched, paced, cached). Fails open: a lookup
     that cannot resolve leaves the property untouched."""
     from .services import geocoder
+
     try:
         return geocoder.geocode_missing_properties(db, max_calls=None)
     except geocoder.GeocoderError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/api/maintenance/geocode-progress")
 def geocode_progress_endpoint():
     from .services import geocoder
+
     return geocoder.get_geocode_progress()
 
 
 @app.post("/api/maintenance/geocode-cancel")
 def geocode_cancel_endpoint():
     from .services import geocoder
+
     geocoder.request_cancel()
     return {"ok": True}
 
@@ -1205,6 +1268,7 @@ def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
     keeping the positive lookups we already paid for. Only touches the lookup
     cache, never a property's coordinates."""
     from .services import geocoder
+
     cleared = geocoder.clear_geocode_cache(db, misses_only=True)
     return {"cleared": cleared}
 
@@ -1221,9 +1285,7 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
     if scope not in _RESET_SCOPES:
         raise HTTPException(400, f"Unknown reset scope: {scope}")
     if scope in ("dashboard", "factory") and scan_state["running"]:
-        raise HTTPException(
-            409, "A scan is running: wait for it to finish before resetting"
-        )
+        raise HTTPException(409, "A scan is running: wait for it to finish before resetting")
     fn = {
         "email-import": data_reset.reset_email_import,
         "dashboard": data_reset.clear_dashboard,
@@ -1233,10 +1295,11 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
     try:
         return fn(db)
     except data_reset.ResetError as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e
 
 
 # --- Restart ---
+
 
 @app.post("/api/system/restart")
 def system_restart():
@@ -1259,9 +1322,7 @@ def system_restart():
     polls until the API answers again and reloads itself.
     """
     if scan_state["running"]:
-        raise HTTPException(
-            409, "A scan is running: wait for it to finish before restarting"
-        )
+        raise HTTPException(409, "A scan is running: wait for it to finish before restarting")
     import os
     import sys
     import time
@@ -1311,6 +1372,7 @@ def logs_tail(lines: int = 200):
 
 # --- Settings ---
 
+
 @app.get("/api/settings")
 def get_settings():
     settings = load_settings()
@@ -1334,6 +1396,7 @@ def get_settings():
     # whether the optional browser automation is installed, so the UI can show
     # the "grab it for me" button instead of a paste-only field
     from .services import cookie_harvester
+
     settings["datadome_harvester_available"] = cookie_harvester.is_available()
     settings["camoufox_available"] = cookie_harvester.is_camoufox_available()
     return settings
@@ -1358,8 +1421,7 @@ def update_settings(data: schemas.SettingsIn):
     save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
-    if ("email_import_auto_scan" in values
-            or "email_import_auto_scan_interval_hours" in values):
+    if "email_import_auto_scan" in values or "email_import_auto_scan_interval_hours" in values:
         scheduler.reschedule_email_import()
     return get_settings()
 
@@ -1376,6 +1438,7 @@ def datadome_refresh(
     in a threadpool without owning the event loop (same reasoning as the inbox
     scan, invariant 15)."""
     from .services import cookie_harvester
+
     if not cookie_harvester.is_available():
         raise HTTPException(400, cookie_harvester.UNAVAILABLE_MESSAGE)
     result = cookie_harvester.refresh_into_settings(portal, headless=False)
@@ -1391,6 +1454,7 @@ def cancel_datadome_refresh():
     timeout with the visible window stuck open, invariant 16/18). A no-op if
     nothing is running."""
     from .services import cookie_harvester
+
     cookie_harvester.request_cancel_harvest()
     return {"ok": True}
 
@@ -1410,8 +1474,9 @@ def _require_loopback(request: Request) -> None:
     host = request.client.host if request.client else ""
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
         raise HTTPException(
-            403, "Installation endpoints only work from the PC running the "
-                 "app (open the dashboard on http://127.0.0.1:8000)"
+            403,
+            "Installation endpoints only work from the PC running the "
+            "app (open the dashboard on http://127.0.0.1:8000)",
         )
 
 
@@ -1422,6 +1487,7 @@ def install_harvester(request: Request):
     import subprocess
     import sys
     from pathlib import Path
+
     from .services import cookie_harvester
 
     _require_loopback(request)
@@ -1430,8 +1496,11 @@ def install_harvester(request: Request):
 
     try:
         # 1. Install playwright pip package into current Python environment (.venv)
-        subprocess.run([sys.executable, "-m", "pip", "install", "playwright"],
-                       check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "playwright"],
+            check=True,
+            timeout=_INSTALL_TIMEOUT_SECONDS,
+        )
 
         # 2. Configure where to install browser binary: the current user's
         # existing ms-playwright cache when there is one (resolved via the
@@ -1442,13 +1511,13 @@ def install_harvester(request: Request):
         if not browsers_path:
             if os.name == "nt":
                 local_appdata = os.environ.get("LOCALAPPDATA")
-                local = (Path(local_appdata) if local_appdata
-                         else Path.home() / "AppData" / "Local")
+                local = Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
                 candidate = local / "ms-playwright"
                 if candidate.exists():
                     browsers_path = str(candidate)
             if not browsers_path:
                 from .config import BASE_DIR
+
                 browsers_path = str(BASE_DIR / "browser_binaries")
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
@@ -1456,14 +1525,18 @@ def install_harvester(request: Request):
         if browsers_path:
             env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
-        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"],
-                       check=True, env=env, timeout=_INSTALL_TIMEOUT_SECONDS)
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+            env=env,
+            timeout=_INSTALL_TIMEOUT_SECONDS,
+        )
 
         cookie_harvester._ensure_browsers_path()
         return {"ok": True, "message": "Successfully installed Playwright and Chromium."}
     except Exception as e:
         logging.getLogger(__name__).exception("Failed to install playwright/chromium")
-        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}") from e
 
 
 @app.post("/api/settings/install-camoufox")
@@ -1473,20 +1546,30 @@ def install_camoufox(request: Request):
     automation signals DataDome fingerprints, so the check is challenged less."""
     import subprocess
     import sys
+
     from .services import cookie_harvester
 
     _require_loopback(request)
     try:
         if not cookie_harvester.is_camoufox_available():
-            subprocess.run([sys.executable, "-m", "pip", "install", "camoufox"],
-                           check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "camoufox"],
+                check=True,
+                timeout=_INSTALL_TIMEOUT_SECONDS,
+            )
         # Downloads the patched Firefox (~150 MB) once; a no-op if already present.
-        subprocess.run([sys.executable, "-m", "camoufox", "fetch"],
-                       check=True, timeout=_INSTALL_TIMEOUT_SECONDS)
-        return {"ok": True, "message": "Successfully installed Camoufox. Set the engine to auto or camoufox in Settings."}
+        subprocess.run(
+            [sys.executable, "-m", "camoufox", "fetch"],
+            check=True,
+            timeout=_INSTALL_TIMEOUT_SECONDS,
+        )
+        return {
+            "ok": True,
+            "message": "Successfully installed Camoufox. Set the engine to auto or camoufox in Settings.",
+        }
     except Exception as e:
         logging.getLogger(__name__).exception("Failed to install camoufox")
-        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}") from e
 
 
 @app.post("/api/settings/telegram-test")

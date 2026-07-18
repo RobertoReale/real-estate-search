@@ -4,15 +4,23 @@ Offline, in-memory SQLite. The invariant that must not regress is the baseline
 reset on a dashboard wipe: without it the next scan would treat every re-found
 listing as new and flood the user with notifications (invariant 3).
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import (ImportedListing, Listing, ListingProfile, PriceHistory,
-                        PricingSnapshot, Property, SearchProfile)
+from app.models import (
+    ImportedListing,
+    Listing,
+    ListingProfile,
+    PriceHistory,
+    PricingSnapshot,
+    Property,
+    SearchProfile,
+)
 from app.services import data_reset
 
 
@@ -33,8 +41,7 @@ def _seed_dashboard(db) -> Property:
     prop = Property(fingerprint="fp1", status="active", city="milano")
     db.add(prop)
     db.commit()
-    db.add(Listing(property_id=prop.id, portal="immobiliare",
-                   portal_id="1", url="u"))
+    db.add(Listing(property_id=prop.id, portal="immobiliare", portal_id="1", url="u"))
     db.add(PriceHistory(property_id=prop.id, new_price=250000.0))
     db.commit()
     return prop
@@ -42,9 +49,14 @@ def _seed_dashboard(db) -> Property:
 
 def _seed_profile(db, **over) -> SearchProfile:
     p = SearchProfile(
-        name="p", portal="immobiliare", search_url="https://x",
-        baseline_done=True, consecutive_failures=4, health_alert_sent=True,
-        last_run_status="blocked", last_run_at=datetime.now(timezone.utc),
+        name="p",
+        portal="immobiliare",
+        search_url="https://x",
+        baseline_done=True,
+        consecutive_failures=4,
+        health_alert_sent=True,
+        last_run_status="blocked",
+        last_run_at=datetime.now(UTC),
     )
     for k, v in over.items():
         setattr(p, k, v)
@@ -57,8 +69,7 @@ def test_reset_email_import_clears_every_status(db):
     """The whole point is to forget past decisions and re-review: even the
     'discarded' rows (normally kept forever for idempotency, invariant 12) go."""
     for pid, status in (("1", "pending"), ("2", "discarded"), ("3", "accepted")):
-        db.add(ImportedListing(portal="immobiliare", portal_id=pid,
-                               url="u", status=status))
+        db.add(ImportedListing(portal="immobiliare", portal_id=pid, url="u", status=status))
     db.commit()
 
     out = data_reset.reset_email_import(db)
@@ -77,7 +88,7 @@ def test_clear_dashboard_deletes_listings_but_keeps_profiles(db):
     assert _count(db, Property) == 0
     assert _count(db, Listing) == 0
     assert _count(db, PriceHistory) == 0
-    assert _count(db, SearchProfile) == 1   # profiles survive
+    assert _count(db, SearchProfile) == 1  # profiles survive
 
 
 def test_clear_dashboard_resets_the_baseline(db):
@@ -101,8 +112,9 @@ def test_clear_dashboard_drops_dangling_import_references(db):
     """An accepted import points at a property we are about to delete: the
     reference must be nulled, not left dangling at a ghost id."""
     prop = _seed_dashboard(db)
-    imp = ImportedListing(portal="immobiliare", portal_id="9", url="u",
-                          status="accepted", property_id=prop.id)
+    imp = ImportedListing(
+        portal="immobiliare", portal_id="9", url="u", status="accepted", property_id=prop.id
+    )
     db.add(imp)
     db.commit()
 
@@ -110,43 +122,57 @@ def test_clear_dashboard_drops_dangling_import_references(db):
     db.refresh(imp)
 
     assert imp.property_id is None
-    assert _count(db, ImportedListing) == 1   # the row itself is kept
+    assert _count(db, ImportedListing) == 1  # the row itself is kept
 
 
 def test_clear_pricing_snapshots_leaves_listings(db):
     _seed_dashboard(db)
-    db.add(PricingSnapshot(captured_on=datetime.now(timezone.utc).date(),
-                           city="milano", zone="", contract="sale",
-                           median_sqm_price=3500.0, sample_count=5))
+    db.add(
+        PricingSnapshot(
+            captured_on=datetime.now(UTC).date(),
+            city="milano",
+            zone="",
+            contract="sale",
+            median_sqm_price=3500.0,
+            sample_count=5,
+        )
+    )
     db.commit()
 
     out = data_reset.clear_pricing_snapshots(db)
 
     assert out["deleted"]["pricing_snapshots"] == 1
     assert _count(db, PricingSnapshot) == 0
-    assert _count(db, Property) == 1   # untouched
+    assert _count(db, Property) == 1  # untouched
 
 
 def test_factory_reset_empties_everything(db, monkeypatch, tmp_path):
     _seed_dashboard(db)
     _seed_profile(db)
     db.add(ImportedListing(portal="immobiliare", portal_id="1", url="u"))
-    db.add(PricingSnapshot(captured_on=datetime.now(timezone.utc).date(),
-                           city="milano", zone="", contract="sale",
-                           median_sqm_price=3500.0, sample_count=5))
+    db.add(
+        PricingSnapshot(
+            captured_on=datetime.now(UTC).date(),
+            city="milano",
+            zone="",
+            contract="sale",
+            median_sqm_price=3500.0,
+            sample_count=5,
+        )
+    )
     db.commit()
 
     # no real DB file in this test: force the backup to a no-op, and point
     # DB_PATH at a missing file so the "backup failed" guard reads this as
     # the legitimate fresh-install case rather than a failed snapshot
     from app.services import backup
+
     monkeypatch.setattr(backup, "maybe_backup", lambda **k: None)
     monkeypatch.setattr(data_reset, "DB_PATH", tmp_path / "missing.db")
 
     out = data_reset.factory_reset(db)
 
-    for model in (Property, Listing, PriceHistory, PricingSnapshot,
-                  ImportedListing, SearchProfile):
+    for model in (Property, Listing, PriceHistory, PricingSnapshot, ImportedListing, SearchProfile):
         assert _count(db, model) == 0
     assert out["deleted"]["search_profiles"] == 1
     assert out["backup"] is None
@@ -161,6 +187,7 @@ def test_factory_reset_aborts_when_the_backup_fails(db, monkeypatch, tmp_path):
     db.commit()
 
     from app.services import backup
+
     monkeypatch.setattr(backup, "maybe_backup", lambda **k: None)
     real_db = tmp_path / "case.db"
     real_db.write_bytes(b"not empty")
@@ -176,6 +203,7 @@ def test_factory_reset_aborts_when_the_backup_fails(db, monkeypatch, tmp_path):
 # The provenance links (ListingProfile) are what makes this answerable at all:
 # before them, nothing in the DB knew which search had produced which card.
 
+
 def _seed_found(db, profile, portal_id="1", **over) -> Property:
     """A property found by `profile`, wired exactly as upsert_listing wires it."""
     prop = Property(fingerprint=f"fp{portal_id}", status="active", city="milano")
@@ -183,8 +211,9 @@ def _seed_found(db, profile, portal_id="1", **over) -> Property:
         setattr(prop, k, v)
     db.add(prop)
     db.commit()
-    listing = Listing(property_id=prop.id, portal="immobiliare",
-                      portal_id=portal_id, url=f"u{portal_id}")
+    listing = Listing(
+        property_id=prop.id, portal="immobiliare", portal_id=portal_id, url=f"u{portal_id}"
+    )
     db.add(listing)
     db.add(PriceHistory(property_id=prop.id, new_price=250000.0))
     db.commit()
@@ -200,7 +229,7 @@ def test_profile_results_ignores_properties_it_never_found(db):
     results in the same city."""
     prof = _seed_profile(db)
     _seed_found(db, prof, "1")
-    _seed_dashboard(db)   # no link: nothing says this search found it
+    _seed_dashboard(db)  # no link: nothing says this search found it
 
     out = data_reset.profile_results(db, [prof.id])
 
@@ -217,10 +246,10 @@ def test_profile_results_spares_shared_and_curated(db):
     it was kept (invariant 20)."""
     prof = _seed_profile(db)
     other = _seed_profile(db, name="other")
-    _seed_found(db, prof, "1")                       # deletable
-    _seed_found(db, prof, "2", is_favorite=True)     # curated
+    _seed_found(db, prof, "1")  # deletable
+    _seed_found(db, prof, "2", is_favorite=True)  # curated
     _seed_found(db, prof, "3", notes="call agency")  # curated
-    _seed_found(db, prof, "5", status="sold")        # confirmed sale: kept
+    _seed_found(db, prof, "5", status="sold")  # confirmed sale: kept
     shared = _seed_found(db, prof, "4")
     db.add(ListingProfile(listing_id=shared.listings[0].id, profile_id=other.id))
     db.commit()
@@ -264,8 +293,9 @@ def test_delete_profile_results_takes_the_whole_card_with_it(db):
     that produced the card is going away in the same transaction."""
     prof = _seed_profile(db)
     prop = _seed_found(db, prof, "1")
-    imp = ImportedListing(portal="immobiliare", portal_id="9", url="u",
-                          status="accepted", property_id=prop.id)
+    imp = ImportedListing(
+        portal="immobiliare", portal_id="9", url="u", status="accepted", property_id=prop.id
+    )
     db.add(imp)
     db.commit()
 
@@ -276,10 +306,10 @@ def test_delete_profile_results_takes_the_whole_card_with_it(db):
     assert _count(db, Property) == 0
     assert _count(db, Listing) == 0
     assert _count(db, PriceHistory) == 0
-    assert _count(db, ListingProfile) == 0   # cascaded with the listing
+    assert _count(db, ListingProfile) == 0  # cascaded with the listing
     db.refresh(imp)
-    assert imp.property_id is None           # never left pointing at a ghost
-    assert _count(db, SearchProfile) == 1    # the profile itself is the caller's job
+    assert imp.property_id is None  # never left pointing at a ghost
+    assert _count(db, SearchProfile) == 1  # the profile itself is the caller's job
 
 
 def test_deleting_a_profile_alone_leaves_its_results_standing(db):

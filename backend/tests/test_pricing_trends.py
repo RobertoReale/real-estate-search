@@ -4,6 +4,7 @@ pricing_stats computes medians instantaneously; nothing remembered what the
 median was last week until PricingSnapshot. These tests pin the once-per-day
 capture, its idempotence, and the shape of the series the chart consumes.
 """
+
 from datetime import date
 
 import pytest
@@ -13,7 +14,10 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import PricingSnapshot, Property
 from app.services.pricing_stats import (
-    capture_snapshots, get_trends, list_trend_areas, maybe_snapshot,
+    capture_snapshots,
+    get_trends,
+    list_trend_areas,
+    maybe_snapshot,
 )
 
 
@@ -26,10 +30,16 @@ def db():
     session.close()
 
 
-def _prop(price, sqm, city="milano", zone="isola", contract="sale",
-          status="active") -> Property:
-    return Property(fingerprint="f", city=city, zone=zone, contract=contract,
-                    current_min_price=price, sqm=sqm, status=status)
+def _prop(price, sqm, city="milano", zone="isola", contract="sale", status="active") -> Property:
+    return Property(
+        fingerprint="f",
+        city=city,
+        zone=zone,
+        contract=contract,
+        current_min_price=price,
+        sqm=sqm,
+        status=status,
+    )
 
 
 def _three_comparables(db, **kw):
@@ -47,8 +57,7 @@ def test_capture_writes_city_and_zone_rows(db):
     rows = db.scalars(select(PricingSnapshot)).all()
     scopes = {(r.city, r.zone) for r in rows}
     assert scopes == {("milano", ""), ("milano", "isola")}
-    assert all(r.median_sqm_price == 3200.0 and r.sample_count == 3
-               for r in rows)
+    assert all(r.median_sqm_price == 3200.0 and r.sample_count == 3 for r in rows)
 
 
 def test_capture_is_idempotent_per_day(db):
@@ -81,8 +90,7 @@ def test_get_trends_returns_ordered_series(db):
     series = get_trends(db, city="Milano", zone="Isola", contract="sale")
     dates = [p["captured_on"] for p in series["points"]]
     assert dates == [date(2026, 7, 1), date(2026, 7, 3)]  # oldest first
-    assert series["points"][1]["median_sqm_price"] > \
-        series["points"][0]["median_sqm_price"]
+    assert series["points"][1]["median_sqm_price"] > series["points"][0]["median_sqm_price"]
 
 
 def test_get_trends_collapses_same_day_duplicates(db):
@@ -91,9 +99,16 @@ def test_get_trends_collapses_same_day_duplicates(db):
     same x drew the chart's line back on itself and stranded dots, so the query
     keeps one point per day (the last by id)."""
     for median, sc in ((3200.0, 3), (3300.0, 4)):  # two rows, same day/area
-        db.add(PricingSnapshot(captured_on=date(2026, 7, 1), city="milano",
-                               zone="isola", contract="sale",
-                               median_sqm_price=median, sample_count=sc))
+        db.add(
+            PricingSnapshot(
+                captured_on=date(2026, 7, 1),
+                city="milano",
+                zone="isola",
+                contract="sale",
+                median_sqm_price=median,
+                sample_count=sc,
+            )
+        )
     db.commit()
     series = get_trends(db, city="milano", zone="isola", contract="sale")
     assert len(series["points"]) == 1
@@ -104,9 +119,16 @@ def test_list_trend_areas_counts_distinct_days_not_rows(db):
     """A single day duplicated must NOT masquerade as two days of history and
     slip past the >= 2 trend gate."""
     for median in (3200.0, 3300.0):  # two rows, but the SAME single day
-        db.add(PricingSnapshot(captured_on=date(2026, 7, 1), city="milano",
-                               zone="isola", contract="sale",
-                               median_sqm_price=median, sample_count=3))
+        db.add(
+            PricingSnapshot(
+                captured_on=date(2026, 7, 1),
+                city="milano",
+                zone="isola",
+                contract="sale",
+                median_sqm_price=median,
+                sample_count=3,
+            )
+        )
     db.commit()
     assert list_trend_areas(db, "sale") == []  # one real day is not a trend
 

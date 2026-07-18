@@ -6,7 +6,8 @@ properties skip for free so repeat runs resume, and a streak of refusals
 aborts the batch instead of insisting against a portal that already said no —
 the block would land on the IP the scheduled scans depend on.
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -28,20 +29,27 @@ def db():
     session.close()
 
 
-def _property(db, portal_id: str, *, status: str = "active",
-              last_seen_hours_ago: float | None = None) -> Property:
-    prop = Property(fingerprint=f"fp-{portal_id}", title=f"Trilocale {portal_id}",
-                    contract="sale", status=status, current_min_price=250_000.0)
+def _property(
+    db, portal_id: str, *, status: str = "active", last_seen_hours_ago: float | None = None
+) -> Property:
+    prop = Property(
+        fingerprint=f"fp-{portal_id}",
+        title=f"Trilocale {portal_id}",
+        contract="sale",
+        status=status,
+        current_min_price=250_000.0,
+    )
     db.add(prop)
     db.flush()
     listing = Listing(
-        property_id=prop.id, portal="immobiliare", portal_id=portal_id,
+        property_id=prop.id,
+        portal="immobiliare",
+        portal_id=portal_id,
         url=f"https://www.immobiliare.it/annunci/{portal_id}/",
         price=250_000.0,
     )
     if last_seen_hours_ago is not None:
-        listing.last_seen_at = datetime.now(timezone.utc) - timedelta(
-            hours=last_seen_hours_ago)
+        listing.last_seen_at = datetime.now(UTC) - timedelta(hours=last_seen_hours_ago)
     db.add(listing)
     db.commit()
     return prop
@@ -51,6 +59,7 @@ class _FakeProbe:
     """Offline stand-in: no browser machinery on purpose, so these tests also
     prove the services guard those calls with hasattr (fake probes predate
     the persistent browser session)."""
+
     def __init__(self, delay_seconds=6.0, cancel_event=None):
         self.was_blocked = False
         self.calls = 0
@@ -85,11 +94,10 @@ def test_a_block_streak_aborts_instead_of_insisting(db, monkeypatch):
 
 
 def test_the_probe_budget_caps_live_fetches_not_the_selection(db, monkeypatch):
-    """"Select all" may hand over hundreds of ids; the cap must bound portal
+    """ "Select all" may hand over hundreds of ids; the cap must bound portal
     fetches per run while still walking the whole selection, so the next run
     (with the first slice freshly verified) resumes past it."""
-    props = [_property(db, str(200 + n))
-             for n in range(MAX_CHECKS_PER_CALL + 5)]
+    props = [_property(db, str(200 + n)) for n in range(MAX_CHECKS_PER_CALL + 5)]
 
     monkeypatch.setattr(availability_check, "AdProbe", _FakeProbe)
     summary = check_properties_availability(db, props, skip_recent_hours=0)
@@ -103,8 +111,7 @@ def test_recently_verified_properties_skip_without_spending_budget(db, monkeypat
     """Smart resume: a property whose listings were all seen minutes ago is
     counted online without a fetch. Sliced-by-ids capping used to make repeat
     runs re-spend the whole budget on the same first fifty ids."""
-    fresh = [_property(db, str(300 + n), last_seen_hours_ago=0.5)
-             for n in range(3)]
+    fresh = [_property(db, str(300 + n), last_seen_hours_ago=0.5) for n in range(3)]
     stale = _property(db, "399", last_seen_hours_ago=48)
 
     probes = []
@@ -115,8 +122,7 @@ def test_recently_verified_properties_skip_without_spending_budget(db, monkeypat
             probes.append(self)
 
     monkeypatch.setattr(availability_check, "AdProbe", CountingProbe)
-    summary = check_properties_availability(db, fresh + [stale],
-                                            skip_recent_hours=6.0)
+    summary = check_properties_availability(db, fresh + [stale], skip_recent_hours=6.0)
 
     assert summary["checked"] == 4
     assert summary["online"] == 4
@@ -173,13 +179,13 @@ def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, mo
         return p
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError(
-            "curl_cffi cookie recovery must not run in browser-primary mode")
+        raise AssertionError("curl_cffi cookie recovery must not run in browser-primary mode")
 
     monkeypatch.setattr(availability_check, "AdProbe", make_probe)
     monkeypatch.setattr(availability_check, "_try_cookie_recovery", fail_if_called)
-    monkeypatch.setattr(availability_check, "load_settings",
-                        lambda: {"availability_browser_first": True})
+    monkeypatch.setattr(
+        availability_check, "load_settings", lambda: {"availability_browser_first": True}
+    )
 
     summary = check_properties_availability(db, props, skip_recent_hours=0)
 
@@ -251,13 +257,16 @@ def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatc
             pass
 
     probe_instances = []
+
     def fake_ad_probe(*args, **kwargs):
         p = BrowserProbe(*args, **kwargs)
         probe_instances.append(p)
         return p
 
     monkeypatch.setattr(availability_check, "AdProbe", fake_ad_probe)
-    monkeypatch.setattr(availability_check, "load_settings", lambda: {"availability_browser_first": True})
+    monkeypatch.setattr(
+        availability_check, "load_settings", lambda: {"availability_browser_first": True}
+    )
 
     summary = check_properties_availability(db, [prop])
     assert summary["checked"] == 1

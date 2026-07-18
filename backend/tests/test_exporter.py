@@ -5,7 +5,8 @@ transient ones. Two things matter beyond "it renders": HTML escaping (a listing
 title is attacker-influenced text going into a file a user will open) and that
 the transient Deal/Match annotations survive into the output when present.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
@@ -14,23 +15,41 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Listing, PriceHistory, Property
 from app.services.exporter import (
-    properties_to_csv, properties_to_html, properties_to_markdown,
+    properties_to_csv,
+    properties_to_html,
+    properties_to_markdown,
 )
 
 
-def _prop(title="Trilocale", price=300_000, favorite=False, deal=None,
-          match=None, history=None, image="") -> Property:
-    p = Property(fingerprint="f", title=title, city="Milano", zone="Isola",
-                 address="Via Test 1", contract="sale",
-                 current_min_price=price, first_price=price, sqm=100.0,
-                 rooms=3, floor="2", status="active", is_favorite=favorite,
-                 image_url=image, first_seen_at=datetime.now(timezone.utc))
-    p.listings = [Listing(portal="immobiliare", portal_id="1",
-                          url="https://www.immobiliare.it/annunci/1/",
-                          agency="Studio Rossi")]
-    p.price_history = [
-        PriceHistory(old_price=o, new_price=n) for o, n in (history or [])
+def _prop(
+    title="Trilocale", price=300_000, favorite=False, deal=None, match=None, history=None, image=""
+) -> Property:
+    p = Property(
+        fingerprint="f",
+        title=title,
+        city="Milano",
+        zone="Isola",
+        address="Via Test 1",
+        contract="sale",
+        current_min_price=price,
+        first_price=price,
+        sqm=100.0,
+        rooms=3,
+        floor="2",
+        status="active",
+        is_favorite=favorite,
+        image_url=image,
+        first_seen_at=datetime.now(UTC),
+    )
+    p.listings = [
+        Listing(
+            portal="immobiliare",
+            portal_id="1",
+            url="https://www.immobiliare.it/annunci/1/",
+            agency="Studio Rossi",
+        )
     ]
+    p.price_history = [PriceHistory(old_price=o, new_price=n) for o, n in (history or [])]
     if deal is not None:
         p.deal_score = deal
         p.deal_label = "undervalued" if deal > 0 else "overpriced"
@@ -53,8 +72,7 @@ def test_csv_includes_deal_and_match_when_annotated():
 
 
 def test_markdown_lists_price_history_and_links():
-    md = properties_to_markdown(
-        [_prop(history=[(340_000, 300_000)])], "My shortlist")
+    md = properties_to_markdown([_prop(history=[(340_000, 300_000)])], "My shortlist")
     assert md.startswith("# My shortlist")
     assert "## Trilocale" in md
     assert "Price history:" in md
@@ -65,8 +83,7 @@ def test_html_is_self_contained_and_escapes_titles():
     """The title comes from a portal listing — untrusted text. It must be HTML
     -escaped, or a crafted title would inject markup into the dossier the user
     opens in their browser."""
-    html = properties_to_html([_prop(title="<script>alert(1)</script>")],
-                              "Dossier")
+    html = properties_to_html([_prop(title="<script>alert(1)</script>")], "Dossier")
     assert html.startswith("<!doctype html>")
     assert "<style>" in html  # CSS inlined, not linked -> offline
     assert "<script>alert(1)</script>" not in html
@@ -74,10 +91,9 @@ def test_html_is_self_contained_and_escapes_titles():
 
 
 def test_html_renders_image_and_badges_when_present():
-    html = properties_to_html([_prop(deal=16, match=92, image="http://x/y.jpg")],
-                              "Dossier")
+    html = properties_to_html([_prop(deal=16, match=92, image="http://x/y.jpg")], "Dossier")
     assert 'src="http://x/y.jpg"' in html
-    assert "below market" in html   # deal badge
+    assert "below market" in html  # deal badge
     assert "92% match" in html
 
 
@@ -88,6 +104,7 @@ def test_empty_export_still_valid():
 
 
 # --- endpoint wiring ---------------------------------------------------------
+
 
 @pytest.fixture
 def db():
@@ -101,17 +118,31 @@ def db():
 def test_export_endpoint_sets_attachment_headers(db):
     from app.main import export_properties
 
-    p = Property(fingerprint="f", title="Casa", city="Milano", contract="sale",
-                 current_min_price=250_000, sqm=80.0, status="active")
+    p = Property(
+        fingerprint="f",
+        title="Casa",
+        city="Milano",
+        contract="sale",
+        current_min_price=250_000,
+        sqm=80.0,
+        status="active",
+    )
     p.listings = [Listing(portal="immobiliare", portal_id="9", url="u")]
     db.add(p)
     db.commit()
 
     # the Query(...)-defaulted params must be passed explicitly when the
     # endpoint function is called directly (no FastAPI to resolve them)
-    resp = export_properties(db=db, fmt="csv", status="active", contract=None,
-                             sort="newest", floor_band=None, portal=None,
-                             deal=None)
+    resp = export_properties(
+        db=db,
+        fmt="csv",
+        status="active",
+        contract=None,
+        sort="newest",
+        floor_band=None,
+        portal=None,
+        deal=None,
+    )
     assert (resp.media_type or "").startswith("text/csv")
     disposition = resp.headers["content-disposition"]
     assert disposition.startswith("attachment") and disposition.endswith('.csv"')
@@ -122,8 +153,7 @@ def test_markdown_escapes_scraped_html():
     """Regression: title/location/agency went into the Markdown dossier raw.
     Many renderers (VS Code preview, Obsidian) pass HTML through, so a scraped
     title containing an <img onerror=…> became live markup on open."""
-    md = properties_to_markdown(
-        [_prop(title='<img src=x onerror=alert(1)>Attico')], "S")
+    md = properties_to_markdown([_prop(title="<img src=x onerror=alert(1)>Attico")], "S")
     assert "<img" not in md
     assert "&lt;img" in md
 

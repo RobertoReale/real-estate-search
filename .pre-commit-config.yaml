@@ -1,0 +1,38 @@
+# Formalises the "checks green before commit" rule the docs state in prose.
+# Install once with:  backend/.venv/Scripts/python -m pre_commit install
+# Run on demand with: backend/.venv/Scripts/python -m pre_commit run --all-files
+#
+# All hooks are `language: system` and call the backend venv's own tools, so
+# there is one source of truth for versions (requirements-dev.txt) rather than
+# a second set pinned here. The `cd backend` hooks need a POSIX shell (Git Bash
+# on Windows), which the project already relies on.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        entry: bash -c 'cd backend && .venv/Scripts/ruff.exe check app tests'
+        language: system
+        pass_filenames: false
+        files: ^backend/(app|tests)/.*\.py$
+
+      - id: ruff-format
+        name: ruff format (backend)
+        entry: bash -c 'cd backend && .venv/Scripts/ruff.exe format app tests'
+        language: system
+        pass_filenames: false
+        files: ^backend/(app|tests)/.*\.py$
+
+      - id: pyright
+        name: pyright (backend)
+        entry: bash -c 'cd backend && pyright'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: pip-audit
+        name: pip-audit (runtime deps)
+        entry: bash -c 'cd backend && .venv/Scripts/python -m pip_audit -r requirements.txt'
+        language: system
+        pass_filenames: false
+        files: ^backend/requirements\.txt$

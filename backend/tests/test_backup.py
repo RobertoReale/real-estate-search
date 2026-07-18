@@ -7,6 +7,7 @@ that it is idempotent within 24h (dev restarts every few minutes must not pile
 up copies), that rotation caps disk usage, and that it never raises (a failed
 backup must not take startup down with it).
 """
+
 import os
 import sqlite3
 import time
@@ -49,8 +50,7 @@ def test_recent_backup_suppresses_a_new_one(db_file, tmp_path):
     assert len(list(backups.glob("case-*.db"))) == 1
 
 
-def test_stale_backup_is_replaced_and_rotation_prunes_oldest(
-        db_file, tmp_path, monkeypatch):
+def test_stale_backup_is_replaced_and_rotation_prunes_oldest(db_file, tmp_path, monkeypatch):
     backups = tmp_path / "backups"
     backups.mkdir()
     # three pre-existing copies, all older than BACKUP_EVERY (mtime drives

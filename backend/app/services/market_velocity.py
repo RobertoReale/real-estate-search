@@ -29,7 +29,8 @@ than hidden behind a confident number:
    rule as pricing_stats.py, for the same reason: a median of two listings
    is noise wearing the costume of a statistic.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 from statistics import median
 
 from sqlalchemy import select
@@ -44,7 +45,7 @@ MIN_SAMPLE = 3
 
 def _as_utc(value: datetime) -> datetime:
     """SQLite hands back naive datetimes; they were all written in UTC."""
-    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def _is_closed(prop: Property) -> bool:
@@ -82,8 +83,7 @@ def _median_or_none(values: list[float]) -> float | None:
     return round(median(values), 1) if len(values) >= MIN_SAMPLE else None
 
 
-def _area_row(city: str, zone: str, scope: str, props: list[Property],
-              now: datetime) -> dict:
+def _area_row(city: str, zone: str, scope: str, props: list[Property], now: datetime) -> dict:
     closed = [p for p in props if _is_closed(p)]
     sold = [p for p in props if p.status == "sold"]
     live = [p for p in props if not _is_closed(p)]
@@ -108,9 +108,7 @@ def _area_row(city: str, zone: str, scope: str, props: list[Property],
     }
 
 
-def compute_area_velocity(
-    props: list[Property], now: datetime
-) -> list[dict]:
+def compute_area_velocity(props: list[Property], now: datetime) -> list[dict]:
     """One row per neighborhood (and one per city, aggregating its zones),
     sorted fastest-moving first."""
     by_zone: dict[tuple[str, str], list[Property]] = {}
@@ -136,14 +134,11 @@ def compute_area_velocity(
     ]
     # areas whose median cannot be computed yet still carry a sell-through
     # rate worth showing, so they are sorted last instead of dropped
-    rows.sort(key=lambda r: (r["median_days_to_gone"] is None,
-                             r["median_days_to_gone"] or 0.0))
+    rows.sort(key=lambda r: (r["median_days_to_gone"] is None, r["median_days_to_gone"] or 0.0))
     return rows
 
 
-def compute_agency_behavior(
-    db: Session, props: list[Property], now: datetime
-) -> list[dict]:
+def compute_agency_behavior(db: Session, props: list[Property], now: datetime) -> list[dict]:
     """One row per agency: how it prices against the local median €/sqm, and
     how much it discounts afterwards."""
     zone_medians, city_medians = compute_sqm_price_medians(db)
@@ -154,9 +149,7 @@ def compute_agency_behavior(
             return None
         city = (p.city or "").strip().lower()
         zone = (p.zone or "").strip().lower()
-        entry, _scope = lookup_area_median(
-            zone_medians, city_medians, city, zone, p.contract
-        )
+        entry, _scope = lookup_area_median(zone_medians, city_medians, city, zone, p.contract)
         if entry is None:
             return None
         med, _n = entry
@@ -185,27 +178,25 @@ def compute_agency_behavior(
         drops = [d for d in (_drop_pct(p) for p in group) if d is not None]
         deltas = [d for d in (sqm_delta_pct(p) for p in group) if d is not None]
         gone = [p for p in group if _is_closed(p)]
-        rows.append({
-            "agency": display_name[agency_key],
-            "sample": len(group),
-            "price_drop_pct": round(len(drops) / len(group) * 100.0, 1),
-            # median discount among the listings that *did* drop: mixing in
-            # the unchanged ones would report a discount nobody ever offered
-            "median_drop_pct": _median_or_none(drops),
-            # positive = lists above the neighborhood median €/sqm
-            "median_sqm_price_delta_pct": _median_or_none(deltas),
-            "priced_sample": len(deltas),
-            "median_days_to_gone": _median_or_none(
-                [_days_on_market(p, now) for p in gone]
-            ),
-        })
+        rows.append(
+            {
+                "agency": display_name[agency_key],
+                "sample": len(group),
+                "price_drop_pct": round(len(drops) / len(group) * 100.0, 1),
+                # median discount among the listings that *did* drop: mixing in
+                # the unchanged ones would report a discount nobody ever offered
+                "median_drop_pct": _median_or_none(drops),
+                # positive = lists above the neighborhood median €/sqm
+                "median_sqm_price_delta_pct": _median_or_none(deltas),
+                "priced_sample": len(deltas),
+                "median_days_to_gone": _median_or_none([_days_on_market(p, now) for p in gone]),
+            }
+        )
     rows.sort(key=lambda r: r["sample"], reverse=True)
     return rows
 
 
-def compute_market_velocity(
-    db: Session, contract: str = "sale", city: str | None = None
-) -> dict:
+def compute_market_velocity(db: Session, contract: str = "sale", city: str | None = None) -> dict:
     """Full payload for GET /api/market-velocity.
 
     Excludes "hidden" properties (the user removed them from their market on
@@ -214,7 +205,7 @@ def compute_market_velocity(
     are kept and counted as confirmed closes (that is the whole point of the
     state).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     query = (
         select(Property)
         .options(selectinload(Property.listings))

@@ -7,6 +7,7 @@ mechanism, not as a replacement. The risk the roadmap flagged was doing it
 and blow up. These tests pin the adoption path (stamp-then-upgrade) and its
 idempotence so a future migration author can trust the harness.
 """
+
 from sqlalchemy import create_engine, inspect, text
 
 from app import database
@@ -30,8 +31,13 @@ def test_fresh_db_is_stamped_at_baseline(tmp_path, monkeypatch):
 
     assert _version(engine) == "0001_baseline"
     tables = set(inspect(engine).get_table_names())
-    assert {"properties", "listings", "price_history",
-            "search_profiles", "imported_listings"} <= tables
+    assert {
+        "properties",
+        "listings",
+        "price_history",
+        "search_profiles",
+        "imported_listings",
+    } <= tables
 
 
 def test_pre_alembic_db_is_adopted_not_rebuilt(tmp_path, monkeypatch):
@@ -42,10 +48,12 @@ def test_pre_alembic_db_is_adopted_not_rebuilt(tmp_path, monkeypatch):
     db_file = tmp_path / "old.db"
     engine = create_engine(f"sqlite:///{db_file}")
     with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
-            "fingerprint VARCHAR, title VARCHAR)"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE properties (id INTEGER PRIMARY KEY, "
+                "fingerprint VARCHAR, title VARCHAR)"
+            )
+        )
     monkeypatch.setattr(database, "engine", engine)
 
     database.init_db()  # must not raise

@@ -4,6 +4,7 @@ The parser is deliberately deterministic (no LLM call), so every phrasing it
 claims to support can be pinned here. Most of these cases are the ones that
 broke a naive implementation first — each keeps its story in a comment.
 """
+
 from app.services.query_parser import parse_query
 
 
@@ -18,12 +19,13 @@ def params(query: str) -> dict:
 
 # --- The roadmap's own example ----------------------------------------------
 
+
 def test_roadmap_example_query():
     p = params("find a 2-bedroom rental in Milan under 1200€")
     assert p["contract"] == "rent"
-    assert p["city"] == "Milano"          # English exonym -> portal spelling
+    assert p["city"] == "Milano"  # English exonym -> portal spelling
     assert p["max_price"] == 1200
-    assert p["min_rooms"] == 3            # 2 bedrooms + living room
+    assert p["min_rooms"] == 3  # 2 bedrooms + living room
 
 
 def test_bedrooms_become_locali_and_the_assumption_is_stated():
@@ -37,6 +39,7 @@ def test_bedrooms_become_locali_and_the_assumption_is_stated():
 
 # --- Prices ------------------------------------------------------------------
 
+
 def test_surface_is_never_read_as_a_price():
     """Regression: the "m" multiplier (millions) matched the "m" of "80 m2",
     turning a surface filter into an 80,000,000 € budget."""
@@ -46,7 +49,7 @@ def test_surface_is_never_read_as_a_price():
 
 
 def test_room_count_is_never_read_as_a_price():
-    """"3 locali" must not become a 3 € budget: bare numbers only count as
+    """ "3 locali" must not become a 3 € budget: bare numbers only count as
     money above 100 and when no unit word follows them."""
     p = params("appartamento 3 locali a Torino")
     assert p["min_rooms"] == 3
@@ -61,7 +64,7 @@ def test_thousands_separators_multipliers_and_currency():
 
 
 def test_explicit_range_beats_a_lone_minimum():
-    """"da 200k a 300k" starts with "da", a MIN keyword: without range
+    """ "da 200k a 300k" starts with "da", a MIN keyword: without range
     detection running first it parsed as min=200k and dropped the ceiling."""
     p = params("attico a Firenze da 400k a 600k")
     assert (p["min_price"], p["max_price"]) == (400_000, 600_000)
@@ -85,6 +88,7 @@ def test_minimum_price_keyword():
 
 # --- Contract ----------------------------------------------------------------
 
+
 def test_rent_detected_from_italian_and_english():
     assert params("bilocale in affitto a Milano")["contract"] == "rent"
     assert params("rental in Rome")["contract"] == "rent"
@@ -104,8 +108,9 @@ def test_explicit_sale_is_not_flagged_as_assumed():
 
 # --- City and province -------------------------------------------------------
 
+
 def test_multiword_city_wins_over_its_prefix():
-    """"reggio emilia" must not degrade into "reggio": longest match first."""
+    """ "reggio emilia" must not degrade into "reggio": longest match first."""
     assert params("casa a Reggio Emilia")["city"] == "Reggio Emilia"
 
 
@@ -141,6 +146,7 @@ def test_empty_query_is_not_an_error():
 
 
 # --- Rooms and surface -------------------------------------------------------
+
 
 def test_italian_room_words():
     assert params("monolocale a Bologna")["min_rooms"] == 1
@@ -181,6 +187,7 @@ def test_minimum_surface_still_parsed_next_to_a_price_ceiling():
 
 # --- Zones ---------------------------------------------------------------------
 
+
 def test_zone_extracted_and_city_kept():
     p = params("trilocale a Milano in zona Navigli sotto i 400k")
     assert p["city"] == "Milano"
@@ -205,7 +212,7 @@ def test_zone_never_masquerades_as_the_city():
 
 
 def test_zone_followed_by_city_keeps_both():
-    """"zona Navigli Milano": a known city name ends the zone capture."""
+    """ "zona Navigli Milano": a known city name ends the zone capture."""
     p = params("bilocale zona Navigli Milano")
     assert p["zone"] == "Navigli"
     assert p["city"] == "Milano"
@@ -218,11 +225,11 @@ def test_zone_produces_a_best_effort_note():
 
 # --- Multiple alternatives ("o" / "oppure" / "or") ----------------------------
 
+
 def test_two_alternatives_with_different_zones():
     """The user's own example: two zones of the same city, one query."""
     result = parse_query(
-        "cerco un bilocale a Milano in zona Navigli o un trilocale a "
-        "Milano in zona Lambrate"
+        "cerco un bilocale a Milano in zona Navigli o un trilocale a Milano in zona Lambrate"
     )
     assert len(result["searches"]) == 2
     a, b = (s["params"] for s in result["searches"])
@@ -231,7 +238,7 @@ def test_two_alternatives_with_different_zones():
 
 
 def test_shared_context_is_inherited_by_the_alternative_that_omits_it():
-    """"bilocale a Milano zona Isola o trilocale zona Lambrate sotto i 400k":
+    """ "bilocale a Milano zona Isola o trilocale zona Lambrate sotto i 400k":
     the second alternative names no city — everyone reading the sentence
     knows it is still Milan, and the parser must too."""
     result = parse_query(
@@ -240,13 +247,13 @@ def test_shared_context_is_inherited_by_the_alternative_that_omits_it():
     assert len(result["searches"]) == 2
     a, b = (s["params"] for s in result["searches"])
     assert b["city"] == "Milano"
-    assert b["zone"] == "Lambrate"          # own zone, not inherited
-    assert b["max_price"] == 400_000        # budget shared across alternatives
+    assert b["zone"] == "Lambrate"  # own zone, not inherited
+    assert b["max_price"] == 400_000  # budget shared across alternatives
     assert a["zone"] == "Isola"
 
 
 def test_context_inherits_backwards_too():
-    """"bilocale o trilocale a Milano": the shared city sits on the SECOND
+    """ "bilocale o trilocale a Milano": the shared city sits on the SECOND
     alternative; the first must inherit it looking forward."""
     result = parse_query("bilocale o trilocale a Milano sotto i 350k")
     assert len(result["searches"]) == 2
@@ -257,14 +264,14 @@ def test_context_inherits_backwards_too():
 
 
 def test_zone_is_not_inherited_across_different_cities():
-    """"trilocale a Milano zona Navigli o a Torino" must not put a Milanese
+    """ "trilocale a Milano zona Navigli o a Torino" must not put a Milanese
     neighborhood in Turin: location inherits as a bundle, and an alternative
     with its own city inherits no location at all."""
     result = parse_query("trilocale a Milano zona Navigli o a Torino")
     a, b = (s["params"] for s in result["searches"])
     assert (a["city"], a["zone"]) == ("Milano", "Navigli")
     assert (b["city"], b["zone"]) == ("Torino", "")
-    assert b["min_rooms"] == 3              # rooms are shared context
+    assert b["min_rooms"] == 3  # rooms are shared context
 
 
 def test_rent_contract_is_inherited():
@@ -273,7 +280,7 @@ def test_rent_contract_is_inherited():
 
 
 def test_spurious_split_is_glued_back():
-    """"2 o 3 locali" is a room range, not two searches: a fragment that
+    """ "2 o 3 locali" is a room range, not two searches: a fragment that
     parses to nothing ("2") must merge back instead of producing a ghost
     alternative."""
     result = parse_query("appartamento 2 o 3 locali a Milano")

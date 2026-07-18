@@ -4,7 +4,8 @@ Everything runs offline: a fake IMAP client serves handcrafted alert emails,
 mirroring the real structure of portal notifications (HTML cards, every link
 wrapped in a click-tracking redirect that percent-encodes the target URL).
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 from email.message import EmailMessage
 
 import pytest
@@ -13,14 +14,20 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import ImportedListing, Listing, SearchProfile
-from app.services.deduplicator import upsert_listing
+from app.scrapers.base import RawListing
 from app.services import email_import
+from app.services.deduplicator import upsert_listing
 from app.services.email_import import (
-    ImapError, _search_criteria, accept_import, check_availability,
-    extract_listings, get_check_progress, get_progress, profile_criteria,
+    ImapError,
+    _search_criteria,
+    accept_import,
+    check_availability,
+    extract_listings,
+    get_check_progress,
+    get_progress,
+    profile_criteria,
     scan_inbox,
 )
-from app.scrapers.base import RawListing
 
 
 @pytest.fixture
@@ -32,8 +39,12 @@ def db():
     session.close()
 
 
-def _email(html: str, subject="3 nuovi annunci per la tua ricerca",
-           sender="noreply@immobiliare.it", plain="see html") -> bytes:
+def _email(
+    html: str,
+    subject="3 nuovi annunci per la tua ricerca",
+    sender="noreply@immobiliare.it",
+    plain="see html",
+) -> bytes:
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = f"Immobiliare.it <{sender}>"
@@ -110,17 +121,15 @@ def test_tracking_only_links_are_still_recognised():
     entries, meta = extract_listings(_email(html, subject="Nuove case in affitto"))
     assert entries[0]["portal"] == "idealista"
     assert entries[0]["portal_id"] == "555"
-    assert meta["contract"] == "rent"          # subject says "affitto"
-    assert entries[0]["price"] == 950.0        # rent bounds, not sale bounds
+    assert meta["contract"] == "rent"  # subject says "affitto"
+    assert entries[0]["price"] == 950.0  # rent bounds, not sale bounds
 
 
 def test_plain_text_fallback():
     msg = EmailMessage()
     msg["Subject"] = "Nuovo annuncio"
     msg["From"] = "alerts@idealista.com"
-    msg.set_content(
-        "Bilocale 60 mq a 200.000 €\nhttps://www.idealista.it/immobile/777/"
-    )
+    msg.set_content("Bilocale 60 mq a 200.000 €\nhttps://www.idealista.it/immobile/777/")
     entries, _ = extract_listings(msg.as_bytes())
     assert entries[0]["portal_id"] == "777"
     assert entries[0]["sqm"] == 60.0
@@ -173,19 +182,26 @@ def test_rescan_is_idempotent_even_after_discard(db):
     summary = scan_inbox(db, client=FakeImap([_email(TWO_CARDS_HTML)]))
     assert summary["imported"] == 0
     assert summary["already_imported"] == 2
-    assert all(
-        r.status == "discarded" for r in db.scalars(select(ImportedListing))
-    )
+    assert all(r.status == "discarded" for r in db.scalars(select(ImportedListing)))
 
 
 def test_already_tracked_listings_are_not_staged(db):
     """An ad the scanner already follows must not show up for review."""
-    upsert_listing(db, RawListing(
-        portal="immobiliare", portal_id="12345",
-        url="https://www.immobiliare.it/annunci/12345/",
-        title="Trilocale", city="Milano", rooms=3, sqm=90.0, price=250_000.0,
-        latitude=45.46, longitude=9.19,
-    ))
+    upsert_listing(
+        db,
+        RawListing(
+            portal="immobiliare",
+            portal_id="12345",
+            url="https://www.immobiliare.it/annunci/12345/",
+            title="Trilocale",
+            city="Milano",
+            rooms=3,
+            sqm=90.0,
+            price=250_000.0,
+            latitude=45.46,
+            longitude=9.19,
+        ),
+    )
     db.commit()
     summary = scan_inbox(db, client=FakeImap([_email(TWO_CARDS_HTML)]))
     assert summary["already_tracked"] == 1
@@ -193,9 +209,10 @@ def test_already_tracked_listings_are_not_staged(db):
 
 
 def test_max_emails_caps_processing_from_the_newest(db):
-    mails = [_email(TWO_CARDS_HTML), _email(
-        '<a href="https://www.immobiliare.it/annunci/99/">Casa</a> € 100.000'
-    )]
+    mails = [
+        _email(TWO_CARDS_HTML),
+        _email('<a href="https://www.immobiliare.it/annunci/99/">Casa</a> € 100.000'),
+    ]
     summary = scan_inbox(db, client=FakeImap(mails), max_emails=1)
     # only the newest (last sequence number) message is read
     assert summary["emails_scanned"] == 1
@@ -219,8 +236,8 @@ BARE_LINK_HTML = """
 
 def test_bare_link_with_no_details_is_not_staged(db):
     summary = scan_inbox(db, client=FakeImap([_email(BARE_LINK_HTML)]))
-    assert summary["listings_found"] == 1   # the link was seen…
-    assert summary["blank_links"] == 1      # …and recognised as boilerplate
+    assert summary["listings_found"] == 1  # the link was seen…
+    assert summary["blank_links"] == 1  # …and recognised as boilerplate
     assert summary["imported"] == 0
     assert list(db.scalars(select(ImportedListing))) == []
 
@@ -239,7 +256,7 @@ def test_a_url_is_never_used_as_the_title(db):
 
 
 def test_call_to_action_text_is_not_a_title():
-    """"Vedi l'annuncio ›" is a button, not the name of a house. The card's
+    """ "Vedi l'annuncio ›" is a button, not the name of a house. The card's
     real title wins anyway (longest one), but a CTA-only card must not keep it."""
     html = """<p><a href="https://www.idealista.it/immobile/333/">Vedi l&rsquo;annuncio &rsaquo;</a>
               <span>950 &euro; al mese</span></p>"""
@@ -259,22 +276,36 @@ def test_blank_pending_rows_are_cleaned_up_but_discards_survive(db):
     """Rows staged before blank links were filtered out are removed on the next
     scan. Discarded rows are never touched: they are the memory of a rejection
     (invariant 12), and deleting one would resurrect the listing."""
-    db.add(ImportedListing(
-        portal="immobiliare", portal_id="900",
-        url="https://www.immobiliare.it/annunci/900/",
-        title="https://www.immobiliare.it/annunci/900/", contract="sale",
-        status="pending",
-    ))
-    db.add(ImportedListing(   # blank, but the user already ruled on it
-        portal="immobiliare", portal_id="901",
-        url="https://www.immobiliare.it/annunci/901/",
-        title="", contract="sale", status="discarded",
-    ))
-    db.add(ImportedListing(   # pending and priceless, but it has a name
-        portal="immobiliare", portal_id="902",
-        url="https://www.immobiliare.it/annunci/902/",
-        title="Trilocale via Roma", contract="sale", status="pending",
-    ))
+    db.add(
+        ImportedListing(
+            portal="immobiliare",
+            portal_id="900",
+            url="https://www.immobiliare.it/annunci/900/",
+            title="https://www.immobiliare.it/annunci/900/",
+            contract="sale",
+            status="pending",
+        )
+    )
+    db.add(
+        ImportedListing(  # blank, but the user already ruled on it
+            portal="immobiliare",
+            portal_id="901",
+            url="https://www.immobiliare.it/annunci/901/",
+            title="",
+            contract="sale",
+            status="discarded",
+        )
+    )
+    db.add(
+        ImportedListing(  # pending and priceless, but it has a name
+            portal="immobiliare",
+            portal_id="902",
+            url="https://www.immobiliare.it/annunci/902/",
+            title="Trilocale via Roma",
+            contract="sale",
+            status="pending",
+        )
+    )
     db.commit()
 
     summary = scan_inbox(db, client=FakeImap([]))
@@ -287,9 +318,7 @@ def test_blank_pending_rows_are_cleaned_up_but_discards_survive(db):
 
 def test_accept_creates_property_through_dedup(db):
     scan_inbox(db, client=FakeImap([_email(TWO_CARDS_HTML)]))
-    item = db.scalar(select(ImportedListing).where(
-        ImportedListing.portal_id == "12345"
-    ))
+    item = db.scalar(select(ImportedListing).where(ImportedListing.portal_id == "12345"))
     prop = accept_import(db, item)
     assert item.status == "accepted"
     assert item.property_id == prop.id
@@ -303,9 +332,12 @@ def test_accept_creates_property_through_dedup(db):
 
 def _staged(db, portal_id: str) -> ImportedListing:
     row = ImportedListing(
-        portal="immobiliare", portal_id=portal_id,
+        portal="immobiliare",
+        portal_id=portal_id,
         url=f"https://www.immobiliare.it/annunci/{portal_id}/",
-        title=f"Trilocale {portal_id}", price=250_000.0, contract="sale",
+        title=f"Trilocale {portal_id}",
+        price=250_000.0,
+        contract="sale",
     )
     db.add(row)
     db.commit()
@@ -314,6 +346,7 @@ def _staged(db, portal_id: str) -> ImportedListing:
 
 def _fake_probe(db, monkeypatch, answers: dict[str, bool | None]):
     """Replaces the network probe, and its 6-second politeness sleep."""
+
     class FakeProbe:
         def __init__(self, delay_seconds=6.0):
             self.was_blocked = False
@@ -331,10 +364,18 @@ def test_check_marks_gone_listings_and_leaves_the_live_ones(db, monkeypatch):
     alive, dead = _staged(db, "111"), _staged(db, "222")
     _fake_probe(db, monkeypatch, {alive.url: True, dead.url: False})
 
-    summary = check_availability(db, [alive])   # one at a time: no polite_sleep
-    assert summary == {"checked": 1, "gone": 0, "online": 1, "unknown": 0,
-                       "aborted": False, "capped": False, "cancelled": False,
-                       "last_error": None, "cookie_refreshed": 0}
+    summary = check_availability(db, [alive])  # one at a time: no polite_sleep
+    assert summary == {
+        "checked": 1,
+        "gone": 0,
+        "online": 1,
+        "unknown": 0,
+        "aborted": False,
+        "capped": False,
+        "cancelled": False,
+        "last_error": None,
+        "cookie_refreshed": 0,
+    }
     assert alive.is_available is True and alive.last_checked_at is not None
 
     summary = check_availability(db, [dead])
@@ -356,8 +397,8 @@ def test_an_unknown_answer_never_overwrites_what_was_known(db, monkeypatch):
     summary = check_availability(db, [item])
 
     assert summary["unknown"] == 1
-    assert item.is_available is True          # untouched
-    assert item.last_checked_at is not None   # but we did try
+    assert item.is_available is True  # untouched
+    assert item.last_checked_at is not None  # but we did try
 
 
 def test_the_check_gives_up_once_the_portal_starts_refusing(db, monkeypatch):
@@ -373,7 +414,7 @@ def test_the_check_gives_up_once_the_portal_starts_refusing(db, monkeypatch):
 
         def check(self, url):
             self.calls += 1
-            self.was_blocked = True   # DataDome refuses everything, from now on
+            self.was_blocked = True  # DataDome refuses everything, from now on
             return None
 
         def polite_sleep(self):
@@ -383,7 +424,7 @@ def test_the_check_gives_up_once_the_portal_starts_refusing(db, monkeypatch):
     summary = check_availability(db, items)
 
     assert summary["aborted"] is True
-    assert summary["checked"] == 3          # not 6: it stopped knocking
+    assert summary["checked"] == 3  # not 6: it stopped knocking
     assert all(i.is_available is None for i in items)
     assert summary["cookie_refreshed"] == 0  # opt-in off: no browser was launched
 
@@ -419,13 +460,17 @@ def test_a_cookie_refresh_recovers_a_blocked_check_when_opted_in(db, monkeypatch
             pass
 
     monkeypatch.setattr(email_import, "AdProbe", RecoverableProbe)
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"request_delay_seconds": 0,
-                                 "datadome_auto_refresh": True})
+    monkeypatch.setattr(
+        email_import,
+        "load_settings",
+        lambda: {"request_delay_seconds": 0, "datadome_auto_refresh": True},
+    )
     from app.services import cookie_harvester
+
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
     monkeypatch.setattr(
-        cookie_harvester, "refresh_into_settings",
+        cookie_harvester,
+        "refresh_into_settings",
         lambda portal="immobiliare", headless=True: {"ok": True},
     )
 
@@ -457,13 +502,16 @@ def test_cookie_recovery_is_skipped_when_not_opted_in(db, monkeypatch):
             pass
 
     monkeypatch.setattr(email_import, "AdProbe", BlockingProbe)
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"datadome_auto_refresh": False})
+    monkeypatch.setattr(email_import, "load_settings", lambda: {"datadome_auto_refresh": False})
     from app.services import cookie_harvester
+
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
     called = []
-    monkeypatch.setattr(cookie_harvester, "refresh_into_settings",
-                        lambda *a, **k: called.append(True) or {"ok": True})
+    monkeypatch.setattr(
+        cookie_harvester,
+        "refresh_into_settings",
+        lambda *a, **k: called.append(True) or {"ok": True},
+    )
 
     summary = check_availability(db, items)
 
@@ -500,13 +548,15 @@ def test_browser_first_runs_the_whole_batch_through_the_browser(db, monkeypatch)
 
     probe = BrowserFirstProbe()
     monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"request_delay_seconds": 0,
-                                 "availability_browser_first": True})
+    monkeypatch.setattr(
+        email_import,
+        "load_settings",
+        lambda: {"request_delay_seconds": 0, "availability_browser_first": True},
+    )
 
     summary = check_availability(db, items)
 
-    assert probe.started == 1                 # one launch, reused for the batch
+    assert probe.started == 1  # one launch, reused for the batch
     assert probe._browser_primary is True
     assert summary["online"] == 4
     assert summary["aborted"] is False
@@ -531,7 +581,7 @@ def test_a_block_streak_switches_the_rest_of_the_batch_to_the_browser(db, monkey
             if self._browser_primary:
                 self.was_blocked = False
                 return True
-            self.was_blocked = True   # curl_cffi keeps getting refused
+            self.was_blocked = True  # curl_cffi keeps getting refused
             return None
 
         def start_browser_session(self):
@@ -542,13 +592,17 @@ def test_a_block_streak_switches_the_rest_of_the_batch_to_the_browser(db, monkey
 
     probe = SwitchingProbe()
     monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"request_delay_seconds": 0,
-                                 "datadome_auto_refresh": True})
+    monkeypatch.setattr(
+        email_import,
+        "load_settings",
+        lambda: {"request_delay_seconds": 0, "datadome_auto_refresh": True},
+    )
     from app.services import cookie_harvester
+
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
     monkeypatch.setattr(
-        cookie_harvester, "refresh_into_settings",
+        cookie_harvester,
+        "refresh_into_settings",
         lambda portal="immobiliare", headless=True: {"ok": False},
     )
     monkeypatch.setattr(email_import.time, "sleep", lambda *_: None)
@@ -556,7 +610,7 @@ def test_a_block_streak_switches_the_rest_of_the_batch_to_the_browser(db, monkey
     summary = check_availability(db, items)
 
     assert summary["aborted"] is False
-    assert probe._browser_primary is True     # switched, and stayed switched
+    assert probe._browser_primary is True  # switched, and stayed switched
     # the ads probed after the switch got a clean answer through the browser
     assert summary["online"] >= 1
 
@@ -565,8 +619,7 @@ def test_the_probe_budget_caps_live_fetches_not_the_selection(db, monkeypatch):
     """The cap bounds portal fetches per run (invariant 16). It used to slice
     the ids in the endpoint instead, which combined with smart resume meant a
     "select all" batch re-spent every run on the same first fifty rows."""
-    items = [_staged(db, str(900 + n))
-             for n in range(email_import.MAX_CHECKS_PER_CALL + 5)]
+    items = [_staged(db, str(900 + n)) for n in range(email_import.MAX_CHECKS_PER_CALL + 5)]
 
     class FastProbe:
         def __init__(self, delay_seconds=6.0):
@@ -607,8 +660,10 @@ def test_a_slow_portal_sets_the_pace_for_the_whole_batch(db, monkeypatch):
     monkeypatch.setattr(email_import, "AdProbe", FakeProbe)
     immobiliare = _staged(db, "601")
     idealista = ImportedListing(
-        portal="idealista", portal_id="602",
-        url="https://www.idealista.it/immobile/602/", contract="sale",
+        portal="idealista",
+        portal_id="602",
+        url="https://www.idealista.it/immobile/602/",
+        contract="sale",
     )
     db.add(idealista)
     db.commit()
@@ -656,7 +711,7 @@ def test_answers_survive_a_crash_later_in_the_batch(db, monkeypatch):
     with pytest.raises(RuntimeError):
         check_availability(db, [first, second])
     db.rollback()  # discard any uncommitted leftovers, as FastAPI would
-    assert first.is_available is False      # committed before the crash
+    assert first.is_available is False  # committed before the crash
     assert second.is_available is None
 
 
@@ -722,7 +777,8 @@ def test_criteria_use_english_month_names():
 
 def test_profile_criteria_derives_contract_city_and_keywords():
     profile = SearchProfile(
-        name="x", portal="immobiliare",
+        name="x",
+        portal="immobiliare",
         search_url="https://www.immobiliare.it/affitto-case/milano/?prezzoMassimo=1200",
         excluded_keywords="asta, piano terra",
     )
@@ -734,7 +790,8 @@ def test_profile_criteria_derives_contract_city_and_keywords():
 
 def test_profile_criteria_idealista_zone_url():
     profile = SearchProfile(
-        name="x", portal="idealista",
+        name="x",
+        portal="idealista",
         search_url="https://www.idealista.it/vendita-case/sesto-san-giovanni-milano/",
         excluded_keywords="",
     )
@@ -775,6 +832,7 @@ def test_progress_advances_during_the_scan_and_clears_at_the_end(db):
 def test_progress_clears_when_the_scan_fails(db):
     """A crashed scan must not leave the UI polling forever: `active` is
     cleared in a finally, including when the mailbox refuses to open."""
+
     class BrokenImap(FakeImap):
         def select(self, mailbox, readonly=False):
             return "NO", [b"mailbox unavailable"]
@@ -796,8 +854,10 @@ def test_check_availability_uses_db_listing(db, monkeypatch):
     HTTP probe (invariant 16: only the portal itself may say False)."""
     staged = _staged(db, "701")
 
-    from app.models import Listing, Property
     import uuid
+
+    from app.models import Listing, Property
+
     prop = Property(
         fingerprint=str(uuid.uuid4()),
         status="active",
@@ -818,8 +878,10 @@ def test_check_availability_uses_db_listing(db, monkeypatch):
     class FailingProbe:
         def __init__(self, delay_seconds=6.0):
             self.was_blocked = False
+
         def check(self, url):
             raise AssertionError("AdProbe should not be called")
+
         def polite_sleep(self):
             pass
 
@@ -833,8 +895,10 @@ def test_check_availability_uses_db_listing(db, monkeypatch):
     # a "gone" property must NOT resolve offline: the probe is consulted, and
     # here the portal says the ad is actually still up
     staged2 = ImportedListing(
-        portal="immobiliare", portal_id="702",
-        url="https://www.immobiliare.it/annunci/702/", contract="sale",
+        portal="immobiliare",
+        portal_id="702",
+        url="https://www.immobiliare.it/annunci/702/",
+        contract="sale",
     )
     db.add(staged2)
 
@@ -858,15 +922,18 @@ def test_check_availability_uses_db_listing(db, monkeypatch):
         def __init__(self, delay_seconds=6.0):
             self.was_blocked = False
             self.calls = 0
+
         def check(self, url):
             self.calls += 1
             return True
+
         def polite_sleep(self):
             pass
 
     probes = []
     monkeypatch.setattr(
-        email_import, "AdProbe",
+        email_import,
+        "AdProbe",
         lambda delay_seconds=6.0: probes.append(StillOnlineProbe()) or probes[-1],
     )
     summary2 = check_availability(db, [staged2])
@@ -883,10 +950,10 @@ def test_a_stale_active_property_is_probed_not_trusted(db, monkeypatch):
     keeps reading "active" for days. Only a *recent* sighting proves online;
     past the trust window the listing must go through the HTTP probe, which is
     the only thing that may answer False (invariant 16)."""
+    import uuid
     from datetime import timedelta
 
     from app.models import Listing, Property
-    import uuid
 
     staged = _staged(db, "128206878")
     prop = Property(fingerprint=str(uuid.uuid4()), status="active")
@@ -894,9 +961,12 @@ def test_a_stale_active_property_is_probed_not_trusted(db, monkeypatch):
     db.commit()
     # last seen well beyond the trust window: the scans have been blocked, so
     # the dashboard is frozen on a status that is no longer true
-    prop.last_seen_at = datetime.now(timezone.utc) - timedelta(days=7)
-    db.add(Listing(property_id=prop.id, portal=staged.portal,
-                   portal_id=staged.portal_id, url=staged.url))
+    prop.last_seen_at = datetime.now(UTC) - timedelta(days=7)
+    db.add(
+        Listing(
+            property_id=prop.id, portal=staged.portal, portal_id=staged.portal_id, url=staged.url
+        )
+    )
     db.commit()
 
     # the portal answers with its "non più disponibile" page → gone
@@ -916,7 +986,7 @@ def test_a_stale_active_property_is_probed_not_trusted(db, monkeypatch):
     monkeypatch.setattr(email_import, "AdProbe", lambda delay_seconds=6.0: probe)
 
     summary = check_availability(db, [staged])
-    assert probe.calls == 1              # it did NOT trust the stale status
+    assert probe.calls == 1  # it did NOT trust the stale status
     assert summary["gone"] == 1
     assert summary["online"] == 0
     assert staged.is_available is False
@@ -929,6 +999,7 @@ def test_check_availability_handles_orphan_listing(db, monkeypatch):
 
     # an orphan Listing pointing at a Property that does not exist
     from app.models import Listing
+
     db_listing = Listing(
         property_id=99999,  # no such Property
         portal=staged.portal,
@@ -942,8 +1013,10 @@ def test_check_availability_handles_orphan_listing(db, monkeypatch):
     class FakeProbe:
         def __init__(self, delay_seconds=6.0):
             self.was_blocked = False
+
         def check(self, url):
             return True
+
         def polite_sleep(self):
             pass
 
@@ -957,6 +1030,7 @@ def test_check_availability_handles_orphan_listing(db, monkeypatch):
 
 # --- Scheduled auto re-scan ---------------------------------------------------
 
+
 def _memory_sessionmaker():
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
@@ -967,10 +1041,8 @@ def test_auto_scan_does_nothing_when_disabled(monkeypatch):
     """Opt-in: with the flag off, the job must not open any IMAP connection —
     the app never touches the mailbox on a schedule the user did not enable."""
     called = []
-    monkeypatch.setattr(email_import, "scan_inbox",
-                        lambda *a, **k: called.append(True))
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"email_import_auto_scan": False})
+    monkeypatch.setattr(email_import, "scan_inbox", lambda *a, **k: called.append(True))
+    monkeypatch.setattr(email_import, "load_settings", lambda: {"email_import_auto_scan": False})
     email_import.auto_scan_job()
     assert not called
 
@@ -979,10 +1051,10 @@ def test_auto_scan_skips_when_imap_unconfigured(monkeypatch):
     """Enabled but no credentials: skip quietly rather than raising into the
     scheduler thread (there is nothing to connect to)."""
     called = []
-    monkeypatch.setattr(email_import, "scan_inbox",
-                        lambda *a, **k: called.append(True))
-    monkeypatch.setattr(email_import, "load_settings",
-                        lambda: {"email_import_auto_scan": True, "imap_host": ""})
+    monkeypatch.setattr(email_import, "scan_inbox", lambda *a, **k: called.append(True))
+    monkeypatch.setattr(
+        email_import, "load_settings", lambda: {"email_import_auto_scan": True, "imap_host": ""}
+    )
     email_import.auto_scan_job()
     assert not called
 
@@ -994,12 +1066,19 @@ def test_auto_scan_stages_silently(monkeypatch):
     the whole point of keeping this silent (invariant 12)."""
     Session = _memory_sessionmaker()
     monkeypatch.setattr(email_import, "SessionLocal", Session)
-    monkeypatch.setattr(email_import, "_connect",
-                        lambda settings: FakeImap([_email(TWO_CARDS_HTML)]))
-    monkeypatch.setattr(email_import, "load_settings", lambda: {
-        "email_import_auto_scan": True,
-        "imap_host": "imap.gmail.com", "imap_user": "u", "imap_password": "p",
-    })
+    monkeypatch.setattr(
+        email_import, "_connect", lambda settings: FakeImap([_email(TWO_CARDS_HTML)])
+    )
+    monkeypatch.setattr(
+        email_import,
+        "load_settings",
+        lambda: {
+            "email_import_auto_scan": True,
+            "imap_host": "imap.gmail.com",
+            "imap_user": "u",
+            "imap_password": "p",
+        },
+    )
 
     email_import.auto_scan_job()
 
@@ -1012,15 +1091,22 @@ def test_auto_scan_is_fail_open(monkeypatch):
     """A scan blowing up (a broken mailbox, or a manual scan already holding the
     lock) must be swallowed: the scheduler thread has to survive to try again on
     the next interval."""
+
     class _Dummy:
         def close(self):
             pass
 
     monkeypatch.setattr(email_import, "SessionLocal", lambda: _Dummy())
-    monkeypatch.setattr(email_import, "load_settings", lambda: {
-        "email_import_auto_scan": True,
-        "imap_host": "h", "imap_user": "u", "imap_password": "p",
-    })
+    monkeypatch.setattr(
+        email_import,
+        "load_settings",
+        lambda: {
+            "email_import_auto_scan": True,
+            "imap_host": "h",
+            "imap_user": "u",
+            "imap_password": "p",
+        },
+    )
 
     def _imap_boom(*a, **k):
         raise ImapError("mailbox refused the connection")
@@ -1039,19 +1125,22 @@ def test_smart_skip_recently_checked_listings(db, monkeypatch):
     """When running a batch availability check, items already verified within
     the skip window (`skip_recent_hours`) are skipped instead of re-probed over HTTP."""
     items = [_staged(db, str(900 + n)) for n in range(3)]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     items[0].is_available = True
     items[0].last_checked_at = now
     items[1].is_available = False
     items[1].last_checked_at = now
 
     calls = []
+
     class MockProbe:
         def __init__(self, delay_seconds=6.0):
             self.was_blocked = False
+
         def check(self, url):
             calls.append(url)
             return True
+
         def polite_sleep(self):
             pass
 
@@ -1062,4 +1151,3 @@ def test_smart_skip_recently_checked_listings(db, monkeypatch):
     assert summary["online"] == 2
     assert summary["gone"] == 1
     assert summary["checked"] == 3
-

@@ -1,9 +1,8 @@
 """Verification of multi-strategy pipeline on simulated HTML pages:
 the parser must dynamically choose JSON-LD -> embedded -> heuristic."""
+
 import json
 
-from app.scrapers.immobiliare import ImmobiliareScraper
-from app.scrapers.idealista import IdealistaScraper
 from app.scrapers.base import (
     AdProbe,
     BaseScraper,
@@ -13,6 +12,8 @@ from app.scrapers.base import (
     resolve_impersonations,
     supported_impersonations,
 )
+from app.scrapers.idealista import IdealistaScraper
+from app.scrapers.immobiliare import ImmobiliareScraper
 
 # --- Simulated Pages ---
 
@@ -179,8 +180,10 @@ def test_no_results_message_hidden_in_scripts_does_not_count():
     markup-change alarm on every scan."""
     from app.scrapers.base import text_says_no_results
 
-    html = ('<html><body><script>var i18n = {"empty": "non ci sono annunci '
-            'per la tua ricerca"};</script><div>30 case</div></body></html>')
+    html = (
+        '<html><body><script>var i18n = {"empty": "non ci sono annunci '
+        'per la tua ricerca"};</script><div>30 case</div></body></html>'
+    )
     assert text_says_no_results(html) is False
 
 
@@ -240,8 +243,8 @@ def test_idealista_real_card_extracts_price_and_does_not_touch_footer():
     assert len(by_id) == 2
 
     a = by_id["36124807"]
-    assert a.price == 399_000          # not 39,000 (garage) nor 3,990 (€/m²)
-    assert a.sqm == 100                # not 40 (footer)
+    assert a.price == 399_000  # not 39,000 (garage) nor 3,990 (€/m²)
+    assert a.sqm == 100  # not 40 (footer)
     assert a.rooms == 3
     assert a.city == "Milano"
     assert a.address == "Via Volvinio, 26"
@@ -284,9 +287,10 @@ def test_pagination():
 def test_idealista_extracts_city_and_address_from_url_and_title():
     i = IdealistaScraper()
     assert i._city_from_url("https://www.idealista.it/vendita-case/milano-milano/") == "Milano"
-    assert i._address_from_title(
-        "Trilocale in Via Volvinio, 26, Stadera, Milano"
-    ) == "Via Volvinio, 26"
+    assert (
+        i._address_from_title("Trilocale in Via Volvinio, 26, Stadera, Milano")
+        == "Via Volvinio, 26"
+    )
 
 
 def test_idealista_multi_word_city_zones_and_polygons():
@@ -294,46 +298,63 @@ def test_idealista_multi_word_city_zones_and_polygons():
     be discarded. Regression: "sesto-san-giovanni-milano" became "Sesto",
     breaking cross-portal deduplication (the city never matched)."""
     i = IdealistaScraper()
-    assert i._city_from_url(
-        "https://www.idealista.it/vendita-case/sesto-san-giovanni-milano/"
-    ) == "Sesto San Giovanni"
+    assert (
+        i._city_from_url("https://www.idealista.it/vendita-case/sesto-san-giovanni-milano/")
+        == "Sesto San Giovanni"
+    )
     # already paginated: city must not change
-    assert i._city_from_url(
-        "https://www.idealista.it/vendita-case/milano-milano/lista-2.htm"
-    ) == "Milano"
+    assert (
+        i._city_from_url("https://www.idealista.it/vendita-case/milano-milano/lista-2.htm")
+        == "Milano"
+    )
     # search drawn on map: better no city than an incorrect one
-    assert i._city_from_url(
-        "https://www.idealista.it/aree/vendita-case/?shape=abc"
-    ) == ""
+    assert i._city_from_url("https://www.idealista.it/aree/vendita-case/?shape=abc") == ""
     # zone search: the free-text /cerca/ endpoint (see search_builder — the
     # /municipality/zone/ page this once asserted is a 404 on the real site).
     # The segment after "vendita-case" here is the FILTER list, so the
     # positional rule read a city of "Con Prezzo 380000,dimensione" — straight
     # into the dedup fingerprint, where a bogus city silently blocks every
     # cross-portal merge for the whole search.
-    assert i._city_from_url(
-        "https://www.idealista.it/cerca/vendita-case/con-prezzo_380000,dimensione_65/Bovisa_Milano/"
-    ) == "Milano"
+    assert (
+        i._city_from_url(
+            "https://www.idealista.it/cerca/vendita-case/con-prezzo_380000,dimensione_65/Bovisa_Milano/"
+        )
+        == "Milano"
+    )
     # multi-word zone, and pagination on top of it
-    assert i._city_from_url(
-        "https://www.idealista.it/cerca/vendita-case/Udine_Lambrate_Milano/lista-2.htm"
-    ) == "Milano"
+    assert (
+        i._city_from_url(
+            "https://www.idealista.it/cerca/vendita-case/Udine_Lambrate_Milano/lista-2.htm"
+        )
+        == "Milano"
+    )
 
 
 def test_immobiliare_builds_api_params_from_url(monkeypatch):
     s = ImmobiliareScraper()
-    monkeypatch.setattr(s, "_resolve_geography", lambda q: {
-        "idNazione": "IT", "fkRegione": "lom", "idProvincia": "MI",
-        "idComune": "8042", "idMZona[]": "10070",
-    } if q == "citta studi" else {})
+    monkeypatch.setattr(
+        s,
+        "_resolve_geography",
+        lambda q: (
+            {
+                "idNazione": "IT",
+                "fkRegione": "lom",
+                "idProvincia": "MI",
+                "idComune": "8042",
+                "idMZona[]": "10070",
+            }
+            if q == "citta studi"
+            else {}
+        ),
+    )
     params = s._api_params(
         "https://www.immobiliare.it/vendita-case/milano/citta-studi/?prezzoMassimo=400000"
     )
     assert params is not None
-    assert params["idContratto"] == "1"          # sale
+    assert params["idContratto"] == "1"  # sale
     assert params["idComune"] == "8042"
-    assert params["idMZona[]"] == "10070"        # zone respected
-    assert params["prezzoMassimo"] == "400000"   # user filter passed to API
+    assert params["idMZona[]"] == "10070"  # zone respected
+    assert params["prezzoMassimo"] == "400000"  # user filter passed to API
     assert params["path"] == "/vendita-case/milano/citta-studi/"
 
 
@@ -358,9 +379,9 @@ def test_immobiliare_api_params_search_list():
     assert params["path"] == "/search-list/"
 
 
-
 class _FakeApiResp:
     """Minimal stand-in for a curl_cffi response used by the api-next path."""
+
     def __init__(self, status=200, payload=None):
         self.status_code = status
         self._payload = payload
@@ -377,6 +398,7 @@ class _FakeApiSession:
     """A fake session whose `get` yields canned api-next responses. Assigned as
     the whole `session` object (not by patching `.get` on the real typed
     Session), matching how `_probe` wires the AdProbe below."""
+
     def __init__(self, responder):
         self._responder = responder
         self.headers = {}
@@ -385,19 +407,22 @@ class _FakeApiSession:
         return self._responder(url, params, headers)
 
 
-_API_ENTRY = {"realEstate": {
-    "id": 999, "title": "Trilocale",
-    "price": {"value": 250000},
-    "properties": [{"surface": "80 m²", "rooms": "3",
-                    "location": {"city": "Milano"}}],
-}}
+_API_ENTRY = {
+    "realEstate": {
+        "id": 999,
+        "title": "Trilocale",
+        "price": {"value": 250000},
+        "properties": [{"surface": "80 m²", "rooms": "3", "location": {"city": "Milano"}}],
+    }
+}
 
 
 def _api_first_scraper(monkeypatch):
     s = ImmobiliareScraper()
     monkeypatch.setattr(s, "warm_session", lambda: None)
-    monkeypatch.setattr(s, "_api_params", lambda url: {
-        "idComune": "8042", "idContratto": "1", "path": "/x"})
+    monkeypatch.setattr(
+        s, "_api_params", lambda url: {"idComune": "8042", "idContratto": "1", "path": "/x"}
+    )
     return s
 
 
@@ -411,6 +436,7 @@ def test_immobiliare_scrape_tries_api_before_html(monkeypatch):
         if (params or {}).get("pag") == "1":
             return _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1})
         return _FakeApiResp(200, {"results": []})
+
     setattr(s, "session", _FakeApiSession(responder))
     html_fetches = []
     monkeypatch.setattr(s, "fetch", lambda url: html_fetches.append(url) or "")
@@ -428,8 +454,7 @@ def test_immobiliare_falls_back_to_html_when_api_is_unusable(monkeypatch):
     s = ImmobiliareScraper()
     monkeypatch.setattr(s, "warm_session", lambda: None)
     monkeypatch.setattr(s, "_api_params", lambda url: None)  # api-next gives up
-    html = ('<div><a href="/annunci/55555/">Bilocale</a>'
-            '<span>60 m² 3 locali € 200.000</span></div>')
+    html = '<div><a href="/annunci/55555/">Bilocale</a><span>60 m² 3 locali € 200.000</span></div>'
     monkeypatch.setattr(s, "fetch", lambda url: html)
 
     result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
@@ -443,13 +468,14 @@ def test_api_block_recovers_the_cookie_once_when_opted_in(monkeypatch):
     s = _api_first_scraper(monkeypatch)
     monkeypatch.setattr(s, "_rotate_session", lambda: False)
     recoveries = []
-    monkeypatch.setattr(s, "_recover_cookie",
-                        lambda: (recoveries.append(1), True)[1])
-    responses = iter([
-        _FakeApiResp(403),
-        _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1}),
-        _FakeApiResp(200, {"results": []}),
-    ])
+    monkeypatch.setattr(s, "_recover_cookie", lambda: (recoveries.append(1), True)[1])
+    responses = iter(
+        [
+            _FakeApiResp(403),
+            _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1}),
+            _FakeApiResp(200, {"results": []}),
+        ]
+    )
     setattr(s, "session", _FakeApiSession(lambda u, p, h: next(responses)))
 
     result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
@@ -462,8 +488,7 @@ def test_api_block_without_optin_stays_blocked(monkeypatch):
     reported as blocked and no browser is launched."""
     s = _api_first_scraper(monkeypatch)
     monkeypatch.setattr(s, "_rotate_session", lambda: False)
-    monkeypatch.setattr("app.config.load_settings",
-                        lambda: {"datadome_auto_refresh": False})
+    monkeypatch.setattr("app.config.load_settings", lambda: {"datadome_auto_refresh": False})
     setattr(s, "session", _FakeApiSession(lambda u, p, h: _FakeApiResp(403)))
     # HTML fallback also finds nothing here; the api-next block must survive.
     monkeypatch.setattr(s, "fetch", lambda url: "")
@@ -474,12 +499,14 @@ def test_api_block_without_optin_stays_blocked(monkeypatch):
 
 def test_immobiliare_entry_to_listing_handles_range_rooms():
     s = ImmobiliareScraper()
-    entry = {"realEstate": {
-        "id": 999, "title": "Nuova costruzione",
-        "price": {"value": 250000},
-        "properties": [{"surface": "55 m²", "rooms": "2 - 4",
-                        "location": {"city": "Milano"}}],
-    }}
+    entry = {
+        "realEstate": {
+            "id": 999,
+            "title": "Nuova costruzione",
+            "price": {"value": 250000},
+            "properties": [{"surface": "55 m²", "rooms": "2 - 4", "location": {"city": "Milano"}}],
+        }
+    }
     l = s._entry_to_listing(entry)
     assert l is not None
     assert l.sqm == 55
@@ -494,6 +521,7 @@ def test_impersonation_profiles_exist_in_curl_cffi():
     silently leave every scrape broken until the next live scan. Fail here
     instead, with the list to refresh."""
     import typing
+
     from curl_cffi.requests.impersonate import BrowserTypeLiteral
 
     supported = set(typing.get_args(BrowserTypeLiteral))
@@ -507,9 +535,7 @@ def test_resolve_impersonations_drops_unsupported_names_but_keeps_order():
     only on a real fetch, breaking every scrape silently. Resolving the list
     against the installed set filters the stale name while preserving the
     empirical Safari-first ordering of the survivors."""
-    resolved = resolve_impersonations(
-        ["safari184", "totally_made_up_profile", "safari180"]
-    )
+    resolved = resolve_impersonations(["safari184", "totally_made_up_profile", "safari180"])
     assert resolved == ["safari184", "safari180"]
 
 
@@ -541,8 +567,10 @@ def test_settings_override_replaces_the_scraper_profile_list(monkeypatch):
     monkeypatch.setattr(
         config,
         "load_settings",
-        lambda: {**config.DEFAULT_SETTINGS,
-                 "tls_impersonations": ["safari180", "bogus", "firefox147"]},
+        lambda: {
+            **config.DEFAULT_SETTINGS,
+            "tls_impersonations": ["safari180", "bogus", "firefox147"],
+        },
     )
     scraper = IdealistaScraper()
     assert scraper.impersonations == ["safari180", "firefox147"]
@@ -589,8 +617,7 @@ def test_probe_warms_the_homepage_once_per_host():
     probe.check("https://www.idealista.it/immobile/333/")
 
     homepages = [u for u in getattr(probe.session, "urls") if u.endswith(".it/")]
-    assert homepages == ["https://www.immobiliare.it/",
-                         "https://www.idealista.it/"]
+    assert homepages == ["https://www.immobiliare.it/", "https://www.idealista.it/"]
 
 
 def test_a_failed_warm_up_is_not_retried_before_every_ad():
@@ -601,18 +628,19 @@ def test_a_failed_warm_up_is_not_retried_before_every_ad():
 
 
 def test_probe_reports_a_removed_ad():
-    assert _probe(_Response(status_code=404)).check(
-        "https://www.immobiliare.it/annunci/129244060/"
-    ) is False
+    assert (
+        _probe(_Response(status_code=404)).check("https://www.immobiliare.it/annunci/129244060/")
+        is False
+    )
 
 
 def test_probe_reads_the_portals_own_404_page_served_as_200():
     """Immobiliare answers 200 with "La pagina che stai cercando non è presente
     sul nostro sito o non è più disponibile" — the status code alone lies."""
     page = "La pagina che stai cercando non è presente sul nostro sito."
-    assert _probe(_Response(text=page)).check(
-        "https://www.immobiliare.it/annunci/129244060/"
-    ) is False
+    assert (
+        _probe(_Response(text=page)).check("https://www.immobiliare.it/annunci/129244060/") is False
+    )
 
 
 def test_probe_treats_a_bounce_to_the_search_list_as_gone():
@@ -625,10 +653,13 @@ def test_probe_gone_page_wins_over_a_stray_captcha_mention():
     whose URL mentions "captcha". Read the portal's own "no longer available"
     copy BEFORE the block heuristic, or a plainly-gone ad gets diverted down the
     blocked/None branch and reported "not verifiable" instead of "removed"."""
-    page = ("<script src='https://ct.captcha-delivery.com/c.js'></script>"
-            "La pagina che stai cercando non è più disponibile.")
-    assert _probe(_Response(text=page)).check(
-        "https://www.immobiliare.it/annunci/129424494/") is False
+    page = (
+        "<script src='https://ct.captcha-delivery.com/c.js'></script>"
+        "La pagina che stai cercando non è più disponibile."
+    )
+    assert (
+        _probe(_Response(text=page)).check("https://www.immobiliare.it/annunci/129424494/") is False
+    )
 
 
 def test_browser_check_reads_the_gone_page_over_a_captcha_script():
@@ -656,33 +687,32 @@ def test_browser_check_reads_the_gone_page_over_a_captcha_script():
         def content(self):
             # The real removed-ad page: the portal's "gone" copy AND DataDome's
             # anti-bot script (which mentions "captcha") in the same document.
-            return ("<html><head><script src='https://ct.captcha-delivery.com/c.js'>"
-                    "</script></head><body>La pagina che stai cercando non è "
-                    "presente sul nostro sito o non è più disponibile.</body></html>")
+            return (
+                "<html><head><script src='https://ct.captcha-delivery.com/c.js'>"
+                "</script></head><body>La pagina che stai cercando non è "
+                "presente sul nostro sito o non è più disponibile.</body></html>"
+            )
 
     setattr(probe, "_browser_page", FakePage())
-    assert probe._browser_check_inner(
-        "https://www.immobiliare.it/annunci/129424494/") is False
+    assert probe._browser_check_inner("https://www.immobiliare.it/annunci/129424494/") is False
     assert probe.was_blocked is False
 
 
 def test_probe_confirms_a_live_ad():
-    assert _probe(_Response()).check(
-        "https://www.immobiliare.it/annunci/129244060/"
-    ) is True
+    assert _probe(_Response()).check("https://www.immobiliare.it/annunci/129244060/") is True
 
 
 # The portal's i18n error dictionary shipped inside every ad page's Next.js
 # JSON, verbatim from a live listing captured on the real site.
 _LIVE_AD_WITH_BURIED_MARKERS = (
-    '<html><head><title>Vendita Appartamento Milano. Bilocale in via '
-    'Lombardini</title>'
+    "<html><head><title>Vendita Appartamento Milano. Bilocale in via "
+    "Lombardini</title>"
     '<script id="__NEXT_DATA__" type="application/json">'
     '{"props":{"page_service_404_generic_text1":['
     '"La pagina che stai cercando non è presente sul nostro sito o '
     'non è più disponibile."]}}</script></head>'
-    '<body><h1>Bilocale in via Lombardini</h1>'
-    '<p>Ottimo stato, quarto piano, € 250.000</p></body></html>'
+    "<body><h1>Bilocale in via Lombardini</h1>"
+    "<p>Ottimo stato, quarto piano, € 250.000</p></body></html>"
 )
 
 
@@ -693,9 +723,7 @@ def test_probe_ignores_gone_markers_buried_in_page_scripts():
     against the raw HTML+JS reported *live* ads as removed (and a discard is
     remembered forever, invariant 16). Only the VISIBLE text may say "gone"."""
     url = "https://www.immobiliare.it/annunci/130663822/"
-    assert _probe(_Response(text=_LIVE_AD_WITH_BURIED_MARKERS, url=url)).check(
-        url
-    ) is True
+    assert _probe(_Response(text=_LIVE_AD_WITH_BURIED_MARKERS, url=url)).check(url) is True
 
 
 def test_browser_check_ignores_gone_markers_buried_in_page_scripts():
@@ -722,17 +750,18 @@ def test_browser_check_ignores_gone_markers_buried_in_page_scripts():
             return _LIVE_AD_WITH_BURIED_MARKERS
 
     setattr(probe, "_browser_page", FakePage())
-    assert probe._browser_check_inner(
-        "https://www.immobiliare.it/annunci/130663822/") is True
+    assert probe._browser_check_inner("https://www.immobiliare.it/annunci/130663822/") is True
 
 
 def test_probe_treats_the_datadome_wall_served_200_as_blocked():
     """DataDome's "Access is temporarily restricted" wall can arrive as HTTP 200
     with no "captcha" anywhere in its text. It is still a block (unknown), never
     a removal — the false negative is the one that costs the user data."""
-    wall = ("<html><body><h1>Access is temporarily restricted</h1>"
-            "<p>We detected unusual activity from your device or network.</p>"
-            "</body></html>")
+    wall = (
+        "<html><body><h1>Access is temporarily restricted</h1>"
+        "<p>We detected unusual activity from your device or network.</p>"
+        "</body></html>"
+    )
     probe = _probe(_Response(text=wall))
     assert probe.check("https://www.immobiliare.it/annunci/1/") is None
     assert probe.was_blocked is True
@@ -743,9 +772,9 @@ def test_a_block_never_means_the_ad_is_gone():
     as gone gets discarded, and a discard is remembered forever. DataDome
     blocks, timeouts and 5xx must all answer "unknown"."""
     assert _probe(_Response(status_code=403)).check("https://x.it/annunci/1/") is None
-    assert _probe(_Response(text="Please solve the captcha")).check(
-        "https://x.it/annunci/1/"
-    ) is None
+    assert (
+        _probe(_Response(text="Please solve the captcha")).check("https://x.it/annunci/1/") is None
+    )
     assert _probe(_Response(status_code=503)).check("https://x.it/annunci/1/") is None
     assert _probe(raises=OSError("timed out")).check("https://x.it/annunci/1/") is None
 
@@ -776,10 +805,8 @@ def test_browser_fallback_stays_opt_in(monkeypatch):
 
     launched = []
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
-    monkeypatch.setattr(cookie_harvester, "_launch",
-                        lambda *a, **k: launched.append(True))
-    monkeypatch.setattr(config, "load_settings",
-                        lambda: {"datadome_auto_refresh": False})
+    monkeypatch.setattr(cookie_harvester, "_launch", lambda *a, **k: launched.append(True))
+    monkeypatch.setattr(config, "load_settings", lambda: {"datadome_auto_refresh": False})
 
     probe = _probe(_Response(status_code=403))
     assert probe.check("https://www.immobiliare.it/annunci/1/") is None
@@ -795,8 +822,7 @@ def test_browser_session_starts_when_opted_in(monkeypatch):
     from app.services import cookie_harvester
 
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
-    monkeypatch.setattr(config, "load_settings",
-                        lambda: {"datadome_auto_refresh": True})
+    monkeypatch.setattr(config, "load_settings", lambda: {"datadome_auto_refresh": True})
 
     seen = {}
 
@@ -821,8 +847,7 @@ def test_headful_availability_check_is_opt_in_and_desktop_only(monkeypatch):
     from app.services import cookie_harvester
 
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
-    monkeypatch.setattr(config, "load_settings",
-                        lambda: {"availability_browser_headful": True})
+    monkeypatch.setattr(config, "load_settings", lambda: {"availability_browser_headful": True})
 
     seen = {}
 
@@ -880,13 +905,13 @@ def test_browser_status_names_the_service_when_headful_is_forced_off(monkeypatch
     from app.services import cookie_harvester
 
     monkeypatch.setattr(cookie_harvester, "is_available", lambda: True)
-    monkeypatch.setattr(config, "load_settings",
-                        lambda: {"availability_browser_headful": True})
+    monkeypatch.setattr(config, "load_settings", lambda: {"availability_browser_headful": True})
     monkeypatch.setattr(cookie_harvester, "_is_session_zero_nt", lambda: True)
 
     class FakeCtx:
         _engine_label = "camoufox"
         pages: list = []
+
         def new_page(self):
             return object()
 
@@ -974,6 +999,7 @@ def test_rotation_stops_when_profiles_are_exhausted():
 
 # --- Regressions from the July 2026 code review ------------------------------
 
+
 def test_detect_contract_reads_idcontratto_on_polygon_urls():
     """Regression: polygon/area searches (/search-list/) have no
     "affitto"/"vendita" path segment, so a rental polygon search was tagged
@@ -981,12 +1007,14 @@ def test_detect_contract_reads_idcontratto_on_polygon_urls():
     applied to monthly rents."""
     from app.scrapers.base import detect_contract
 
-    assert detect_contract(
-        "https://www.immobiliare.it/search-list/?idContratto=2&idCategoria=1"
-    ) == "rent"
-    assert detect_contract(
-        "https://www.immobiliare.it/search-list/?idContratto=1&idCategoria=1"
-    ) == "sale"
+    assert (
+        detect_contract("https://www.immobiliare.it/search-list/?idContratto=2&idCategoria=1")
+        == "rent"
+    )
+    assert (
+        detect_contract("https://www.immobiliare.it/search-list/?idContratto=1&idCategoria=1")
+        == "sale"
+    )
     # path segment still wins where present
     assert detect_contract("https://www.immobiliare.it/affitto-case/milano/") == "rent"
     assert detect_contract("https://www.immobiliare.it/vendita-case/milano/") == "sale"
@@ -1016,7 +1044,8 @@ def test_structured_price_placeholders_are_rejected():
     scraper = ImmobiliareScraper()
     entry = {
         "realEstate": {
-            "id": 42, "title": "Trilocale",
+            "id": 42,
+            "title": "Trilocale",
             "price": {"value": 1},
             "properties": [{"surface": "90 m²"}],
         }
@@ -1025,14 +1054,21 @@ def test_structured_price_placeholders_are_rejected():
     assert listing is not None
     assert listing.price is None
 
-    ld = json.dumps({
-        "@type": "ItemList",
-        "itemListElement": [{"item": {
-            "@type": "RealEstateListing",
-            "url": "https://www.immobiliare.it/annunci/777/",
-            "name": "Bilocale", "offers": {"price": "0"},
-        }}],
-    })
+    ld = json.dumps(
+        {
+            "@type": "ItemList",
+            "itemListElement": [
+                {
+                    "item": {
+                        "@type": "RealEstateListing",
+                        "url": "https://www.immobiliare.it/annunci/777/",
+                        "name": "Bilocale",
+                        "offers": {"price": "0"},
+                    }
+                }
+            ],
+        }
+    )
     html = f'<html><head><script type="application/ld+json">{ld}</script></head></html>'
     found = scraper.parse_json_ld(html, "https://www.immobiliare.it/vendita-case/milano/")
     assert found and found[0].price is None

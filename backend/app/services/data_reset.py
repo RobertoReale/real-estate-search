@@ -6,6 +6,7 @@ factory reset takes a forced backup of case.db first (recoverable from
 backend/backups/). Every function returns the row counts it removed, so the UI
 can tell the user exactly what happened.
 """
+
 import logging
 from collections.abc import Sequence
 
@@ -13,8 +14,16 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from ..config import DB_PATH
-from ..models import (ImportedListing, Listing, ListingProfile, PriceHistory,
-                      PricingSnapshot, Property, SearchProfile, property_tags)
+from ..models import (
+    ImportedListing,
+    Listing,
+    ListingProfile,
+    PriceHistory,
+    PricingSnapshot,
+    Property,
+    SearchProfile,
+    property_tags,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +64,24 @@ def profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
     Returns the counts plus the Property objects that are actually deletable.
     """
     ids = list(profile_ids)
-    mine = select(ListingProfile.listing_id).where(
-        ListingProfile.profile_id.in_(ids)
+    mine = select(ListingProfile.listing_id).where(ListingProfile.profile_id.in_(ids))
+    shared_property_ids = set(
+        db.scalars(
+            select(Listing.property_id)
+            .join(ListingProfile, ListingProfile.listing_id == Listing.id)
+            .where(
+                ListingProfile.profile_id.not_in(ids),
+                Listing.property_id.in_(select(Listing.property_id).where(Listing.id.in_(mine))),
+            )
+        )
     )
-    shared_property_ids = set(db.scalars(
-        select(Listing.property_id)
-        .join(ListingProfile, ListingProfile.listing_id == Listing.id)
-        .where(ListingProfile.profile_id.not_in(ids),
-               Listing.property_id.in_(
-                   select(Listing.property_id).where(Listing.id.in_(mine))
-               ))
-    ))
-    props = list(db.scalars(
-        select(Property).where(Property.id.in_(
-            select(Listing.property_id).where(Listing.id.in_(mine))
-        ))
-    ))
+    props = list(
+        db.scalars(
+            select(Property).where(
+                Property.id.in_(select(Listing.property_id).where(Listing.id.in_(mine)))
+            )
+        )
+    )
 
     deletable: list[Property] = []
     kept_shared = kept_curated = 0
@@ -108,15 +119,16 @@ def delete_profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
     if ids:
         # accepted inbox imports point at these properties: drop the reference
         # before the row goes, or the import stays wired to a ghost id
-        db.execute(update(ImportedListing)
-                   .where(ImportedListing.property_id.in_(ids))
-                   .values(property_id=None))
+        db.execute(
+            update(ImportedListing)
+            .where(ImportedListing.property_id.in_(ids))
+            .values(property_id=None)
+        )
     for prop in props:
         db.delete(prop)  # cascades listings (and their links) + price history
     db.flush()
     summary["listings"] = listings
-    logger.info("Deleted results of search profiles %s: %s",
-                list(profile_ids), summary)
+    logger.info("Deleted results of search profiles %s: %s", list(profile_ids), summary)
     return summary
 
 
@@ -157,18 +169,22 @@ def clear_dashboard(db: Session) -> dict:
     db.execute(delete(property_tags))
     # accepted imports pointed at properties we are about to delete: drop the
     # dangling reference so a later enrich/re-scan does not chase a ghost id
-    db.execute(update(ImportedListing)
-               .where(ImportedListing.property_id.is_not(None))
-               .values(property_id=None))
+    db.execute(
+        update(ImportedListing)
+        .where(ImportedListing.property_id.is_not(None))
+        .values(property_id=None)
+    )
     db.execute(delete(Property))
-    db.execute(update(SearchProfile).values(
-        baseline_done=False,
-        last_run_at=None,
-        last_run_status="",
-        last_run_detail="",
-        consecutive_failures=0,
-        health_alert_sent=False,
-    ))
+    db.execute(
+        update(SearchProfile).values(
+            baseline_done=False,
+            last_run_at=None,
+            last_run_status="",
+            last_run_detail="",
+            consecutive_failures=0,
+            health_alert_sent=False,
+        )
+    )
     db.commit()
     logger.info("data-reset: cleared dashboard %s", counts)
     return {"scope": "dashboard", "deleted": counts}
@@ -192,6 +208,7 @@ def factory_reset(db: Session) -> dict:
     backend/backups/. Children are deleted before parents (SQLite does not
     enforce the FKs, but a clean order keeps this correct if it ever does)."""
     from .backup import maybe_backup
+
     backup = maybe_backup(force=True)
     if backup is None and DB_PATH.exists():
         # maybe_backup swallows its own failures (disk full, locked file) and
@@ -210,11 +227,16 @@ def factory_reset(db: Session) -> dict:
         "imported_listings": _count(db, ImportedListing),
         "search_profiles": _count(db, SearchProfile),
     }
-    for model in (PriceHistory, ListingProfile, Listing, ImportedListing,
-                  PricingSnapshot, Property, SearchProfile):
+    for model in (
+        PriceHistory,
+        ListingProfile,
+        Listing,
+        ImportedListing,
+        PricingSnapshot,
+        Property,
+        SearchProfile,
+    ):
         db.execute(delete(model))
     db.commit()
-    logger.info("data-reset: factory reset %s (backup=%s)", counts,
-                backup.name if backup else None)
-    return {"scope": "factory", "deleted": counts,
-            "backup": backup.name if backup else None}
+    logger.info("data-reset: factory reset %s (backup=%s)", counts, backup.name if backup else None)
+    return {"scope": "factory", "deleted": counts, "backup": backup.name if backup else None}

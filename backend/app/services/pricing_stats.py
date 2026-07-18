@@ -6,6 +6,7 @@ the value is only as good as what the user's own profiles have collected,
 which is why a minimum sample size is enforced — a "median" of two listings
 would just be noise presented as insight.
 """
+
 import logging
 import threading
 from datetime import date
@@ -28,8 +29,8 @@ _snapshot_lock = threading.Lock()
 # below this many comparable listings the median is not meaningful
 MIN_SAMPLE = 3
 
-ZoneKey = tuple[str, str, str]   # (city, zone, contract)
-CityKey = tuple[str, str]        # (city, contract)
+ZoneKey = tuple[str, str, str]  # (city, zone, contract)
+CityKey = tuple[str, str]  # (city, contract)
 
 
 def _comparable_filter():
@@ -53,8 +54,11 @@ def compute_sqm_price_medians(
     """Returns ({zone_key: (median, n)}, {city_key: (median, n)})."""
     rows = db.execute(
         select(
-            Property.city, Property.zone, Property.contract,
-            Property.current_min_price, Property.sqm,
+            Property.city,
+            Property.zone,
+            Property.contract,
+            Property.current_min_price,
+            Property.sqm,
         ).where(*_comparable_filter())
     ).all()
 
@@ -68,25 +72,19 @@ def compute_sqm_price_medians(
         city_samples.setdefault((city_norm, contract), []).append(value)
         zone_norm = (zone or "").strip().lower()
         if zone_norm:
-            zone_samples.setdefault(
-                (city_norm, zone_norm, contract), []
-            ).append(value)
+            zone_samples.setdefault((city_norm, zone_norm, contract), []).append(value)
 
-    zone_medians = {
-        k: (median(v), len(v))
-        for k, v in zone_samples.items() if len(v) >= MIN_SAMPLE
-    }
-    city_medians = {
-        k: (median(v), len(v))
-        for k, v in city_samples.items() if len(v) >= MIN_SAMPLE
-    }
+    zone_medians = {k: (median(v), len(v)) for k, v in zone_samples.items() if len(v) >= MIN_SAMPLE}
+    city_medians = {k: (median(v), len(v)) for k, v in city_samples.items() if len(v) >= MIN_SAMPLE}
     return zone_medians, city_medians
 
 
 def lookup_area_median(
     zone_medians: dict[ZoneKey, tuple[float, int]],
     city_medians: dict[CityKey, tuple[float, int]],
-    city: str, zone: str, contract: str,
+    city: str,
+    zone: str,
+    contract: str,
 ) -> tuple[tuple[float, int] | None, str | None]:
     """The zone median when available, falling back to the whole city.
 
@@ -121,9 +119,7 @@ def annotate_market_position(db: Session, props: list[Property]) -> None:
             continue
         city = (p.city or "").strip().lower()
         zone = (p.zone or "").strip().lower()
-        entry, scope = lookup_area_median(
-            zone_medians, city_medians, city, zone, p.contract
-        )
+        entry, scope = lookup_area_median(zone_medians, city_medians, city, zone, p.contract)
         if entry is None:
             continue
         med, _n = entry
@@ -134,6 +130,7 @@ def annotate_market_position(db: Session, props: list[Property]) -> None:
 
 
 # --- Historical snapshots ----------------------------------------------------
+
 
 def capture_snapshots(db: Session, today: date | None = None) -> int:
     """Persists today's median €/sqm for every area with enough comparables.
@@ -147,22 +144,34 @@ def capture_snapshots(db: Session, today: date | None = None) -> int:
     # Hold the lock across the check AND the write: the whole point is that a
     # second caller cannot slip between "nothing for today yet" and the commit.
     with _snapshot_lock:
-        already = db.scalar(
-            select(PricingSnapshot.id).where(PricingSnapshot.captured_on == today)
-        )
+        already = db.scalar(select(PricingSnapshot.id).where(PricingSnapshot.captured_on == today))
         if already is not None:
             return 0
         zone_medians, city_medians = compute_sqm_price_medians(db)
         rows = 0
         for (city, contract), (med, n) in city_medians.items():
-            db.add(PricingSnapshot(captured_on=today, city=city, zone="",
-                                   contract=contract, median_sqm_price=round(med, 2),
-                                   sample_count=n))
+            db.add(
+                PricingSnapshot(
+                    captured_on=today,
+                    city=city,
+                    zone="",
+                    contract=contract,
+                    median_sqm_price=round(med, 2),
+                    sample_count=n,
+                )
+            )
             rows += 1
         for (city, zone, contract), (med, n) in zone_medians.items():
-            db.add(PricingSnapshot(captured_on=today, city=city, zone=zone,
-                                   contract=contract, median_sqm_price=round(med, 2),
-                                   sample_count=n))
+            db.add(
+                PricingSnapshot(
+                    captured_on=today,
+                    city=city,
+                    zone=zone,
+                    contract=contract,
+                    median_sqm_price=round(med, 2),
+                    sample_count=n,
+                )
+            )
             rows += 1
         if rows:
             db.commit()
@@ -188,12 +197,16 @@ def get_trends(db: Session, city: str, zone: str, contract: str) -> dict:
     city_norm = (city or "").strip().lower()
     zone_norm = (zone or "").strip().lower()
     rows = db.execute(
-        select(PricingSnapshot.captured_on,
-               PricingSnapshot.median_sqm_price,
-               PricingSnapshot.sample_count)
-        .where(PricingSnapshot.city == city_norm,
-               PricingSnapshot.zone == zone_norm,
-               PricingSnapshot.contract == contract)
+        select(
+            PricingSnapshot.captured_on,
+            PricingSnapshot.median_sqm_price,
+            PricingSnapshot.sample_count,
+        )
+        .where(
+            PricingSnapshot.city == city_norm,
+            PricingSnapshot.zone == zone_norm,
+            PricingSnapshot.contract == contract,
+        )
         .order_by(PricingSnapshot.captured_on, PricingSnapshot.id)
     ).all()
     # Collapse to one point per day. New rows can no longer duplicate (see
@@ -204,7 +217,9 @@ def get_trends(db: Session, city: str, zone: str, contract: str) -> dict:
     for d, m, n in rows:
         by_day[d] = {"captured_on": d, "median_sqm_price": m, "sample_count": n}
     return {
-        "city": city_norm, "zone": zone_norm, "contract": contract,
+        "city": city_norm,
+        "zone": zone_norm,
+        "contract": contract,
         "points": list(by_day.values()),
     }
 
@@ -214,9 +229,12 @@ def list_trend_areas(db: Session, contract: str) -> list[dict]:
     a single point is not yet a trend. Whole-city aggregates first, then zones,
     each ordered by how much history backs it."""
     rows = db.execute(
-        select(PricingSnapshot.city, PricingSnapshot.zone,
-               PricingSnapshot.contract, PricingSnapshot.captured_on)
-        .where(PricingSnapshot.contract == contract)
+        select(
+            PricingSnapshot.city,
+            PricingSnapshot.zone,
+            PricingSnapshot.contract,
+            PricingSnapshot.captured_on,
+        ).where(PricingSnapshot.contract == contract)
     ).all()
     # Count DISTINCT days, not rows: a pre-fix duplicate would otherwise inflate
     # the "N days" label and could pass the >= 2 trend gate on a single day.
@@ -225,16 +243,15 @@ def list_trend_areas(db: Session, contract: str) -> list[dict]:
         days.setdefault((city, zone, ctr), set()).add(day)
     areas = [
         {"city": city, "zone": zone, "contract": ctr, "point_count": len(ds)}
-        for (city, zone, ctr), ds in days.items() if len(ds) >= 2
+        for (city, zone, ctr), ds in days.items()
+        if len(ds) >= 2
     ]
     # whole-city aggregates first, then most-observed
     areas.sort(key=lambda a: (a["zone"] != "", -a["point_count"], a["city"]))
     return areas
 
 
-def area_comparables(
-    db: Session, city: str, zone: str, contract: str
-) -> list[Property]:
+def area_comparables(db: Session, city: str, zone: str, contract: str) -> list[Property]:
     """The listings that make up an area's median €/sqm *right now* — the set
     the user sees behind the chart's latest point.
 
@@ -251,12 +268,11 @@ def area_comparables(
     if not city_norm:
         return []
     rows = db.scalars(
-        select(Property).where(
-            *_comparable_filter(), Property.contract == contract
-        )
+        select(Property).where(*_comparable_filter(), Property.contract == contract)
     ).all()
     out = [
-        p for p in rows
+        p
+        for p in rows
         if (p.city or "").strip().lower() == city_norm
         and (not zone_norm or (p.zone or "").strip().lower() == zone_norm)
     ]

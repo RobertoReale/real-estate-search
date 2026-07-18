@@ -7,6 +7,7 @@ Gmail credentials there, `test_disabled_channels_send_nothing` stopped testing
 email. Point every test at an empty settings file so the defaults apply and no
 real credential is ever reachable from a test run.
 """
+
 import pytest
 
 from app import config

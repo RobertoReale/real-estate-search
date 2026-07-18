@@ -8,6 +8,7 @@ it exists: it does not depend on any CSS class.
 Temporary blocks (403/CAPTCHA) are expected and handled without failing the
 entire scan.
 """
+
 import json
 import logging
 import re
@@ -16,8 +17,16 @@ from urllib.parse import urlparse, urlunparse
 from bs4 import BeautifulSoup
 
 from .base import (
-    BaseScraper, RawListing, extract_json_ld_blocks, find_card_container,
-    parse_price, parse_rooms, parse_sqm, plausible_price, to_float, to_int,
+    BaseScraper,
+    RawListing,
+    extract_json_ld_blocks,
+    find_card_container,
+    parse_price,
+    parse_rooms,
+    parse_sqm,
+    plausible_price,
+    to_float,
+    to_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,8 +92,15 @@ class IdealistaScraper(BaseScraper):
         # "Con Prezzo 380000,dimensione" straight into the dedup fingerprint.
         if segments and segments[0] == "cerca":
             from ..services.search_builder import split_cerca_location
-            loc = next((s for s in segments[1:] if not s.startswith(
-                ("vendita-", "affitto-", "con-", "lista-", "pag-"))), "")
+
+            loc = next(
+                (
+                    s
+                    for s in segments[1:]
+                    if not s.startswith(("vendita-", "affitto-", "con-", "lista-", "pag-"))
+                ),
+                "",
+            )
             return split_cerca_location(loc)[0]
         # the city segment immediately follows "vendita-case"/"affitto-case"
         city_seg = ""
@@ -112,11 +128,15 @@ class IdealistaScraper(BaseScraper):
             items = []
             if block.get("@type") == "ItemList":
                 items = [
-                    e.get("item", e) for e in block.get("itemListElement", [])
+                    e.get("item", e)
+                    for e in block.get("itemListElement", [])
                     if isinstance(e, dict)
                 ]
             elif "offers" in block or block.get("@type") in (
-                "RealEstateListing", "Product", "Apartment", "House"
+                "RealEstateListing",
+                "Product",
+                "Apartment",
+                "House",
             ):
                 items = [block]
             for item in items:
@@ -130,18 +150,20 @@ class IdealistaScraper(BaseScraper):
                 image = item.get("image")
                 if isinstance(image, list):
                     image = image[0] if image else ""
-                out.append(RawListing(
-                    portal=self.portal,
-                    portal_id=m.group(1),
-                    url=url,
-                    title=item.get("name", ""),
-                    # structured data is not exempt from sanity: "price on
-                    # request" placeholders (0/1) live there too
-                    price=plausible_price(to_float(offers.get("price")), self.contract),
-                    city=city,
-                    description=item.get("description", ""),
-                    image_url=image if isinstance(image, str) else "",
-                ))
+                out.append(
+                    RawListing(
+                        portal=self.portal,
+                        portal_id=m.group(1),
+                        url=url,
+                        title=item.get("name", ""),
+                        # structured data is not exempt from sanity: "price on
+                        # request" placeholders (0/1) live there too
+                        price=plausible_price(to_float(offers.get("price")), self.contract),
+                        city=city,
+                        description=item.get("description", ""),
+                        image_url=image if isinstance(image, str) else "",
+                    )
+                )
         return out
 
     # ------------------------------------------------------------------
@@ -151,8 +173,9 @@ class IdealistaScraper(BaseScraper):
         city = self._city_from_url(page_url)
         out = []
         for m in re.finditer(
-            r'(?:window\.__INITIAL_PROPS__|listingItems)\s*[:=]\s*(\[.*?\])\s*[,;}]',
-            html, re.DOTALL,
+            r"(?:window\.__INITIAL_PROPS__|listingItems)\s*[:=]\s*(\[.*?\])\s*[,;}]",
+            html,
+            re.DOTALL,
         ):
             try:
                 items = json.loads(m.group(1))
@@ -164,22 +187,23 @@ class IdealistaScraper(BaseScraper):
                 ad_id = item.get("adId") or item.get("propertyCode") or item.get("id")
                 if not ad_id:
                     continue
-                out.append(RawListing(
-                    portal=self.portal,
-                    portal_id=str(ad_id),
-                    url=item.get("url")
-                        or f"https://www.idealista.it/immobile/{ad_id}/",
-                    title=item.get("title", "") or "",
-                    price=plausible_price(to_float(item.get("price")), self.contract),
-                    sqm=to_float(item.get("size")),
-                    rooms=to_int(item.get("rooms")),
-                    latitude=to_float(item.get("latitude")),
-                    longitude=to_float(item.get("longitude")),
-                    city=item.get("municipality") or city,
-                    address=item.get("address", ""),
-                    description=item.get("description", ""),
-                    image_url=item.get("thumbnail", ""),
-                ))
+                out.append(
+                    RawListing(
+                        portal=self.portal,
+                        portal_id=str(ad_id),
+                        url=item.get("url") or f"https://www.idealista.it/immobile/{ad_id}/",
+                        title=item.get("title", "") or "",
+                        price=plausible_price(to_float(item.get("price")), self.contract),
+                        sqm=to_float(item.get("size")),
+                        rooms=to_int(item.get("rooms")),
+                        latitude=to_float(item.get("latitude")),
+                        longitude=to_float(item.get("longitude")),
+                        city=item.get("municipality") or city,
+                        address=item.get("address", ""),
+                        description=item.get("description", ""),
+                        image_url=item.get("thumbnail", ""),
+                    )
+                )
             if out:
                 break
         return out
@@ -211,26 +235,28 @@ class IdealistaScraper(BaseScraper):
             text = container.get_text(" ", strip=True)
             img = container.find("img")
 
-            out.append(RawListing(
-                portal=self.portal,
-                portal_id=ad_id,
-                url=full,
-                title=title,
-                price=parse_price(text, self.contract),
-                sqm=parse_sqm(text),
-                rooms=parse_rooms(text),
-                city=city,
-                address=self._address_from_title(title),
-                # the card text contains the descriptive snippet:
-                # needed for keyword filtering
-                description=text[:800],
-                image_url=(img.get("src") or img.get("data-src") or "") if img else "",
-            ))
+            out.append(
+                RawListing(
+                    portal=self.portal,
+                    portal_id=ad_id,
+                    url=full,
+                    title=title,
+                    price=parse_price(text, self.contract),
+                    sqm=parse_sqm(text),
+                    rooms=parse_rooms(text),
+                    city=city,
+                    address=self._address_from_title(title),
+                    # the card text contains the descriptive snippet:
+                    # needed for keyword filtering
+                    description=text[:800],
+                    image_url=(img.get("src") or img.get("data-src") or "") if img else "",
+                )
+            )
         return out
 
     @staticmethod
     def _address_from_title(title: str) -> str:
-        """"Trilocale in Via Volvinio, 26, Stadera, Milano" -> "Via Volvinio, 26".
+        """ "Trilocale in Via Volvinio, 26, Stadera, Milano" -> "Via Volvinio, 26".
 
         The most common Italian phrasing is "Trilocale in vendita in Via Roma,
         12": matching the *first* "in" there captures "vendita in Via Roma"

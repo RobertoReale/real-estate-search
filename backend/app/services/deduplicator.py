@@ -21,11 +21,12 @@ conditions hold true:
   * location proof: coordinates within 60 m **OR** exact same street and
     house number in the same municipality.
 """
+
 import logging
 import math
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -63,7 +64,7 @@ def _normalize_text(text: str) -> str:
 
 
 def street_and_civic(address: str) -> tuple[str, str] | None:
-    """"Via Val Gardena, 17" -> ("via val gardena", "17").
+    """ "Via Val Gardena, 17" -> ("via val gardena", "17").
 
     Without a house number, the address is not sufficient location proof
     (a street in Milan can be kilometers long), so it returns None.
@@ -94,9 +95,9 @@ def _same_address(raw: RawListing, prop: Property) -> bool:
 def _same_coordinates(raw: RawListing, prop: Property) -> bool:
     if not (raw.latitude and raw.longitude and prop.latitude and prop.longitude):
         return False
-    return _haversine_m(
-        raw.latitude, raw.longitude, prop.latitude, prop.longitude
-    ) <= COORD_MAX_METERS
+    return (
+        _haversine_m(raw.latitude, raw.longitude, prop.latitude, prop.longitude) <= COORD_MAX_METERS
+    )
 
 
 def _price_compatible(raw: RawListing, prop: Property) -> bool:
@@ -164,15 +165,15 @@ def _refresh_min_price(db: Session, prop: Property) -> bool:
     """
     prices = [l.price for l in prop.listings if l.price]
     new_min = min(prices) if prices else None
-    changed = bool(
-        new_min and prop.current_min_price and new_min != prop.current_min_price
-    )
+    changed = bool(new_min and prop.current_min_price and new_min != prop.current_min_price)
     if changed:
-        db.add(PriceHistory(
-            property_id=prop.id,
-            old_price=prop.current_min_price,
-            new_price=new_min,
-        ))
+        db.add(
+            PriceHistory(
+                property_id=prop.id,
+                old_price=prop.current_min_price,
+                new_price=new_min,
+            )
+        )
     if prop.first_price is None:
         prop.first_price = new_min
     prop.current_min_price = new_min
@@ -185,9 +186,7 @@ def _find_matching_property(db: Session, raw: RawListing) -> Property | None:
     # never merge across contracts: the same physical house can be listed
     # both for sale and for rent, and those are two distinct records for
     # the user (different price scale, different notifications)
-    query = select(Property).where(
-        Property.status != "gone", Property.contract == raw.contract
-    )
+    query = select(Property).where(Property.status != "gone", Property.contract == raw.contract)
     if raw.city:
         query = query.where(Property.city.ilike(raw.city.strip()))
     for candidate in db.scalars(query):
@@ -212,7 +211,10 @@ def _link_to_profile(db: Session, listing_id: int, profile_id: int | None) -> No
 
 
 def upsert_listing(
-    db: Session, raw: RawListing, *, source: str = "scan",
+    db: Session,
+    raw: RawListing,
+    *,
+    source: str = "scan",
     profile_id: int | None = None,
 ) -> tuple[Property, bool, bool]:
     """Inserts or updates a listing.
@@ -235,12 +237,10 @@ def upsert_listing(
     _refresh_min_price): when True, the last row in price_history is
     always the newly recorded change.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     existing = db.scalar(
-        select(Listing).where(
-            Listing.portal == raw.portal, Listing.portal_id == raw.portal_id
-        )
+        select(Listing).where(Listing.portal == raw.portal, Listing.portal_id == raw.portal_id)
     )
     if existing:
         prop = existing.property
@@ -268,7 +268,9 @@ def upsert_listing(
     if prop is not None:
         logger.info(
             "Dedup: listing %s/%s merged into property #%s",
-            raw.portal, raw.portal_id, prop.id,
+            raw.portal,
+            raw.portal_id,
+            prop.id,
         )
 
     is_new = prop is None
