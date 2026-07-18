@@ -76,6 +76,12 @@ function propertyParams(filters: PropertyFilters): URLSearchParams {
   if (filters.max_sqm) params.set("max_sqm", filters.max_sqm);
   if (filters.floor_band) params.set("floor_band", filters.floor_band);
   if (filters.rooms) params.set("rooms", filters.rooms);
+  if (filters.portal) params.set("portal", filters.portal);
+  if (filters.agency) params.set("agency", filters.agency);
+  if (filters.deal) params.set("deal", filters.deal);
+  if (filters.min_sqm_price) params.set("min_sqm_price", filters.min_sqm_price);
+  if (filters.max_sqm_price) params.set("max_sqm_price", filters.max_sqm_price);
+  if (filters.merged_only) params.set("merged_only", "true");
   if (filters.only_price_drops) params.set("only_price_drops", "true");
   if (filters.only_favorites) params.set("only_favorites", "true");
   return params;

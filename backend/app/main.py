@@ -175,6 +175,9 @@ def _select_properties(
     rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
     q: str | None = None, zone: str | None = None, source: str | None = None,
     profile_id: int | None = None, tag: str | None = None,
+    portal: str | None = None, agency: str | None = None,
+    deal: str | None = None, min_sqm_price: float | None = None,
+    max_sqm_price: float | None = None, merged_only: bool = False,
 ) -> list[Property]:
     """Shared property selection + annotation for the grid and the exports, so
     a dossier holds exactly what the dashboard is showing under the same
@@ -219,6 +222,13 @@ def _select_properties(
         query = query.where(Property.zone.ilike(f"%{zone}%"))
     if source in ("scan", "email"):
         query = query.where(Property.source == source)
+    if portal in ("immobiliare", "idealista"):
+        # a Property groups listings from several portals: "on Idealista" means
+        # at least one of its ads lives there, not that all do
+        query = query.where(Property.listings.any(Listing.portal == portal))
+    if agency and agency.strip():
+        query = query.where(Property.listings.any(
+            Listing.agency.ilike(f"%{agency.strip()}%")))
     if tag and tag.strip():
         query = query.where(
             Property.tags.any(Tag.name_normalized == tag.strip().lower())
@@ -329,6 +339,22 @@ def _select_properties(
             if p.first_price and p.current_min_price
             and p.current_min_price < p.first_price
         ]
+    if merged_only:
+        # a property backed by more than one ad: the cross-portal/agency
+        # duplicates the deduplicator folded into a single card
+        props = [p for p in props if len(p.listings) > 1]
+    if min_sqm_price is not None or max_sqm_price is not None:
+        # €/sqm is derived (price ÷ surface), not stored: a property missing
+        # either can't be placed on that axis, so it drops out of the band
+        def _sqm_price(p: Property) -> float | None:
+            return (p.current_min_price / p.sqm
+                    if p.current_min_price and p.sqm else None)
+        props = [
+            p for p in props
+            if (sp := _sqm_price(p)) is not None
+            and (min_sqm_price is None or sp >= min_sqm_price)
+            and (max_sqm_price is None or sp <= max_sqm_price)
+        ]
     annotate_match_scores(props, load_settings())
     if sort == "newest":
         props.sort(key=lambda p: p.first_seen_at, reverse=True)
@@ -347,6 +373,12 @@ def _select_properties(
                    reverse=True)
     annotate_market_position(db, props)
     annotate_deal_scores(db, props)
+    if deal == "undervalued":
+        props = [p for p in props if p.deal_label == "undervalued"]
+    elif deal == "fair_plus":
+        # "fair or better": drop the overpriced ones (and those with no score,
+        # since without a local median a deal cannot be confirmed)
+        props = [p for p in props if p.deal_label in ("undervalued", "fair")]
     _annotate_provenance(db, props)
     return props
 
@@ -372,6 +404,12 @@ def list_properties(
     floor_band: str | None = Query(
         None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
+    portal: str | None = Query(None, pattern="^(immobiliare|idealista)$"),
+    agency: str | None = None,
+    deal: str | None = Query(None, pattern="^(undervalued|fair_plus)$"),
+    min_sqm_price: float | None = None,
+    max_sqm_price: float | None = None,
+    merged_only: bool = False,
     only_price_drops: bool = False,
     only_favorites: bool = False,
     sort: str = Query(
@@ -382,7 +420,9 @@ def list_properties(
     return _select_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
         max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
-        floor_band=floor_band, rooms=rooms,
+        floor_band=floor_band, rooms=rooms, portal=portal, agency=agency,
+        deal=deal, min_sqm_price=min_sqm_price, max_sqm_price=max_sqm_price,
+        merged_only=merged_only,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
         tag=tag,
@@ -410,6 +450,12 @@ def export_properties(
     floor_band: str | None = Query(
         None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
+    portal: str | None = Query(None, pattern="^(immobiliare|idealista)$"),
+    agency: str | None = None,
+    deal: str | None = Query(None, pattern="^(undervalued|fair_plus)$"),
+    min_sqm_price: float | None = None,
+    max_sqm_price: float | None = None,
+    merged_only: bool = False,
     only_price_drops: bool = False,
     only_favorites: bool = False,
     sort: str = Query(
@@ -423,7 +469,9 @@ def export_properties(
     props = _select_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
         max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
-        floor_band=floor_band, rooms=rooms,
+        floor_band=floor_band, rooms=rooms, portal=portal, agency=agency,
+        deal=deal, min_sqm_price=min_sqm_price, max_sqm_price=max_sqm_price,
+        merged_only=merged_only,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
         tag=tag,

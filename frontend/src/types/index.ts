@@ -241,6 +241,13 @@ export interface PropertyFilters {
   // "" = any floor; bands parsed server-side from the free-text floor label
   floor_band: "" | "ground" | "low" | "mid" | "high" | "top";
   rooms: string;
+  // --- advanced filters (behind the "More filters" panel) ---
+  portal: "" | "immobiliare" | "idealista";  // "" = any portal
+  agency: string;                             // substring match on the agency
+  deal: "" | "undervalued" | "fair_plus";     // "" = any deal score
+  min_sqm_price: string;                       // €/sqm band (derived price÷sqm)
+  max_sqm_price: string;
+  merged_only: boolean;                        // only cards backed by >1 ad
   only_price_drops: boolean;
   only_favorites: boolean;
   sort: string;

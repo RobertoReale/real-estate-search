@@ -110,7 +110,8 @@ def test_export_endpoint_sets_attachment_headers(db):
     # the Query(...)-defaulted params must be passed explicitly when the
     # endpoint function is called directly (no FastAPI to resolve them)
     resp = export_properties(db=db, fmt="csv", status="active", contract=None,
-                             sort="newest", floor_band=None)
+                             sort="newest", floor_band=None, portal=None,
+                             deal=None)
     assert (resp.media_type or "").startswith("text/csv")
     disposition = resp.headers["content-disposition"]
     assert disposition.startswith("attachment") and disposition.endswith('.csv"')

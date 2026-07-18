@@ -26,6 +26,8 @@ const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
   profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
   max_sqm: "", floor_band: "", rooms: "",
+  portal: "", agency: "", deal: "", min_sqm_price: "", max_sqm_price: "",
+  merged_only: false,
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 

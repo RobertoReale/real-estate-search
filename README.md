@@ -144,6 +144,12 @@ phone without any of this. The dashboard is for browsing and triaging.
      the search box there are dedicated **City**, **Zone**, price, **Min/Max
      sqm**, **Rooms**, **Floor** (Ground / Low / Middle / High / Top) and
      **Origin** filters, plus a one-click **↺ Reset filters** to clear them all.
+     A collapsible **⚙️ More filters** panel adds the rest: **Portal** (only
+     ads on Immobiliare or only on Idealista), **Agency**, **Deal** quality
+     (💎 undervalued / 👍 fair or better, from the Deal Score), a **€/sqm**
+     range, and **Merged only** (cards the app grouped from the same home on
+     several portals/agencies). A small badge shows how many of these are active
+     while the panel is collapsed.
      *Origin* separates listings your
      monitored searches found (**🔎 Monitored search**) from ones you pulled in
      from your inbox (**✉️ Email import**) — an email-imported card also carries

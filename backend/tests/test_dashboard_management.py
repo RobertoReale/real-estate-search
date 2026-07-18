@@ -277,6 +277,71 @@ def test_max_sqm_filter_caps_the_surface(db):
     assert [p.id for p in list_properties(db=db, max_sqm=80.0)] == [small.id]
 
 
+def test_portal_filter_keeps_cards_present_on_that_portal(db):
+    """A card can group ads from several portals; the Portal filter keeps the
+    ones with at least one ad on the chosen portal (not "all of its ads there")."""
+    imm = upsert_listing(db, _raw(portal_id="1"))[0]
+    ideal = upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        latitude=45.99, longitude=9.99, address="Via Altra, 9"))[0]
+    db.commit()
+    assert [p.id for p in list_properties(db=db, portal="idealista")] == [ideal.id]
+    assert [p.id for p in list_properties(db=db, portal="immobiliare")] == [imm.id]
+
+
+def test_agency_filter_matches_a_substring(db):
+    """Agency is stored on the listing; the filter is a case-insensitive
+    substring so "tecnocasa" finds "Tecnocasa Milano Sud"."""
+    match = upsert_listing(db, _raw(portal_id="1", agency="Tecnocasa Milano Sud"))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/", agency="Gabetti",
+        latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, agency="tecnocasa")] == [match.id]
+
+
+def test_merged_only_keeps_multi_ad_cards(db):
+    """"Merged only" surfaces the cards the deduplicator folded from more than
+    one ad (the same home across portals/agencies)."""
+    # same location/price/rooms/surface → the two ads merge into one card
+    first = upsert_listing(db, _raw(portal="immobiliare", portal_id="1"))[0]
+    merged = upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/"))[0]
+    assert first.id == merged.id  # precondition: they actually merged
+    # a lone ad elsewhere: single-listing, must be excluded
+    upsert_listing(db, _raw(
+        portal="immobiliare", portal_id="3",
+        url="https://www.immobiliare.it/annunci/3/",
+        latitude=45.10, longitude=9.10, address="Via Lontana, 1"))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, merged_only=True)] == [merged.id]
+
+
+def test_sqm_price_band_filters_on_derived_price_per_sqm(db):
+    """€/sqm is price ÷ surface, computed on the fly; a card missing either
+    can't be placed on that axis and drops out of the band."""
+    cheap = upsert_listing(db, _raw(portal_id="1", price=100_000.0, sqm=100.0))[0]  # 1000 €/sqm
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        price=450_000.0, sqm=90.0,  # 5000 €/sqm
+        latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, max_sqm_price=2000.0)] == [cheap.id]
+
+
+def test_deal_filter_excludes_unscored_cards(db):
+    """The Deal filter reads the Deal Score, which needs a local €/sqm median.
+    With too few comparables no score exists, so "undervalued only" — which
+    can't confirm a deal — returns nothing rather than a false positive."""
+    upsert_listing(db, _raw(portal_id="1"))
+    db.commit()
+    assert list_properties(db=db, deal="undervalued") == []
+
+
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 def test_profile_overlay_applies_contract_city_and_keywords(db):

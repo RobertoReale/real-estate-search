@@ -40,6 +40,14 @@ export default function FiltersBar({
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const [geocodeProgress, setGeocodeProgress] = useState<GeocodeProgress | null>(null);
   const [stoppingGeocode, setStoppingGeocode] = useState(false);
+  // Advanced filters live behind a toggle so the common controls stay
+  // uncluttered. Opened by default when one is already active (e.g. after a
+  // reload), so an applied filter is never hidden.
+  const advActiveCount =
+    (filters.portal ? 1 : 0) + (filters.agency ? 1 : 0) +
+    (filters.deal ? 1 : 0) + (filters.min_sqm_price ? 1 : 0) +
+    (filters.max_sqm_price ? 1 : 0) + (filters.merged_only ? 1 : 0);
+  const [advOpen, setAdvOpen] = useState(advActiveCount > 0);
 
   useProgressPoll(
     geocoding,
@@ -63,7 +71,7 @@ export default function FiltersBar({
     !!filters.floor_band || !!filters.rooms || !!filters.source ||
     !!filters.tag || !!filters.profile_id || filters.only_price_drops ||
     filters.only_favorites || filters.status !== "active" ||
-    filters.sort !== "newest";
+    filters.sort !== "newest" || advActiveCount > 0;
 
   // Turning the dream home off (or never setting it up) must not strand the
   // grid on a "Best match" sort that no longer does anything: fall back to
@@ -283,7 +291,80 @@ export default function FiltersBar({
             onChange={(e) => set({ only_favorites: e.target.checked })} />
           ⭐ Favorites
         </label>
+        {/* Gateway to the advanced filters — kept next to the checkboxes so the
+            common controls above stay uncluttered. The badge shows how many
+            advanced filters are active even while the panel is collapsed. */}
+        <button type="button"
+          className="flex items-center gap-1.5 text-sm accent-link hover:underline"
+          aria-expanded={advOpen}
+          onClick={() => setAdvOpen((o) => !o)}>
+          ⚙️ More filters
+          {advActiveCount > 0 && (
+            <span className="chip-blue text-[11px] px-1.5 py-0.5 rounded-full font-semibold">
+              {advActiveCount}
+            </span>
+          )}
+          <span className="t-dim">{advOpen ? "▲" : "▼"}</span>
+        </button>
       </div>
+
+      {advOpen && (
+        <div className="col-span-2 w-full p-3 sm:p-4 rounded-xl panel
+          grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap animate-fade-in">
+          <p className="col-span-2 w-full text-xs font-medium t-muted -mb-1">
+            More filters <span className="font-normal t-dim">· narrow the grid by portal, agency, deal quality or €/sqm</span>
+          </p>
+          {/* Portal: a card can group ads from several portals, so this keeps
+              the ones present on the chosen portal (see main.py `portal=`). */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs t-muted">Portal</label>
+            <select className="input w-full sm:w-40" value={filters.portal}
+              onChange={(e) => set({
+                portal: e.target.value as PropertyFilters["portal"],
+              })}>
+              <option value="">Any portal</option>
+              <option value="immobiliare">Immobiliare</option>
+              <option value="idealista">Idealista</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
+            <label className="text-xs t-muted">Agency</label>
+            <input className="input w-full sm:w-48" placeholder="e.g. Tecnocasa"
+              value={filters.agency} onChange={(e) => set({ agency: e.target.value })} />
+          </div>
+          {/* Deal quality reads the Deal Score (€/sqm gap vs the local median).
+              "Fair or better" drops the overpriced; both need a local median,
+              so unscored cards fall out when set. */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs t-muted">Deal</label>
+            <select className="input w-full sm:w-44" value={filters.deal}
+              onChange={(e) => set({
+                deal: e.target.value as PropertyFilters["deal"],
+              })}>
+              <option value="">Any deal</option>
+              <option value="undervalued">💎 Undervalued only</option>
+              <option value="fair_plus">👍 Fair or better</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs t-muted">Min €/sqm</label>
+            <input className="input w-full sm:w-24" type="number" placeholder="0"
+              value={filters.min_sqm_price}
+              onChange={(e) => set({ min_sqm_price: e.target.value })} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs t-muted">Max €/sqm</label>
+            <input className="input w-full sm:w-24" type="number" placeholder="∞"
+              value={filters.max_sqm_price}
+              onChange={(e) => set({ max_sqm_price: e.target.value })} />
+          </div>
+          <label className="col-span-2 flex items-center gap-2 text-sm t-body cursor-pointer min-h-11 sm:min-h-0 sm:pb-2">
+            <input type="checkbox" checked={filters.merged_only}
+              onChange={(e) => set({ merged_only: e.target.checked })} />
+            🔗 Merged only (same home on several portals/agencies)
+          </label>
+        </div>
+      )}
 
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
         <div className="flex flex-col gap-1 justify-end pb-2">
