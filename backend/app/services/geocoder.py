@@ -160,7 +160,11 @@ def _clean_street_name(place: str) -> str:
         s = s.split(" - ")[0].strip()
     if "," in s:
         s = s.split(",")[0].strip()
-    s = re.sub(r"\s+\b(?:n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$", "", s, flags=re.I).strip()
+    # "s.n.c" / "snc" = "senza numero civico": agencies write it where a house
+    # number would go, and Nominatim returns 0 results for "Via Camaldoli s.n.c"
+    # while "Via Camaldoli" resolves cleanly — so it must be stripped like the
+    # other civic-address tokens, or the fallback query fails too.
+    s = re.sub(r"\s+\b(?:s\.?n\.?c\.?|n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$", "", s, flags=re.I).strip()
     s = re.sub(r"\s+\b\d+([a-zA-Z/0-9-]*)$", "", s).strip()
     return s
 

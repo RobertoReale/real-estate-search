@@ -261,6 +261,26 @@ def test_clean_street_name():
     assert geocoder._clean_street_name("Via 24 Maggio") == "Via 24 Maggio"
     assert geocoder._clean_street_name("Viale 25 Aprile 12") == "Viale 25 Aprile"
     assert geocoder._clean_street_name("Piazza 5 Giornate, 10") == "Piazza 5 Giornate"
+    # "s.n.c" = "senza numero civico": agencies write it where a house number
+    # goes, and Nominatim returns 0 results for "Via Camaldoli s.n.c" while
+    # "Via Camaldoli" resolves — so the fallback query must strip it.
+    assert geocoder._clean_street_name("Via Camaldoli s.n.c, Ponte Lambro") == "Via Camaldoli"
+    assert geocoder._clean_street_name("Via Camaldoli snc") == "Via Camaldoli"
+    assert geocoder._clean_street_name("Via Camaldoli s.n.c.") == "Via Camaldoli"
+
+
+def test_snc_address_falls_back_to_the_bare_street(db, monkeypatch):
+    # The real "Via Camaldoli s.n.c, Ponte Lambro" case: the first query keeps
+    # "s.n.c" and misses, but the cleaned fallback "Via Camaldoli, Milano" hits.
+    prop = _prop(address="Via Camaldoli s.n.c, Ponte Lambro", zone="")
+    db.add(prop)
+    db.commit()
+    resolved = {"Via Camaldoli, Milano, Italia": (45.4414, 9.2660)}
+    monkeypatch.setattr(geocoder, "_nominatim_lookup",
+                        lambda q, base: resolved.get(q))
+    coords = geocoder.geocode_property(db, prop)
+    assert coords == (45.4414, 9.2660)
+    assert prop.latitude == 45.4414
 
 
 def test_is_valid_coordinate_for_city():
