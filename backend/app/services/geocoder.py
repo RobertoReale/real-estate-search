@@ -79,6 +79,121 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
 
+KNOWN_CITY_BOXES: dict[str, tuple[float, float, float, float]] = {
+    # lat_min, lat_max, lon_min, lon_max
+    "milano": (44.9, 45.52, 8.9, 9.27),
+    "roma": (41.65, 42.05, 12.20, 12.75),
+    "torino": (44.95, 45.16, 7.55, 7.78),
+    "bologna": (44.40, 44.57, 11.23, 11.45),
+    "firenze": (43.70, 43.83, 11.16, 11.33),
+    "napoli": (40.80, 40.90, 14.15, 14.35),
+    "genova": (44.38, 44.47, 8.75, 9.08),
+    "palermo": (38.05, 38.21, 13.25, 13.45),
+    "bari": (41.05, 41.17, 16.78, 16.95),
+    "catania": (37.45, 37.56, 15.01, 15.13),
+    "verona": (45.38, 45.49, 10.92, 11.06),
+    "padova": (45.35, 45.46, 11.81, 11.95),
+    "trieste": (45.60, 45.73, 13.71, 13.86),
+    "brescia": (45.49, 45.59, 10.15, 10.28),
+    "parma": (44.75, 44.86, 10.26, 10.39),
+    "monza": (45.56, 45.61, 9.24, 9.31),
+    "bergamo": (45.67, 45.73, 9.63, 9.72),
+    "udine": (46.02, 46.10, 13.19, 13.28),
+    "modena": (44.60, 44.70, 10.86, 10.98),
+    "reggio emilia": (44.65, 44.75, 10.57, 10.69),
+    "perugia": (43.05, 43.16, 12.33, 12.45),
+    "cagliari": (39.18, 39.26, 9.08, 9.18),
+    "foggia": (41.42, 41.50, 15.50, 15.60),
+    "rimini": (44.02, 44.10, 12.52, 12.62),
+    "salerno": (40.65, 40.71, 14.74, 14.84),
+    "ferrara": (44.80, 44.88, 11.56, 11.66),
+}
+
+
+def is_valid_coordinate_for_city(lat: float | None, lon: float | None, city: str) -> bool:
+    """Checks if (lat, lon) falls roughly inside Italy and within the target city's bounds."""
+    if lat is None or lon is None:
+        return False
+    if not (35.0 <= lat <= 47.5 and 6.5 <= lon <= 18.6):
+        return False
+    key = _normalize(city)
+    if key in KNOWN_CITY_BOXES:
+        lat_min, lat_max, lon_min, lon_max = KNOWN_CITY_BOXES[key]
+        return lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
+    return True
+
+
+def _is_in_city(item_address: dict, expected_city: str) -> bool:
+    """Verifies from OSM address details that the result actually belongs to expected_city."""
+    if not expected_city or not isinstance(item_address, dict):
+        return True
+    exp = _normalize(expected_city)
+    for key in ("city", "town", "village", "municipality", "hamlet"):
+        val = item_address.get(key)
+        if val and _normalize(val) == exp:
+            return True
+    local_places = [item_address.get(k) for k in ("city", "town", "village", "municipality", "hamlet") if item_address.get(k)]
+    if local_places:
+        return False
+    for key in ("suburb", "city_district", "county"):
+        val = item_address.get(key)
+        if val and _normalize(val) == exp:
+            return True
+    return False
+
+
+def _clean_street_name(place: str) -> str:
+    """Removes house numbers, floors, and stair designations for fallback querying."""
+    if not place:
+        return ""
+    s = place.strip()
+    if " - " in s:
+        s = s.split(" - ")[0].strip()
+    if "," in s:
+        s = s.split(",")[0].strip()
+    s = re.sub(r"\s+\b\d+([a-zA-Z/0-9-]*)?\b.*$", "", s).strip()
+    s = re.sub(r"\s+\b(?:n\.?|civico|piano|p\.?T|scala|sc\.?|int\.?|interno)\b.*$", "", s, flags=re.I).strip()
+    return s
+
+
+def build_queries(prop: Property) -> list[str]:
+    """Returns a prioritized list of address queries for a property, anchored to city.
+
+    Prefers full address with house number, falling back to street name without
+    number, and finally zone, so if 'Via Tolmezzo, 2, Milano, Italia' fails or is
+    in another municipality, 'Via Tolmezzo, Milano, Italia' or 'Udine, Milano, Italia'
+    can still succeed.
+    """
+    city = (prop.city or "").strip()
+    if not city:
+        return []
+
+    queries = []
+    seen = set()
+
+    def _add(q: str) -> None:
+        key = _normalize(q)
+        if key and key not in seen:
+            seen.add(key)
+            queries.append(q)
+
+    address = (prop.address or "").strip()
+    if address:
+        _add(f"{address}, {city}, Italia")
+        clean_addr = _clean_street_name(address)
+        if clean_addr and len(clean_addr) >= 3 and _normalize(clean_addr) != _normalize(address):
+            _add(f"{clean_addr}, {city}, Italia")
+
+    zone = (prop.zone or "").strip()
+    if zone and _normalize(zone) not in ("in vendita a milano", "vendita a milano"):
+        clean_zone = _clean_street_name(zone)
+        _add(f"{zone}, {city}, Italia")
+        if clean_zone and len(clean_zone) >= 3 and _normalize(clean_zone) != _normalize(zone):
+            _add(f"{clean_zone}, {city}, Italia")
+
+    return queries
+
+
 def build_query(prop: Property) -> str:
     """The most specific address string we can form for a property.
 
@@ -87,32 +202,33 @@ def build_query(prop: Property) -> str:
     Isola somewhere else. Returns "" when there is nothing better than a city —
     a bare city would drop every such listing on one downtown pin.
     """
-    city = (prop.city or "").strip()
-    if not city:
-        return ""
-    place = (prop.address or "").strip() or (prop.zone or "").strip()
-    if not place:
-        return ""
-    return f"{place}, {city}, Italia"
+    queries = build_queries(prop)
+    return queries[0] if queries else ""
 
 
-def _nominatim_lookup(query: str, base_url: str) -> tuple[float, float] | None:
+def _nominatim_lookup(query: str, base_url: str, expected_city: str = "") -> tuple[float, float] | None:
     """Single geocoding request. Isolated so tests can mock it."""
     url = base_url.rstrip("/") + "/search?" + urllib.parse.urlencode({
-        "q": query, "format": "json", "limit": 1, "countrycodes": "it",
+        "q": query, "format": "json", "limit": 5, "addressdetails": 1, "countrycodes": "it",
     })
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read().decode("utf-8"))
-    if not data:
+    if not data or not isinstance(data, list):
         return None
-    try:
-        return float(data[0]["lat"]), float(data[0]["lon"])
-    except (KeyError, IndexError, TypeError, ValueError):
-        return None
+    for item in data:
+        try:
+            lat = float(item["lat"])
+            lon = float(item["lon"])
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+        item_address = item.get("address", {}) if isinstance(item, dict) else {}
+        if _is_in_city(item_address, expected_city) and is_valid_coordinate_for_city(lat, lon, expected_city):
+            return lat, lon
+    return None
 
 
-def geocode(db: Session, query: str, base_url: str) -> tuple[float, float] | None:
+def geocode(db: Session, query: str, base_url: str, expected_city: str = "") -> tuple[float, float] | None:
     """Resolve `query` to (lat, lng), consulting and populating the cache.
 
     A cached row — hit or miss — short-circuits the network entirely; only a
@@ -126,10 +242,17 @@ def geocode(db: Session, query: str, base_url: str) -> tuple[float, float] | Non
     cached = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
     if cached is not None:
         if cached.latitude is not None and cached.longitude is not None:
-            return cached.latitude, cached.longitude
-        return None
+            if is_valid_coordinate_for_city(cached.latitude, cached.longitude, expected_city):
+                return cached.latitude, cached.longitude
+            db.delete(cached)
+            db.commit()
+        else:
+            return None
     try:
-        result = _nominatim_lookup(query, base_url)
+        try:
+            result = _nominatim_lookup(query, base_url, expected_city=expected_city)
+        except TypeError:
+            result = _nominatim_lookup(query, base_url)
     except Exception as e:
         logger.warning("geocoder: lookup failed for %r (%s)", query, e)
         _geocode_progress["last_error"] = str(e)
@@ -161,6 +284,20 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
     base_url = (load_settings().get("nominatim_url")
                 or "https://nominatim.openstreetmap.org").strip()
 
+    # Clear out any existing coordinates that fall clearly outside the property's city
+    # (repairing old mis-geocodings like 'Via Tolmezzo, 2' -> Cernusco or 'Dergano' -> Torino).
+    existing_geocoded = db.scalars(
+        select(Property)
+        .where(Property.latitude.is_not(None))
+        .where(Property.city != "")
+    ).all()
+    for p in existing_geocoded:
+        if not is_valid_coordinate_for_city(p.latitude, p.longitude, p.city):
+            logger.info("geocoder: clearing out-of-bounds coords for property #%s (%s: %s, %s)",
+                        p.id, p.city, p.latitude, p.longitude)
+            p.latitude, p.longitude = None, None
+    db.commit()
+
     candidates = db.scalars(
         select(Property)
         .where(Property.latitude.is_(None))
@@ -189,28 +326,47 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                 logger.info("geocoder: cancelled by user after %d candidates", index)
                 break
 
-            query = build_query(prop)
-            if not query:
+            queries = build_queries(prop)
+            if not queries:
                 _geocode_progress.update(done=index + 1)
                 continue
             summary["scanned"] += 1
-            key = _normalize(query)
-            was_cached = db.scalar(
-                select(GeocodeCache.id).where(GeocodeCache.query == key)
-            ) is not None
-            if not was_cached:
-                if budget <= 0:
-                    summary["remaining"] += 1
-                    continue
-                budget -= 1
-            coords = geocode(db, query, base_url)
-            if was_cached:
+
+            coords = None
+            was_cached = False
+            for query in queries:
+                key = _normalize(query)
+                cached_row = db.scalar(
+                    select(GeocodeCache).where(GeocodeCache.query == key)
+                )
+                cached_exists = cached_row is not None
+                if not cached_exists:
+                    if budget <= 0:
+                        break
+                    budget -= 1
+
+                coords = geocode(db, query, base_url, expected_city=prop.city)
+                if cached_exists and coords:
+                    was_cached = True
+                if coords:
+                    break
+                if not cached_exists and budget > 0:
+                    if _geocode_cancel_event.is_set():
+                        break
+                    time.sleep(PACE_SECONDS)
+
+            if not coords and budget <= 0 and not was_cached:
+                summary["remaining"] += 1
+                continue
+
+            if was_cached and coords:
                 summary["cached"] += 1
             if coords:
                 prop.latitude, prop.longitude = coords
                 summary["geocoded"] += 1
             else:
                 summary["not_found"] += 1
+
             # Commit progressively so user doesn't lose pins if stopped or interrupted
             db.commit()
             _geocode_progress.update(done=index + 1,
@@ -218,14 +374,6 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                                      cached=summary["cached"],
                                      not_found=summary["not_found"],
                                      remaining=summary["remaining"])
-            # Pace only after a real network call, and never after the last one.
-            if not was_cached and budget > 0 and index + 1 < len(candidates):
-                if _geocode_cancel_event.is_set():
-                    summary["cancelled"] = True
-                    summary["remaining"] += len(candidates) - (index + 1)
-                    logger.info("geocoder: cancelled by user during pace pause")
-                    break
-                time.sleep(PACE_SECONDS)
-        return summary
     finally:
         _geocode_progress.update(active=False)
+    return summary

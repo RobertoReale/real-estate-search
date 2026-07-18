@@ -188,3 +188,52 @@ def test_geocode_endpoints_directly(db, monkeypatch):
     monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.0, 9.0))
     summary = geocode_missing_endpoint(db)
     assert summary["geocoded"] == 2
+
+
+def test_clean_street_name():
+    assert geocoder._clean_street_name("Via Tolmezzo, 2") == "Via Tolmezzo"
+    assert geocoder._clean_street_name("Via Dante Alighieri 15/B - piano 3") == "Via Dante Alighieri"
+    assert geocoder._clean_street_name("Corso Buenos Aires 45") == "Corso Buenos Aires"
+
+
+def test_is_valid_coordinate_for_city():
+    # Milano center is valid
+    assert geocoder.is_valid_coordinate_for_city(45.464, 9.190, "Milano") is True
+    # Cernusco sul Naviglio (9.333) and Torino (7.68) are outside Milano bounding box
+    assert geocoder.is_valid_coordinate_for_city(45.524, 9.333, "Milano") is False
+    assert geocoder.is_valid_coordinate_for_city(45.070, 7.680, "Milano") is False
+
+
+def test_is_in_city_validation():
+    # Cernusco sul Naviglio or Torino must be rejected when Milano is requested
+    cernusco_addr = {"road": "Via Tolmezzo", "house_number": "2", "town": "Cernusco sul Naviglio", "county": "Milano"}
+    torino_addr = {"suburb": "Dergano", "city": "Torino"}
+    milano_addr = {"road": "Via Tolmezzo", "suburb": "Feltre", "city": "Milano"}
+    assert geocoder._is_in_city(cernusco_addr, "Milano") is False
+    assert geocoder._is_in_city(torino_addr, "Milano") is False
+    assert geocoder._is_in_city(milano_addr, "Milano") is True
+
+
+def test_build_queries_fallback_order():
+    prop = _prop(address="Via Tolmezzo, 2", zone="Udine", city="Milano")
+    queries = geocoder.build_queries(prop)
+    assert queries == [
+        "Via Tolmezzo, 2, Milano, Italia",
+        "Via Tolmezzo, Milano, Italia",
+        "Udine, Milano, Italia",
+    ]
+
+
+def test_geocode_missing_properties_clears_out_of_bounds_existing_pins(db, monkeypatch):
+    # A property originally geocoded wrongly to Cernusco sul Naviglio (45.524, 9.333)
+    prop = _prop(address="Via Tolmezzo, 2", zone="Udine", city="Milano", latitude=45.524, longitude=9.333)
+    db.add(prop)
+    db.commit()
+
+    # Mock lookup returning valid Milano coordinates on re-run
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base, **kw: (45.49, 9.23))
+    summary = geocoder.geocode_missing_properties(db)
+    assert summary["geocoded"] == 1
+    db.refresh(prop)
+    assert prop.latitude == 45.49 and prop.longitude == 9.23
+
