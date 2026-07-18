@@ -37,6 +37,34 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
+/** Whether a write-only secret (API key, token, password, cookie) is currently
+ *  stored on the server. These inputs are masked and the backend never returns
+ *  the value, so the only previous cue was faint placeholder text — this makes
+ *  the state unmistakable. `dirty` = the field holds unsaved input that will
+ *  replace what is stored; `since` (when known) adds the save date. */
+function SecretStatus({ set, since, dirty }: { set?: boolean; since?: string; dirty?: boolean }) {
+  if (dirty) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-amber">
+        ✎ Unsaved change — will replace the stored value
+      </span>
+    );
+  }
+  if (set) {
+    return (
+      <span title={since ? `Last saved: ${new Date(since).toLocaleString("en-IE")}` : "A value is currently stored"}
+        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-emerald">
+        ✓ Saved{since ? ` · ${new Date(since).toLocaleDateString("en-IE")}` : ""}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-slate">
+      ○ Not set
+    </span>
+  );
+}
+
 export default function SettingsModal({ onClose }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [token, setToken] = useState("");
@@ -418,9 +446,14 @@ export default function SettingsModal({ onClose }: Props) {
           ]}
         />
         <div className="space-y-3">
-          <input className="input w-full" type="password"
-            placeholder={settings.telegram_token_set ? "Token already saved (leave empty to keep)" : "Bot token (from @BotFather)"}
-            value={token} onChange={(e) => setToken(e.target.value)} />
+          <div>
+            <input className="input w-full" type="password"
+              placeholder={settings.telegram_token_set ? "Token already saved (leave empty to keep)" : "Bot token (from @BotFather)"}
+              value={token} onChange={(e) => setToken(e.target.value)} />
+            <div className="mt-1">
+              <SecretStatus set={settings.telegram_token_set} dirty={!!token.trim()} />
+            </div>
+          </div>
           <input className="input w-full" placeholder="Chat ID (e.g. 123456789)"
             value={chatId} onChange={(e) => setChatId(e.target.value)} />
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -474,9 +507,14 @@ export default function SettingsModal({ onClose }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input className="input w-full" placeholder="SMTP username (email address)"
               value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
-            <input className="input w-full" type="password"
-              placeholder={settings.smtp_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
-              value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} />
+            <div>
+              <input className="input w-full" type="password"
+                placeholder={settings.smtp_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
+                value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} />
+              <div className="mt-1">
+                <SecretStatus set={settings.smtp_password_set} dirty={!!smtpPassword.trim()} />
+              </div>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input className="input w-full" placeholder="Sender (optional, defaults to username)"
@@ -526,9 +564,14 @@ export default function SettingsModal({ onClose }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input className="input w-full" placeholder="IMAP username (email address)"
               value={imapUser} onChange={(e) => setImapUser(e.target.value)} />
-            <input className="input w-full" type="password"
-              placeholder={settings.imap_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
-              value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} />
+            <div>
+              <input className="input w-full" type="password"
+                placeholder={settings.imap_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
+                value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} />
+              <div className="mt-1">
+                <SecretStatus set={settings.imap_password_set} dirty={!!imapPassword.trim()} />
+              </div>
+            </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs t-dim">
@@ -712,9 +755,14 @@ export default function SettingsModal({ onClose }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input className="input w-full" placeholder="Model (e.g. llama3.1)"
                 value={llmModel} onChange={(e) => setLlmModel(e.target.value)} />
-              <input className="input w-full" type="password"
-                placeholder={settings.llm_api_key_set ? "API key saved (leave empty to keep)" : "API key (blank for local Ollama)"}
-                value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} />
+              <div>
+                <input className="input w-full" type="password"
+                  placeholder={settings.llm_api_key_set ? "API key saved (leave empty to keep)" : "API key (blank for local Ollama)"}
+                  value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} />
+                <div className="mt-1">
+                  <SecretStatus set={settings.llm_api_key_set} dirty={!!llmApiKey.trim()} />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -760,9 +808,14 @@ export default function SettingsModal({ onClose }: Props) {
                 <option value="scraperapi">ScraperAPI</option>
                 <option value="zyte">Zyte</option>
               </select>
-              <input className="input w-full sm:col-span-2" type="password"
-                placeholder={settings.scrape_api_key_set ? "Key already saved (leave empty to keep)" : "Provider API key"}
-                value={scrapeApiKey} onChange={(e) => setScrapeApiKey(e.target.value)} />
+              <div className="sm:col-span-2">
+                <input className="input w-full" type="password"
+                  placeholder={settings.scrape_api_key_set ? "Key already saved (leave empty to keep)" : "Provider API key"}
+                  value={scrapeApiKey} onChange={(e) => setScrapeApiKey(e.target.value)} />
+                <div className="mt-1">
+                  <SecretStatus set={settings.scrape_api_key_set} dirty={!!scrapeApiKey.trim()} />
+                </div>
+              </div>
             </div>
           </div>
           <div>
@@ -770,12 +823,11 @@ export default function SettingsModal({ onClose }: Props) {
             <input className="input w-full" type="password"
               placeholder={settings.datadome_cookie_set ? "Cookie already saved (leave empty to keep)" : "Paste datadome cookie value"}
               value={datadomeCookie} onChange={(e) => setDatadomeCookie(e.target.value)} />
-            {settings.datadome_cookie_updated_at && (
-              <p className="text-xs t-dim mt-1">
-                Last refreshed:{" "}
-                {new Date(settings.datadome_cookie_updated_at).toLocaleString("en-IE")}
-              </p>
-            )}
+            <div className="mt-1">
+              <SecretStatus set={settings.datadome_cookie_set}
+                since={settings.datadome_cookie_updated_at}
+                dirty={!!datadomeCookie.trim()} />
+            </div>
           </div>
 
           {/* Automatic harvesting: only offered when Playwright is installed,
@@ -888,6 +940,11 @@ export default function SettingsModal({ onClose }: Props) {
         <input className="input w-full" type="password"
           placeholder="No token (open access)"
           value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
+        <div className="mt-1">
+          <SecretStatus
+            set={!!(settings.api_auth_token ?? "")}
+            dirty={apiToken !== (settings.api_auth_token ?? "")} />
+        </div>
 
         <Result where="global" />
 
