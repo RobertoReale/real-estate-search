@@ -211,6 +211,31 @@ def test_geocode_property_fails_open_when_unresolved(db, monkeypatch):
     assert prop.latitude is None and prop.longitude is None
 
 
+def test_geocode_property_retries_a_stale_negative_cache(db, monkeypatch):
+    # A transient empty answer from Nominatim gets frozen as a NULL cache row
+    # (real case: "Viale Mario Rapisardi, 15, Milano" — a perfectly resolvable
+    # address stuck behind a stale miss). The paced batch respects that cache to
+    # stay under the rate limit, but the on-demand single-property path spends
+    # at most a couple of requests, so it must re-ask instead of stranding the
+    # property off the map forever.
+    prop = _prop(address="Viale Mario Rapisardi, 15")
+    db.add(prop)
+    db.commit()
+    # Seed the poisoned negative-cache rows for every query the property builds.
+    for query in geocoder.build_queries(prop):
+        db.add(GeocodeCache(query=geocoder._normalize(query), latitude=None, longitude=None))
+    db.commit()
+
+    # The batch stays blind to it (default respects the negative cache)...
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.52, 9.17))
+    assert geocoder.geocode(db, geocoder.build_query(prop), "http://x", "Milano") is None
+
+    # ...but the on-demand path retries and resolves it.
+    coords = geocoder.geocode_property(db, prop)
+    assert coords == (45.52, 9.17)
+    assert prop.latitude == 45.52 and prop.longitude == 9.17
+
+
 def test_geocode_property_stops_and_fails_open_on_a_block(db, monkeypatch):
     # A 429/403 from Nominatim must not become a wrong pin, and must stop the
     # per-query loop rather than hammer the blocked host.

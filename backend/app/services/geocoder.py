@@ -241,13 +241,23 @@ def _nominatim_lookup(query: str, base_url: str, expected_city: str = "") -> tup
     return None
 
 
-def geocode(db: Session, query: str, base_url: str, expected_city: str = "") -> tuple[float, float] | None:
+def geocode(db: Session, query: str, base_url: str, expected_city: str = "",
+            retry_negative: bool = False) -> tuple[float, float] | None:
     """Resolve `query` to (lat, lng), consulting and populating the cache.
 
     A cached row — hit or miss — short-circuits the network entirely; only a
     genuinely new query spends a request (and returns True in the 2-tuple's
     place via the `hit_network` flag on the batch, not here). Failures are
     cached as NULL so they are not retried on the next batch.
+
+    `retry_negative=True` discards a cached *miss* (NULL) and looks it up again.
+    A negative result is often just a transient empty answer from Nominatim (a
+    rate-limit hiccup, or OSM data that has since improved) frozen forever by
+    the cache — harmless for the paced batch, but for the on-demand single-
+    property path it strands a perfectly resolvable address behind a stale
+    "not found". That path spends at most a couple of requests, so it can
+    afford to re-ask; the batch stays on the default so it keeps its rate
+    budget.
     """
     key = _normalize(query)
     if not key:
@@ -257,6 +267,9 @@ def geocode(db: Session, query: str, base_url: str, expected_city: str = "") -> 
         if cached.latitude is not None and cached.longitude is not None:
             if is_valid_coordinate_for_city(cached.latitude, cached.longitude, expected_city):
                 return cached.latitude, cached.longitude
+            db.delete(cached)
+            db.commit()
+        elif retry_negative:
             db.delete(cached)
             db.commit()
         else:
@@ -296,9 +309,14 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
                 or "https://nominatim.openstreetmap.org").strip()
     for query in build_queries(prop):
         key = _normalize(query)
-        cached = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key)) is not None
+        cached_row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
+        # A positive cache hit costs no network; a negative one is retried here
+        # (see geocode's retry_negative), so it must not count as "cached" for
+        # pacing — we may still spend a real request on it.
+        cached = cached_row is not None and cached_row.latitude is not None
         try:
-            coords = geocode(db, query, base_url, expected_city=prop.city)
+            coords = geocode(db, query, base_url, expected_city=prop.city,
+                             retry_negative=True)
         except Exception as e:
             # geocode() re-raises 403/429: Nominatim is blocking, so stop and
             # fail open (no pin) rather than hammering it for the next query.
