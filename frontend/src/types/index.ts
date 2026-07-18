@@ -248,9 +248,24 @@ export interface PropertyFilters {
   min_sqm_price: string;                       // €/sqm band (derived price÷sqm)
   max_sqm_price: string;
   merged_only: boolean;                        // only cards backed by >1 ad
+  // --- geographic zone drawn on the map (radius or polygon, mutually exclusive) ---
+  geo_mode: "" | "radius" | "polygon";         // "" = no geo filter
+  center_lat: string;                          // radius mode: circle centre
+  center_lng: string;
+  radius_m: string;                            // radius in metres
+  poly: string;                                // polygon mode: "lat,lng;lat,lng;…"
   only_price_drops: boolean;
   only_favorites: boolean;
   sort: string;
+}
+
+/** The subset of PropertyFilters the map's drawing tools own. */
+export interface GeoFilter {
+  geo_mode: "" | "radius" | "polygon";
+  center_lat: string;
+  center_lng: string;
+  radius_m: string;
+  poly: string;
 }
 
 /** Structured parameters used to synthesize portal search URLs. */

@@ -29,6 +29,11 @@ const base: PropertyFilters = {
   min_sqm_price: "",
   max_sqm_price: "",
   merged_only: false,
+  geo_mode: "",
+  center_lat: "",
+  center_lng: "",
+  radius_m: "",
+  poly: "",
   only_price_drops: false,
   only_favorites: false,
   sort: "recent",
@@ -87,6 +92,52 @@ describe("propertyParams", () => {
     expect(p.get("deal")).toBe("undervalued");
     expect(p.get("min_sqm_price")).toBe("2000");
     expect(p.get("max_sqm_price")).toBe("4000");
+  });
+
+  it("serializes a radius geo filter only when mode + all three fields are set", () => {
+    // mode alone, without coordinates, must not leak a half-built filter
+    expect(propertyParams({ ...base, geo_mode: "radius" }).has("center_lat")).toBe(false);
+    const p = propertyParams({
+      ...base,
+      geo_mode: "radius",
+      center_lat: "45.46",
+      center_lng: "9.19",
+      radius_m: "1500",
+    });
+    expect(p.get("center_lat")).toBe("45.46");
+    expect(p.get("center_lng")).toBe("9.19");
+    expect(p.get("radius_m")).toBe("1500");
+    expect(p.has("poly")).toBe(false);
+  });
+
+  it("serializes a polygon geo filter, and radius/polygon are mutually exclusive", () => {
+    const p = propertyParams({ ...base, geo_mode: "polygon", poly: "45.1,9.1;45.2,9.2;45.3,9.1" });
+    expect(p.get("poly")).toBe("45.1,9.1;45.2,9.2;45.3,9.1");
+    expect(p.has("center_lat")).toBe(false);
+    // a stale radius left in state must not ride along in polygon mode
+    const q = propertyParams({
+      ...base,
+      geo_mode: "polygon",
+      poly: "45.1,9.1;45.2,9.2;45.3,9.1",
+      center_lat: "45.46",
+      center_lng: "9.19",
+      radius_m: "1500",
+    });
+    expect(q.has("center_lat")).toBe(false);
+    expect(q.get("poly")).toBe("45.1,9.1;45.2,9.2;45.3,9.1");
+  });
+
+  it("emits no geo params when mode is empty even if stale values remain", () => {
+    const p = propertyParams({
+      ...base,
+      center_lat: "45.46",
+      center_lng: "9.19",
+      radius_m: "1500",
+      poly: "45.1,9.1;45.2,9.2;45.3,9.1",
+    });
+    for (const key of ["center_lat", "center_lng", "radius_m", "poly"]) {
+      expect(p.has(key)).toBe(false);
+    }
   });
 
   it("emits boolean flags only when true, as the string 'true'", () => {

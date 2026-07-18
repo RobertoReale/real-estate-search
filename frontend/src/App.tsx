@@ -28,6 +28,7 @@ const DEFAULT_FILTERS: PropertyFilters = {
   max_sqm: "", floor_band: "", rooms: "",
   portal: "", agency: "", deal: "", min_sqm_price: "", max_sqm_price: "",
   merged_only: false,
+  geo_mode: "", center_lat: "", center_lng: "", radius_m: "", poly: "",
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
@@ -136,6 +137,22 @@ export default function App() {
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Action failed");
     }
+  }
+
+  // "Find coordinates" from the map's zone-filter banner: the batch geocoder
+  // backfills pins for the properties a geographic filter would otherwise drop.
+  const [geocoding, setGeocoding] = useState(false);
+  function findCoordinates() {
+    if (geocoding) return;
+    return runAction(async () => {
+      setGeocoding(true);
+      try {
+        await api.geocodeMissing();
+      } finally {
+        setGeocoding(false);
+      }
+      await refresh();
+    });
   }
 
   function scanNow() {
@@ -515,7 +532,21 @@ export default function App() {
 
         {view === "map" ? (
           properties.length > 0 && (
-            <MapView properties={properties} onSelect={setSelected} focusId={mapFocusId} />
+            <MapView
+              properties={properties}
+              onSelect={setSelected}
+              focusId={mapFocusId}
+              geo={{
+                geo_mode: filters.geo_mode,
+                center_lat: filters.center_lat,
+                center_lng: filters.center_lng,
+                radius_m: filters.radius_m,
+                poly: filters.poly,
+              }}
+              onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
+              onFindCoordinates={findCoordinates}
+              geocoding={geocoding}
+            />
           )
         ) : (
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

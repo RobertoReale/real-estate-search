@@ -142,6 +142,9 @@ def test_export_endpoint_sets_attachment_headers(db):
         floor_band=None,
         portal=None,
         deal=None,
+        center_lat=None,
+        center_lng=None,
+        radius_m=None,
     )
     assert (resp.media_type or "").startswith("text/csv")
     disposition = resp.headers["content-disposition"]

@@ -243,6 +243,14 @@ contrast, stops scanning it altogether.
   the **🧹 Retry failed lookups** button (next to *Find coordinates*) forgets
   those failed lookups so the next *Find coordinates* tries them again — it only
   clears the lookup memory and never moves a pin you already have.
+* **Draw a zone on the map**: filter the whole dashboard by area directly on the
+  map. Press **◯ Draw radius**, click a centre and drag the handle to size the
+  circle; or **⬠ Draw area**, click each corner and double-click to close a free
+  shape. Only the properties inside the zone stay — in the grid *and* in the
+  exported dossier, since it is a filter like any other — and **✕ Clear zone**
+  removes it. One caveat, shown as a banner while a zone is active: a property
+  with no coordinates can't be placed on the map, so it is excluded from the
+  zone; press **Find coordinates** from the banner to locate more of them first.
 * **Is this price fair?**: each card compares its €/sqm against the median of
   comparable properties in the same zone (falling back to the whole city), so an
   overpriced listing stands out. It needs at least 3 comparables to say anything,

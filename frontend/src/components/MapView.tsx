@@ -1,8 +1,8 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPrice } from "../services/api";
-import type { Property } from "../types";
+import type { GeoFilter, Property } from "../types";
 
 interface Props {
   properties: Property[];
@@ -10,9 +10,23 @@ interface Props {
   /** When set, center the map on this property and open its tooltip instead of
    *  fitting the whole set — the target of a card's "View on map" jump. */
   focusId?: number | null;
+  /** Current geographic-zone filter (radius or polygon), owned by App's filter
+   *  state; the drawing tools produce changes to it via `onGeoChange`. */
+  geo?: GeoFilter;
+  onGeoChange?: (next: GeoFilter) => void;
+  /** Kick off the batch geocoder ("Find coordinates") so more properties get a
+   *  pin — the mitigation for the NULL-coordinate exclusion the banner warns
+   *  about. Optional so the component still renders without it. */
+  onFindCoordinates?: () => void;
+  /** True while a geocode batch is running, to disable the banner button. */
+  geocoding?: boolean;
 }
 
 type PinKind = "drop" | "favorite" | "filtered" | "gone" | "sold" | "active";
+
+const EMPTY_GEO: GeoFilter = {
+  geo_mode: "", center_lat: "", center_lng: "", radius_m: "", poly: "",
+};
 
 /** Pin colors follow the same semantics as the card badges, so the map never
  *  says something different from the grid it replaces. Order matters: a
@@ -54,14 +68,47 @@ function makeIcon(kind: PinKind): L.DivIcon {
   });
 }
 
-export default function MapView({ properties, onSelect, focusId }: Props) {
+/** A small draggable square: the radius handle, visually distinct from a
+ *  listing pin so it can't be mistaken for one. */
+const HANDLE_ICON = L.divIcon({
+  className: "",
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  html: `<span style="
+    display:block;width:14px;height:14px;
+    background:#0ea5e9;border:2px solid #fff;border-radius:3px;
+    box-shadow:0 1px 6px rgba(0,0,0,.5);cursor:grab;"></span>`,
+});
+
+type DrawMode = "" | "radius" | "polygon";
+
+export default function MapView({
+  properties, onSelect, focusId, geo, onGeoChange, onFindCoordinates, geocoding,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  // the committed zone (circle or polygon), rendered from the `geo` prop
+  const zoneLayerRef = useRef<L.LayerGroup | null>(null);
+  // scratch layer for the shape being drawn, before it is committed
+  const drawLayerRef = useRef<L.LayerGroup | null>(null);
   // markers call back into React; keeping the handler in a ref means the
   // marker layer does not need rebuilding whenever the parent re-renders
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onGeoRef = useRef(onGeoChange);
+  onGeoRef.current = onGeoChange;
+
+  const [drawMode, setDrawMode] = useState<DrawMode>("");
+  // the map click handler is registered once; it reads the live draw mode and
+  // the in-progress vertices through refs so it never goes stale
+  const drawModeRef = useRef<DrawMode>("");
+  drawModeRef.current = drawMode;
+  const polyVertsRef = useRef<L.LatLng[]>([]);
+  const radiusCenterRef = useRef<L.LatLng | null>(null);
+
+  const activeGeo = geo ?? EMPTY_GEO;
+  const hasZone = activeGeo.geo_mode === "radius" || activeGeo.geo_mode === "polygon";
 
   const geolocated = useMemo(
     () => properties.filter((p) => p.latitude !== null && p.longitude !== null),
@@ -69,27 +116,157 @@ export default function MapView({ properties, onSelect, focusId }: Props) {
   );
   const missing = properties.length - geolocated.length;
 
-  // map instance: created once, destroyed on unmount. The cleanup is what
-  // makes React 18 StrictMode's double-mount survivable — without it the
-  // second mount hits "Map container is already initialized".
+  const commit = (next: GeoFilter) => onGeoRef.current?.(next);
+
+  // --- map instance: created once, destroyed on unmount --------------------
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { scrollWheelZoom: true })
+    const map = L.map(containerRef.current, { scrollWheelZoom: true, doubleClickZoom: false })
       .setView([41.9, 12.5], 5); // Italy, before any listing is placed
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
+    zoneLayerRef.current = L.layerGroup().addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
+    drawLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+
+    const onClick = (e: L.LeafletMouseEvent) => {
+      const mode = drawModeRef.current;
+      if (mode === "radius") handleRadiusClick(e.latlng);
+      else if (mode === "polygon") handlePolyClick(e.latlng);
+    };
+    const onDblClick = () => {
+      if (drawModeRef.current === "polygon") finishPolygon();
+    };
+    map.on("click", onClick);
+    map.on("dblclick", onDblClick);
     return () => {
+      map.off("click", onClick);
+      map.off("dblclick", onDblClick);
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      zoneLayerRef.current = null;
+      drawLayerRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // markers: rebuilt whenever the filtered set changes
+  // --- radius drawing ------------------------------------------------------
+  function handleRadiusClick(center: L.LatLng) {
+    const map = mapRef.current;
+    const draw = drawLayerRef.current;
+    if (!map || !draw) return;
+    draw.clearLayers();
+    radiusCenterRef.current = center;
+    // start with a handle offset ~1/4 of the visible span to the east, so it is
+    // immediately grabbable without overlapping the centre
+    const span = map.getBounds().getEast() - map.getBounds().getWest();
+    const handleStart = L.latLng(center.lat, center.lng + Math.max(span / 4, 0.002));
+    const circle = L.circle(center, {
+      radius: map.distance(center, handleStart),
+      color: "#0ea5e9", weight: 2, fillColor: "#0ea5e9", fillOpacity: 0.12,
+    }).addTo(draw);
+    const handle = L.marker(handleStart, { icon: HANDLE_ICON, draggable: true }).addTo(draw);
+    handle.on("drag", () => {
+      circle.setRadius(map.distance(center, handle.getLatLng()));
+    });
+    handle.on("dragend", () => {
+      const radius = Math.round(map.distance(center, handle.getLatLng()));
+      commit({
+        geo_mode: "radius",
+        center_lat: center.lat.toFixed(6),
+        center_lng: center.lng.toFixed(6),
+        radius_m: String(Math.max(radius, 1)),
+        poly: "",
+      });
+      draw.clearLayers();
+      setDrawMode("");
+    });
+  }
+
+  // --- polygon drawing -----------------------------------------------------
+  function redrawPolyScratch() {
+    const draw = drawLayerRef.current;
+    if (!draw) return;
+    draw.clearLayers();
+    const verts = polyVertsRef.current;
+    for (const v of verts) {
+      L.circleMarker(v, { radius: 4, color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 1 })
+        .addTo(draw);
+    }
+    if (verts.length >= 2) {
+      L.polyline(verts, { color: "#0ea5e9", weight: 2, dashArray: "5,5" }).addTo(draw);
+    }
+  }
+
+  function handlePolyClick(latlng: L.LatLng) {
+    polyVertsRef.current = [...polyVertsRef.current, latlng];
+    redrawPolyScratch();
+  }
+
+  function finishPolygon() {
+    const verts = polyVertsRef.current;
+    if (verts.length < 3) return; // a polygon needs at least three vertices
+    const poly = verts.map((v) => `${v.lat.toFixed(6)},${v.lng.toFixed(6)}`).join(";");
+    commit({ geo_mode: "polygon", center_lat: "", center_lng: "", radius_m: "", poly });
+    polyVertsRef.current = [];
+    drawLayerRef.current?.clearLayers();
+    setDrawMode("");
+  }
+
+  function startRadius() {
+    cancelDrawing();
+    setDrawMode("radius");
+  }
+  function startPolygon() {
+    cancelDrawing();
+    setDrawMode("polygon");
+  }
+  function cancelDrawing() {
+    polyVertsRef.current = [];
+    radiusCenterRef.current = null;
+    drawLayerRef.current?.clearLayers();
+    setDrawMode("");
+  }
+  function clearZone() {
+    cancelDrawing();
+    commit(EMPTY_GEO);
+  }
+
+  // --- render the committed zone from the geo prop -------------------------
+  useEffect(() => {
+    const zone = zoneLayerRef.current;
+    if (!zone) return;
+    zone.clearLayers();
+    if (activeGeo.geo_mode === "radius") {
+      const lat = Number(activeGeo.center_lat);
+      const lng = Number(activeGeo.center_lng);
+      const r = Number(activeGeo.radius_m);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && r > 0) {
+        L.circle([lat, lng], {
+          radius: r, color: "#0ea5e9", weight: 2, fillColor: "#0ea5e9", fillOpacity: 0.1,
+          interactive: false,
+        }).addTo(zone);
+      }
+    } else if (activeGeo.geo_mode === "polygon" && activeGeo.poly) {
+      const verts = activeGeo.poly
+        .split(";")
+        .map((c) => c.split(",").map(Number))
+        .filter((p) => p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+        .map(([la, ln]) => [la, ln] as [number, number]);
+      if (verts.length >= 3) {
+        L.polygon(verts, {
+          color: "#0ea5e9", weight: 2, fillColor: "#0ea5e9", fillOpacity: 0.1,
+          interactive: false,
+        }).addTo(zone);
+      }
+    }
+  }, [activeGeo.geo_mode, activeGeo.center_lat, activeGeo.center_lng, activeGeo.radius_m, activeGeo.poly]);
+
+  // --- markers: rebuilt whenever the filtered set changes ------------------
   useEffect(() => {
     const map = mapRef.current;
     const layer = layerRef.current;
@@ -129,6 +306,9 @@ export default function MapView({ properties, onSelect, focusId }: Props) {
       // read the street, and flag which pin it is.
       map.setView(focusLatLng, 16);
       focusMarker.openTooltip();
+    } else if (hasZone) {
+      // A zone is active: keep the user's current view. Re-fitting on every
+      // refetch after drawing would yank the zoom away from what they drew.
     } else if (geolocated.length) {
       map.fitBounds(
         L.latLngBounds(geolocated.map((p) => [p.latitude!, p.longitude!])),
@@ -137,7 +317,16 @@ export default function MapView({ properties, onSelect, focusId }: Props) {
         { padding: [40, 40], maxZoom: 15 },
       );
     }
+    // hasZone intentionally excluded: it must not trigger a marker rebuild, it
+    // only gates the fitBounds branch above on the runs the set already drives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geolocated, focusId]);
+
+  // keep the map's cursor/interaction hint in sync with the draw mode
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) el.style.cursor = drawMode ? "crosshair" : "";
+  }, [drawMode]);
 
   const legend = (Object.keys(PIN_STYLE) as PinKind[]).filter((kind) =>
     geolocated.some((p) => pinKind(p) === kind),
@@ -166,6 +355,65 @@ export default function MapView({ properties, onSelect, focusId }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Drawing toolbar: produces a radius or polygon filter that flows into
+          the grid/export like any other filter. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={drawMode === "radius" ? cancelDrawing : startRadius}
+          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-sky-400" : ""}`}
+          title="Click the map to set the centre, then drag the handle to size the radius.">
+          ◯ {drawMode === "radius" ? "Click centre, drag handle…" : "Draw radius"}
+        </button>
+        <button
+          type="button"
+          onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
+          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-sky-400" : ""}`}
+          title="Click to add each corner; double-click or press Finish to close the area.">
+          ⬠ {drawMode === "polygon" ? "Finish area" : "Draw area"}
+        </button>
+        {drawMode === "polygon" && (
+          <span className="text-xs t-dim">
+            {polyVertsRef.current.length} point(s) — need ≥ 3, then double-click to close
+          </span>
+        )}
+        {(hasZone || drawMode) && (
+          <button
+            type="button"
+            onClick={clearZone}
+            className="btn-ghost min-h-11 sm:min-h-0 text-sm">
+            ✕ Clear zone
+          </button>
+        )}
+        {hasZone && (
+          <span className="text-xs chip-sky px-2 py-0.5 rounded-lg">
+            {activeGeo.geo_mode === "radius"
+              ? `Radius ${(Number(activeGeo.radius_m) / 1000).toFixed(2)} km`
+              : "Area filter"} active
+          </span>
+        )}
+      </div>
+
+      {/* The mandatory caveat: a geographic filter silently drops every property
+          without coordinates. Keep it loud whenever a zone is active. */}
+      {hasZone && missing > 0 && (
+        <div className="text-xs rounded-lg chip-amber px-3 py-2 flex flex-wrap items-center gap-2">
+          <span>
+            Zone filter active — {missing} propert{missing === 1 ? "y" : "ies"} without
+            coordinates can’t be placed and {missing === 1 ? "is" : "are"} excluded.
+          </span>
+          {onFindCoordinates && (
+            <button
+              type="button"
+              onClick={onFindCoordinates}
+              disabled={geocoding}
+              className="btn-ghost min-h-8 sm:min-h-0 text-xs underline disabled:opacity-60">
+              {geocoding ? "Finding coordinates…" : "Find coordinates"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* dvh keeps the map from resizing (and Leaflet from re-fitting) every
           time a mobile browser collapses or restores its address bar */}

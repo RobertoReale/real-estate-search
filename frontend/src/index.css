@@ -111,6 +111,7 @@ input[type="checkbox"] {
 .chip-amber { @apply bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300; }
 .chip-rose { @apply bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300; }
 .chip-slate { @apply bg-slate-200 text-slate-600 dark:bg-slate-500/20 dark:text-slate-300; }
+.chip-sky { @apply bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300; }
 
 .accent-price { @apply text-blue-700 dark:text-blue-300; }
 .accent-good { @apply text-emerald-600 dark:text-emerald-400; }

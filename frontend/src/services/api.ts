@@ -82,6 +82,15 @@ export function propertyParams(filters: PropertyFilters): URLSearchParams {
   if (filters.min_sqm_price) params.set("min_sqm_price", filters.min_sqm_price);
   if (filters.max_sqm_price) params.set("max_sqm_price", filters.max_sqm_price);
   if (filters.merged_only) params.set("merged_only", "true");
+  // Geographic zone: radius and polygon are mutually exclusive, gated on the
+  // mode so a stale center/poly left in state can't leak into the query.
+  if (filters.geo_mode === "radius" && filters.center_lat && filters.center_lng && filters.radius_m) {
+    params.set("center_lat", filters.center_lat);
+    params.set("center_lng", filters.center_lng);
+    params.set("radius_m", filters.radius_m);
+  } else if (filters.geo_mode === "polygon" && filters.poly) {
+    params.set("poly", filters.poly);
+  }
   if (filters.only_price_drops) params.set("only_price_drops", "true");
   if (filters.only_favorites) params.set("only_favorites", "true");
   return params;

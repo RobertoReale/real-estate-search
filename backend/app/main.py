@@ -31,6 +31,7 @@ from .scrapers import detect_portal
 from .services import availability_check, data_reset, email_import, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
+from .services.geo_filter import haversine_m, parse_polygon, point_in_polygon
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import _parse_floor, annotate_match_scores
 from .services.pricing_stats import (
@@ -200,6 +201,10 @@ def _select_properties(
     min_sqm_price: float | None = None,
     max_sqm_price: float | None = None,
     merged_only: bool = False,
+    center_lat: float | None = None,
+    center_lng: float | None = None,
+    radius_m: float | None = None,
+    poly_vertices: list[tuple[float, float]] | None = None,
 ) -> list[Property]:
     """Shared property selection + annotation for the grid and the exports, so
     a dossier holds exactly what the dashboard is showing under the same
@@ -386,6 +391,26 @@ def _select_properties(
             and (min_sqm_price is None or sp >= min_sqm_price)
             and (max_sqm_price is None or sp <= max_sqm_price)
         ]
+    # Geographic zone drawn on the map: radius (point + distance) or polygon.
+    # A property with NULL coordinates cannot be placed in a zone, so it always
+    # drops out — the caveat MapView surfaces as a persistent banner + the
+    # "N without coordinates" chip (many listings arrive un-geocoded).
+    if radius_m and center_lat is not None and center_lng is not None:
+        props = [
+            p
+            for p in props
+            if p.latitude is not None
+            and p.longitude is not None
+            and haversine_m(center_lat, center_lng, p.latitude, p.longitude) <= radius_m
+        ]
+    elif poly_vertices:
+        props = [
+            p
+            for p in props
+            if p.latitude is not None
+            and p.longitude is not None
+            and point_in_polygon(p.latitude, p.longitude, poly_vertices)
+        ]
     annotate_match_scores(props, load_settings())
     if sort == "newest":
         props.sort(key=lambda p: p.first_seen_at, reverse=True)
@@ -410,6 +435,19 @@ def _select_properties(
         props = [p for p in props if p.deal_label in ("undervalued", "fair")]
     _annotate_provenance(db, props)
     return props
+
+
+def _parse_poly_param(poly: str | None) -> list[tuple[float, float]] | None:
+    """Turn the `poly` query param into vertices, or None when absent.
+
+    A malformed polygon is an explicit 400, never a silently-ignored filter that
+    would show the unfiltered grid as if the zone applied."""
+    if not poly or not poly.strip():
+        return None
+    try:
+        return parse_polygon(poly)
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid polygon: {exc}") from exc
 
 
 @app.get("/api/properties", response_model=list[schemas.PropertyOut])
@@ -437,6 +475,10 @@ def list_properties(
     min_sqm_price: float | None = None,
     max_sqm_price: float | None = None,
     merged_only: bool = False,
+    center_lat: float | None = Query(None, ge=-90, le=90),
+    center_lng: float | None = Query(None, ge=-180, le=180),
+    radius_m: float | None = Query(None, ge=1, le=100_000),
+    poly: str | None = None,
     only_price_drops: bool = False,
     only_favorites: bool = False,
     sort: str = Query(
@@ -461,6 +503,10 @@ def list_properties(
         min_sqm_price=min_sqm_price,
         max_sqm_price=max_sqm_price,
         merged_only=merged_only,
+        center_lat=center_lat,
+        center_lng=center_lng,
+        radius_m=radius_m,
+        poly_vertices=_parse_poly_param(poly),
         only_price_drops=only_price_drops,
         only_favorites=only_favorites,
         sort=sort,
@@ -497,6 +543,10 @@ def export_properties(
     min_sqm_price: float | None = None,
     max_sqm_price: float | None = None,
     merged_only: bool = False,
+    center_lat: float | None = Query(None, ge=-90, le=90),
+    center_lng: float | None = Query(None, ge=-180, le=180),
+    radius_m: float | None = Query(None, ge=1, le=100_000),
+    poly: str | None = None,
     only_price_drops: bool = False,
     only_favorites: bool = False,
     sort: str = Query("newest", pattern="^(newest|price_asc|price_desc|sqm_price|match)$"),
@@ -523,6 +573,10 @@ def export_properties(
         min_sqm_price=min_sqm_price,
         max_sqm_price=max_sqm_price,
         merged_only=merged_only,
+        center_lat=center_lat,
+        center_lng=center_lng,
+        radius_m=radius_m,
+        poly_vertices=_parse_poly_param(poly),
         only_price_drops=only_price_drops,
         only_favorites=only_favorites,
         sort=sort,
