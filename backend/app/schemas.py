@@ -46,6 +46,13 @@ class TagCreate(BaseModel):
     name: str
 
 
+class ProfileRef(BaseModel):
+    """A monitored search that found a property, as shown on its card: just the
+    id (to link back to the search) and its name."""
+    id: int
+    name: str
+
+
 class PropertyOut(BaseModel):
     """Comprehensive API response model for a deduplicated physical property,
     including its associated listings, price changes, and transient market statistics."""
@@ -90,6 +97,19 @@ class PropertyOut(BaseModel):
     listings: list[ListingOut] = []
     price_history: list[PriceHistoryOut] = []
     tags: list[TagOut] = []
+    # Which monitored searches have found this property (provenance, from the
+    # ListingProfile links). Empty when unannotated or for a property with no
+    # links (e.g. an email import never yet re-found by a scan). See invariant 20.
+    found_by: list[ProfileRef] = []
+
+    @field_validator("found_by", mode="before")
+    @classmethod
+    def _found_by_default(cls, v: object) -> object:
+        # The transient Property.found_by is None until main._annotate_provenance
+        # runs; from_attributes would then validate None against list[ProfileRef]
+        # and fail. Any path that serializes an unannotated property degrades to
+        # "no provenance" rather than a 500.
+        return v or []
 
 
 class PropertyPatch(BaseModel):

@@ -17,7 +17,10 @@ from sqlalchemy.orm import Session, selectinload
 from . import schemas
 from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
-from .models import ImportedListing, Listing, Property, SearchProfile, Tag, property_tags
+from .models import (
+    ImportedListing, Listing, ListingProfile, Property, SearchProfile, Tag,
+    property_tags,
+)
 from .scrapers import detect_portal
 from .services import (availability_check, data_reset, email_import, exporter,
                        notifier, scheduler)
@@ -101,6 +104,36 @@ async def require_api_token(request: Request, call_next):
 
 # --- Properties ---
 
+def _annotate_provenance(db: Session, props: list[Property]) -> None:
+    """Set each property's transient `found_by` to the monitored searches that
+    have found it, read from the ListingProfile links the scanner writes. One
+    query for the whole set (never per property): joins listings→links→profiles
+    for all the ids at once, then buckets the rows in Python.
+
+    Provenance, not origin — a property may be found by several overlapping
+    searches (see invariant 20), and an email import never re-found by a scan
+    simply has no links, so its `found_by` stays empty."""
+    if not props:
+        return
+    ids = [p.id for p in props]
+    rows = db.execute(
+        select(Listing.property_id, SearchProfile.id, SearchProfile.name)
+        .join(ListingProfile, ListingProfile.listing_id == Listing.id)
+        .join(SearchProfile, SearchProfile.id == ListingProfile.profile_id)
+        .where(Listing.property_id.in_(ids))
+    ).all()
+    # property_id -> ordered {profile_id: name}, so a search found by two of a
+    # property's listings appears once, in first-seen order.
+    by_prop: dict[int, dict[int, str]] = {}
+    for prop_id, profile_id, name in rows:
+        by_prop.setdefault(prop_id, {})[profile_id] = name
+    for p in props:
+        p.found_by = [
+            {"id": pid, "name": name}
+            for pid, name in by_prop.get(p.id, {}).items()
+        ]
+
+
 def _annotate(db: Session, props: list[Property]) -> None:
     """The full transient annotation set for one or few properties (market
     position first: the deal score reads it). One helper instead of the same
@@ -108,6 +141,7 @@ def _annotate(db: Session, props: list[Property]) -> None:
     annotate_market_position(db, props)
     annotate_match_scores(props, load_settings())
     annotate_deal_scores(db, props)
+    _annotate_provenance(db, props)
 
 
 def _select_properties(
@@ -280,6 +314,7 @@ def _select_properties(
                    reverse=True)
     annotate_market_position(db, props)
     annotate_deal_scores(db, props)
+    _annotate_provenance(db, props)
     return props
 
 

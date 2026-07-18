@@ -74,6 +74,53 @@ def test_sale_and_rent_of_same_house_are_not_merged(db):
     assert prop_rent.contract == "rent"
 
 
+# --- Provenance: which searches found a property (card "Found by") -----------
+
+def test_provenance_annotates_the_searches_that_found_a_property(db):
+    """The card must show which monitored searches found a property. The links
+    live in ListingProfile (invariant 20); _annotate_provenance reads them, and
+    an ad found by two overlapping searches must list both — once each."""
+    from app import schemas
+    from app.main import _annotate_provenance
+    from app.models import SearchProfile
+
+    prof1 = SearchProfile(name="Milano trilocali", portal="immobiliare",
+                          search_url="https://www.immobiliare.it/vendita-case/milano/")
+    prof2 = SearchProfile(name="Milano Navigli", portal="immobiliare",
+                          search_url="https://www.immobiliare.it/vendita-case/milano/navigli/")
+    db.add_all([prof1, prof2])
+    db.commit()
+
+    prop, _, _ = upsert_listing(db, _raw(), profile_id=prof1.id)
+    # the same ad (same portal_id) re-found by a second overlapping search: one
+    # listing, two ListingProfile links
+    upsert_listing(db, _raw(), profile_id=prof2.id)
+    db.refresh(prop)
+
+    _annotate_provenance(db, [prop])
+    assert prop.found_by is not None
+    assert {s["name"] for s in prop.found_by} == {"Milano trilocali", "Milano Navigli"}
+
+    out = schemas.PropertyOut.model_validate(prop)
+    assert {s.name for s in out.found_by} == {"Milano trilocali", "Milano Navigli"}
+
+
+def test_provenance_empty_and_unannotated_property_serializes(db):
+    """An inbox import a scan never re-found has no links: found_by is []. And an
+    unannotated property (transient found_by still None) must serialize to [],
+    not raise — the validator guards every PropertyOut path."""
+    from app import schemas
+    from app.main import _annotate_provenance
+
+    prop, _, _ = upsert_listing(db, _raw(), source="email")
+    # unannotated: PropertyOut.found_by validator must coerce None -> []
+    assert schemas.PropertyOut.model_validate(prop).found_by == []
+    # annotated with no links: still []
+    _annotate_provenance(db, [prop])
+    assert prop.found_by == []
+    assert schemas.PropertyOut.model_validate(prop).found_by == []
+
+
 def test_existing_listing_heals_migrated_contract(db):
     """DBs migrated before rental support default every Property to "sale";
     the next scan of a rental profile must correct the label."""

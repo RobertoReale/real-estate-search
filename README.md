@@ -265,6 +265,11 @@ contrast, stops scanning it altogether.
   right from its card or the detail modal. Typing a name that already exists
   reuses it instead of creating a near-duplicate. Filter the grid down to a
   single tag from the filter bar, same as filtering by city or zone.
+* **Which search found it**: a property's detail modal shows **🔍 Found by** —
+  the monitored searches that turned it up. Overlapping searches both appear, so
+  you can tell at a glance whether a listing came from your "Milano trilocali" or
+  your "Navigli" search (or both). A listing imported only from your inbox, never
+  yet matched by a scan, says so instead.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
 * **Share a shortlist**: the **Export** buttons on the filter bar download the

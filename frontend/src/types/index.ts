@@ -74,6 +74,15 @@ export interface Property {
   listings: Listing[];
   price_history: PricePoint[];
   tags: Tag[];
+  // monitored searches that have found this property (provenance); empty for an
+  // email import never re-found by a scan
+  found_by: ProfileRef[];
+}
+
+/** A monitored search that found a property, shown on its card. */
+export interface ProfileRef {
+  id: number;
+  name: string;
 }
 
 /** Extracted or computed criteria from a search profile's URL. */

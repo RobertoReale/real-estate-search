@@ -234,6 +234,29 @@ export default function PropertyModal({
             </>
           )}
 
+          {/* Provenance: which monitored searches have found this property.
+              Empty for an email import a scan has never re-found (invariant 19/20). */}
+          {p.found_by.length > 0 && (
+            <>
+              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                🔍 Found by {p.found_by.length > 1 ? `${p.found_by.length} searches` : "search"}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {p.found_by.map((s) => (
+                  <span key={s.id}
+                    className="text-xs px-2.5 py-1 rounded-full panel border border-slate-200 dark:border-slate-700">
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+          {p.found_by.length === 0 && p.source === "email" && (
+            <p className="mt-6 text-xs t-dim">
+              🔍 Not linked to any monitored search — imported from your inbox.
+            </p>
+          )}
+
           {/* Tags: user-curated categories, scans never touch them */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
             🏷️ Tags
