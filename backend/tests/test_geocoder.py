@@ -190,6 +190,70 @@ def test_geocode_endpoints_directly(db, monkeypatch):
     assert summary["geocoded"] == 2
 
 
+def test_geocode_property_resolves_a_single_property_on_demand(db, monkeypatch):
+    # Backs the card's "View on map" button: one property, filled in place.
+    prop = _prop(address="Via Dante 5")
+    db.add(prop)
+    db.commit()
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.46, 9.19))
+    coords = geocoder.geocode_property(db, prop)
+    assert coords == (45.46, 9.19)
+    assert prop.latitude == 45.46 and prop.longitude == 9.19
+
+
+def test_geocode_property_fails_open_when_unresolved(db, monkeypatch):
+    # An address too vague to place leaves the property un-pinned, never wrong.
+    prop = _prop(address="Nowhere Street")
+    db.add(prop)
+    db.commit()
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: None)
+    assert geocoder.geocode_property(db, prop) is None
+    assert prop.latitude is None and prop.longitude is None
+
+
+def test_geocode_property_stops_and_fails_open_on_a_block(db, monkeypatch):
+    # A 429/403 from Nominatim must not become a wrong pin, and must stop the
+    # per-query loop rather than hammer the blocked host.
+    import urllib.error
+    prop = _prop(address="Via Roma 1", zone="Centro")
+    db.add(prop)
+    db.commit()
+
+    def blocked(q, base):
+        raise urllib.error.HTTPError("x", 429, "rate limited", None, None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", blocked)
+    assert geocoder.geocode_property(db, prop) is None
+    assert prop.latitude is None
+
+
+def test_geocode_single_property_endpoint(db, monkeypatch):
+    from app.main import geocode_single_property
+
+    prop = _prop(address="Via Dante 5")
+    db.add(prop)
+    db.commit()
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.46, 9.19))
+    res = geocode_single_property(prop.id, db)
+    assert res["located"] is True
+    assert res["property"]["latitude"] == 45.46
+
+
+def test_geocode_single_property_endpoint_already_located_skips_network(db, monkeypatch):
+    from app.main import geocode_single_property
+
+    prop = _prop(address="Via Dante 5", latitude=45.46, longitude=9.19)
+    db.add(prop)
+    db.commit()
+
+    def boom(q, base):
+        raise AssertionError("a located property must not hit the network")
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", boom)
+    res = geocode_single_property(prop.id, db)
+    assert res["located"] is True
+
+
 def test_clean_street_name():
     assert geocoder._clean_street_name("Via Tolmezzo, 2") == "Via Tolmezzo"
     assert geocoder._clean_street_name("Via Dante Alighieri 15/B - piano 3") == "Via Dante Alighieri"

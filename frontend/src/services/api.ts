@@ -126,6 +126,14 @@ export const api = {
     });
   },
 
+  /** Resolve a single property's map coordinates on demand — the card's "View
+   *  on map" button when the pin is missing. Returns the updated property and
+   *  whether it now has coordinates (fail-open: `located: false` is not an
+   *  error, just an address too vague to place). */
+  geocodeProperty(id: number): Promise<{ property: Property; located: boolean }> {
+    return request(`/properties/${id}/geocode`, { method: "POST" });
+  },
+
   /** All user-defined tags with usage counts (dashboard filter + tag picker autocomplete). */
   getTags(): Promise<Tag[]> {
     return request("/tags");

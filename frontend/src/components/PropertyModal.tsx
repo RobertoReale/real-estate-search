@@ -12,13 +12,14 @@ interface Props {
   onDeleted: () => void;
   onToggleFavorite: () => void;
   onNotesSaved: (updated: Property) => void;
+  onShowOnMap: (property: Property) => void;
   allTags: Tag[];
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
 }
 
 export default function PropertyModal({
-  property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved,
+  property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved, onShowOnMap,
   allTags, onAddTag, onRemoveTag,
 }: Props) {
   const history = [...p.price_history].reverse();
@@ -26,9 +27,37 @@ export default function PropertyModal({
   const [savingNotes, setSavingNotes] = useState(false);
   const [checkingOnline, setCheckingOnline] = useState(false);
   const [checkResult, setCheckResult] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [imgBroken, setImgBroken] = useState(false);
   const notesDirty = notes !== p.notes;
+  const hasCoords = p.latitude !== null && p.longitude !== null;
+
+  async function viewOnMap() {
+    // Already placed: jump straight to the pin.
+    if (hasCoords) {
+      onShowOnMap(p);
+      return;
+    }
+    // No coordinates yet — resolve them on demand (portals omit them ~70% of
+    // the time), then show the map. Fail-open: an address too vague to place
+    // is not an error, it just leaves the property off the map.
+    setLocating(true);
+    setError("");
+    try {
+      const { property: updated, located } = await api.geocodeProperty(p.id);
+      onNotesSaved(updated); // updated coords flow into the grid + map state
+      if (located) {
+        onShowOnMap(updated);
+      } else {
+        setError("Could not place this property — the portal's location is too vague to find coordinates for it.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not locate this property");
+    } finally {
+      setLocating(false);
+    }
+  }
 
   async function checkIfOnline() {
     setCheckingOnline(true);
@@ -257,6 +286,16 @@ export default function PropertyModal({
                 onClick={checkIfOnline}
                 title="Probes the portal URL right now to verify if this listing is still online or removed (404)">
                 {checkingOnline ? "⏳ Checking…" : "🔎 Check if still online"}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                disabled={locating}
+                onClick={viewOnMap}
+                title={hasCoords
+                  ? "Open this property on the map"
+                  : "Find this property's coordinates and open it on the map"}>
+                {locating ? "⏳ Locating…" : "🗺️ View on map"}
               </button>
               {checkResult && (
                 <span className="text-xs font-medium animate-fade-in">

@@ -603,6 +603,25 @@ def check_single_property(property_id: int, db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/properties/{property_id}/geocode")
+def geocode_single_property(property_id: int, db: Session = Depends(get_db)):
+    """On-demand geocoding for one property, backing the card's "View on map"
+    when the pin is still missing. Reuses the cached, paced Nominatim path
+    (`geocoder.geocode_property`); already-located properties short-circuit.
+    Fail-open: a lookup the portal's address is too vague to resolve is not an
+    error — `located` tells the UI whether a pin now exists."""
+    from .services import geocoder
+    prop = db.get(Property, property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    if prop.latitude is None or prop.longitude is None:
+        geocoder.geocode_property(db, prop)
+    _annotate(db, [prop])
+    return {
+        "property": schemas.PropertyOut.model_validate(prop).model_dump(mode="json"),
+        "located": prop.latitude is not None and prop.longitude is not None,
+    }
+
 
 # --- Search profiles ---
 

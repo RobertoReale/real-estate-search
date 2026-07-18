@@ -36,6 +36,9 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
   const [view, setView] = useState<ViewMode>("grid");
+  // set by a card's "View on map" jump so MapView centers on that property;
+  // cleared on any manual view switch so the map fits the whole set again
+  const [mapFocusId, setMapFocusId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Property | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -184,6 +187,22 @@ export default function App() {
     });
   }
 
+  // "View on map" from a card: focus the map on this property and switch view.
+  // The property is already in the current grid, so it is on the map too (the
+  // modal geocodes it first when it had no pin, updating the shared state).
+  function showOnMap(p: Property) {
+    setMapFocusId(p.id);
+    setView("map");
+    setSelected(null);
+  }
+
+  // Any manual view switch drops the "View on map" focus, so the map goes back
+  // to fitting the whole filtered set instead of staying zoomed on one pin.
+  function changeView(v: ViewMode) {
+    setMapFocusId(null);
+    setView(v);
+  }
+
   useProgressPoll(
     checkingBatch,
     api.propertiesCheckProgress,
@@ -286,7 +305,7 @@ export default function App() {
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
-          view={view} onViewChange={setView} profiles={profiles} tags={tags}
+          view={view} onViewChange={changeView} profiles={profiles} tags={tags}
           matchEnabled={settings?.match_score_enabled ?? false} />
 
         {properties.length === 0 && !loadError && (
@@ -491,7 +510,7 @@ export default function App() {
 
         {view === "map" ? (
           properties.length > 0 && (
-            <MapView properties={properties} onSelect={setSelected} />
+            <MapView properties={properties} onSelect={setSelected} focusId={mapFocusId} />
           )
         ) : (
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -550,6 +569,7 @@ export default function App() {
             );
             setSelected(updated);
           }}
+          onShowOnMap={showOnMap}
           allTags={tags}
           onAddTag={(name) => addTag(selected, name)}
           onRemoveTag={(tagId) => removeTag(selected, tagId)}

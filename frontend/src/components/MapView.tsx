@@ -7,6 +7,9 @@ import type { Property } from "../types";
 interface Props {
   properties: Property[];
   onSelect: (property: Property) => void;
+  /** When set, center the map on this property and open its tooltip instead of
+   *  fitting the whole set — the target of a card's "View on map" jump. */
+  focusId?: number | null;
 }
 
 type PinKind = "drop" | "favorite" | "filtered" | "gone" | "sold" | "active";
@@ -51,7 +54,7 @@ function makeIcon(kind: PinKind): L.DivIcon {
   });
 }
 
-export default function MapView({ properties, onSelect }: Props) {
+export default function MapView({ properties, onSelect, focusId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -93,6 +96,8 @@ export default function MapView({ properties, onSelect }: Props) {
     if (!map || !layer) return;
     layer.clearLayers();
 
+    let focusMarker: L.Marker | null = null;
+    let focusLatLng: L.LatLngExpression | null = null;
     for (const p of geolocated) {
       const marker = L.marker([p.latitude!, p.longitude!], {
         icon: makeIcon(pinKind(p)),
@@ -113,9 +118,18 @@ export default function MapView({ properties, onSelect }: Props) {
       );
       marker.on("click", () => onSelectRef.current(p));
       layer.addLayer(marker);
+      if (focusId != null && p.id === focusId) {
+        focusMarker = marker;
+        focusLatLng = [p.latitude!, p.longitude!];
+      }
     }
 
-    if (geolocated.length) {
+    if (focusMarker && focusLatLng) {
+      // "View on map" jump: land on the requested property, close enough to
+      // read the street, and flag which pin it is.
+      map.setView(focusLatLng, 16);
+      focusMarker.openTooltip();
+    } else if (geolocated.length) {
       map.fitBounds(
         L.latLngBounds(geolocated.map((p) => [p.latitude!, p.longitude!])),
         // a single pin would otherwise zoom to street level, which hides
@@ -123,7 +137,7 @@ export default function MapView({ properties, onSelect }: Props) {
         { padding: [40, 40], maxZoom: 15 },
       );
     }
-  }, [geolocated]);
+  }, [geolocated, focusId]);
 
   const legend = (Object.keys(PIN_STYLE) as PinKind[]).filter((kind) =>
     geolocated.some((p) => pinKind(p) === kind),

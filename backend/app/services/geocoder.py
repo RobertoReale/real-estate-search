@@ -274,6 +274,42 @@ def geocode(db: Session, query: str, base_url: str, expected_city: str = "") -> 
     return result if result else None
 
 
+def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
+    """Resolve one property's coordinates on demand, for the card's "View on
+    map" button when it has no pin yet. Sets `prop.latitude/longitude` and
+    returns the coords when found, else None.
+
+    Reuses the cached, city-verified `geocode()`, so a query already seen (hit
+    or negative) costs no network. It is deliberately *not* gated by
+    `_geocode_run_lock` — that serialises the maintenance sweep over hundreds of
+    rows; this fills the single property the user is looking at right now, at
+    most a handful of queries. Fail-open like the batch (invariant's spirit): a
+    block or an ambiguous lookup leaves the property un-pinned rather than
+    writing a wrong pin.
+    """
+    from ..config import load_settings
+    base_url = (load_settings().get("nominatim_url")
+                or "https://nominatim.openstreetmap.org").strip()
+    for query in build_queries(prop):
+        key = _normalize(query)
+        cached = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key)) is not None
+        try:
+            coords = geocode(db, query, base_url, expected_city=prop.city)
+        except Exception as e:
+            # geocode() re-raises 403/429: Nominatim is blocking, so stop and
+            # fail open (no pin) rather than hammering it for the next query.
+            logger.warning("geocoder: single lookup blocked for #%s (%s)", prop.id, e)
+            return None
+        if coords:
+            prop.latitude, prop.longitude = coords
+            db.commit()
+            return coords
+        # Pace only between genuine network lookups; a cached miss is free.
+        if not cached:
+            time.sleep(PACE_SECONDS)
+    return None
+
+
 def geocode_missing_properties(db: Session, max_calls: int | None = -1) -> dict:
     """Fill in coordinates for properties that have an address/zone but no pin.
 

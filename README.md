@@ -224,7 +224,10 @@ contrast, stops scanning it altogether.
   looks up the missing pins from each listing's address or zone via OpenStreetMap
   (opt-in, cached, and it never invents a wrong pin — a lookup it cannot resolve
   is simply left off the map). It works in batches, so on a large dashboard press
-  it again to continue.
+  it again to continue. You can also jump to a single property: open its card and
+  press **🗺️ View on map** — it opens the map centered on that pin, and if the
+  property has no coordinates yet it finds them first (same OpenStreetMap lookup),
+  telling you if the address was too vague to place.
 * **Is this price fair?**: each card compares its €/sqm against the median of
   comparable properties in the same zone (falling back to the whole city), so an
   overpriced listing stands out. It needs at least 3 comparables to say anything,
