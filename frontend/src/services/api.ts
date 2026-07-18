@@ -3,7 +3,7 @@
  *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
 import type {
   AssistantResult, EmailScanParams, EmailScanProgress,
-  EmailScanSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
+  EmailScanSummary, GeocodeProgress, GeocodeSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
   ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, ScanStatus, SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, TrendArea,
@@ -240,13 +240,17 @@ export const api = {
     return request("/maintenance/repair-listings", { method: "POST" });
   },
   /** Backfill map coordinates for properties with an address/zone but no pin,
-   *  via Nominatim (opt-in, batched, paced, cached). `remaining` > 0 means run
-   *  it again to continue. */
-  geocodeMissing(): Promise<{
-    scanned: number; geocoded: number; cached: number;
-    not_found: number; remaining: number;
-  }> {
+   *  via Nominatim (opt-in, batched, paced, cached). */
+  geocodeMissing(): Promise<GeocodeSummary> {
     return request("/maintenance/geocode-missing", { method: "POST" });
+  },
+  /** Poll live progress of an ongoing geocoding operation. */
+  geocodeProgress(): Promise<GeocodeProgress> {
+    return request("/maintenance/geocode-progress");
+  },
+  /** Stops the running geocoding operation cleanly. */
+  cancelGeocode(): Promise<{ ok: boolean }> {
+    return request("/maintenance/geocode-cancel", { method: "POST" });
   },
 
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */

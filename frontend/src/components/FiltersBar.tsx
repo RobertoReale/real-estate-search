@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useProgressPoll } from "../hooks/useProgressPoll";
 import { api } from "../services/api";
-import type { PropertyFilters, SearchProfile, ViewMode } from "../types";
+import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
+import { ProgressBar } from "./ProgressBar";
 
 
 interface Props {
@@ -30,11 +32,19 @@ export default function FiltersBar({
     duplicate_listings_removed: number;
   } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
-  const [geocodeResult, setGeocodeResult] = useState<{
-    scanned: number; geocoded: number; cached: number;
-    not_found: number; remaining: number;
-  } | null>(null);
+  const [geocodeResult, setGeocodeResult] = useState<GeocodeSummary | null>(null);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [geocodeProgress, setGeocodeProgress] = useState<GeocodeProgress | null>(null);
+  const [stoppingGeocode, setStoppingGeocode] = useState(false);
+
+  useProgressPoll(
+    geocoding,
+    api.geocodeProgress,
+    (prog) => {
+      if (prog.active) setGeocodeProgress(prog);
+    },
+    800,
+  );
 
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
@@ -268,6 +278,8 @@ export default function FiltersBar({
               setGeocoding(true);
               setGeocodeResult(null);
               setGeocodeError(null);
+              setGeocodeProgress(null);
+              setStoppingGeocode(false);
               try {
                 const res = await api.geocodeMissing();
                 setGeocodeResult(res);
@@ -281,6 +293,8 @@ export default function FiltersBar({
                 );
               } finally {
                 setGeocoding(false);
+                setGeocodeProgress(null);
+                setStoppingGeocode(false);
               }
             }}>
             {geocoding ? "⏳ Locating…" : "📍 Find coordinates"}
@@ -370,6 +384,46 @@ export default function FiltersBar({
         </div>
       )}
 
+      {geocoding && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-fade-in shadow-sm space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+              <span>📍</span> Locating coordinates in background…
+            </span>
+            <button
+              className="btn py-1 px-2.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
+              disabled={stoppingGeocode}
+              onClick={async () => {
+                setStoppingGeocode(true);
+                try {
+                  await api.cancelGeocode();
+                } catch {
+                  // ignore
+                }
+              }}>
+              {stoppingGeocode ? "Stopping…" : "⏹ Stop"}
+            </button>
+          </div>
+          <ProgressBar
+            done={geocodeProgress?.done ?? 0}
+            total={geocodeProgress?.total ?? 0}
+            indeterminate={!geocodeProgress || geocodeProgress.total <= 0}>
+            {geocodeProgress
+              ? `Locating listing ${geocodeProgress.done} of ${geocodeProgress.total} — ${geocodeProgress.geocoded} located, ${geocodeProgress.cached} from cache${geocodeProgress.not_found > 0 ? `, ${geocodeProgress.not_found} not found` : ""}`
+              : "Starting coordinate lookup…"}
+            {" "}
+            <span className="opacity-75 font-normal">
+              (Paced at 1 request/sec to respect OpenStreetMap Nominatim usage policy)
+            </span>
+            {geocodeProgress?.last_error && (
+              <span className="block opacity-75 font-normal text-rose-600 dark:text-rose-400">
+                Last issue from Nominatim: {geocodeProgress.last_error}
+              </span>
+            )}
+          </ProgressBar>
+        </div>
+      )}
+
       {geocodeError && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <p className="text-rose-700 dark:text-rose-300">❌ {geocodeError}</p>
@@ -382,7 +436,7 @@ export default function FiltersBar({
         </div>
       )}
 
-      {geocodeResult && (
+      {geocodeResult && !geocoding && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
             <p className="font-semibold text-sky-700 dark:text-sky-400 text-sm flex items-center gap-1.5">
@@ -399,9 +453,13 @@ export default function FiltersBar({
                 Located <strong>{geocodeResult.geocoded}</strong> of{" "}
                 {geocodeResult.scanned} listings without a pin
                 {geocodeResult.not_found > 0 && <> · {geocodeResult.not_found} could not be resolved</>}.
-                {geocodeResult.remaining > 0 && (
+                {geocodeResult.cancelled ? (
+                  <span className="block mt-1 font-medium text-amber-600 dark:text-amber-400">
+                    ⏹ Stopped — remaining properties were left without pins. Click "Find coordinates" again to resume.
+                  </span>
+                ) : geocodeResult.remaining > 0 ? (
                   <> <strong>{geocodeResult.remaining}</strong> left — run it again to continue.</>
-                )}
+                ) : null}
               </p>
             )}
           </div>

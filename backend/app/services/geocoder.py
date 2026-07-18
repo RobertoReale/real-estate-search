@@ -22,6 +22,7 @@ logic with it mocked — no network, fully reproducible (invariant 17's spirit).
 import json
 import logging
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -44,6 +45,34 @@ _USER_AGENT = "RealEstateSearch/1.0 (local personal use)"
 # minute and the UI's "run it again to continue" (via `remaining`) carries the
 # rest, rather than one click blocking for minutes with no progress.
 MAX_PER_CALL = 40
+
+
+class GeocoderError(Exception):
+    """Raised when a geocoding check cannot start (e.g. lock already held)."""
+
+
+_geocode_progress: dict = {
+    "active": False,
+    "done": 0,
+    "total": 0,
+    "geocoded": 0,
+    "cached": 0,
+    "not_found": 0,
+    "remaining": 0,
+    "last_error": None,
+}
+_geocode_run_lock = threading.Lock()
+_geocode_cancel_event = threading.Event()
+
+
+def get_geocode_progress() -> dict:
+    """Snapshot of the running geocoding check, for UI polling."""
+    return dict(_geocode_progress)
+
+
+def request_cancel() -> None:
+    """Signals a running geocoding batch to stop after its current property."""
+    _geocode_cancel_event.set()
 
 
 def _normalize(text: str) -> str:
@@ -103,6 +132,7 @@ def geocode(db: Session, query: str, base_url: str) -> tuple[float, float] | Non
         result = _nominatim_lookup(query, base_url)
     except Exception as e:
         logger.warning("geocoder: lookup failed for %r (%s)", query, e)
+        _geocode_progress["last_error"] = str(e)
         return None  # transient: do NOT cache, so a later batch can retry
     lat, lng = result if result else (None, None)
     db.add(GeocodeCache(query=key, latitude=lat, longitude=lng))
@@ -110,14 +140,23 @@ def geocode(db: Session, query: str, base_url: str) -> tuple[float, float] | Non
     return result if result else None
 
 
-def geocode_missing_properties(db: Session) -> dict:
+def geocode_missing_properties(db: Session, max_calls: int | None = -1) -> dict:
     """Fill in coordinates for properties that have an address/zone but no pin.
 
-    Batched (`MAX_PER_CALL`) and paced (`PACE_SECONDS` between *network* calls
-    only — cache hits are free), so a large dashboard is completed across
-    repeated runs, like the availability check. `remaining` tells the UI to run
-    it again to continue.
+    When `max_calls` is -1 (default), it caps at `MAX_PER_CALL` for synchronous
+    batches. When `max_calls` is None, it runs all remaining candidates without
+    capping (`budget = float("inf")`), ideal for background progress execution.
     """
+    if not _geocode_run_lock.acquire(blocking=False):
+        raise GeocoderError("A geocoding batch is already running: wait for it to finish")
+    _geocode_cancel_event.clear()
+    try:
+        return _geocode_missing_properties_inner(db, max_calls)
+    finally:
+        _geocode_run_lock.release()
+
+
+def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -> dict:
     from ..config import load_settings
     base_url = (load_settings().get("nominatim_url")
                 or "https://nominatim.openstreetmap.org").strip()
@@ -131,32 +170,62 @@ def geocode_missing_properties(db: Session) -> dict:
     ).all()
 
     summary = {"scanned": 0, "geocoded": 0, "cached": 0,
-               "not_found": 0, "remaining": 0}
-    budget = MAX_PER_CALL
-    for prop in candidates:
-        query = build_query(prop)
-        if not query:
-            continue
-        summary["scanned"] += 1
-        key = _normalize(query)
-        was_cached = db.scalar(
-            select(GeocodeCache.id).where(GeocodeCache.query == key)
-        ) is not None
-        if not was_cached:
-            if budget <= 0:
-                summary["remaining"] += 1
+               "not_found": 0, "remaining": 0, "cancelled": False}
+    if max_calls is None:
+        budget = float("inf")
+    elif max_calls == -1:
+        budget = MAX_PER_CALL
+    else:
+        budget = max_calls
+
+    _geocode_progress.update(active=True, done=0, total=len(candidates),
+                             geocoded=0, cached=0, not_found=0,
+                             remaining=0, last_error=None)
+    try:
+        for index, prop in enumerate(candidates):
+            if _geocode_cancel_event.is_set():
+                summary["cancelled"] = True
+                summary["remaining"] += len(candidates) - index
+                logger.info("geocoder: cancelled by user after %d candidates", index)
+                break
+
+            query = build_query(prop)
+            if not query:
+                _geocode_progress.update(done=index + 1)
                 continue
-            budget -= 1
-        coords = geocode(db, query, base_url)
-        if was_cached:
-            summary["cached"] += 1
-        if coords:
-            prop.latitude, prop.longitude = coords
-            summary["geocoded"] += 1
-        else:
-            summary["not_found"] += 1
-        # Pace only after a real network call, and never after the last one.
-        if not was_cached and budget > 0:
-            time.sleep(PACE_SECONDS)
-    db.commit()
-    return summary
+            summary["scanned"] += 1
+            key = _normalize(query)
+            was_cached = db.scalar(
+                select(GeocodeCache.id).where(GeocodeCache.query == key)
+            ) is not None
+            if not was_cached:
+                if budget <= 0:
+                    summary["remaining"] += 1
+                    continue
+                budget -= 1
+            coords = geocode(db, query, base_url)
+            if was_cached:
+                summary["cached"] += 1
+            if coords:
+                prop.latitude, prop.longitude = coords
+                summary["geocoded"] += 1
+            else:
+                summary["not_found"] += 1
+            # Commit progressively so user doesn't lose pins if stopped or interrupted
+            db.commit()
+            _geocode_progress.update(done=index + 1,
+                                     geocoded=summary["geocoded"],
+                                     cached=summary["cached"],
+                                     not_found=summary["not_found"],
+                                     remaining=summary["remaining"])
+            # Pace only after a real network call, and never after the last one.
+            if not was_cached and budget > 0 and index + 1 < len(candidates):
+                if _geocode_cancel_event.is_set():
+                    summary["cancelled"] = True
+                    summary["remaining"] += len(candidates) - (index + 1)
+                    logger.info("geocoder: cancelled by user during pace pause")
+                    break
+                time.sleep(PACE_SECONDS)
+        return summary
+    finally:
+        _geocode_progress.update(active=False)

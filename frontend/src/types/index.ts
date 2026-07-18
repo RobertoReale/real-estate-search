@@ -440,4 +440,24 @@ export interface TrendArea {
   point_count: number;
 }
 
+export interface GeocodeProgress {
+  active: boolean;
+  done: number;
+  total: number;
+  geocoded: number;
+  cached: number;
+  not_found: number;
+  remaining: number;
+  last_error?: string | null;
+}
+
+export interface GeocodeSummary {
+  scanned: number;
+  geocoded: number;
+  cached: number;
+  not_found: number;
+  remaining: number;
+  cancelled?: boolean;
+}
+
 export type ViewMode = "grid" | "map";

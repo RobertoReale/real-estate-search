@@ -130,3 +130,61 @@ def test_the_budget_caps_network_calls_and_reports_remaining(db, monkeypatch):
     summary = geocoder.geocode_missing_properties(db)
     assert summary["geocoded"] == 2
     assert summary["remaining"] == 3
+
+
+def test_max_calls_none_processes_all_candidates(db, monkeypatch):
+    monkeypatch.setattr(geocoder, "MAX_PER_CALL", 2)
+    for i in range(5):
+        db.add(_prop(fingerprint=f"fp{i}", address=f"Via Test {i}"))
+    db.commit()
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.0, 9.0))
+
+    summary = geocoder.geocode_missing_properties(db, max_calls=None)
+    assert summary["geocoded"] == 5
+    assert summary["remaining"] == 0
+    assert not summary.get("cancelled")
+
+
+def test_cancellation_stops_batch(db, monkeypatch):
+    for i in range(5):
+        db.add(_prop(fingerprint=f"fp{i}", address=f"Via Test {i}"))
+    db.commit()
+
+    def lookup_and_cancel(q, base):
+        if "test 1" in q.lower():
+            geocoder.request_cancel()
+        return (45.0, 9.0)
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lookup_and_cancel)
+    summary = geocoder.geocode_missing_properties(db, max_calls=None)
+    assert summary["geocoded"] == 2
+    assert summary["cancelled"] is True
+    assert summary["remaining"] == 3
+
+
+def test_concurrent_run_raises_geocoder_error(db):
+    assert geocoder._geocode_run_lock.acquire(blocking=False)
+    try:
+        with pytest.raises(geocoder.GeocoderError):
+            geocoder.geocode_missing_properties(db)
+    finally:
+        geocoder._geocode_run_lock.release()
+
+
+def test_geocode_endpoints_directly(db, monkeypatch):
+    from app.main import geocode_cancel_endpoint, geocode_missing_endpoint, geocode_progress_endpoint
+
+    prog = geocode_progress_endpoint()
+    assert prog["active"] is False
+
+    res_cancel = geocode_cancel_endpoint()
+    assert res_cancel == {"ok": True}
+    assert geocoder._geocode_cancel_event.is_set()
+
+    # test endpoint triggers geocode_missing_properties
+    for i in range(2):
+        db.add(_prop(fingerprint=f"fp{i}", address=f"Via Test {i}"))
+    db.commit()
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base: (45.0, 9.0))
+    summary = geocode_missing_endpoint(db)
+    assert summary["geocoded"] == 2

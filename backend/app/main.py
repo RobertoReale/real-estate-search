@@ -941,8 +941,24 @@ def geocode_missing_endpoint(db: Session = Depends(get_db)):
     """Fills in map coordinates for properties that have an address/zone but no
     pin, via Nominatim (opt-in, batched, paced, cached). Fails open: a lookup
     that cannot resolve leaves the property untouched."""
-    from .services.geocoder import geocode_missing_properties
-    return geocode_missing_properties(db)
+    from .services import geocoder
+    try:
+        return geocoder.geocode_missing_properties(db, max_calls=None)
+    except geocoder.GeocoderError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/maintenance/geocode-progress")
+def geocode_progress_endpoint():
+    from .services import geocoder
+    return geocoder.get_geocode_progress()
+
+
+@app.post("/api/maintenance/geocode-cancel")
+def geocode_cancel_endpoint():
+    from .services import geocoder
+    geocoder.request_cancel()
+    return {"ok": True}
 
 
 # Scoped, irreversible data resets (Settings → Data management). Each is a
