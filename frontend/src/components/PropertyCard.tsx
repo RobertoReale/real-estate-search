@@ -10,6 +10,7 @@ interface Props {
   onToggleFavorite: () => void;
   selected?: boolean;
   onToggleSelect?: () => void;
+  isNew?: boolean;
 }
 
 /** Badge comparing this property's €/sqm to the local median.
@@ -68,7 +69,7 @@ export function DealBadge({ property: p }: { property: Property }) {
 }
 
 export default function PropertyCard({
-  property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect,
+  property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect, isNew,
 }: Props) {
   const drop =
     p.first_price && p.current_min_price && p.current_min_price < p.first_price
@@ -101,6 +102,13 @@ export default function PropertyCard({
         {/* right padding reserves the quick-action corner, which is wider on
             phones where the buttons grow to a thumb-sized target */}
         <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 pr-28 sm:pr-24">
+          {isNew && (
+            <span
+              className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-600/90 text-white backdrop-blur"
+              title="First appeared since your last visit to the dashboard">
+              🆕 new
+            </span>
+          )}
           {portals.map((portal) => (
             <PortalBadge key={portal} portal={portal} variant="overlay" />
           ))}

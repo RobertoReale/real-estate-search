@@ -51,6 +51,22 @@ export default function App() {
   // one and overwrite the grid with stale results
   const refreshSeq = useRef(0);
 
+  // "New" badge threshold: properties first seen after this instant are
+  // flagged as new for the rest of this browser session, even if a scan
+  // completes while the dashboard stays open. Captured once via a lazy
+  // initializer (not an effect) so the very first render already has it —
+  // an effect would flash the grid without badges for one frame. The stored
+  // timestamp is advanced immediately so a reload (the next time the user
+  // "sees" the dashboard, per-device like the theme/token in localStorage)
+  // stops flagging today's properties as new. No stored value at all means
+  // first-ever run: nothing is flagged, so the whole existing dashboard
+  // doesn't light up as "new".
+  const [newSinceThreshold] = useState<string | null>(() => {
+    const stored = localStorage.getItem("propertiesSeenBefore");
+    localStorage.setItem("propertiesSeenBefore", new Date().toISOString());
+    return stored;
+  });
+
   const refresh = useCallback(async () => {
     const seq = ++refreshSeq.current;
     try {
@@ -458,6 +474,7 @@ export default function App() {
               <PropertyCard
                 key={p.id}
                 property={p}
+                isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
                 selected={selectedIds.has(p.id)}
                 onToggleSelect={
                   selectionMode
