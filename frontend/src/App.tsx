@@ -331,6 +331,7 @@ export default function App() {
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
+                    title="Hidden properties leave the dashboard for good and never come back on their own, even if a scan finds them again. Use Restore to bring one back."
                     onClick={() => bulkAction("hide")}>
                     🙈 Hide selected ({selectedIds.size})
                   </button>

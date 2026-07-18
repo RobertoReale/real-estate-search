@@ -153,6 +153,18 @@ phone without any of this. The dashboard is for browsing and triaging.
      selection at once — the fast way to clear a batch (e.g. every *nuova
      costruzione*, or a whole cluster of *VENDUTO* re-posts) without opening
      cards one by one.
+   - **Retroactively excluding a whole category** (e.g. you decide *seminterrato*
+     should never show up again): adding the word to your excluded keywords in
+     Settings only affects *future* scans, since keyword filtering runs once,
+     when a listing is first found. To clear out what is already in the
+     dashboard, add the word there **and** use the Search bar to find the
+     matching cards (they match the same word in title/zone/address/text), then
+     select and hide them in bulk. There is no "delete forever" for a single
+     property on purpose: it always hides rather than erases the row, so a scan
+     that finds the same ad again recognizes it and leaves it hidden instead of
+     re-adding it as new (which would re-notify you). Hiding is not a
+     compromise — hidden listings never come back on their own, and it is fully
+     reversible from the **Discarded** status filter if you change your mind.
 
 ### Deleting a search: what happens to its listings
 
