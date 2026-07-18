@@ -294,6 +294,11 @@ export const api = {
   cancelGeocode(): Promise<{ ok: boolean }> {
     return request("/maintenance/geocode-cancel", { method: "POST" });
   },
+  /** Forget cached geocoding misses so "Find coordinates" retries addresses a
+   *  transient Nominatim failure froze as permanently "not found". */
+  clearGeocodeCache(): Promise<{ cleared: number }> {
+    return request("/maintenance/geocode-clear-cache", { method: "POST" });
+  },
 
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
   resetData(scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory"): Promise<{

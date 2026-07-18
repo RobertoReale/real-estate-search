@@ -40,6 +40,8 @@ export default function FiltersBar({
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const [geocodeProgress, setGeocodeProgress] = useState<GeocodeProgress | null>(null);
   const [stoppingGeocode, setStoppingGeocode] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [cacheCleared, setCacheCleared] = useState<number | null>(null);
   // Advanced filters live behind a toggle so the common controls stay
   // uncluttered. Opened by default when one is already active (e.g. after a
   // reload), so an applied filter is never hidden.
@@ -435,6 +437,34 @@ export default function FiltersBar({
             }}>
             {geocoding ? "⏳ Locating…" : "📍 Find coordinates"}
           </button>
+          <button
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
+              clearingCache
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
+                : "bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-300 border-slate-500/30"
+            }`}
+            disabled={clearingCache || geocoding}
+            title="Forget failed geocoding lookups so 'Find coordinates' retries addresses a temporary OpenStreetMap outage froze as 'not found'. Never moves existing pins."
+            onClick={async () => {
+              setClearingCache(true);
+              setCacheCleared(null);
+              setGeocodeError(null);
+              try {
+                const res = await api.clearGeocodeCache();
+                setCacheCleared(res.cleared);
+              } catch (e) {
+                const raw = e instanceof Error ? e.message : String(e);
+                setGeocodeError(
+                  /Error 404|Not Found/i.test(raw)
+                    ? "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again."
+                    : raw,
+                );
+              } finally {
+                setClearingCache(false);
+              }
+            }}>
+            {clearingCache ? "⏳ Clearing…" : "🧹 Retry failed lookups"}
+          </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
             DB) — see services/exporter.py */}
@@ -566,6 +596,24 @@ export default function FiltersBar({
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setGeocodeError(null)}
+            title="Close">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {cacheCleared !== null && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+          <p>
+            {cacheCleared === 0 ? (
+              <>No stuck lookups to clear — every failed address had already been forgotten or never cached.</>
+            ) : (
+              <>🧹 Cleared <strong>{cacheCleared}</strong> failed lookup{cacheCleared === 1 ? "" : "s"}. Click <strong>📍 Find coordinates</strong> to retry them.</>
+            )}
+          </p>
+          <button
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            onClick={() => setCacheCleared(null)}
             title="Close">
             ✕
           </button>

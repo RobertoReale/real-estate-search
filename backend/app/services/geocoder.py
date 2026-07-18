@@ -84,6 +84,28 @@ def request_cancel() -> None:
     _geocode_cancel_event.set()
 
 
+def clear_geocode_cache(db: Session, misses_only: bool = True) -> int:
+    """Forget cached geocoding lookups so the next batch re-queries them.
+
+    Defaults to `misses_only`: it drops only the *negative* rows (NULL lat/lng),
+    which are the stuck ones — a transient empty answer from Nominatim gets
+    frozen as a permanent miss and never retried by the paced batch (the on-
+    demand single-property path already retries them, see `geocode`'s
+    `retry_negative`). Positive rows are the requests we already paid for under
+    the rate limit, so they are kept. `misses_only=False` wipes the whole cache.
+    Returns how many rows were removed. This never touches a property's own
+    coordinates — only the lookup memory — so it is safe and idempotent.
+    """
+    stmt = select(GeocodeCache)
+    if misses_only:
+        stmt = stmt.where(GeocodeCache.latitude.is_(None))
+    rows = db.scalars(stmt).all()
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return len(rows)
+
+
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 

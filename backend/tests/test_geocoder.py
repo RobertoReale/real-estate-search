@@ -236,6 +236,33 @@ def test_geocode_property_retries_a_stale_negative_cache(db, monkeypatch):
     assert prop.latitude == 45.52 and prop.longitude == 9.17
 
 
+def test_clear_geocode_cache_drops_only_misses_by_default(db):
+    # The maintenance "Retry failed lookups" button: forget the stuck NULL rows
+    # so the paced batch re-queries them, but keep the positive lookups we
+    # already paid for under the rate limit.
+    db.add(GeocodeCache(query="via good, milano, italia", latitude=45.4, longitude=9.1))
+    db.add(GeocodeCache(query="via bad, milano, italia", latitude=None, longitude=None))
+    db.add(GeocodeCache(query="via worse, milano, italia", latitude=None, longitude=None))
+    db.commit()
+
+    cleared = geocoder.clear_geocode_cache(db)
+    assert cleared == 2
+    remaining = db.scalars(select(GeocodeCache)).all()
+    assert [r.query for r in remaining] == ["via good, milano, italia"]
+
+    # misses_only=False wipes everything, positive rows included.
+    assert geocoder.clear_geocode_cache(db, misses_only=False) == 1
+    assert db.scalars(select(GeocodeCache)).all() == []
+
+
+def test_geocode_clear_cache_endpoint(db):
+    from app.main import geocode_clear_cache_endpoint
+
+    db.add(GeocodeCache(query="via bad, milano, italia", latitude=None, longitude=None))
+    db.commit()
+    assert geocode_clear_cache_endpoint(db) == {"cleared": 1}
+
+
 def test_geocode_property_stops_and_fails_open_on_a_block(db, monkeypatch):
     # A 429/403 from Nominatim must not become a wrong pin, and must stop the
     # per-query loop rather than hammer the blocked host.

@@ -1197,6 +1197,18 @@ def geocode_cancel_endpoint():
     return {"ok": True}
 
 
+@app.post("/api/maintenance/geocode-clear-cache")
+def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
+    """Forget cached geocoding *misses* so the next "Find coordinates" retries
+    them. A transient empty answer from Nominatim gets frozen as a permanent
+    NULL that the paced batch never re-asks; this clears exactly those rows,
+    keeping the positive lookups we already paid for. Only touches the lookup
+    cache, never a property's coordinates."""
+    from .services import geocoder
+    cleared = geocoder.clear_geocode_cache(db, misses_only=True)
+    return {"cleared": cleared}
+
+
 # Scoped, irreversible data resets (Settings → Data management). Each is a
 # distinct deliberate choice, so they are separate scopes rather than flags on
 # one call. `factory` and `dashboard` delete rows a running scan is writing, so

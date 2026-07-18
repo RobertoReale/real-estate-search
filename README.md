@@ -237,7 +237,12 @@ contrast, stops scanning it altogether.
   it again to continue. You can also jump to a single property: open its card and
   press **🗺️ View on map** — it opens the map centered on that pin, and if the
   property has no coordinates yet it finds them first (same OpenStreetMap lookup),
-  telling you if the address was too vague to place.
+  telling you if the address was too vague to place. Failed lookups are
+  remembered so the same address isn't asked twice, which means a temporary
+  OpenStreetMap outage can leave a perfectly good address stuck as "not found";
+  the **🧹 Retry failed lookups** button (next to *Find coordinates*) forgets
+  those failed lookups so the next *Find coordinates* tries them again — it only
+  clears the lookup memory and never moves a pin you already have.
 * **Is this price fair?**: each card compares its €/sqm against the median of
   comparable properties in the same zone (falling back to the whole city), so an
   overpriced listing stands out. It needs at least 3 comparables to say anything,
