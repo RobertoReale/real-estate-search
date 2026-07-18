@@ -30,6 +30,22 @@ class PriceHistoryOut(BaseModel):
     changed_at: datetime
 
 
+class TagOut(BaseModel):
+    """API response model for a user-defined tag. `count` (usage across
+    properties) is populated only by GET /api/tags; when nested inside
+    PropertyOut.tags it stays at its default and is not meaningful there."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    count: int = 0
+
+
+class TagCreate(BaseModel):
+    """Payload to create (or reuse, if a case-insensitive match exists) a tag."""
+    name: str
+
+
 class PropertyOut(BaseModel):
     """Comprehensive API response model for a deduplicated physical property,
     including its associated listings, price changes, and transient market statistics."""
@@ -73,12 +89,17 @@ class PropertyOut(BaseModel):
     sold_at: datetime | None = None  # set when the user marked it sold
     listings: list[ListingOut] = []
     price_history: list[PriceHistoryOut] = []
+    tags: list[TagOut] = []
 
 
 class PropertyPatch(BaseModel):
     """User-curated fields; scans never touch them."""
     is_favorite: bool | None = None
     notes: str | None = None
+    # None = don't touch tags; a list is a full replace of the property's tag
+    # set (matches a chip-editor UI: read current tags, add/remove client-side,
+    # PATCH the final set).
+    tag_ids: list[int] | None = None
 
 
 class PropertyCheckIn(BaseModel):
@@ -93,7 +114,9 @@ class PropertyBulkIn(BaseModel):
     # mirror the PATCH is_favorite flag; sold mirrors the mark-sold route —
     # batched so the user can clear a cluttered dashboard (e.g. every "nuova
     # costruzione", or a whole cluster of "VENDUTO" re-posts) in one gesture.
-    action: Literal["hide", "restore", "favorite", "unfavorite", "sold"]
+    action: Literal["hide", "restore", "favorite", "unfavorite", "sold", "add_tag", "remove_tag"]
+    # required only for "add_tag"/"remove_tag", validated in the route
+    tag_id: int | None = None
 
 
 class PricingTrendPoint(BaseModel):

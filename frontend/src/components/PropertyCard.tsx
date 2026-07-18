@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { formatPrice } from "../services/api";
 import { PortalBadge } from "./PortalBadge";
-import type { Property } from "../types";
+import TagPicker from "./TagPicker";
+import type { Property, Tag } from "../types";
 
 interface Props {
   property: Property;
@@ -11,6 +12,9 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: () => void;
   isNew?: boolean;
+  allTags: Tag[];
+  onAddTag: (name: string) => void;
+  onRemoveTag: (tagId: number) => void;
 }
 
 /** Badge comparing this property's €/sqm to the local median.
@@ -70,6 +74,7 @@ export function DealBadge({ property: p }: { property: Property }) {
 
 export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect, isNew,
+  allTags, onAddTag, onRemoveTag,
 }: Props) {
   const drop =
     p.first_price && p.current_min_price && p.current_min_price < p.first_price
@@ -211,6 +216,9 @@ export default function PropertyCard({
           <DealBadge property={p} />
           <MatchBadge score={p.match_score} />
           <MarketBadge property={p} />
+        </div>
+        <div className="mt-1.5">
+          <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} compact />
         </div>
         <h3 className="font-medium text-sm mt-1 line-clamp-2 min-h-[2.5rem]">
           {p.title || "Untitled"}

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { api, formatPrice, safeHref } from "../services/api";
-import type { Property } from "../types";
+import type { Property, Tag } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
 import { DealBadge, MarketBadge } from "./PropertyCard";
+import TagPicker from "./TagPicker";
 
 interface Props {
   property: Property;
@@ -11,10 +12,14 @@ interface Props {
   onDeleted: () => void;
   onToggleFavorite: () => void;
   onNotesSaved: (updated: Property) => void;
+  allTags: Tag[];
+  onAddTag: (name: string) => void;
+  onRemoveTag: (tagId: number) => void;
 }
 
 export default function PropertyModal({
   property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved,
+  allTags, onAddTag, onRemoveTag,
 }: Props) {
   const history = [...p.price_history].reverse();
   const [notes, setNotes] = useState(p.notes);
@@ -199,6 +204,12 @@ export default function PropertyModal({
               </ul>
             </>
           )}
+
+          {/* Tags: user-curated categories, scans never touch them */}
+          <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+            🏷️ Tags
+          </h3>
+          <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} />
 
           {/* Personal notes: user-curated, scans never touch them */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">

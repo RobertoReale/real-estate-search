@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProgressPoll } from "../hooks/useProgressPoll";
 import { api } from "../services/api";
-import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, ViewMode } from "../types";
+import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
 import { ProgressBar } from "./ProgressBar";
 
@@ -13,6 +13,7 @@ interface Props {
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
   profiles: SearchProfile[];
+  tags: Tag[];
   // "Best match" ranks by the Smart Match Score, which is off unless the user
   // configured a dream home. Offering the sort while it is disabled is a dead
   // option: the backend has no score to order by and silently leaves the grid
@@ -21,7 +22,7 @@ interface Props {
 }
 
 export default function FiltersBar({
-  filters, onChange, count, view, onViewChange, profiles, matchEnabled,
+  filters, onChange, count, view, onViewChange, profiles, tags, matchEnabled,
 }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<{
@@ -206,6 +207,18 @@ export default function FiltersBar({
           <option value="email">✉️ Email import</option>
         </select>
       </div>
+      {tags.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs t-muted">Tag</label>
+          <select className="input w-full sm:w-36" value={filters.tag}
+            onChange={(e) => set({ tag: e.target.value })}>
+            <option value="">All tags</option>
+            {tags.map((t) => (
+              <option key={t.id} value={t.name}>{t.name} ({t.count})</option>
+            ))}
+          </select>
+        </div>
+      )}
       {/* Overlay a saved monitored search on the WHOLE grid (imports included):
           applies its city/contract and its exclusion keywords, so the same
           rules that keep scans clean can prune email imports too. */}

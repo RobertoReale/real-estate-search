@@ -6,7 +6,7 @@ import type {
   EmailScanSummary, GeocodeProgress, GeocodeSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
   ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, ScanStatus, SearchBuilderParams,
-  SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, TrendArea,
+  SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
 } from "../types";
 
 const BASE = "/api";
@@ -69,6 +69,7 @@ function propertyParams(filters: PropertyFilters): URLSearchParams {
   if (filters.q) params.set("q", filters.q);
   if (filters.source) params.set("source", filters.source);
   if (filters.profile_id) params.set("profile_id", filters.profile_id);
+  if (filters.tag) params.set("tag", filters.tag);
   if (filters.min_price) params.set("min_price", filters.min_price);
   if (filters.max_price) params.set("max_price", filters.max_price);
   if (filters.min_sqm) params.set("min_sqm", filters.min_sqm);
@@ -106,20 +107,36 @@ export const api = {
   markPropertySold(id: number) {
     return request<{ ok: boolean }>(`/properties/${id}/sold`, { method: "POST" });
   },
-  /** Apply hide/restore/favorite/unfavorite/sold to many selected properties at once. */
+  /** Apply hide/restore/favorite/unfavorite/sold/add_tag/remove_tag to many
+   *  selected properties at once (`tag_id` required for the last two). */
   bulkProperties(
     ids: number[],
-    action: "hide" | "restore" | "favorite" | "unfavorite" | "sold",
+    action: "hide" | "restore" | "favorite" | "unfavorite" | "sold" | "add_tag" | "remove_tag",
+    tagId?: number,
   ) {
     return request<{ ok: boolean; processed: number }>("/properties/bulk", {
-      method: "POST", body: JSON.stringify({ ids, action }),
+      method: "POST", body: JSON.stringify({ ids, action, tag_id: tagId ?? null }),
     });
   },
-  /** Patch user-curated property metadata (`is_favorite` flag or custom `notes`). */
-  updateProperty(id: number, data: { is_favorite?: boolean; notes?: string }) {
+  /** Patch user-curated property metadata (`is_favorite` flag, custom `notes`,
+   *  or the full tag set via `tag_ids` — a full replace, not additive). */
+  updateProperty(id: number, data: { is_favorite?: boolean; notes?: string; tag_ids?: number[] }) {
     return request<Property>(`/properties/${id}`, {
       method: "PATCH", body: JSON.stringify(data),
     });
+  },
+
+  /** All user-defined tags with usage counts (dashboard filter + tag picker autocomplete). */
+  getTags(): Promise<Tag[]> {
+    return request("/tags");
+  },
+  /** Create a tag, or reuse an existing one on a case-insensitive name match. */
+  createTag(name: string): Promise<Tag> {
+    return request("/tags", { method: "POST", body: JSON.stringify({ name }) });
+  },
+  /** Delete a tag globally, detaching it from every property that carried it. */
+  deleteTag(id: number) {
+    return request<{ ok: boolean }>(`/tags/${id}`, { method: "DELETE" });
   },
 
   /** Retrieve all configured search profiles along with diagnostic failure counts. */

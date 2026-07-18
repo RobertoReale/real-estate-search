@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..config import DB_PATH
 from ..models import (ImportedListing, Listing, ListingProfile, PriceHistory,
-                      PricingSnapshot, Property, SearchProfile)
+                      PricingSnapshot, Property, SearchProfile, property_tags)
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,8 @@ def clear_dashboard(db: Session) -> dict:
     # a Core delete skips the ORM cascade that would clear these links
     db.execute(delete(ListingProfile))
     db.execute(delete(Listing))
+    # same reason: property_tags rows would otherwise survive their Property
+    db.execute(delete(property_tags))
     # accepted imports pointed at properties we are about to delete: drop the
     # dangling reference so a later enrich/re-scan does not chase a ghost id
     db.execute(update(ImportedListing)

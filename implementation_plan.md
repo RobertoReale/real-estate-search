@@ -116,7 +116,7 @@ progetto/
 │   │   ├── main.py               # FastAPI: REST routes + static frontend mount
 │   │   ├── config.py             # settings.json (Telegram/SMTP, keywords, intervals)
 │   │   ├── database.py           # SQLAlchemy + SQLite (case.db), additive migrations + Alembic
-│   │   ├── models.py             # Property, Listing, PriceHistory, SearchProfile, ImportedListing, PricingSnapshot
+│   │   ├── models.py             # Property, Listing, PriceHistory, SearchProfile, ImportedListing, PricingSnapshot, Tag
 │   │   ├── schemas.py            # Pydantic v2
 │   │   ├── scrapers/
 │   │   │   ├── base.py           # BaseScraper, TLS rotation, price/sqm parser, card boundary
@@ -142,14 +142,14 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 436 tests
+│   ├── tests/                    # 455 tests
 │   ├── requirements.txt
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
 │   └── src/
 │       ├── App.tsx
 │       ├── components/           # Navbar, SearchProfiles, FiltersBar, PortalBadge,
-│       │                         # PropertyCard, PropertyModal, SettingsModal,
+│       │                         # PropertyCard, PropertyModal, SettingsModal, TagPicker,
 │       │                         # MapView, MarketVelocity, Calculators, EmailImport,
 │       │                         # ErrorBoundary
 │       ├── services/api.ts

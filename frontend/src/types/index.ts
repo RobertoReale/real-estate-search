@@ -27,6 +27,15 @@ export interface PricePoint {
   changed_at: string;
 }
 
+/** A user-defined free-form category ("senza ascensore", "con giardino", ...).
+ *  `count` (usage across properties) is only meaningful on the list returned
+ *  by GET /api/tags, not on the copies nested in Property.tags. */
+export interface Tag {
+  id: number;
+  name: string;
+  count?: number;
+}
+
 /** Deduplicated physical property merging identical ads across portals/agencies. */
 export interface Property {
   id: number;
@@ -64,6 +73,7 @@ export interface Property {
   sold_at: string | null;  // set when the user marked it sold
   listings: Listing[];
   price_history: PricePoint[];
+  tags: Tag[];
 }
 
 /** Extracted or computed criteria from a search profile's URL. */
@@ -214,6 +224,7 @@ export interface PropertyFilters {
   q: string;                 // free-text search (title/zone/address/description)
   source: "" | "scan" | "email";  // "" = both origins
   profile_id: string;        // "" = no monitored-search overlay
+  tag: string;                // "" = no tag filter; tag name, case-insensitive
   min_price: string;
   max_price: string;
   min_sqm: string;

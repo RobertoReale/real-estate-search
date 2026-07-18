@@ -2,7 +2,9 @@
 PriceHistory (price variations), SearchProfile (monitored search URL)."""
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Table, Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -10,6 +12,17 @@ from .database import Base
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# Plain association table (no payload beyond the two FKs, unlike ListingProfile):
+# a property can carry any number of user-defined tags and a tag can be reused
+# across properties.
+property_tags = Table(
+    "property_tags",
+    Base.metadata,
+    Column("property_id", ForeignKey("properties.id"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id"), primary_key=True),
+)
 
 
 class Property(Base):
@@ -56,6 +69,11 @@ class Property(Base):
     # user-curated fields: never touched by scans
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # free-form user categories ("senza ascensore", "con giardino", ...): a
+    # property can carry several, a tag can be reused across properties. Like
+    # is_favorite/notes above, curated by the user alone — no scan/dedup path
+    # touches this relationship.
+    tags: Mapped[list["Tag"]] = relationship(secondary=property_tags)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # when the property was marked "gone": the end of its days-on-market
@@ -148,6 +166,20 @@ class ListingProfile(Base):
 
     listing: Mapped[Listing] = relationship(back_populates="profile_links")
     profile: Mapped["SearchProfile"] = relationship(back_populates="listing_links")
+
+
+class Tag(Base):
+    """A user-defined free-form category ("senza ascensore", "con giardino", ...),
+    attached to any number of Properties via property_tags. `name_normalized`
+    (stripped/lowercased) enforces case-insensitive uniqueness so retyping an
+    existing tag with different casing reuses it instead of creating a
+    near-duplicate; `name` keeps the user's original casing for display."""
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    name_normalized: Mapped[str] = mapped_column(String, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class PriceHistory(Base):

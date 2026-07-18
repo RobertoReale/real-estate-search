@@ -19,18 +19,19 @@ import SettingsModal from "./components/SettingsModal";
 import { api } from "./services/api";
 import type {
   ImportCheckProgress, ImportCheckSummary, Property, PropertyFilters,
-  ScanStatus, SearchProfile, Settings, ViewMode,
+  ScanStatus, SearchProfile, Settings, Tag, ViewMode,
 } from "./types";
 
 const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
-  profile_id: "", min_price: "", max_price: "", min_sqm: "", rooms: "",
+  profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "", rooms: "",
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
 export default function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [profiles, setProfiles] = useState<SearchProfile[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
@@ -70,14 +71,16 @@ export default function App() {
   const refresh = useCallback(async () => {
     const seq = ++refreshSeq.current;
     try {
-      const [props, profs, status, sett] = await Promise.all([
+      const [props, profs, status, sett, tagList] = await Promise.all([
         api.getProperties(filters),
         api.getProfiles(),
         api.getScanStatus(),
         api.getSettings(),
+        api.getTags(),
       ]);
       if (seq !== refreshSeq.current) return; // a newer refresh superseded this one
       setProperties(props);
+      setTags(tagList);
       setSelectedIds((prev) => {
         if (prev.size === 0) return prev;
         const validIds = new Set<number>();
@@ -154,6 +157,28 @@ export default function App() {
   function toggleFavorite(p: Property) {
     return runAction(async () => {
       const updated = await api.updateProperty(p.id, { is_favorite: !p.is_favorite });
+      setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
+      setSelected((prev) => (prev?.id === p.id ? updated : prev));
+    });
+  }
+
+  function addTag(p: Property, name: string) {
+    return runAction(async () => {
+      // idempotent: reuses a case-insensitive match instead of creating a
+      // near-duplicate, so the client never needs to pre-check existence
+      const tag = await api.createTag(name);
+      setTags((list) => (list.some((t) => t.id === tag.id) ? list : [...list, tag]));
+      const tagIds = [...new Set([...p.tags.map((t) => t.id), tag.id])];
+      const updated = await api.updateProperty(p.id, { tag_ids: tagIds });
+      setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
+      setSelected((prev) => (prev?.id === p.id ? updated : prev));
+    });
+  }
+
+  function removeTag(p: Property, tagId: number) {
+    return runAction(async () => {
+      const tagIds = p.tags.map((t) => t.id).filter((id) => id !== tagId);
+      const updated = await api.updateProperty(p.id, { tag_ids: tagIds });
       setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
       setSelected((prev) => (prev?.id === p.id ? updated : prev));
     });
@@ -261,7 +286,7 @@ export default function App() {
         )}
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
-          view={view} onViewChange={setView} profiles={profiles}
+          view={view} onViewChange={setView} profiles={profiles} tags={tags}
           matchEnabled={settings?.match_score_enabled ?? false} />
 
         {properties.length === 0 && !loadError && (
@@ -501,6 +526,9 @@ export default function App() {
                 }}
                 onQuickHide={() => quickHide(p)}
                 onToggleFavorite={() => toggleFavorite(p)}
+                allTags={tags}
+                onAddTag={(name) => addTag(p, name)}
+                onRemoveTag={(tagId) => removeTag(p, tagId)}
               />
             ))}
           </div>
@@ -522,6 +550,9 @@ export default function App() {
             );
             setSelected(updated);
           }}
+          allTags={tags}
+          onAddTag={(name) => addTag(selected, name)}
+          onRemoveTag={(tagId) => removeTag(selected, tagId)}
         />
       )}
       {showSettings && (

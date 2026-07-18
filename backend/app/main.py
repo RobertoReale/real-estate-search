@@ -11,13 +11,13 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from . import schemas
 from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
-from .models import ImportedListing, Listing, Property, SearchProfile
+from .models import ImportedListing, Listing, Property, SearchProfile, Tag, property_tags
 from .scrapers import detect_portal
 from .services import (availability_check, data_reset, email_import, exporter,
                        notifier, scheduler)
@@ -115,7 +115,7 @@ def _select_properties(
     min_price: float | None, max_price: float | None, min_sqm: float | None,
     rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
     q: str | None = None, zone: str | None = None, source: str | None = None,
-    profile_id: int | None = None,
+    profile_id: int | None = None, tag: str | None = None,
 ) -> list[Property]:
     """Shared property selection + annotation for the grid and the exports, so
     a dossier holds exactly what the dashboard is showing under the same
@@ -142,7 +142,8 @@ def _select_properties(
         profile_keywords = crit["keywords"]
 
     query = select(Property).options(
-        selectinload(Property.listings), selectinload(Property.price_history)
+        selectinload(Property.listings), selectinload(Property.price_history),
+        selectinload(Property.tags),
     )
     if status != "all":
         query = query.where(Property.status == status)
@@ -159,6 +160,10 @@ def _select_properties(
         query = query.where(Property.zone.ilike(f"%{zone}%"))
     if source in ("scan", "email"):
         query = query.where(Property.source == source)
+    if tag and tag.strip():
+        query = query.where(
+            Property.tags.any(Tag.name_normalized == tag.strip().lower())
+        )
     if q and q.strip():
         # Free-text search across the fields a user would actually type
         # (zone "San Siro", a street, "nuova costruzione" in the title or the
@@ -291,6 +296,7 @@ def list_properties(
     q: str | None = None,
     source: str | None = Query(None, pattern="^(scan|email)$"),
     profile_id: int | None = None,
+    tag: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
@@ -307,6 +313,7 @@ def list_properties(
         max_price=max_price, min_sqm=min_sqm, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
+        tag=tag,
     )
 
 
@@ -323,6 +330,7 @@ def export_properties(
     q: str | None = None,
     source: str | None = Query(None, pattern="^(scan|email)$"),
     profile_id: int | None = None,
+    tag: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
@@ -342,6 +350,7 @@ def export_properties(
         max_price=max_price, min_sqm=min_sqm, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
+        tag=tag,
     )
     clean_title = (title or "Property shortlist").strip()[:120] or "Property shortlist"
     if fmt == "csv":
@@ -386,7 +395,7 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
 def patch_property(
     property_id: int, data: schemas.PropertyPatch, db: Session = Depends(get_db)
 ):
-    """Updates user-curated fields (favorite flag, personal notes)."""
+    """Updates user-curated fields (favorite flag, personal notes, tags)."""
     prop = db.get(Property, property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
@@ -394,6 +403,8 @@ def patch_property(
         prop.is_favorite = data.is_favorite
     if data.notes is not None:
         prop.notes = data.notes
+    if data.tag_ids is not None:
+        prop.tags = list(db.scalars(select(Tag).where(Tag.id.in_(data.tag_ids))))
     db.commit()
     db.refresh(prop)
     _annotate(db, [prop])
@@ -463,6 +474,13 @@ def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db))
     reversible only via restore, invariant 5), just batched: the point is to
     let the user clear a dashboard cluttered by inbox imports in one gesture
     instead of opening cards one by one. Missing ids are skipped silently."""
+    tag_obj = None
+    if data.action in ("add_tag", "remove_tag"):
+        if data.tag_id is None:
+            raise HTTPException(400, "tag_id is required for add_tag/remove_tag")
+        tag_obj = db.get(Tag, data.tag_id)
+        if not tag_obj:
+            raise HTTPException(404, "Tag not found")
     props = [p for p in (db.get(Property, x) for x in data.ids) if p]
     for prop in props:
         if data.action == "hide":
@@ -480,8 +498,65 @@ def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db))
             prop.is_favorite = True
         elif data.action == "unfavorite":
             prop.is_favorite = False
+        elif data.action == "add_tag" and tag_obj is not None:
+            if tag_obj not in prop.tags:
+                prop.tags.append(tag_obj)
+        elif data.action == "remove_tag":
+            if tag_obj in prop.tags:
+                prop.tags.remove(tag_obj)
     db.commit()
     return {"ok": True, "processed": len(props)}
+
+
+@app.get("/api/tags", response_model=list[schemas.TagOut])
+def list_tags(db: Session = Depends(get_db)):
+    """All user-defined tags with their usage count, feeding both the
+    dashboard's tag filter dropdown and the per-property tag picker's
+    autocomplete."""
+    rows = db.execute(
+        select(Tag, func.count(property_tags.c.property_id))
+        .outerjoin(property_tags, property_tags.c.tag_id == Tag.id)
+        .group_by(Tag.id)
+        .order_by(Tag.name)
+    ).all()
+    return [
+        schemas.TagOut(id=tag.id, name=tag.name, count=count)
+        for tag, count in rows
+    ]
+
+
+@app.post("/api/tags", response_model=schemas.TagOut)
+def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db)):
+    """Creates a tag, or returns the existing one on a case-insensitive name
+    match: idempotent so the freeform "type and press Enter" UI can always
+    POST without checking for a duplicate first."""
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(400, "Tag name cannot be empty")
+    normalized = name.lower()
+    existing = db.scalar(select(Tag).where(Tag.name_normalized == normalized))
+    if existing:
+        return schemas.TagOut(id=existing.id, name=existing.name)
+    tag = Tag(name=name, name_normalized=normalized)
+    db.add(tag)
+    db.commit()
+    db.refresh(tag)
+    return schemas.TagOut(id=tag.id, name=tag.name)
+
+
+@app.delete("/api/tags/{tag_id}")
+def delete_tag(tag_id: int, db: Session = Depends(get_db)):
+    """Deletes a tag globally, detaching it from every property that carried
+    it (the properties themselves are untouched). SQLite here has no FK
+    cascade configured, so the association rows are removed explicitly in the
+    same transaction before the Tag row itself."""
+    tag = db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag not found")
+    db.execute(delete(property_tags).where(property_tags.c.tag_id == tag_id))
+    db.delete(tag)
+    db.commit()
+    return {"ok": True}
 
 
 @app.post("/api/properties/check")
