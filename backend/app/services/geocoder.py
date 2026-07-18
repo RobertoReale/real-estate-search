@@ -24,6 +24,7 @@ import logging
 import re
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -38,7 +39,15 @@ logger = logging.getLogger(__name__)
 # User-Agent identifying the app. Both are non-negotiable for the public
 # instance; a self-hosted one does not care but the pause is harmless.
 PACE_SECONDS = 1.0
-_USER_AGENT = "RealEstateSearch/1.0 (local personal use)"
+def _get_user_agent() -> str:
+    try:
+        from ..config import load_settings
+        email = (load_settings().get("email_from") or "").strip()
+        if email:
+            return f"RealEstateSearch/1.0 (local personal use; contact: {email})"
+    except Exception:
+        pass
+    return "RealEstateSearch/1.0 (local personal use)"
 # One call must not stall the request forever. The public Nominatim instance is
 # capped at 1 req/s, so this is roughly the wall-clock seconds a single click
 # costs (cache hits are free): kept modest so the request returns in under a
@@ -211,7 +220,7 @@ def _nominatim_lookup(query: str, base_url: str, expected_city: str = "") -> tup
     url = base_url.rstrip("/") + "/search?" + urllib.parse.urlencode({
         "q": query, "format": "json", "limit": 5, "addressdetails": 1, "countrycodes": "it",
     })
-    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    req = urllib.request.Request(url, headers={"User-Agent": _get_user_agent()})
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     if not data or not isinstance(data, list):
@@ -256,6 +265,8 @@ def geocode(db: Session, query: str, base_url: str, expected_city: str = "") -> 
     except Exception as e:
         logger.warning("geocoder: lookup failed for %r (%s)", query, e)
         _geocode_progress["last_error"] = str(e)
+        if isinstance(e, urllib.error.HTTPError) and e.code in (403, 429):
+            raise e
         return None  # transient: do NOT cache, so a later batch can retry
     lat, lng = result if result else (None, None)
     db.add(GeocodeCache(query=key, latitude=lat, longitude=lng))
@@ -334,26 +345,33 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
 
             coords = None
             was_cached = False
-            for query in queries:
-                key = _normalize(query)
-                cached_row = db.scalar(
-                    select(GeocodeCache).where(GeocodeCache.query == key)
-                )
-                cached_exists = cached_row is not None
-                if not cached_exists:
-                    if budget <= 0:
-                        break
-                    budget -= 1
+            try:
+                for query in queries:
+                    key = _normalize(query)
+                    cached_row = db.scalar(
+                        select(GeocodeCache).where(GeocodeCache.query == key)
+                    )
+                    cached_exists = cached_row is not None
+                    if not cached_exists:
+                        if budget <= 0:
+                            break
+                        budget -= 1
 
-                coords = geocode(db, query, base_url, expected_city=prop.city)
-                if cached_exists and coords:
-                    was_cached = True
-                if coords:
-                    break
-                if not cached_exists and budget > 0:
-                    if _geocode_cancel_event.is_set():
+                    coords = geocode(db, query, base_url, expected_city=prop.city)
+                    if cached_exists and coords:
+                        was_cached = True
+                    if coords:
                         break
-                    time.sleep(PACE_SECONDS)
+                    if not cached_exists and budget > 0:
+                        if _geocode_cancel_event.is_set():
+                            break
+                        time.sleep(PACE_SECONDS)
+            except Exception as e:
+                logger.warning("geocoder: aborting batch due to block/rate-limit: %s", e)
+                summary["cancelled"] = True
+                summary["remaining"] += len(candidates) - index
+                _geocode_progress["last_error"] = str(e)
+                break
 
             if not coords and budget <= 0 and not was_cached:
                 summary["remaining"] += 1

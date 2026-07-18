@@ -233,10 +233,31 @@ def test_geocode_missing_properties_clears_out_of_bounds_existing_pins(db, monke
     db.add(prop)
     db.commit()
 
-    # Mock lookup returning valid Milano coordinates on re-run
     monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base, **kw: (45.49, 9.23))
     summary = geocoder.geocode_missing_properties(db)
     assert summary["geocoded"] == 1
     db.refresh(prop)
     assert prop.latitude == 45.49 and prop.longitude == 9.23
+
+
+def test_geocode_missing_properties_aborts_on_rate_limit(db, monkeypatch):
+    import urllib.error
+    import email.message
+    for i in range(5):
+        db.add(_prop(fingerprint=f"fp{i}", address=f"Via Test {i}"))
+    db.commit()
+
+    called = {"n": 0}
+    def lookup_rate_limit(q, base, **kw):
+        called["n"] += 1
+        if called["n"] == 2:
+            raise urllib.error.HTTPError("url", 429, "Too Many Requests", email.message.Message(), None)
+        return (45.46, 9.19)
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lookup_rate_limit)
+    summary = geocoder.geocode_missing_properties(db, max_calls=None)
+    assert summary["geocoded"] == 1
+    assert summary["cancelled"] is True
+    assert summary["remaining"] == 4
+    assert "429" in geocoder._geocode_progress["last_error"]
 
