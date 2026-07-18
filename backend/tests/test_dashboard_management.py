@@ -214,6 +214,69 @@ def test_q_floor_phrase_does_not_leak_into_other_fields(db):
     assert [p.id for p in list_properties(db=db, q="piano 1")] == [ground.id]
 
 
+def test_q_floor_phrase_accepts_english_floor_word(db):
+    """The whole UI is in English, so "floor 4"/"4 floor" must behave exactly
+    like the Italian "4 piano" — a floor query on the floor field alone, not
+    two loose AND terms that leak into address/description (the bug the Italian
+    twin above documents). Reported by a user: "4 piano" worked, "floor 4"
+    silently returned nothing."""
+    fourth = upsert_listing(db, _raw(portal_id="1", floor="4"))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        floor="17", address="Viale Fulvio Testi 4",
+        description="Quarto piano ristrutturato",
+        latitude=45.99, longitude=9.99,
+    ))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, q="floor 4")] == [fourth.id]
+    assert [p.id for p in list_properties(db=db, q="4 floor")] == [fourth.id]
+
+
+def test_floor_band_filter_reads_the_free_text_label(db):
+    """The dashboard's Floor dropdown filters on bands parsed from the messy
+    free-text floor label, reusing the one floor reader (match_score). Ground
+    ("piano terra") reads as 0; "attico"/"ultimo" is the top band even though no
+    number is present; an unreadable/empty floor matches no band and drops out
+    (it cannot be shown to satisfy the filter)."""
+    ground = upsert_listing(db, _raw(portal_id="1", floor="piano terra"))[0]
+    second = upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        floor="2", latitude=45.99, longitude=9.99, address="Via Altra, 9"))[0]
+    seventh = upsert_listing(db, _raw(
+        portal="immobiliare", portal_id="3",
+        url="https://www.immobiliare.it/annunci/3/",
+        floor="7", latitude=45.50, longitude=9.50, address="Via Terza, 9"))[0]
+    attic = upsert_listing(db, _raw(
+        portal="immobiliare", portal_id="4",
+        url="https://www.immobiliare.it/annunci/4/",
+        floor="Attico", latitude=45.10, longitude=9.10, address="Via Quarta, 9"))[0]
+    # unreadable floor: excluded from every band
+    upsert_listing(db, _raw(
+        portal="immobiliare", portal_id="5",
+        url="https://www.immobiliare.it/annunci/5/",
+        floor="", latitude=45.20, longitude=9.20, address="Via Quinta, 9"))
+    db.commit()
+
+    assert [p.id for p in list_properties(db=db, floor_band="ground")] == [ground.id]
+    assert [p.id for p in list_properties(db=db, floor_band="low")] == [second.id]
+    assert [p.id for p in list_properties(db=db, floor_band="high")] == [seventh.id]
+    assert [p.id for p in list_properties(db=db, floor_band="top")] == [attic.id]
+
+
+def test_max_sqm_filter_caps_the_surface(db):
+    """Min sqm alone can't express "small flats only"; Max sqm is its symmetric
+    twin (a bare number in the DB, so a plain SQL bound)."""
+    small = upsert_listing(db, _raw(portal_id="1", sqm=55.0))[0]
+    upsert_listing(db, _raw(
+        portal="idealista", portal_id="2",
+        url="https://www.idealista.it/immobile/2/",
+        sqm=140.0, latitude=45.99, longitude=9.99, address="Via Altra, 9"))
+    db.commit()
+    assert [p.id for p in list_properties(db=db, max_sqm=80.0)] == [small.id]
+
+
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 def test_profile_overlay_applies_contract_city_and_keywords(db):

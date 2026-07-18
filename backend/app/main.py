@@ -27,7 +27,7 @@ from .services import (availability_check, data_reset, email_import, exporter,
 from .services.deal_score import annotate_deal_scores
 from .services.filter_engine import find_excluded_keyword
 from .services.market_velocity import compute_market_velocity
-from .services.match_score import annotate_match_scores
+from .services.match_score import _parse_floor, annotate_match_scores
 from .services.pricing_stats import (
     annotate_market_position, area_comparables, get_trends, list_trend_areas,
 )
@@ -144,9 +144,34 @@ def _annotate(db: Session, props: list[Property]) -> None:
     _annotate_provenance(db, props)
 
 
+# Floor bands offered by the dashboard filter. The free-text floor label is
+# messy ("piano terra", "T", "3", "attico"), so bands are matched in Python on
+# the parsed number (reusing match_score._parse_floor, the one floor reader) —
+# except "top", which a number can't express and is read straight off the label
+# ("attico"/"ultimo piano"). A property whose floor can't be read matches no
+# band: it cannot be shown to satisfy the filter, so it is left out.
+def _floor_in_band(floor: str, band: str) -> bool:
+    if band == "top":
+        norm = (floor or "").strip().lower()
+        return "attico" in norm or "ultimo" in norm
+    n = _parse_floor(floor)
+    if n is None:
+        return False
+    if band == "ground":
+        return n == 0
+    if band == "low":
+        return 1 <= n <= 2
+    if band == "mid":
+        return 3 <= n <= 5
+    if band == "high":
+        return n >= 6
+    return True
+
+
 def _select_properties(
     db: Session, *, status: str, contract: str | None, city: str | None,
     min_price: float | None, max_price: float | None, min_sqm: float | None,
+    max_sqm: float | None = None, floor_band: str | None = None,
     rooms: int | None, only_price_drops: bool, only_favorites: bool, sort: str,
     q: str | None = None, zone: str | None = None, source: str | None = None,
     profile_id: int | None = None, tag: str | None = None,
@@ -225,7 +250,10 @@ def _select_properties(
         # find elsewhere, and requiring it as a literal word in the title or
         # description would return nothing (or the wrong listings, since a
         # bare digit alone still needs restricting below). Pair a digit with
-        # an adjacent "piano" up front and search only the floor field for it.
+        # an adjacent floor word up front and search only the floor field for
+        # it. The whole UI is in English, so "floor" is accepted alongside the
+        # Italian "piano" ("floor 4" behaves exactly like "4 piano").
+        floor_words = {"piano", "floor"}
         floor_terms: list[str] = []
         rest: list[str] = []
         skip_next = False
@@ -234,10 +262,10 @@ def _select_properties(
                 skip_next = False
                 continue
             nxt = tokens[i + 1] if i + 1 < len(tokens) else None
-            if t.isdigit() and nxt and nxt.lower() == "piano":
+            if t.isdigit() and nxt and nxt.lower() in floor_words:
                 floor_terms.append(t)
                 skip_next = True
-            elif t.lower() == "piano" and nxt and nxt.isdigit():
+            elif t.lower() in floor_words and nxt and nxt.isdigit():
                 floor_terms.append(nxt)
                 skip_next = True
             else:
@@ -271,12 +299,17 @@ def _select_properties(
         query = query.where(Property.current_min_price <= max_price)
     if min_sqm is not None:
         query = query.where(Property.sqm >= min_sqm)
+    if max_sqm is not None:
+        query = query.where(Property.sqm <= max_sqm)
     if rooms is not None:
         query = query.where(Property.rooms == rooms)
     if only_favorites:
         query = query.where(Property.is_favorite.is_(True))
 
     props = list(db.scalars(query))
+    if floor_band:
+        # post-filter: the floor label is free text, not a number in the DB
+        props = [p for p in props if _floor_in_band(p.floor, floor_band)]
     if profile_keywords:
         # apply the monitored search's exclusion keywords to the whole set:
         # email imports never passed through the scan's keyword filter, so this
@@ -335,6 +368,9 @@ def list_properties(
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
+    max_sqm: float | None = None,
+    floor_band: str | None = Query(
+        None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
     only_price_drops: bool = False,
     only_favorites: bool = False,
@@ -345,7 +381,8 @@ def list_properties(
 ):
     return _select_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
-        max_price=max_price, min_sqm=min_sqm, rooms=rooms,
+        max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
+        floor_band=floor_band, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
         tag=tag,
@@ -369,6 +406,9 @@ def export_properties(
     min_price: float | None = None,
     max_price: float | None = None,
     min_sqm: float | None = None,
+    max_sqm: float | None = None,
+    floor_band: str | None = Query(
+        None, pattern="^(ground|low|mid|high|top)$"),
     rooms: int | None = None,
     only_price_drops: bool = False,
     only_favorites: bool = False,
@@ -382,7 +422,8 @@ def export_properties(
     the reason the export exists rather than sharing the live dashboard."""
     props = _select_properties(
         db, status=status, contract=contract, city=city, min_price=min_price,
-        max_price=max_price, min_sqm=min_sqm, rooms=rooms,
+        max_price=max_price, min_sqm=min_sqm, max_sqm=max_sqm,
+        floor_band=floor_band, rooms=rooms,
         only_price_drops=only_price_drops, only_favorites=only_favorites,
         sort=sort, q=q, zone=zone, source=source, profile_id=profile_id,
         tag=tag,

@@ -138,9 +138,13 @@ phone without any of this. The dashboard is for browsing and triaging.
      you can review these under the **`🔑 Sold`** option in the **Status** filter.
      Marked one by mistake? *Restore property* puts it right back.
    - **Search & filter the grid**: the **Search** bar at the top of the filter
-     bar matches any word across a listing's zone, address, title and ad text
-     (type *San Siro* or *nuova costruzione* to isolate them), and there are
-     dedicated **Zone** and **Origin** filters. *Origin* separates listings your
+     bar matches any word across a listing's zone, address, title, floor and ad
+     text (type *San Siro* or *nuova costruzione* to isolate them; to search by
+     floor type either the Italian *4 piano* or the English *floor 4*). Beyond
+     the search box there are dedicated **City**, **Zone**, price, **Min/Max
+     sqm**, **Rooms**, **Floor** (Ground / Low / Middle / High / Top) and
+     **Origin** filters, plus a one-click **↺ Reset filters** to clear them all.
+     *Origin* separates listings your
      monitored searches found (**🔎 Monitored search**) from ones you pulled in
      from your inbox (**✉️ Email import**) — an email-imported card also carries
      a small **✉️ email** badge. *Limit to a search* narrows the whole grid,

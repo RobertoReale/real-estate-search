@@ -139,7 +139,8 @@ def test_export_respects_tag_filter(db):
         db=db, fmt="csv", title="Property shortlist",
         status="active", contract=None, city=None, zone=None, q=None,
         source=None, profile_id=None, tag="con giardino",
-        min_price=None, max_price=None, min_sqm=None, rooms=None,
+        min_price=None, max_price=None, min_sqm=None, max_sqm=None,
+        floor_band=None, rooms=None,
         only_price_drops=False, only_favorites=False, sort="newest",
     )
     assert "Trilocale" in bytes(body.body).decode("utf-8")

@@ -237,6 +237,9 @@ export interface PropertyFilters {
   min_price: string;
   max_price: string;
   min_sqm: string;
+  max_sqm: string;
+  // "" = any floor; bands parsed server-side from the free-text floor label
+  floor_band: "" | "ground" | "low" | "mid" | "high" | "top";
   rooms: string;
   only_price_drops: boolean;
   only_favorites: boolean;

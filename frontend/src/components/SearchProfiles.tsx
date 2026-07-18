@@ -965,6 +965,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 onChange={(e) => setParam({ min_sqm: e.target.value })} />
             </div>
           </div>
+          {/* Everything below is applied to BOTH portals. It is deliberately a
+              small, verified set: each token is measured on both Immobiliare
+              and Idealista (a guessed one 404s silently). For anything finer,
+              the "Paste a URL" note at the end is the full-power path. */}
+          <p className="text-xs font-medium t-muted -mb-1">
+            More criteria <span className="font-normal t-dim">· applied to both portals</span>
+          </p>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs t-muted">Floor</label>
@@ -995,6 +1002,16 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               </label>
             ))}
           </div>
+
+          {/* The full-power escape hatch, kept next to the filters so it is
+              found exactly when the user reaches for a filter that isn't here. */}
+          <p className="text-xs rounded-lg px-3 py-2 chip-blue">
+            💡 Need bathrooms, terrace, energy class, property type or another
+            filter? Set it on the portal and{" "}
+            <button className="underline font-medium"
+              onClick={() => setMode("url")}>paste the results URL</button>{" "}
+            instead — that captures <strong>every</strong> filter the portal offers.
+          </p>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <input className="input w-full" placeholder="Profile name (optional)"

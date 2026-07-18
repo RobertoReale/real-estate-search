@@ -19,10 +19,13 @@ interface Props {
   // option: the backend has no score to order by and silently leaves the grid
   // unsorted (see main.py `sort == "match"`).
   matchEnabled: boolean;
+  // Clears every filter back to defaults (App keeps the Buy/Rent choice).
+  onReset: () => void;
 }
 
 export default function FiltersBar({
   filters, onChange, count, view, onViewChange, profiles, tags, matchEnabled,
+  onReset,
 }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<{
@@ -50,6 +53,17 @@ export default function FiltersBar({
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
   const isRent = filters.contract === "rent";
+
+  // Whether anything is narrowing the grid right now — drives the "Reset
+  // filters" affordance (contract and the default Newest sort don't count:
+  // reset keeps the Buy/Rent world the user is in).
+  const anyFilterActive =
+    !!filters.q || !!filters.city || !!filters.zone || !!filters.min_price ||
+    !!filters.max_price || !!filters.min_sqm || !!filters.max_sqm ||
+    !!filters.floor_band || !!filters.rooms || !!filters.source ||
+    !!filters.tag || !!filters.profile_id || filters.only_price_drops ||
+    filters.only_favorites || filters.status !== "active" ||
+    filters.sort !== "newest";
 
   // Turning the dream home off (or never setting it up) must not strand the
   // grid on a "Best match" sort that no longer does anything: fall back to
@@ -84,13 +98,8 @@ export default function FiltersBar({
       <div className="col-span-2 w-full flex flex-col gap-1">
         <label className="text-xs t-muted">Search</label>
         <div className="relative">
-          {/* the magnifier is only an affordance for the empty field; once the
-              user is typing it is redundant (and the ✕ takes its place) */}
-          {!filters.q && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 t-muted pointer-events-none">🔍</span>
-          )}
           <input
-            className={`input w-full ${filters.q ? "" : "pl-9"}`}
+            className={`input w-full ${filters.q ? "pr-9" : ""}`}
             placeholder="Search by zone, address, title, floor or ad text…"
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
@@ -161,6 +170,11 @@ export default function FiltersBar({
           value={filters.min_sqm} onChange={(e) => set({ min_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
+        <label className="text-xs t-muted">Max sqm</label>
+        <input className="input w-full sm:w-20" type="number" placeholder="∞"
+          value={filters.max_sqm} onChange={(e) => set({ max_sqm: e.target.value })} />
+      </div>
+      <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">Rooms</label>
         <select className="input w-full sm:w-24" value={filters.rooms}
           onChange={(e) => set({ rooms: e.target.value })}>
@@ -168,6 +182,23 @@ export default function FiltersBar({
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>{n}</option>
           ))}
+        </select>
+      </div>
+      {/* Floor bands, parsed server-side from the messy free-text floor label
+          ("piano terra", "3", "attico"): a listing whose floor can't be read
+          matches no band and drops out while this is set. */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs t-muted">Floor</label>
+        <select className="input w-full sm:w-36" value={filters.floor_band}
+          onChange={(e) => set({
+            floor_band: e.target.value as PropertyFilters["floor_band"],
+          })}>
+          <option value="">Any floor</option>
+          <option value="ground">Ground floor</option>
+          <option value="low">Low (1–2)</option>
+          <option value="mid">Middle (3–5)</option>
+          <option value="high">High (6+)</option>
+          <option value="top">Top floor (attico/ultimo)</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">
@@ -255,7 +286,18 @@ export default function FiltersBar({
       </div>
 
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
-        <span className="text-sm t-muted pb-2">{count} properties</span>
+        <div className="flex flex-col gap-1 justify-end pb-2">
+          <span className="text-sm t-muted">{count} properties</span>
+          {anyFilterActive && (
+            <button
+              type="button"
+              className="text-xs accent-link hover:underline text-left"
+              onClick={onReset}
+              title="Clear every filter and go back to the default view">
+              ↺ Reset filters
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium t-muted">Maintenance</label>
           <button

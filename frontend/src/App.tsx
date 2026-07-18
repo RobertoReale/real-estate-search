@@ -24,7 +24,8 @@ import type {
 
 const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
-  profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "", rooms: "",
+  profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
+  max_sqm: "", floor_band: "", rooms: "",
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
@@ -307,7 +308,8 @@ export default function App() {
 
         <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
           view={view} onViewChange={changeView} profiles={profiles} tags={tags}
-          matchEnabled={settings?.match_score_enabled ?? false} />
+          matchEnabled={settings?.match_score_enabled ?? false}
+          onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
 
         {properties.length === 0 && !loadError && (
           <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
