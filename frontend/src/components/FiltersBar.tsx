@@ -265,13 +265,14 @@ export default function FiltersBar({
           rules that keep scans clean can prune email imports too. */}
       {profiles.length > 0 && (
         <div className="flex flex-col gap-1">
-          {/* This is a FILTER, not a sort: it narrows the grid to what one of
-              your saved searches would keep (its city, contract and excluded
-              keywords), imports included. The label used to read "Match a
-              search", which was mistaken for a "best match" ranking. */}
+          {/* This is a FILTER, not a sort: it narrows the grid to the
+              properties a saved search actually found (its "🔍 Found by"
+              provenance), not everything that merely matches its city and
+              contract. The label used to read "Match a search", which was
+              mistaken for a "best match" ranking. */}
           <label className="text-xs t-muted">Limit to a search</label>
           <select className="input w-full sm:w-44" value={filters.profile_id}
-            title="Filter the grid down to what a saved search would keep: applies its city, contract and excluded keywords (useful to prune email imports the scan filter never saw). This narrows the list — it does not reorder it."
+            title="Show only the properties this saved search found (its 'Found by' provenance). Email imports, which no search found, drop out. This narrows the list — it does not reorder it."
             onChange={(e) => set({ profile_id: e.target.value })}>
             <option value="">All searches</option>
             {groupSearchProfiles(profiles).map((g) => (

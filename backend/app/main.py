@@ -211,24 +211,16 @@ def _select_properties(
     filters. Match scores are annotated before the sort (compatibility ranking
     needs them); market position and deal score are order-independent.
 
-    `profile_id` overlays a monitored search on the whole dashboard (D): it
-    forces the profile's contract/city and drops properties matching that
-    profile's exclusion keywords (global + profile), so the same criteria that
-    keep the scans clean can be applied retroactively to email imports too."""
+    `profile_id` limits the grid to the properties a monitored search actually
+    found — its ListingProfile provenance links (the card's "🔍 Found by"),
+    not a re-derivation of the search's contract/city (those overlap heavily
+    between searches and filtered almost nothing). Email imports, which carry
+    no links, drop out: that search never found them."""
     profile = db.get(SearchProfile, profile_id) if profile_id else None
     if profile_id and profile is None:
         # same answer list_imported gives for the same concept: a silent
         # no-op here showed the unfiltered grid as if the overlay applied
         raise HTTPException(404, "Profile not found")
-    profile_keywords: list[str] = []
-    if profile is not None:
-        crit = email_import.profile_criteria(
-            profile, list(load_settings().get("excluded_keywords", []))
-        )
-        # the profile's own contract/city take precedence over ad-hoc filters
-        contract = crit["contract"] or contract
-        city = crit["city"] or city
-        profile_keywords = crit["keywords"]
 
     query = select(Property).options(
         selectinload(Property.listings),
@@ -250,6 +242,19 @@ def _select_properties(
         query = query.where(Property.zone.ilike(f"%{zone}%"))
     if source in ("scan", "email"):
         query = query.where(Property.source == source)
+    if profile is not None:
+        # "Limit to a search" = only the properties this monitored search
+        # actually found, read from the ListingProfile provenance links the
+        # scanner writes (the card's "🔍 Found by"), not re-derived from the
+        # search's contract/city — those overlap heavily between searches and
+        # filtered nothing. A property qualifies when any of its listings is
+        # linked to this profile. Email imports, which carry no links, are
+        # correctly excluded: this search never found them.
+        query = query.where(
+            Property.listings.any(
+                Listing.profile_links.any(ListingProfile.profile_id == profile_id)
+            )
+        )
     if portal in ("immobiliare", "idealista"):
         # a Property groups listings from several portals: "on Idealista" means
         # at least one of its ads lives there, not that all do
@@ -350,24 +355,6 @@ def _select_properties(
     if floor_band:
         # post-filter: the floor label is free text, not a number in the DB
         props = [p for p in props if _floor_in_band(p.floor, floor_band)]
-    if profile_keywords:
-        # apply the monitored search's exclusion keywords to the whole set:
-        # email imports never passed through the scan's keyword filter, so this
-        # is how "nuda proprietà"/"asta"/… get pruned from them too
-        props = [
-            p
-            for p in props
-            if not find_excluded_keyword(
-                [
-                    p.title,
-                    p.zone,
-                    p.address,
-                    *(l.description for l in p.listings),
-                    *(l.agency for l in p.listings),
-                ],
-                profile_keywords,
-            )
-        ]
     if only_price_drops:
         props = [
             p

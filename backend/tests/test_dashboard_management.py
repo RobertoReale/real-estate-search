@@ -502,37 +502,66 @@ def test_deal_filter_excludes_unscored_cards(db):
 # --- Filter by a monitored search (profile overlay) ------------------------
 
 
-def test_profile_overlay_applies_contract_city_and_keywords(db):
-    """Selecting a monitored search filters the whole grid — including email
-    imports, which never passed through the scan's keyword filter — by that
-    profile's contract, city and exclusion keywords."""
-    clean = upsert_listing(db, _raw(portal_id="1", title="Trilocale luminoso"))[0]
-    auction = upsert_listing(
+def test_profile_overlay_limits_to_properties_the_search_found(db):
+    """Selecting a monitored search narrows the grid to the properties that
+    search actually found (its ListingProfile provenance), not everything that
+    merely matches its city/contract. An email import no search ever found —
+    and a property found only by a *different* search — both drop out."""
+    profile = SearchProfile(
+        name="Milano vendita",
+        portal="immobiliare",
+        search_url="https://www.immobiliare.it/vendita-case/milano/",
+    )
+    other = SearchProfile(
+        name="Milano affitto",
+        portal="immobiliare",
+        search_url="https://www.immobiliare.it/affitto-case/milano/",
+    )
+    db.add_all([profile, other])
+    db.commit()
+
+    # found by our profile
+    mine = upsert_listing(db, _raw(portal_id="1"), profile_id=profile.id)[0]
+    # found only by a different search (distinct sqm/price/location so the
+    # deduplicator keeps it a separate Property)
+    theirs = upsert_listing(
         db,
         _raw(
             portal="idealista",
             portal_id="2",
             url="https://www.idealista.it/immobile/2/",
-            title="Trilocale in asta",
-            latitude=45.99,
-            longitude=9.99,
+            sqm=55.0,
+            price=180_000.0,
+            rooms=2,
+            latitude=45.50,
+            longitude=9.25,
             address="Via Altra, 9",
+        ),
+        profile_id=other.id,
+    )[0]
+    # an email import, linked to no search at all (again distinct so it stands
+    # on its own)
+    imported = upsert_listing(
+        db,
+        _raw(
+            portal_id="3",
+            url="https://www.immobiliare.it/annunci/3/",
+            sqm=120.0,
+            price=450_000.0,
+            rooms=4,
+            latitude=45.40,
+            longitude=9.10,
+            address="Via Terza, 3",
         ),
         source="email",
     )[0]
-    profile = SearchProfile(
-        name="Milano vendita",
-        portal="immobiliare",
-        search_url="https://www.immobiliare.it/vendita-case/milano/",
-        excluded_keywords="asta",
-    )
-    db.add(profile)
     db.commit()
 
     out = list_properties(db=db, profile_id=profile.id)
     ids = [p.id for p in out]
-    assert clean.id in ids
-    assert auction.id not in ids  # dropped by the profile's "asta" keyword
+    assert mine.id in ids
+    assert theirs.id not in ids  # a different search found it, not this one
+    assert imported.id not in ids  # no search found it
 
 
 # --- Bulk endpoint ----------------------------------------------------------
