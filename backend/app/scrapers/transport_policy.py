@@ -16,11 +16,11 @@ invariants 8/16/18 are untouched. The ladder, cheapest first:
     4  managed scrape API                              (€ per call, needs key)
 
 Rungs 2–3 stay reactive inside the existing flows; the decision here is when
-rung 4 runs: `scrape_api_mode="always"` (default) keeps today's behavior — a
-configured key routes every fetch through the provider — while `"fallback"`
-starts each scan on the free path and spends the paid rung only when the
-profile's failure streak (the exact signal invariant 11 already counts) says
-the free path is actually failing, descending again on recovery.
+rung 4 runs: `scrape_api_mode="fallback"` (default) starts each scan on the
+free path and spends the paid rung only when the profile's failure streak (the
+exact signal invariant 11 already counts) says the free path is actually
+failing, descending again on recovery; `"always"` routes every fetch through
+the provider unconditionally.
 """
 
 from dataclasses import dataclass
@@ -52,7 +52,7 @@ def decide(consecutive_failures: int, settings: dict) -> TransportDecision:
     key = (settings.get("scrape_api_key") or "").strip()
     if not key:
         return TransportDecision(False, False, _local_label(settings))
-    mode = (settings.get("scrape_api_mode") or "always").strip().lower()
+    mode = (settings.get("scrape_api_mode") or "fallback").strip().lower()
     if mode != "fallback":
         return TransportDecision(True, True, "managed scrape API")
     threshold = int(settings.get("transport_escalate_after_failures") or 2)

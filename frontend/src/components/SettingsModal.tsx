@@ -102,7 +102,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [proxyUrls, setProxyUrls] = useState("");
   const [scrapeApiProvider, setScrapeApiProvider] = useState("scrapfly");
   const [scrapeApiKey, setScrapeApiKey] = useState("");
-  const [scrapeApiMode, setScrapeApiMode] = useState("always");
+  const [scrapeApiMode, setScrapeApiMode] = useState("fallback");
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
@@ -153,7 +153,7 @@ export default function SettingsModal({ onClose }: Props) {
     setProxyUrl(s.proxy_url || "");
     setProxyUrls((s.proxy_urls ?? []).join("\n"));
     setScrapeApiProvider(s.scrape_api_provider || "scrapfly");
-    setScrapeApiMode(s.scrape_api_mode || "always");
+    setScrapeApiMode(s.scrape_api_mode || "fallback");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     setBrowserFirst(s.availability_browser_first ?? false);
     setBrowserHeadful(s.availability_browser_headful ?? false);
@@ -840,12 +840,13 @@ export default function SettingsModal({ onClose }: Props) {
               <label className="text-xs t-muted block mb-1">When to use it</label>
               <select className="input w-full sm:w-auto" value={scrapeApiMode}
                 onChange={(e) => setScrapeApiMode(e.target.value)}>
-                <option value="always">Always (every fetch goes through the provider)</option>
                 <option value="fallback">Only as a fallback when the free path is blocked</option>
+                <option value="always">Always (every fetch goes through the provider)</option>
               </select>
               <p className="text-xs t-dim mt-1">
-                "Fallback" spends your API credits only during an actual outage:
-                scans start on the free local path and escalate when blocked.
+                "Fallback" (the default) spends your API credits only during an
+                actual outage: scans start on the free local path and escalate
+                when blocked.
               </p>
             </div>
           </div>

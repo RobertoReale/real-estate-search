@@ -202,8 +202,8 @@ export interface Settings {
   scrape_api_provider?: string;
   scrape_api_key?: string;
   scrape_api_key_set?: boolean;
-  // "always" = a set key routes every fetch through the provider;
-  // "fallback" = free path first, paid API only on block/streak
+  // "fallback" (default) = free path first, paid API only on block/streak;
+  // "always" = a set key routes every fetch through the provider
   scrape_api_mode?: string;
   transport_escalate_after_failures?: number;
   repair_agency_prefixes?: string[];

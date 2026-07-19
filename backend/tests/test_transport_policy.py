@@ -41,8 +41,14 @@ class TestDecide:
         d = transport_policy.decide(0, _settings(proxy_urls=["http://p:1"]))
         assert "proxy pool" in d.label
 
-    def test_key_with_default_mode_keeps_todays_behavior(self):
+    def test_key_with_default_mode_starts_local_with_api_fallback(self):
+        # "fallback" is the default: a saved key is a safety net, not a toll on
+        # every fetch — credits are spent only when the free path fails
         d = transport_policy.decide(0, _settings(scrape_api_key="k"))
+        assert d.start_on_api is False and d.allow_api_fallback is True
+
+    def test_always_mode_routes_everything_through_the_provider(self):
+        d = transport_policy.decide(0, _settings(scrape_api_key="k", scrape_api_mode="always"))
         assert d.start_on_api is True
 
     def test_fallback_mode_starts_local_when_healthy(self):

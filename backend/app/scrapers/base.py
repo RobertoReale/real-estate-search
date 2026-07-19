@@ -427,10 +427,11 @@ class BaseScraper:
     _warmed = False
     _current_proxy: str | None = None
     # Whether a configured scrape-API key routes fetches through the provider
-    # from the start. True by default (a set key = the user asked for it —
-    # today's behavior, and what AdProbe/email-import keep); the scanner sets
-    # it per profile from transport_policy.decide, so `scrape_api_mode=
-    # "fallback"` starts on the free path and only escalates on a block.
+    # from the start. True at class level so the non-scan paths (AdProbe,
+    # email-import) keep using a set key unconditionally; the scanner sets it
+    # per profile from transport_policy.decide, where `scrape_api_mode=
+    # "fallback"` (the default) starts on the free path and only escalates on
+    # a block.
     use_scrape_api = True
 
     def __init__(self, delay_seconds: float = 6.0, max_pages: int = 10):

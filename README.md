@@ -613,12 +613,13 @@ You can provide that cookie in three ways, from most to least automatic:
   cloud service, and it stays **optional**: free tiers (~1,000 calls/month) can
   cover a small personal scanner, and with no key set the app runs exactly as
   before, fully local. Empty the key to go back to the local path.
-  By default a saved key handles *every* fetch; switch **When to use it** to
-  *"Only as a fallback"* to spend credits only during an actual outage — scans
-  then start on the free local path and escalate to the provider when blocked
-  (mid-scan, once the local retries are exhausted, or from the start when a
-  search has already failed its last couple of scans). The **Scraper health**
-  panel on the dashboard shows which transport carried each day's scans.
+  By default a saved key is used *only as a fallback*, so credits are spent
+  only during an actual outage: scans start on the free local path and escalate
+  to the provider when blocked (mid-scan, once the local retries are exhausted,
+  or from the start when a search has already failed its last couple of scans).
+  Switch **When to use it** to *"Always"* to route every fetch through the
+  provider instead. The **Scraper health** panel on the dashboard shows which
+  transport carried each day's scans.
 
 Nothing here is required for the app to work — a home connection is trusted by
 DataDome most of the time on its own. These are the levers for when it isn't.

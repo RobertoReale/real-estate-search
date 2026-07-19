@@ -109,14 +109,14 @@ DEFAULT_SETTINGS = {
     "scrape_api_provider": "scrapfly",  # scrapfly | scraperapi | zyte
     "scrape_api_key": "",
     # How the configured scrape API is spent (scrapers/transport_policy.py).
-    # "always" (default) = a set key routes every fetch through the provider,
-    # today's behavior. "fallback" = each scan starts on the free local path
-    # and escalates to the paid API only when blocked (mid-scan, after the TLS
+    # "fallback" (default) = each scan starts on the free local path and
+    # escalates to the paid API only when blocked (mid-scan, after the TLS
     # rotation is exhausted) or when the profile's failure streak says the
     # local path is down (transport_escalate_after_failures) — the cost-aware
     # ladder: free path in good weather, the provider's success rate only
-    # during an actual outage.
-    "scrape_api_mode": "always",  # always | fallback
+    # during an actual outage. "always" = a set key routes every fetch through
+    # the provider unconditionally.
+    "scrape_api_mode": "fallback",  # fallback | always
     "transport_escalate_after_failures": 2,
     # TLS impersonation override (advanced). Empty = use each scraper's built-in,
     # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
