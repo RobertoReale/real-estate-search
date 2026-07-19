@@ -184,7 +184,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (519, `pytest`)
+### Automated Tests (561, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
