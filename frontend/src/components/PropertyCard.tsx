@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatPrice } from "../services/api";
+import { humanizeFloor } from "../utils/format";
 import { PortalBadge } from "./PortalBadge";
 import TagPicker from "./TagPicker";
 import type { Property, Tag } from "../types";
@@ -58,6 +59,19 @@ export function MatchBadge({ score }: { score: number | null }) {
  *  positive score means priced below the local market. */
 export function DealBadge({ property: p }: { property: Property }) {
   if (p.deal_score === null || p.deal_label === "fair" || p.deal_label === null) {
+    return null;
+  }
+  // The Deal Score's base is exactly the market-position delta (deal_score.py:
+  // base = -sqm_price_delta_pct); condition/agency cues then shift it. When
+  // nothing shifted it, this badge just restates the MarketBadge with the same
+  // number in different words ("18% above market" next to "18% above city
+  // average") — a confusing duplicate. Drop it in that case: the MarketBadge
+  // already carries the €/sqm position, and DealBadge earns its place only when
+  // it says something more (a renovation/agency adjustment moved the score).
+  if (
+    p.sqm_price_delta_pct !== null &&
+    Math.round(-p.sqm_price_delta_pct) === p.deal_score
+  ) {
     return null;
   }
   const under = p.deal_label === "undervalued";
@@ -226,11 +240,19 @@ export default function PropertyCard({
         <p className="text-xs t-muted mt-1 truncate">
           📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || "Location N/A"}
         </p>
-        <div className="flex gap-3 mt-2 text-xs t-body">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
           {p.rooms && <span>🚪 {p.rooms} rooms</span>}
           {p.sqm && <span>📐 {p.sqm.toFixed(0)} sqm</span>}
-          {p.floor && <span>🏢 floor {p.floor}</span>}
+          {p.floor && <span>🏢 {humanizeFloor(p.floor)}</span>}
           {p.notes && <span title={p.notes}>📝 notes</span>}
+          {/* Whether the property is placeable on the map. Called out because a
+              zone filter silently drops the un-pinned ones (invariant 19), and
+              from the grid there was no way to tell which cards those are. */}
+          {(p.latitude === null || p.longitude === null) && (
+            <span className="t-dim" title="No map coordinates yet — this listing won't appear on the map or inside a drawn zone until located (open it and use 'View on map', or run 'Find coordinates').">
+              🗺️✗ not on map
+            </span>
+          )}
         </div>
       </div>
     </article>

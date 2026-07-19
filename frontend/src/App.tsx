@@ -75,19 +75,16 @@ export default function App() {
     return stored;
   });
 
-  const refresh = useCallback(async () => {
+  // Only the property list depends on the filters, so it is the one thing the
+  // per-keystroke path must refetch. Kept separate from the reference data
+  // (profiles/settings/tags) below, which changes rarely — reloading all four
+  // on every letter typed in a filter was pure waste.
+  const refreshProperties = useCallback(async () => {
     const seq = ++refreshSeq.current;
     try {
-      const [props, profs, status, sett, tagList] = await Promise.all([
-        api.getProperties(filters),
-        api.getProfiles(),
-        api.getScanStatus(),
-        api.getSettings(),
-        api.getTags(),
-      ]);
+      const props = await api.getProperties(filters);
       if (seq !== refreshSeq.current) return; // a newer refresh superseded this one
       setProperties(props);
-      setTags(tagList);
       setSelectedIds((prev) => {
         if (prev.size === 0) return prev;
         const validIds = new Set<number>();
@@ -96,9 +93,6 @@ export default function App() {
         }
         return validIds;
       });
-      setProfiles(profs);
-      setScanStatus(status);
-      setSettings(sett);
       setLoadError("");
       // keep the open modal in sync with fresh data (e.g. after saving
       // notes or toggling favorite); if the property left the current
@@ -114,14 +108,44 @@ export default function App() {
     }
   }, [filters]);
 
-  // small debounce: `refresh` changes on every keystroke in the City/price
-  // filters, and firing four API calls per letter typed is pure waste
-  useEffect(() => {
-    const t = window.setTimeout(refresh, 250);
-    return () => window.clearTimeout(t);
-  }, [refresh]);
+  // Reference data, independent of the filters: profiles, settings, tags and
+  // scan status. A failure here must not clobber the "backend unreachable"
+  // banner or blank the panels — the property fetch owns that error.
+  const refreshMeta = useCallback(async () => {
+    try {
+      const [profs, status, sett, tagList] = await Promise.all([
+        api.getProfiles(),
+        api.getScanStatus(),
+        api.getSettings(),
+        api.getTags(),
+      ]);
+      setProfiles(profs);
+      setScanStatus(status);
+      setSettings(sett);
+      setTags(tagList);
+    } catch {
+      // best-effort: keep the last-known panels rather than emptying them
+    }
+  }, []);
 
-  // polling: frequent during scan, slow otherwise
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshProperties(), refreshMeta()]);
+  }, [refreshProperties, refreshMeta]);
+
+  // small debounce: `refreshProperties` changes on every keystroke in the
+  // City/price filters, and only the list depends on them
+  useEffect(() => {
+    const t = window.setTimeout(refreshProperties, 250);
+    return () => window.clearTimeout(t);
+  }, [refreshProperties]);
+
+  // load the reference data once on mount (the filter effect above never does)
+  useEffect(() => {
+    refreshMeta();
+  }, [refreshMeta]);
+
+  // polling: frequent during scan, slow otherwise; refreshes everything so the
+  // scan status and any newly-found listings both surface
   useEffect(() => {
     const ms = scanStatus?.running ? 4000 : 30000;
     const t = window.setInterval(refresh, ms);
@@ -180,7 +204,14 @@ export default function App() {
   function toggleFavorite(p: Property) {
     return runAction(async () => {
       const updated = await api.updateProperty(p.id, { is_favorite: !p.is_favorite });
-      setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
+      setProperties((list) =>
+        // When the ⭐ Favorites filter is on and we just un-favorited it, the
+        // card no longer belongs in the view: drop it now instead of leaving a
+        // stale card with an empty star until the next background refresh.
+        filters.only_favorites && !updated.is_favorite
+          ? list.filter((x) => x.id !== p.id)
+          : list.map((x) => (x.id === p.id ? updated : x))
+      );
       setSelected((prev) => (prev?.id === p.id ? updated : prev));
     });
   }
