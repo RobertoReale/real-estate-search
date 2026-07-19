@@ -40,6 +40,14 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
   const [view, setView] = useState<ViewMode>("grid");
+  // Incremental grid rendering: the backend returns the whole filtered set (so
+  // select-all, export and the map keep seeing everything), but mounting a card
+  // per result bogs the DOM down at a few hundred listings. Render a growing
+  // window and extend it as the user scrolls. State stays the full `properties`,
+  // so nothing downstream changes — only how many cards are on screen.
+  const GRID_PAGE = 60;
+  const [visibleCount, setVisibleCount] = useState(GRID_PAGE);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   // set by a card's "View on map" jump so MapView centers on that property;
   // cleared on any manual view switch so the map fits the whole set again
   const [mapFocusId, setMapFocusId] = useState<number | null>(null);
@@ -151,6 +159,33 @@ export default function App() {
     const t = window.setInterval(refresh, ms);
     return () => window.clearInterval(t);
   }, [refresh, scanStatus?.running]);
+
+  // Reset the grid window to the top when the user asks for a different set (a
+  // filter change) — but NOT on a background poll, which replaces `properties`
+  // with a fresh array yet must not snap a scrolled-down user back to the first
+  // page. `slice(0, visibleCount)` naturally clamps if the new set is smaller.
+  useEffect(() => {
+    setVisibleCount(GRID_PAGE);
+  }, [filters]);
+
+  // Extend the window as the sentinel below the grid scrolls into view. The
+  // rootMargin pre-loads the next page before it is reached, so scrolling feels
+  // seamless rather than paged.
+  useEffect(() => {
+    if (view !== "grid") return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => (c < properties.length ? c + GRID_PAGE : c));
+        }
+      },
+      { rootMargin: "800px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [view, properties.length]);
 
   // a failed click must say so: without this wrapper the rejection is
   // unhandled and the button silently does nothing, which reads as "broken"
@@ -581,7 +616,7 @@ export default function App() {
           )
         ) : (
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {properties.map((p) => (
+            {properties.slice(0, visibleCount).map((p) => (
               <PropertyCard
                 key={p.id}
                 property={p}
@@ -617,6 +652,18 @@ export default function App() {
                 onRemoveTag={(tagId) => removeTag(p, tagId)}
               />
             ))}
+            {/* Grows the window as it scrolls into view (see the observer
+                above); the button is the no-observer fallback and a manual
+                nudge. Spans the whole grid row. */}
+            {visibleCount < properties.length && (
+              <div ref={loadMoreRef}
+                className="col-span-full flex justify-center py-4">
+                <button type="button" className="btn-ghost text-sm"
+                  onClick={() => setVisibleCount((c) => c + GRID_PAGE)}>
+                  Show more ({properties.length - visibleCount} more)
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
