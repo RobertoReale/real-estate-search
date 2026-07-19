@@ -73,7 +73,7 @@ export default function FiltersBar({
     !!filters.floor_band || !!filters.rooms || !!filters.source ||
     !!filters.tag || !!filters.profile_id || filters.only_price_drops ||
     filters.only_favorites || filters.status !== "active" ||
-    filters.sort !== "newest" || advActiveCount > 0;
+    filters.sort !== "newest" || advActiveCount > 0 || !!filters.geo_mode;
 
   // Turning the dream home off (or never setting it up) must not strand the
   // grid on a "Best match" sort that no longer does anything: fall back to
