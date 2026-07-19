@@ -409,6 +409,14 @@ contrast, stops scanning it altogether.
   "fast requests (curl)", or "browser off: no option enabled" — so you can see at
   a glance why a run behaved the way it did instead of guessing.
 
+  Whenever the browser is in play, the app also **behaves like a person on each
+  page** — the mouse drifts along curved paths, the page scrolls a little,
+  there is a brief pause before reading — because anti-bot systems score
+  behavior too, and a page visited with zero pointer events looks robotic.
+  This adds about a second per page and is on by default; a checkbox in the
+  same Settings section ("Move the mouse and scroll like a person…") turns it
+  off if you want the old, faster bare-visit behavior.
+
   **Only ads hosted on Immobiliare.it or Idealista.it can be imported**, since
   the app identifies a listing by its portal ID. An agency that mails you its
   own proposals (Tecnocasa, a local agency, …) is imported only if the email

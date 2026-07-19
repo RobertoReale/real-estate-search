@@ -49,14 +49,14 @@ Agencies frequently bury critical legal or structural drawbacks in lengthy text 
 - Pull municipal safety indices or noise pollution data.
 - The API is well-documented and free, but needs reliable geocoding and handling of a free external service's rate limits/timeouts.
 
-### 1b. Browser-rung polish for the anti-bot ladder
-The transport ladder (proxy pool → local → scrape API) and its health panel are
-shipped; what remains from the resilience plan is the optional browser-rung
-polish: a ghost-cursor/behavioral step in the Camoufox path, and registering
-Nodriver / SeleniumBase-CDP as additional `browser_engine` options (the
-pluggable-engine plumbing in `cookie_harvester._launch` already exists).
-Worth doing only if the Camoufox rung starts getting challenged regularly —
-see `docs/plan-resilience.md` §B.6.
+### 1b. Additional stealth browser engines (Nodriver / SeleniumBase-CDP)
+The behavioral ghost-cursor step and the `BrowserEngine` adapter seam are
+shipped (`scrapers/humanize.py`, `scrapers/browser_engine.py`); what remains is
+registering Nodriver and/or SeleniumBase-CDP as extra `browser_engine` options
+behind that seam. Mostly redundant with Camoufox (diversification, not a new
+capability, at +150–300 MB per optional browser) — worth doing only if the
+Scraper Health panel shows the Camoufox rung getting challenged regularly.
+See `docs/plan-browser-humanization.md` §2.
 
 ### 2. Detail-page fetching for the fields cards omit
 With a clean transport (the shipped scraping-API path, or a proxy), fetching each

@@ -155,6 +155,12 @@ DEFAULT_SETTINGS = {
     # "chromium" pins the current behaviour; "camoufox" forces it (and still
     # falls back to Chromium if the launch fails, e.g. its browser is unfetched).
     "browser_engine": "auto",
+    # Human-like mouse movement + a small scroll on every browser-path page
+    # (scrapers/humanize.py): DataDome scores behavior too, and a bare goto()
+    # produces zero pointer events — itself a bot tell. Default on because the
+    # browser rung is already opt-in and the cost is ~0.5-1.5s per page, well
+    # inside the probe's pacing (invariant 16). Off pins the bare-goto behavior.
+    "browser_humanize": True,
     # Agency names whose "AGENCY: ..." prefixes the repair maintenance strips
     # from imported titles (services/repair_listings.py). Seeded with the
     # agencies met so far so behavior is unchanged on existing data; a user in

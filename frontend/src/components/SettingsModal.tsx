@@ -108,6 +108,7 @@ export default function SettingsModal({ onClose }: Props) {
   const [browserFirst, setBrowserFirst] = useState(false);
   const [browserHeadful, setBrowserHeadful] = useState(false);
   const [browserEngine, setBrowserEngine] = useState("auto");
+  const [browserHumanize, setBrowserHumanize] = useState(true);
   const [apiToken, setApiToken] = useState("");
   const [grabbing, setGrabbing] = useState(false);
   const [stoppingGrab, setStoppingGrab] = useState(false);
@@ -158,6 +159,7 @@ export default function SettingsModal({ onClose }: Props) {
     setBrowserFirst(s.availability_browser_first ?? false);
     setBrowserHeadful(s.availability_browser_headful ?? false);
     setBrowserEngine(s.browser_engine ?? "auto");
+    setBrowserHumanize(s.browser_humanize ?? true);
     setApiToken(s.api_auth_token ?? "");
     // Secrets are write-only: the server never returns them, so the inputs go
     // back to their "already saved" placeholder rather than showing stale dots.
@@ -207,6 +209,7 @@ export default function SettingsModal({ onClose }: Props) {
       availability_browser_first: browserFirst,
       availability_browser_headful: browserHeadful,
       browser_engine: browserEngine,
+      browser_humanize: browserHumanize,
       api_auth_token: apiToken,
     };
     // Keep this browser's stored token in step with the field, so enabling auth
@@ -910,6 +913,17 @@ export default function SettingsModal({ onClose }: Props) {
                     CAPTCHA by hand if one appears — one solve unblocks the whole
                     run. Works best together with the option above. Ignored when
                     the app runs as a background Windows service.
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
+                  <input type="checkbox" checked={browserHumanize} className="mt-0.5"
+                    onChange={(e) => setBrowserHumanize(e.target.checked)} />
+                  <span>
+                    Move the mouse and scroll like a person on every browser
+                    page — anti-bot systems also score behavior, and a page
+                    visited with zero pointer events looks robotic. Adds about
+                    a second per page.
                   </span>
                 </label>
 

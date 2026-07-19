@@ -878,18 +878,23 @@ def test_wait_for_human_solve_returns_once_the_captcha_clears():
     gone (the user solved it), then lets the caller re-read the ad."""
     probe = AdProbe()
 
-    class ClearingPage:
+    # Speaks the BrowserEngine surface (wait/content), like everything the
+    # probe drives past the launch (scrapers/browser_engine.py).
+    class ClearingEngine:
         def __init__(self):
             self.polls = 0
 
-        def wait_for_timeout(self, _ms):
+        def humanize(self, rng=None):
+            pass
+
+        def wait(self, _ms):
             self.polls += 1
 
         def content(self):
             # challenged for the first two polls, then solved
             return "please solve the captcha" if self.polls < 2 else "<html>the ad</html>"
 
-    assert probe._wait_for_human_solve(ClearingPage()) is True
+    assert probe._wait_for_human_solve(ClearingEngine()) is True
 
 
 def test_browser_status_names_the_service_when_headful_is_forced_off(monkeypatch):
@@ -951,14 +956,14 @@ def test_wait_for_human_solve_gives_up_when_ignored():
     probe = AdProbe()
     probe._HEADFUL_SOLVE_TIMEOUT_MS = 30  # ms: don't wait 3 real minutes
 
-    class StuckPage:
-        def wait_for_timeout(self, _ms):
+    class StuckEngine:
+        def wait(self, _ms):
             pass
 
         def content(self):
             return "captcha challenge still here"
 
-    assert probe._wait_for_human_solve(StuckPage()) is False
+    assert probe._wait_for_human_solve(StuckEngine()) is False
 
 
 def test_wait_for_human_solve_stops_promptly_when_cancelled():
@@ -974,15 +979,15 @@ def test_wait_for_human_solve_stops_promptly_when_cancelled():
     probe = AdProbe(cancel_event=cancel_event)
     probe._HEADFUL_SOLVE_TIMEOUT_MS = 60_000  # would hang the test if not cancelled
 
-    class StuckPage:
-        def wait_for_timeout(self, _ms):
+    class StuckEngine:
+        def wait(self, _ms):
             pass
 
         def content(self):
             return "captcha challenge still here"
 
     cancel_event.set()
-    assert probe._wait_for_human_solve(StuckPage()) is False
+    assert probe._wait_for_human_solve(StuckEngine()) is False
 
 
 def test_rotation_stops_when_profiles_are_exhausted():

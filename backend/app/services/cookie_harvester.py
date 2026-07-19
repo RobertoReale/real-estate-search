@@ -374,12 +374,15 @@ def _launch(p_factory, headless: bool) -> Any:
     raise last_error
 
 
-def _is_page_blocked(page) -> bool:
+def _is_page_blocked(eng) -> bool:
+    """Whether the engine is looking at a challenge/block page. Takes anything
+    speaking the BrowserEngine surface (title()/content()), so the block rule
+    is written once for every engine."""
     try:
-        title = (page.title() or "").lower()
+        title = (eng.title() or "").lower()
         if any(w in title for w in ("captcha", "blocked", "attention required", "datadome")):
             return True
-        content = page.content()[:4000].lower()
+        content = eng.content()[:4000].lower()
         if "geo.captcha-delivery.com" in content or (
             "datadome" in content and "captcha" in content
         ):
@@ -405,24 +408,31 @@ def _harvest_inner(portal: str, headless: bool, timeout_seconds: float) -> Harve
 
         ctx = _launch(make_p, headless)
         try:
+            from ..scrapers.browser_engine import PlaywrightEngine
+
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
-            resp = page.goto(home, wait_until="domcontentloaded", timeout=timeout_seconds * 1000)
+            eng = PlaywrightEngine(ctx, page)
+            status = eng.open(home, timeout_ms=int(timeout_seconds * 1000))
+            # A cookie earned by a session that also *behaved* is warmer: the
+            # curl path reuses it, so the behavioral score it carries matters
+            # beyond this one page. Fail-open, gated by `browser_humanize`.
+            eng.humanize()
             deadline = time.monotonic() + timeout_seconds
             while time.monotonic() < deadline:
                 if _harvest_cancel_event.is_set():
                     logger.info("cookie-harvest: cancelled by user")
                     return HarvestResult(error="Cancelled.")
-                blocked = _is_page_blocked(page)
-                if headless and (blocked or (resp and resp.status in (403, 429))):
+                blocked = _is_page_blocked(eng)
+                if headless and (blocked or status in (403, 429)):
                     return HarvestResult(
-                        error=f"Portal {portal} returned HTTP {resp.status} (CAPTCHA / Blocked)"
+                        error=f"Portal {portal} returned HTTP {status} (CAPTCHA / Blocked)"
                     )
                 if not blocked:
-                    cookie = _pick_datadome(ctx.cookies())
+                    cookie = _pick_datadome(eng.cookies())
                     if cookie:
                         logger.info("cookie-harvest: got datadome from %s", portal)
                         return HarvestResult(cookie=cookie)
-                page.wait_for_timeout(1500)
+                eng.wait(1500)
             return HarvestResult(
                 error=(
                     "No datadome cookie appeared before timeout. A CAPTCHA may "

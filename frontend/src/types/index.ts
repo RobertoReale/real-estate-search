@@ -219,6 +219,8 @@ export interface Settings {
   // browser paths use; auto prefers Camoufox when installed
   browser_engine?: string;
   camoufox_available?: boolean;
+  // human-like mouse movement + scroll on browser-path pages (default on)
+  browser_humanize?: boolean;
   api_auth_token?: string;
 }
 

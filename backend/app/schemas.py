@@ -317,6 +317,7 @@ class SettingsIn(BaseModel):
     availability_browser_first: bool | None = None
     availability_browser_headful: bool | None = None
     browser_engine: str | None = None
+    browser_humanize: bool | None = None
     tls_impersonations: list[str] | None = None
     repair_agency_prefixes: list[str] | None = None
     api_auth_token: str | None = None

@@ -16,6 +16,8 @@ from urllib.parse import parse_qs, quote, urlparse
 from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
 
+from .browser_engine import PlaywrightEngine
+
 logger = logging.getLogger(__name__)
 
 
@@ -815,6 +817,11 @@ class AdProbe(BaseScraper):
         self._pw: typing.Any = None
         self._browser_ctx: typing.Any = None
         self._browser_page: typing.Any = None
+        # The BrowserEngine adapter the check logic actually drives
+        # (scrapers/browser_engine.py): the ctx/page pair above stays around
+        # for lifecycle management, but everything between goto and content
+        # goes through this seam so a non-Playwright engine can drop in.
+        self._engine: typing.Any = None
         self._browser_warmed_hosts: set[str] = set()
         # Browser-first mode: once set, `check()` skips curl_cffi entirely and
         # answers through the persistent Playwright context. The point is to
@@ -902,7 +909,8 @@ class AdProbe(BaseScraper):
             self._browser_ctx.pages[0] if self._browser_ctx.pages else self._browser_ctx.new_page()
         )
         self._browser_warmed_hosts = set()
-        engine = getattr(self._browser_ctx, "_engine_label", "browser")
+        self._engine = PlaywrightEngine(self._browser_ctx, self._browser_page)
+        engine = self._engine.engine_label
         if self._browser_headful:
             self.browser_status = f"{engine} (visible window)"
         elif self._headful_forced_off:
@@ -988,6 +996,7 @@ class AdProbe(BaseScraper):
                 pass
             self._pw = None
         self._browser_page = None
+        self._engine = None
 
     def check(self, url: str) -> bool | None:
         """True = still online, False = gone, None = could not tell."""
@@ -1091,25 +1100,39 @@ class AdProbe(BaseScraper):
             logger.warning("ad-probe: _browser_check fallback failed for %s (%s)", url, e)
             return None
 
+    def _current_engine(self):
+        """The BrowserEngine this probe drives. Normally built by
+        `_start_browser_session_inner`; a bare page wired in directly (the
+        offline tests do this) gets wrapped in the same Playwright adapter, so
+        there is exactly one code path whichever way the browser arrived."""
+        if self._engine is not None:
+            return self._engine
+        if self._browser_page is not None:
+            return PlaywrightEngine(self._browser_ctx, self._browser_page)
+        return None
+
     def _browser_check_inner(self, url: str) -> bool | None:
         try:
-            page = self._browser_page
-            if page is None:
+            eng = self._current_engine()
+            if eng is None:
                 return None
             host = urlparse(url).netloc
+            home_ref = f"https://{host}/"
             if host not in self._browser_warmed_hosts:
                 # domcontentloaded, not networkidle: ad-tech keeps portal
                 # homepages busy forever, so networkidle just burns the timeout.
-                home = f"https://{host}/"
-                resp_home = page.goto(home, wait_until="domcontentloaded", timeout=25000)
-                if resp_home and resp_home.status not in (403, 429):
+                home_status = eng.open(home_ref, timeout_ms=25000)
+                if home_status is not None and home_status not in (403, 429):
                     self._browser_warmed_hosts.add(host)
-                page.wait_for_timeout(3000)
+                eng.wait(3000)
 
-            home_ref = f"https://{host}/"
-            resp = page.goto(url, referer=home_ref, wait_until="domcontentloaded", timeout=25000)
-            if not resp:
+            status = eng.open(url, referer=home_ref, timeout_ms=25000)
+            if status is None:
                 return None
+            # A real visitor lands, moves, glances, then the DOM is read: a page
+            # with zero pointer events is itself a bot tell to DataDome's
+            # behavioral scoring. Fail-open and gated by `browser_humanize`.
+            eng.humanize()
             # A definitive "gone" answer (404/410 or the portal's own "no longer
             # available" copy) is authoritative and must be read BEFORE the block
             # heuristic below: a genuinely removed ad page still ships DataDome's
@@ -1118,25 +1141,23 @@ class AdProbe(BaseScraper):
             # window shows the "non più disponibile" page yet the batch reports
             # 0 removed. A real CAPTCHA wall carries neither signal, so this
             # cannot swallow a genuine block.
-            if self._page_says_gone(resp, page):
+            if self._engine_says_gone(status, eng):
                 return False
             if (
-                resp.status in (403, 429)
-                or "captcha" in page.content()[:4000].lower()
-                or has_block_marker(page.content())
+                status in (403, 429)
+                or "captcha" in eng.content()[:4000].lower()
+                or has_block_marker(eng.content())
             ):
-                page.wait_for_timeout(5000)
-                if "captcha" in page.content()[:4000].lower():
-                    if self._browser_headful and self._wait_for_human_solve(page):
+                eng.wait(5000)
+                if "captcha" in eng.content()[:4000].lower():
+                    if self._browser_headful and self._wait_for_human_solve(eng):
                         # The user solved the challenge in the visible window:
                         # the shared profile now holds a real DataDome cookie.
                         # Re-navigate to read the ad through the cleared session.
-                        resp = page.goto(
-                            url, referer=home_ref, wait_until="domcontentloaded", timeout=25000
-                        )
-                        if not resp:
+                        status = eng.open(url, referer=home_ref, timeout_ms=25000)
+                        if status is None:
                             return None
-                        if self._page_says_gone(resp, page):
+                        if self._engine_says_gone(status, eng):
                             return False
                     else:
                         # Headless (or the headful window went unsolved): report
@@ -1146,32 +1167,32 @@ class AdProbe(BaseScraper):
                         self.was_blocked = True
                         self.last_error = "Blocked by DataDome (browser CAPTCHA)"
                         return None
-                elif resp.status in (403, 429) or has_block_marker(page.content()):
+                elif status in (403, 429) or has_block_marker(eng.content()):
                     # A soft 403 with no CAPTCHA markup, or DataDome's static
                     # "temporarily restricted" wall served 200: still the portal
                     # refusing. Stay fail-open (None, never False) but feed the
                     # caller's block streak, or a repeated soft block would never
                     # trigger the abort/recovery levers.
                     self.was_blocked = True
-                    self.last_error = f"Blocked by DataDome (browser HTTP {resp.status})"
+                    self.last_error = f"Blocked by DataDome (browser HTTP {status})"
                     return None
             path = urlparse(url).path.rstrip("/")
-            if resp.status in (404, 410):
+            if status in (404, 410):
                 return False
-            if resp.status >= 400:
+            if status >= 400:
                 return None
-            if path and path not in urlparse(str(page.url)).path:
+            if path and path not in urlparse(eng.url()).path:
                 return False
-            is_online = not text_says_gone(page.content())
+            is_online = not text_says_gone(eng.content())
             if is_online:
                 try:
                     from bs4 import BeautifulSoup
 
-                    self.last_soup = BeautifulSoup(page.content(), "html.parser")
+                    self.last_soup = BeautifulSoup(eng.content(), "html.parser")
                 except Exception:
                     pass
             try:
-                cookies = self._browser_ctx.cookies(home_ref)
+                cookies = eng.cookies(home_ref)
                 dd = [c["value"] for c in cookies if c["name"] == "datadome"]
                 if dd and hasattr(self, "session") and self.session:
                     self.session.cookies.set("datadome", dd[0], domain=f".{host}")
@@ -1183,20 +1204,20 @@ class AdProbe(BaseScraper):
             return None
 
     @staticmethod
-    def _page_says_gone(resp, page) -> bool:
-        """A browser response that definitively means "ad gone": a 404/410
+    def _engine_says_gone(status: int | None, eng) -> bool:
+        """A browser answer that definitively means "ad gone": a 404/410
         status or the portal's own "no longer available" copy in the rendered
         page. Deliberately excludes the block heuristic (403/CAPTCHA) so callers
         can consult it *before* that check — a removed-ad page can still carry
         DataDome's anti-bot script, and only these signals are unambiguous."""
         try:
-            if resp is not None and resp.status in (404, 410):
+            if status is not None and status in (404, 410):
                 return True
-            return text_says_gone(page.content())
+            return text_says_gone(eng.content())
         except Exception:
             return False
 
-    def _wait_for_human_solve(self, page) -> bool:
+    def _wait_for_human_solve(self, eng) -> bool:
         """Poll a visible CAPTCHA page until the user clears it, or time out.
 
         Runs on the probe's dedicated Playwright thread (the caller already
@@ -1216,6 +1237,13 @@ class AdProbe(BaseScraper):
         """
         import time as _time
 
+        # Drift the cursor toward the challenge region before handing off:
+        # a session whose pointer approaches the widget reads as the human
+        # who is about to solve it (and never hurts — fail-open).
+        try:
+            eng.humanize()
+        except Exception:
+            pass
         deadline = _time.monotonic() + self._HEADFUL_SOLVE_TIMEOUT_MS / 1000.0
         logger.info(
             "ad-probe: headful CAPTCHA — waiting up to %ds for the user to solve it",
@@ -1225,9 +1253,9 @@ class AdProbe(BaseScraper):
             if self._cancel_event is not None and self._cancel_event.is_set():
                 logger.info("ad-probe: headful CAPTCHA wait cancelled by the user")
                 return False
-            page.wait_for_timeout(3000)
+            eng.wait(3000)
             try:
-                if "captcha" not in page.content()[:4000].lower():
+                if "captcha" not in eng.content()[:4000].lower():
                     logger.info("ad-probe: headful CAPTCHA cleared by the user")
                     return True
             except Exception:
