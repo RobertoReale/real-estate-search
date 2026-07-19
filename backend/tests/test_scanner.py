@@ -38,6 +38,14 @@ def test_structured_basement_is_recognized():
     assert "seminterrato" in texts
 
 
+def test_structured_mezzanine_is_recognized():
+    """floor="R" is the portals' abbreviation for "piano rialzato": without the
+    translation an excluded keyword "rialzato" never sees it (the word lives only
+    on the ad detail page, which the scan doesn't fetch) and it stays active."""
+    texts = scanner._texts_for_filter(_raw(floor="R"), _prop(floor="R"))
+    assert "piano rialzato" in texts
+
+
 def test_normal_floor_does_not_generate_misleading_text():
     texts = scanner._texts_for_filter(_raw(floor="3"), _prop(floor="3"))
     assert "piano terra" not in texts

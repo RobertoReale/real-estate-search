@@ -34,6 +34,8 @@ GONE_AFTER_DAYS = 7
 FLOOR_AS_TEXT = {
     "t": "piano terra",
     "pt": "piano terra",
+    "r": "piano rialzato",
+    "pr": "piano rialzato",
     "s": "seminterrato",
     "sm": "seminterrato",
 }

@@ -362,7 +362,23 @@ def test_floor_band_filter_reads_the_free_text_label(db):
     )
     db.commit()
 
-    assert [p.id for p in list_properties(db=db, floor_band="ground")] == [ground.id]
+    # "R" (piano rialzato) is stored as the bare abbreviation and must count as
+    # ground, or the mezzanine falls through the parser and drops out of the band
+    mezzanine = upsert_listing(
+        db,
+        _raw(
+            portal="immobiliare",
+            portal_id="6",
+            url="https://www.immobiliare.it/annunci/6/",
+            floor="R",
+            latitude=45.30,
+            longitude=9.30,
+            address="Via Sesta, 9",
+        ),
+    )[0]
+    db.commit()
+
+    assert {p.id for p in list_properties(db=db, floor_band="ground")} == {ground.id, mezzanine.id}
     assert [p.id for p in list_properties(db=db, floor_band="low")] == [second.id]
     assert [p.id for p in list_properties(db=db, floor_band="high")] == [seventh.id]
     assert [p.id for p in list_properties(db=db, floor_band="top")] == [attic.id]

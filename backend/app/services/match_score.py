@@ -55,7 +55,10 @@ def _parse_floor(floor: str) -> int | None:
     norm = _normalize(floor)
     if not norm:
         return None
-    if "terra" in norm or "rialzat" in norm:
+    # "R" is the portals' abbreviation for "piano rialzato": it arrives as the
+    # bare token, never spelled out, so match it explicitly or the mezzanine
+    # falls through to None and drops out of the "ground" band.
+    if "terra" in norm or "rialzat" in norm or norm in ("r", "pr"):
         return 0
     m = _FLOOR_NUM_RE.search(norm)
     return int(m.group()) if m else None
