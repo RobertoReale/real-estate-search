@@ -301,8 +301,11 @@ class SettingsIn(BaseModel):
     max_pages_per_search: int | None = None
     health_alert_after_failures: int | None = None
     proxy_url: str | None = None
+    proxy_urls: list[str] | None = None
     scrape_api_provider: str | None = None
     scrape_api_key: str | None = None
+    scrape_api_mode: str | None = None
+    transport_escalate_after_failures: int | None = None
     nominatim_url: str | None = None
     nl_parser_backend: str | None = None
     llm_base_url: str | None = None
@@ -315,6 +318,7 @@ class SettingsIn(BaseModel):
     availability_browser_headful: bool | None = None
     browser_engine: str | None = None
     tls_impersonations: list[str] | None = None
+    repair_agency_prefixes: list[str] | None = None
     api_auth_token: str | None = None
 
     @field_validator("health_alert_after_failures")
@@ -329,6 +333,13 @@ class SettingsIn(BaseModel):
     def known_scrape_provider(cls, v: str | None) -> str | None:
         if v is not None and v not in ("scrapfly", "scraperapi", "zyte"):
             raise ValueError("must be one of: scrapfly, scraperapi, zyte")
+        return v
+
+    @field_validator("scrape_api_mode")
+    @classmethod
+    def known_scrape_mode(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("always", "fallback"):
+            raise ValueError("must be one of: always, fallback")
         return v
 
     @field_validator("nl_parser_backend")

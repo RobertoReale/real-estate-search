@@ -7,6 +7,7 @@ import json
 import logging
 import random
 import re
+import threading
 import time
 import typing
 from dataclasses import dataclass, field
@@ -59,6 +60,88 @@ def resolve_impersonations(
 
 class BlockedError(Exception):
     """The portal blocked the request (403/CAPTCHA DataDome etc.)."""
+
+
+# --- Residential proxy pool ------------------------------------------------
+#
+# DataDome scores IP reputation, so one blocked address must not take the whole
+# pipeline down with it. The pool is deliberately simple: a session picks one
+# proxy at creation (sticky — mid-session IP hops are themselves a bot signal),
+# a block puts that proxy in a cool-down, and the next session skips proxies
+# still cooling. An empty pool means direct connection, today's behavior.
+
+# Long enough for DataDome's short-lived IP flags to decay, short enough that a
+# small pool is not starved for a whole scan cycle.
+PROXY_COOLDOWN_SECONDS = 900.0
+
+
+class ProxyPool:
+    """Process-wide registry of configured proxies and their cool-downs.
+
+    State is module-level on purpose: scraper sessions come and go (every TLS
+    rotation builds a new one), but "this exit IP was just blocked" must
+    survive them or each new session re-spends a block on the same proxy.
+    """
+
+    def __init__(self, cooldown_seconds: float = PROXY_COOLDOWN_SECONDS):
+        self.cooldown_seconds = cooldown_seconds
+        self._burned_at: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def configured_proxies(settings: dict) -> list[str]:
+        """The effective pool: `proxy_urls` plus the legacy single `proxy_url`
+        (kept as a one-element shorthand), order preserved, blanks and
+        duplicates dropped."""
+        urls: list[str] = []
+        single = (settings.get("proxy_url") or "").strip()
+        if single:
+            urls.append(single)
+        for raw in settings.get("proxy_urls") or []:
+            if isinstance(raw, str):
+                candidate = raw.strip()
+                if candidate and candidate not in urls:
+                    urls.append(candidate)
+        return urls
+
+    def pick(self, settings: dict) -> str | None:
+        """Choose the proxy for a new session, skipping those in cool-down.
+
+        With every proxy cooling, the least-recently-burned one is returned
+        rather than None: the user configured a pool expecting traffic to be
+        proxied, and silently going direct would expose the residential IP —
+        the exact failure mode the existing "no try around session.proxies"
+        comment guards against.
+        """
+        pool = self.configured_proxies(settings)
+        if not pool:
+            return None
+        now = time.monotonic()
+        with self._lock:
+            available = [
+                p
+                for p in pool
+                if now - self._burned_at.get(p, -self.cooldown_seconds) >= self.cooldown_seconds
+            ]
+            if available:
+                return available[0]
+            return min(pool, key=lambda p: self._burned_at.get(p, 0.0))
+
+    def burn(self, proxy: str | None) -> None:
+        """Record a block on `proxy`, starting its cool-down."""
+        if not proxy:
+            return
+        with self._lock:
+            self._burned_at[proxy] = time.monotonic()
+        logger.info("proxy pool: cooling down %s after a block", _mask_proxy(proxy))
+
+
+def _mask_proxy(proxy: str) -> str:
+    """Log-safe proxy label: credentials stripped ('user:pass@host' -> 'host')."""
+    return proxy.rsplit("@", 1)[-1]
+
+
+proxy_pool = ProxyPool()
 
 
 def detect_contract(search_url: str) -> str:
@@ -342,6 +425,13 @@ class BaseScraper:
     # if blocked, retry with the next impersonation profile
     rotate_on_block = True
     _warmed = False
+    _current_proxy: str | None = None
+    # Whether a configured scrape-API key routes fetches through the provider
+    # from the start. True by default (a set key = the user asked for it —
+    # today's behavior, and what AdProbe/email-import keep); the scanner sets
+    # it per profile from transport_policy.decide, so `scrape_api_mode=
+    # "fallback"` starts on the free path and only escalates on a block.
+    use_scrape_api = True
 
     def __init__(self, delay_seconds: float = 6.0, max_pages: int = 10):
         self.delay_seconds = delay_seconds
@@ -381,7 +471,11 @@ class BaseScraper:
         settings = load_settings()
         # A configured proxy that fails to apply means the user thinks traffic
         # is proxied when it is not: that must not be silent, so no try here.
-        proxy_url = (settings.get("proxy_url") or "").strip()
+        # The pool hands out one proxy per session (sticky); a block burns it
+        # via proxy_pool.burn in _rotate_session, so the rebuilt session exits
+        # through a different IP.
+        proxy_url = proxy_pool.pick(settings)
+        self._current_proxy = proxy_url
         if proxy_url:
             session.proxies = {"http": proxy_url, "https": proxy_url}
         try:
@@ -399,6 +493,10 @@ class BaseScraper:
 
     def _rotate_session(self) -> bool:
         """Switch to the next impersonation profile. False if all exhausted (or wrap around for ad-probe)."""
+        # Rotation only ever happens on a block, and the block may be about the
+        # exit IP as much as the TLS handshake: cool the proxy down so the
+        # rebuilt session (and every other new session) picks a different one.
+        proxy_pool.burn(self._current_proxy)
         if self._imp_index + 1 >= len(self.impersonations):
             if self.portal == "ad-probe" and len(self.impersonations) > 1:
                 import time
@@ -456,7 +554,7 @@ class BaseScraper:
 
     def _fetch_once(self, url: str) -> str:
         provider, key = scrape_api_config()
-        if key:
+        if key and self.use_scrape_api:
             return self._fetch_via_scrape_api(url, provider, key)
         resp = self.session.get(url, allow_redirects=True)
         if resp.status_code in (403, 429) or "captcha" in resp.text[:4000].lower():
@@ -479,6 +577,19 @@ class BaseScraper:
             except BlockedError as e:
                 last_error = e
                 if not self.rotate_on_block or not self._rotate_session():
+                    # top of the ladder (plan B.3): with the whole local
+                    # rotation exhausted, a configured scrape API is the last
+                    # rung before giving up — but only once (use_scrape_api
+                    # flips), so an API refusal still terminates.
+                    provider, key = scrape_api_config()
+                    if key and not self.use_scrape_api:
+                        logger.info(
+                            "%s: local transports exhausted, escalating to scrape API (%s)",
+                            self.portal,
+                            provider,
+                        )
+                        self.use_scrape_api = True
+                        continue
                     raise last_error from e
 
     def polite_sleep(self):

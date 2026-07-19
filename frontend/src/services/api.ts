@@ -5,7 +5,7 @@ import type {
   AssistantResult, EmailScanParams, EmailScanProgress,
   EmailScanSummary, GeocodeProgress, GeocodeSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
   ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
-  ProfileResults, Property, PropertyFilters, ScanStatus, SearchBuilderParams,
+  ProfileResults, Property, PropertyFilters, ScanStatus, ScraperHealth, SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
 } from "../types";
 
@@ -250,6 +250,11 @@ export const api = {
     const params = new URLSearchParams({ contract });
     if (city) params.set("city", city);
     return request(`/market-velocity?${params}`);
+  },
+
+  /** Per-portal scraping health: daily block rates, transports, streaks. */
+  getScraperHealth(days = 30): Promise<ScraperHealth> {
+    return request(`/scraper-health?${new URLSearchParams({ days: String(days) })}`);
   },
 
   /** Areas that have enough daily snapshots to plot a price trend. */

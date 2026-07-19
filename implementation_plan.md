@@ -143,7 +143,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 519 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 561 tests (incl. hypothesis property tests)
 │   ├── requirements.txt
 │   ├── requirements-dev.txt      # dev-only: ruff, hypothesis, pytest-cov, pip-audit, pre-commit
 │   ├── pyproject.toml            # ruff + coverage config (never read by the runtime)

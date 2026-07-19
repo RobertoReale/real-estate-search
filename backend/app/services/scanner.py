@@ -10,8 +10,8 @@ from sqlalchemy import select
 from ..config import load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
-from ..scrapers import get_scraper
-from . import deal_score, notifier, pricing_stats
+from ..scrapers import get_scraper, transport_policy
+from . import deal_score, notifier, pricing_stats, scraper_health
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
 
@@ -223,9 +223,24 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     scraper = get_scraper(profile.portal)
     scraper.delay_seconds = float(settings.get("request_delay_seconds", 6.0))
     scraper.max_pages = int(settings.get("max_pages_per_search", 10))
+    # health-driven transport choice (plan B.3): with scrape_api_mode=
+    # "fallback" the scan starts on the free local path and only spends the
+    # paid API when this profile's failure streak says local is down; the
+    # default "always" keeps a configured key routing everything as before.
+    decision = transport_policy.decide(profile.consecutive_failures or 0, settings)
+    scraper.use_scrape_api = decision.start_on_api
 
     result = scraper.scrape(profile.search_url)
     profile.last_run_at = datetime.now(UTC)
+    # observability (plan B.5): accumulate this scan into today's per-portal
+    # health row. transport_used re-reads the scraper because a blocked local
+    # ladder may have escalated to the API mid-scan.
+    _status = (
+        "blocked" if result.blocked else ("error" if result.error and not result.listings else "ok")
+    )
+    scraper_health.record_scan(
+        db, profile.portal, _status, transport_policy.transport_used(scraper, settings)
+    )
 
     if result.blocked:
         profile.last_run_status = "blocked"

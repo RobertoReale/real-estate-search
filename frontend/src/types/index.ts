@@ -196,9 +196,17 @@ export interface Settings {
   max_pages_per_search: number;
   health_alert_after_failures: number;
   proxy_url: string;
+  // residential proxy pool: proxy_url is the one-element shorthand, this list
+  // adds rotate-on-block IP diversity
+  proxy_urls?: string[];
   scrape_api_provider?: string;
   scrape_api_key?: string;
   scrape_api_key_set?: boolean;
+  // "always" = a set key routes every fetch through the provider;
+  // "fallback" = free path first, paid API only on block/streak
+  scrape_api_mode?: string;
+  transport_escalate_after_failures?: number;
+  repair_agency_prefixes?: string[];
   datadome_cookie: string;
   datadome_cookie_set?: boolean;
   datadome_auto_refresh?: boolean;
@@ -463,6 +471,38 @@ export interface MarketVelocity {
   tracking_since: string | null;
   areas: AreaVelocity[];
   agencies: AgencyBehavior[];
+}
+
+export interface ScraperHealthDay {
+  date: string; // ISO date
+  attempts: number;
+  successes: number;
+  blocked: number;
+  errors: number;
+}
+
+export interface ScraperHealthPortal {
+  portal: string;
+  days: ScraperHealthDay[];
+  last_transport: string;
+  attempts: number;
+  failures: number;
+  block_rate: number; // 0..1 over the window
+}
+
+export interface ScraperHealthProfileStreak {
+  profile_id: number;
+  name: string;
+  portal: string;
+  consecutive_failures: number;
+  last_run_status: string;
+}
+
+export interface ScraperHealth {
+  window_days: number;
+  portals: ScraperHealthPortal[];
+  profiles: ScraperHealthProfileStreak[];
+  transport: string; // the transport the next scan would start on
 }
 
 export interface PricingTrendPoint {

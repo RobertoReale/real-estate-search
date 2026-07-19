@@ -1256,6 +1256,26 @@ def pricing_trend_comparables(
 # --- Scan ---
 
 
+@app.get("/api/scraper-health")
+def scraper_health_endpoint(
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365),
+):
+    """Per-portal scraping health over the window (plan-resilience B.5): daily
+    attempts/blocked/errors accumulated at scan time, the transport that
+    carried the last scan, and the live per-profile failure streaks. This is
+    the panel that turns "scans mysteriously stopped" into a visible trend and
+    says when to add proxies or a scrape-API key."""
+    from .scrapers import transport_policy
+    from .services import scraper_health
+
+    settings = load_settings()
+    health = scraper_health.get_health(db, days=days)
+    worst_streak = max((p["consecutive_failures"] for p in health["profiles"]), default=0)
+    health["transport"] = transport_policy.decide(worst_streak, settings).label
+    return health
+
+
 @app.post("/api/scrapers/trigger")
 def trigger_scan(profile_id: int | None = None):
     if scan_state["running"]:

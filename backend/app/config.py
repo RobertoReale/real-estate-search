@@ -92,6 +92,13 @@ DEFAULT_SETTINGS = {
     # ignore the alerts. 0 disables health alerting entirely.
     "health_alert_after_failures": 3,
     "proxy_url": "",
+    # Optional residential proxy pool. `proxy_url` stays as the one-element
+    # shorthand; this list adds IP diversity: each scraper session sticks to one
+    # proxy, and a block puts that proxy in a cool-down so the next session (or
+    # the next TLS rotation) exits through a different IP. DataDome scores IP
+    # reputation, so burning one address must not burn them all. Empty list +
+    # empty proxy_url = direct connection, exactly today's behavior.
+    "proxy_urls": [],
     # Optional scraping API that solves DataDome server-side (Scrapfly /
     # ScraperAPI / Zyte). Unlike a proxy these are not transparent: the scraper
     # POSTs the *target* URL to the provider and gets back the solved HTML, so
@@ -101,6 +108,16 @@ DEFAULT_SETTINGS = {
     # capable — dependency; see IMPROVEMENTS.md / ROADMAP.md.
     "scrape_api_provider": "scrapfly",  # scrapfly | scraperapi | zyte
     "scrape_api_key": "",
+    # How the configured scrape API is spent (scrapers/transport_policy.py).
+    # "always" (default) = a set key routes every fetch through the provider,
+    # today's behavior. "fallback" = each scan starts on the free local path
+    # and escalates to the paid API only when blocked (mid-scan, after the TLS
+    # rotation is exhausted) or when the profile's failure streak says the
+    # local path is down (transport_escalate_after_failures) — the cost-aware
+    # ladder: free path in good weather, the provider's success rate only
+    # during an actual outage.
+    "scrape_api_mode": "always",  # always | fallback
+    "transport_escalate_after_failures": 2,
     # TLS impersonation override (advanced). Empty = use each scraper's built-in,
     # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
     # profile names (e.g. ["safari260", "safari184"]) replaces it for every
@@ -138,6 +155,19 @@ DEFAULT_SETTINGS = {
     # "chromium" pins the current behaviour; "camoufox" forces it (and still
     # falls back to Chromium if the launch fails, e.g. its browser is unfetched).
     "browser_engine": "auto",
+    # Agency names whose "AGENCY: ..." prefixes the repair maintenance strips
+    # from imported titles (services/repair_listings.py). Seeded with the
+    # agencies met so far so behavior is unchanged on existing data; a user in
+    # another market appends their local agencies here instead of editing code.
+    "repair_agency_prefixes": [
+        "affiliato",
+        "gabetti",
+        "tempocasa",
+        "studio quattro",
+        "strategie immobiliari",
+        "dhome real estate",
+        "cosetta fiori",
+    ],
     # Optional shared-secret API token. Empty (default) = the API is open and
     # the bind address is the only access control (invariant 14). A non-empty
     # value requires every /api request to carry `Authorization: Bearer <token>`,

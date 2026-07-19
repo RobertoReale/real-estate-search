@@ -11,6 +11,7 @@ import MarketVelocityPanel from "./components/MarketVelocity";
 import LogViewer from "./components/LogViewer";
 import Navbar from "./components/Navbar";
 import PriceTrends from "./components/PriceTrends";
+import ScraperHealthPanel from "./components/ScraperHealth";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
 import PropertyModal from "./components/PropertyModal";
@@ -381,6 +382,8 @@ export default function App() {
         <SearchProfiles profiles={profiles} settings={settings} onChanged={refresh} />
 
         <EmailImport profiles={profiles} settings={settings} onChanged={refresh} />
+
+        {hasProfiles && <ScraperHealthPanel />}
 
         {hasProfiles && (
           <MarketVelocityPanel contract={filters.contract} city={filters.city} />

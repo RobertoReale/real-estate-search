@@ -278,6 +278,34 @@ class PricingSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class ScraperHealthSnapshot(Base):
+    """One day of scraping outcomes per portal, accumulated scan by scan.
+
+    The anti-bot pipeline degrades silently: a blocked scraper produces no
+    listings, which looks exactly like a quiet market (the same blindness that
+    motivated the per-profile health streak, invariant 11 — but the streak only
+    knows the *current* outage, not the trend). Each completed profile scan
+    increments today's row for its portal, so the dashboard can plot block-rate
+    over time and say which transport carried the last success. This is what
+    tells the user *when* to add proxies or a scrape-API key, before scans
+    "mysteriously stop finding listings".
+    """
+
+    __tablename__ = "scraper_health_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    captured_on: Mapped[date] = mapped_column(Date, index=True)
+    portal: Mapped[str] = mapped_column(String, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    successes: Mapped[int] = mapped_column(Integer, default=0)
+    blocked: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    # human-readable label of the transport the *last* scan of the day used
+    # ("local (curl_cffi)", "managed scrape API", ...), for the health panel
+    last_transport: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class GeocodeCache(Base):
     """One resolved (or unresolved) geocoding lookup, keyed by its query string.
 

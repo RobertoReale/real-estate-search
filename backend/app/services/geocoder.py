@@ -33,6 +33,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..models import GeocodeCache, Property
+from . import geo_reference
 
 logger = logging.getLogger(__name__)
 
@@ -116,48 +117,15 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
 
-KNOWN_CITY_BOXES: dict[str, tuple[float, float, float, float]] = {
-    # lat_min, lat_max, lon_min, lon_max
-    "milano": (45.34, 45.56, 9.01, 9.31),
-    "roma": (41.65, 42.05, 12.20, 12.75),
-    "torino": (44.95, 45.16, 7.55, 7.78),
-    "bologna": (44.40, 44.57, 11.23, 11.45),
-    "firenze": (43.70, 43.83, 11.16, 11.33),
-    "napoli": (40.80, 40.90, 14.15, 14.35),
-    "genova": (44.38, 44.47, 8.75, 9.08),
-    "palermo": (38.05, 38.21, 13.25, 13.45),
-    "bari": (41.05, 41.17, 16.78, 16.95),
-    "catania": (37.45, 37.56, 15.01, 15.13),
-    "verona": (45.38, 45.49, 10.92, 11.06),
-    "padova": (45.35, 45.46, 11.81, 11.95),
-    "trieste": (45.60, 45.73, 13.71, 13.86),
-    "brescia": (45.49, 45.59, 10.15, 10.28),
-    "parma": (44.75, 44.86, 10.26, 10.39),
-    "monza": (45.56, 45.61, 9.24, 9.31),
-    "bergamo": (45.67, 45.73, 9.63, 9.72),
-    "udine": (46.02, 46.10, 13.19, 13.28),
-    "modena": (44.60, 44.70, 10.86, 10.98),
-    "reggio emilia": (44.65, 44.75, 10.57, 10.69),
-    "perugia": (43.05, 43.16, 12.33, 12.45),
-    "cagliari": (39.18, 39.26, 9.08, 9.18),
-    "foggia": (41.42, 41.50, 15.50, 15.60),
-    "rimini": (44.02, 44.10, 12.52, 12.62),
-    "salerno": (40.65, 40.71, 14.74, 14.84),
-    "ferrara": (44.80, 44.88, 11.56, 11.66),
-}
-
-
 def is_valid_coordinate_for_city(lat: float | None, lon: float | None, city: str) -> bool:
-    """Checks if (lat, lon) falls roughly inside Italy and within the target city's bounds."""
-    if lat is None or lon is None:
-        return False
-    if not (35.0 <= lat <= 47.5 and 6.5 <= lon <= 18.6):
-        return False
-    key = _normalize(city)
-    if key in KNOWN_CITY_BOXES:
-        lat_min, lat_max, lon_min, lon_max = KNOWN_CITY_BOXES[key]
-        return lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
-    return True
+    """Checks if (lat, lon) falls roughly inside Italy and near the target city.
+
+    Name and signature kept from the hand-drawn-boxes era so callers and tests
+    don't churn; the actual judgment now comes from the bundled comuni
+    gazetteer (geo_reference), which covers every Italian municipality instead
+    of 26 remembered ones.
+    """
+    return geo_reference.is_plausible_coordinate(lat, lon, city)
 
 
 def _is_in_city(item_address: dict, expected_city: str) -> bool:
@@ -235,7 +203,9 @@ def build_queries(prop: Property) -> list[str]:
             _add(f"{clean_addr}, {city}, Italia")
 
     zone = (prop.zone or "").strip()
-    if zone and _normalize(zone) not in ("in vendita a milano", "vendita a milano"):
+    from .repair_listings import is_placeholder_zone
+
+    if zone and not is_placeholder_zone(zone):
         clean_zone = _clean_street_name(zone)
         _add(f"{zone}, {city}, Italia")
         if clean_zone and len(clean_zone) >= 3 and _normalize(clean_zone) != _normalize(zone):

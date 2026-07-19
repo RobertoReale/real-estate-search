@@ -242,7 +242,11 @@ contrast, stops scanning it altogether.
   OpenStreetMap outage can leave a perfectly good address stuck as "not found";
   the **🧹 Retry failed lookups** button (next to *Find coordinates*) forgets
   those failed lookups so the next *Find coordinates* tries them again — it only
-  clears the lookup memory and never moves a pin you already have.
+  clears the lookup memory and never moves a pin you already have. Both the
+  lookup's sanity check and the *Repair data* city detection work for **every
+  Italian comune** (a bundled offline index of all ~7,900 municipalities), not
+  just a shortlist of big cities — a wrong-looking pin is judged against its own
+  town's actual location, and city names anywhere in Italy are recognized.
 * **Draw a zone on the map**: filter the whole dashboard by area directly on the
   map. Press **◯ Draw radius**, click a centre and drag the handle to size the
   circle; or **⬠ Draw area**, click each corner and double-click to close a free
@@ -288,6 +292,13 @@ contrast, stops scanning it altogether.
   *Mark sold* count as **confirmed** sales here — a real close date rather than
   the "not seen for a while" guess — and the panel reports how many of the
   closes are confirmed.
+* **Scraper health**: a panel showing, portal by portal, how the last month of
+  scans actually went — one colored cell per day (green = every scan ok, amber =
+  some failed, red = all failed), the failure rate over the window, which
+  transport carried the last scan, and which searches are currently on a failure
+  streak. A blocked scraper is otherwise silent (no listings looks exactly like
+  a quiet market), so this is the place that says *the pipeline is degrading,
+  add a proxy pool or a scraping-API key* before scans quietly stop delivering.
 * **Tags**: create your own free-form categories — "senza ascensore", "con
   giardino", "mi piace ma…" — and attach as many as you like to a property,
   right from its card or the detail modal. Typing a name that already exists
@@ -586,9 +597,13 @@ You can provide that cookie in three ways, from most to least automatic:
   from the developer tools, and paste it into the Cookie field. The panel has
   step-by-step instructions. The cookie expires after ~1 hour, so this is the
   gesture the automatic grab removes.
-* **Proxy** — as a last resort, route scraper traffic through a proxy
+* **Proxy** — route scraper traffic through a proxy
   (Settings → Proxy URL). Note a *datacenter* proxy is blocked harder than your
-  home IP; only a residential proxy helps.
+  home IP; only a residential proxy helps. You can also list **several proxies**
+  (Settings → *Proxy pool*, one URL per line): each scraping session sticks to
+  one of them, and an address that gets blocked is rested for a while so the
+  next attempt leaves through a different IP — one burned proxy no longer takes
+  every scan down with it.
 * **Scraping API** — for the sturdiest option, paste a key from a DataDome-solving
   scraping API (Settings → Advanced Scraping → *Scraping API*: Scrapfly,
   ScraperAPI or Zyte). Instead of fetching pages from your own IP, each scan
@@ -598,6 +613,12 @@ You can provide that cookie in three ways, from most to least automatic:
   cloud service, and it stays **optional**: free tiers (~1,000 calls/month) can
   cover a small personal scanner, and with no key set the app runs exactly as
   before, fully local. Empty the key to go back to the local path.
+  By default a saved key handles *every* fetch; switch **When to use it** to
+  *"Only as a fallback"* to spend credits only during an actual outage — scans
+  then start on the free local path and escalate to the provider when blocked
+  (mid-scan, once the local retries are exhausted, or from the start when a
+  search has already failed its last couple of scans). The **Scraper health**
+  panel on the dashboard shows which transport carried each day's scans.
 
 Nothing here is required for the app to work — a home connection is trusted by
 DataDome most of the time on its own. These are the levers for when it isn't.

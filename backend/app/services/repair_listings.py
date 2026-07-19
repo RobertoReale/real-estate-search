@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import ImportedListing, Listing, ListingProfile, Property, SearchProfile
+from . import geo_reference
 from .deduplicator import _refresh_min_price
 
 logger = logging.getLogger(__name__)
@@ -200,138 +201,110 @@ def merge_duplicate_listings(db: Session) -> dict:
     return summary
 
 
-KNOWN_CITIES = [
-    "Milano",
-    "Roma",
-    "Torino",
-    "Bologna",
-    "Firenze",
-    "Napoli",
-    "Genova",
-    "Palermo",
-    "Bari",
-    "Catania",
-    "Verona",
-    "Padova",
-    "Trieste",
-    "Brescia",
-    "Parma",
-    "Taranto",
-    "Modena",
-    "Reggio Calabria",
-    "Reggio Emilia",
-    "Perugia",
-    "Livorno",
-    "Ravenna",
-    "Cagliari",
-    "Foggia",
-    "Rimini",
-    "Salerno",
-    "Ferrara",
-    "Latina",
-    "Giugliano in Campania",
-    "Monza",
-    "Siracusa",
-    "Pescara",
-    "Bergamo",
-    "Forlì",
-    "Trento",
-    "Vicenza",
-    "Terni",
-    "Bolzano",
-    "Novara",
-    "Piacenza",
-    "Ancona",
-    "Andria",
-    "Arezzo",
-    "Udine",
-    "Cesena",
-    "Lecce",
-    "Pesaro",
-    "Barletta",
-    "Alessandria",
-    "La Spezia",
-    "Pistoia",
-    "Pisa",
-    "Catanzaro",
-    "Lucca",
-    "Brindisi",
-    "Treviso",
-    "Como",
-    "Busto Arsizio",
-    "Varese",
-    "Sesto San Giovanni",
-    "Pozzuoli",
-    "Casoria",
-    "Cinisello Balsamo",
-    "Gela",
-    "Cremona",
-    "Pavia",
-    "Imola",
-    "Cellio con Breia",
-]
+def _detect_city(text: str, profile_cities: tuple[str, ...] | list[str] = ()) -> str:
+    """City mentioned in `text`, or "" — the layered detector of geo_reference:
+    the user's own monitored cities first, then the full ISTAT comuni index.
+    Never a default (a wrong city blocks cross-portal merges, invariant 1)."""
+    return geo_reference.detect_city(text, profile_cities)
 
 
-def _detect_city(text: str) -> str:
-    if not text:
-        return ""
-    text_clean = text.replace("_", " ").replace("-", " ")
-    for city in KNOWN_CITIES:
-        if re.search(r"\b" + re.escape(city) + r"\b", text_clean, re.I):
-            return city
-    return ""
+def _agency_prefixes() -> list[str]:
+    """Agency names whose branding pollutes imported titles. Data-driven
+    (settings `repair_agency_prefixes`, seeded with the agencies met so far)
+    so a user in another market extends the list without a code change."""
+    from ..config import load_settings
+
+    values = load_settings().get("repair_agency_prefixes") or []
+    return [str(v).strip().casefold() for v in values if str(v).strip()]
+
+
+# The structural shape of a portal auto-title: optional generic property words,
+# "in vendita/affitto", optionally anchored to place names. "Appartamento in
+# vendita", "Residenziale in affitto a Milano, Milano" and their equivalents
+# for ANY comune all match; a title carrying real information does not.
+_PLACEHOLDER_RE = re.compile(
+    r"^(?:(?:immobile|residenziale|appartamento|casa|attico|villa|loft"
+    r"|monolocale|bilocale|trilocale|quadrilocale)\s+)*"
+    r"(?:in\s+)?(?:vendita|affitto)"
+    r"(?:\s+a\s+(?P<place>.+))?$"
+)
+
+
+def _is_placeholder_phrase(text: str) -> bool:
+    """Does `text` match the auto-generated "<generic> in vendita a <comune>"
+    shape? The place tail, when present, must be real comuni (comma-separated,
+    the portal loves "a Milano, Milano") — an unknown tail means the title
+    carries information and must be kept (fail towards keeping)."""
+    normalized = " ".join((text or "").casefold().strip(" .-").split())
+    if not normalized:
+        return False
+    m = _PLACEHOLDER_RE.match(normalized)
+    if not m:
+        return False
+    place = m.group("place")
+    if not place:
+        return True
+    index = geo_reference.load_comuni()
+    segments = [s.strip() for s in place.split(",") if s.strip()]
+    return bool(segments) and all(seg in index for seg in segments)
+
+
+def is_placeholder_zone(zone: str) -> bool:
+    """'In vendita a Milano' (or any comune) stored as a zone is portal
+    boilerplate, not a place name."""
+    z = " ".join((zone or "").casefold().split())
+    m = _PLACEHOLDER_RE.match(z)
+    if not m or not m.group("place"):
+        return False
+    index = geo_reference.load_comuni()
+    segments = [s.strip() for s in m.group("place").split(",") if s.strip()]
+    return bool(segments) and all(seg in index for seg in segments)
 
 
 def is_bad_title(title: str) -> bool:
     if not title:
         return True
-    tl = title.casefold().strip(" .-")
-    if tl in (
-        "appartamento in vendita",
-        "n/a",
-        "",
-        "in vendita a milano, milano",
-        "vendita a milano, milano",
-        "residenziale in vendita a milano, milano",
-        "residenziale in vendita a milano",
-        "immobile residenziale in vendita",
-        # rent mirrors the sale placeholders above: the portal (and email
-        # alerts) generate the same kind of generic auto-title for affitto
-        "appartamento in affitto",
-        "in affitto a milano, milano",
-        "affitto a milano, milano",
-        "residenziale in affitto a milano, milano",
-        "residenziale in affitto a milano",
-        "immobile residenziale in affitto",
-    ):
+    tl = " ".join(title.casefold().strip(" .-").split())
+    if tl in ("", "n/a"):
         return True
-    if any(
-        k in tl
-        for k in (
-            "ti propone un immobile",
-            "ti propone:",
-            "affiliato ",
-            "gabetti ",
-            "tempocasa ",
-            "studio quattro",
-            "strategie immobiliari",
-            "dhome real estate",
-            "cosetta fiori",
-        )
-    ):
+    if _is_placeholder_phrase(tl):
         return True
+    if "ti propone" in tl:
+        return True
+    for prefix in _agency_prefixes():
+        if re.search(rf"(?<!\w){re.escape(prefix)}(?!\w)", tl):
+            return True
     return False
+
+
+def _strip_agency_prefix(raw: str) -> str:
+    """Strip a leading "AGENCY NAME: " from an email subject/title.
+
+    Generic shape, not a fixed alternation of named agencies: a configured
+    agency name (settings seed) always strips; otherwise a short title-case or
+    ALL-CAPS prefix does — that is how agencies brand their alert subjects,
+    while a real title's leading segment ("Attico: vista duomo") stays lower
+    after the first word and is kept.
+    """
+    m = re.match(r"^([^:\r\n]{1,60}):\s*", raw)
+    if not m:
+        return raw
+    prefix = m.group(1).strip()
+    prefix_cf = prefix.casefold()
+    if any(re.search(rf"(?<!\w){re.escape(a)}(?!\w)", prefix_cf) for a in _agency_prefixes()):
+        return raw[m.end() :]
+    words = prefix.split()
+    alpha_words = [w for w in words if w[:1].isalpha()]
+    if 2 <= len(words) <= 4 and alpha_words and all(w[:1].isupper() for w in alpha_words):
+        return raw[m.end() :]
+    if len(words) == 1 and prefix.isupper() and len(prefix) >= 4:
+        return raw[m.end() :]
+    return raw
 
 
 def _extract_zone_and_title(subject: str, city: str, orig_title: str) -> tuple[str, str]:
     raw = subject if subject and len(subject) > len(orig_title) else (orig_title or subject or "")
-    # Remove agency / alert email prefixes
-    cleaned = re.sub(
-        r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*",
-        "",
-        raw,
-        flags=re.I,
-    )
+    cleaned = _strip_agency_prefix(raw)
     cleaned = re.sub(
         r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*",
         "",
@@ -346,13 +319,7 @@ def _extract_zone_and_title(subject: str, city: str, orig_title: str) -> tuple[s
 
     zone = ""
     title = orig_title
-    if detail and detail.casefold() not in (
-        "appartamento in vendita",
-        "residenziale in vendita a milano",
-        "residenziale in affitto a milano",
-        "in vendita a milano",
-        "vendita a milano",
-    ):
+    if detail and not _is_placeholder_phrase(detail):
         parts = [p.strip() for p in re.split(r"[-–—]", detail) if p.strip()]
         if len(parts) >= 2:
             if any(
@@ -373,7 +340,10 @@ def _extract_zone_and_title(subject: str, city: str, orig_title: str) -> tuple[s
             title = f"{detail}, {city or 'Italia'}"
 
     if is_bad_title(title):
-        title = f"Immobile residenziale - {zone or city or 'Milano'}"
+        # no literal city default: an unknown location stays generic rather
+        # than being stamped with somebody else's city
+        where = zone or city
+        title = f"Immobile residenziale - {where}" if where else "Immobile residenziale"
 
     return zone[:100], title[:150]
 
@@ -385,14 +355,22 @@ def repair_empty_listings_locally(db: Session) -> dict:
     summary = {"properties_fixed": 0, "listings_fixed": 0, "images_recovered": 0}
     summary.update(merge_duplicate_listings(db))
 
-    default_city = ""
+    # The user's own monitored searches are the first city-detection layer
+    # (geo_reference's design): each profile's URL already encodes its city,
+    # and those names are always right for this user's market.
+    from .email_import import profile_criteria
+
     profiles = list(db.scalars(select(SearchProfile).where(SearchProfile.is_active.is_(True))))
-    if profiles:
-        for p in profiles:
-            c = _detect_city(p.search_url or p.name)
-            if c:
-                default_city = c
-                break
+    profile_cities: list[str] = []
+    for p in profiles:
+        try:
+            c = profile_criteria(p, []).get("city") or ""
+        except Exception:
+            c = ""
+        c = c or _detect_city(p.search_url or p.name)
+        if c and c not in profile_cities:
+            profile_cities.append(c)
+    default_city = profile_cities[0] if profile_cities else ""
 
     properties = list(db.scalars(select(Property)))
     for prop in properties:
@@ -404,11 +382,15 @@ def repair_empty_listings_locally(db: Session) -> dict:
         if not prop.city or prop.city == "N/A" or prop.city == "":
             c = ""
             for listing in prop.listings:
-                c = _detect_city(listing.description or "") or _detect_city(listing.url or "")
+                c = _detect_city(listing.description or "", profile_cities) or _detect_city(
+                    listing.url or "", profile_cities
+                )
                 if c:
                     break
             if not c and imp:
-                c = _detect_city(imp.email_subject or "") or _detect_city(imp.title or "")
+                c = _detect_city(imp.email_subject or "", profile_cities) or _detect_city(
+                    imp.title or "", profile_cities
+                )
             if not c:
                 c = default_city
             if c:
@@ -420,17 +402,14 @@ def repair_empty_listings_locally(db: Session) -> dict:
             is_bad_title(prop.title)
             or not prop.zone
             or prop.zone == ""
-            or prop.zone.casefold() in ("in vendita a milano", "vendita a milano")
+            or is_placeholder_zone(prop.zone)
         ):
             subj = imp.email_subject if imp else ""
             zone, new_title = _extract_zone_and_title(subj, prop.city, prop.title)
-            if zone and (
-                not prop.zone
-                or prop.zone.casefold() in ("in vendita a milano", "vendita a milano", "")
-            ):
+            if zone and (not prop.zone or is_placeholder_zone(prop.zone)):
                 prop.zone = zone
                 changed = True
-            elif prop.zone and prop.zone.casefold() in ("in vendita a milano", "vendita a milano"):
+            elif prop.zone and is_placeholder_zone(prop.zone):
                 prop.zone = ""
                 changed = True
             # rewrite the title only when the current one is bad: "different
@@ -443,7 +422,10 @@ def repair_empty_listings_locally(db: Session) -> dict:
                     prop.title = new_title
                     changed = True
                 else:
-                    prop.title = f"Immobile residenziale - {prop.zone or prop.city or 'Milano'}"
+                    where = prop.zone or prop.city
+                    prop.title = (
+                        f"Immobile residenziale - {where}" if where else "Immobile residenziale"
+                    )
                     changed = True
 
         # 3. Recover image_url across property, listings, and imported_listings

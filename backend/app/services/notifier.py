@@ -251,11 +251,31 @@ def notify_scraper_failure(
         else "the scraper is failing with an error"
     )
     detail = f"\n<i>{html.escape(profile.last_run_detail)}</i>" if profile.last_run_detail else ""
+    # say WHY in transport terms (plan B.5): the alert is more actionable when
+    # it states which rungs of the ladder were available and what to add next
+    from ..config import load_settings
+
+    try:
+        settings = load_settings()
+        from ..scrapers.base import ProxyPool
+
+        levers = []
+        if not ProxyPool.configured_proxies(settings):
+            levers.append("a proxy pool")
+        if not (settings.get("scrape_api_key") or "").strip():
+            levers.append("a scrape-API key")
+        advice = (
+            f"\nAll configured transports were tried; consider adding {' or '.join(levers)}."
+            if levers
+            else ""
+        )
+    except Exception:
+        advice = ""
     text = (
         f"🚨 <b>Scraper health alert</b>\n"
         f"Search <b>{html.escape(profile.name)}</b> ({profile.portal}) has "
         f"failed <b>{failures}</b> consecutive scans: {reason}.{detail}\n"
-        f"New listings from this search are not reaching you."
+        f"New listings from this search are not reaching you.{advice}"
     )
     subject = f"🚨 Scraper failing: {profile.name}"
     return broadcast(text, channels, subject=subject)

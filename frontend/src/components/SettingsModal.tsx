@@ -99,8 +99,10 @@ export default function SettingsModal({ onClose }: Props) {
   const [llmApiKey, setLlmApiKey] = useState("");
   const [llmModel, setLlmModel] = useState("");
   const [proxyUrl, setProxyUrl] = useState("");
+  const [proxyUrls, setProxyUrls] = useState("");
   const [scrapeApiProvider, setScrapeApiProvider] = useState("scrapfly");
   const [scrapeApiKey, setScrapeApiKey] = useState("");
+  const [scrapeApiMode, setScrapeApiMode] = useState("always");
   const [datadomeCookie, setDatadomeCookie] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [browserFirst, setBrowserFirst] = useState(false);
@@ -149,7 +151,9 @@ export default function SettingsModal({ onClose }: Props) {
     setLlmBaseUrl(s.llm_base_url || "");
     setLlmModel(s.llm_model || "");
     setProxyUrl(s.proxy_url || "");
+    setProxyUrls((s.proxy_urls ?? []).join("\n"));
     setScrapeApiProvider(s.scrape_api_provider || "scrapfly");
+    setScrapeApiMode(s.scrape_api_mode || "always");
     setAutoRefresh(s.datadome_auto_refresh ?? false);
     setBrowserFirst(s.availability_browser_first ?? false);
     setBrowserHeadful(s.availability_browser_headful ?? false);
@@ -196,7 +200,9 @@ export default function SettingsModal({ onClose }: Props) {
       llm_base_url: llmBaseUrl,
       llm_model: llmModel,
       proxy_url: proxyUrl,
+      proxy_urls: proxyUrls.split("\n").map((u) => u.trim()).filter(Boolean),
       scrape_api_provider: scrapeApiProvider,
+      scrape_api_mode: scrapeApiMode,
       datadome_auto_refresh: autoRefresh,
       availability_browser_first: browserFirst,
       availability_browser_headful: browserHeadful,
@@ -792,6 +798,19 @@ export default function SettingsModal({ onClose }: Props) {
             <input className="input w-full" placeholder="e.g. socks5://127.0.0.1:9050"
               value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} />
           </div>
+          <div>
+            <label className="text-xs t-muted block mb-1">
+              Proxy pool (optional, one URL per line)
+            </label>
+            <textarea className="input w-full font-mono text-xs" rows={3}
+              placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
+              value={proxyUrls} onChange={(e) => setProxyUrls(e.target.value)} />
+            <p className="text-xs t-dim mt-1">
+              With more than one proxy, a blocked exit IP is rested for a while
+              and the next attempt leaves through a different one — one burned
+              address no longer takes every scan down with it.
+            </p>
+          </div>
           <div className="rounded-xl panel p-3 space-y-2">
             <p className="text-xs font-medium t-body">🌐 Scraping API (solves DataDome for you)</p>
             <p className="text-xs t-dim">
@@ -816,6 +835,18 @@ export default function SettingsModal({ onClose }: Props) {
                   <SecretStatus set={settings.scrape_api_key_set} dirty={!!scrapeApiKey.trim()} />
                 </div>
               </div>
+            </div>
+            <div>
+              <label className="text-xs t-muted block mb-1">When to use it</label>
+              <select className="input w-full sm:w-auto" value={scrapeApiMode}
+                onChange={(e) => setScrapeApiMode(e.target.value)}>
+                <option value="always">Always (every fetch goes through the provider)</option>
+                <option value="fallback">Only as a fallback when the free path is blocked</option>
+              </select>
+              <p className="text-xs t-dim mt-1">
+                "Fallback" spends your API credits only during an actual outage:
+                scans start on the free local path and escalate when blocked.
+              </p>
             </div>
           </div>
           <div>
