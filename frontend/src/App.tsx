@@ -18,6 +18,7 @@ import PropertyModal from "./components/PropertyModal";
 import SearchProfiles from "./components/SearchProfiles";
 import SettingsModal from "./components/SettingsModal";
 import { api } from "./services/api";
+import { useT } from "./i18n";
 import type {
   ImportCheckProgress, ImportCheckSummary, Property, PropertyFilters,
   ScanStatus, SearchProfile, Settings, Tag, ViewMode,
@@ -34,6 +35,7 @@ const DEFAULT_FILTERS: PropertyFilters = {
 };
 
 export default function App() {
+  const t = useT();
   const [properties, setProperties] = useState<Property[]>([]);
   const [profiles, setProfiles] = useState<SearchProfile[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -61,7 +63,9 @@ export default function App() {
   const [batchSummary, setBatchSummary] = useState<ImportCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
-  const [loadError, setLoadError] = useState("");
+  // a flag, not a message: the text is translated at render time, so switching
+  // language repaints the banner without refetching the whole grid
+  const [loadFailed, setLoadFailed] = useState(false);
   const [actionError, setActionError] = useState("");
   // monotonic id per refresh: typing in a filter fires overlapping requests,
   // and without this guard a slow older response would land after the newer
@@ -102,7 +106,7 @@ export default function App() {
         }
         return validIds;
       });
-      setLoadError("");
+      setLoadFailed(false);
       // keep the open modal in sync with fresh data (e.g. after saving
       // notes or toggling favorite); if the property left the current
       // filter set, keep showing the stale copy until the user closes it
@@ -111,9 +115,7 @@ export default function App() {
       );
     } catch (e) {
       if (seq !== refreshSeq.current) return;
-      setLoadError(
-        "Backend unreachable on http://localhost:8000 — start it with start.bat"
-      );
+      setLoadFailed(true);
     }
   }, [filters]);
 
@@ -195,7 +197,7 @@ export default function App() {
       setActionError("");
       await fn();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Action failed");
+      setActionError(e instanceof Error ? e.message : t("common.actionFailed"));
     }
   }
 
@@ -227,7 +229,7 @@ export default function App() {
     // same confirm() used by the modal's "Hide property" action: hiding is
     // irreversible on its own (only a manual "Restore" brings it back), so
     // both entry points must ask the same way
-    if (!confirm("Hide this property? It will never appear in lists or notifications again.")) {
+    if (!confirm(t("app.confirmHideOne"))) {
       return;
     }
     return runAction(async () => {
@@ -302,15 +304,8 @@ export default function App() {
   function bulkAction(action: "hide" | "favorite" | "unfavorite" | "sold") {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    if (action === "hide" && !confirm(
-      `Hide ${ids.length} properties? They will disappear from lists and ` +
-      `notifications (recoverable from 🙈 Discarded → Restore).`
-    )) return;
-    if (action === "sold" && !confirm(
-      `Mark ${ids.length} properties as sold/rented out? They leave the active ` +
-      `lists but are kept as confirmed sales for the market statistics ` +
-      `(recoverable from 🔑 Sold → Restore).`
-    )) return;
+    if (action === "hide" && !confirm(t("app.confirmHideMany", { count: ids.length }))) return;
+    if (action === "sold" && !confirm(t("app.confirmSoldMany", { count: ids.length }))) return;
     return runAction(async () => {
       await api.bulkProperties(ids, action);
       setSelectedIds(new Set());
@@ -332,7 +327,7 @@ export default function App() {
       setBatchSummary(summary);
       await refresh();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Batch check failed");
+      setActionError(e instanceof Error ? e.message : t("app.batchCheckFailed"));
     } finally {
       setCheckingBatch(false);
       setCancellingBatch(false);
@@ -366,15 +361,15 @@ export default function App() {
       />
 
       <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-        {loadError && (
+        {loadFailed && (
           <div className="glass rounded-2xl p-4 border-rose-500/50 text-rose-600 dark:text-rose-300 text-sm">
-            ⚠️ {loadError}
+            ⚠️ {t("app.backendUnreachable")}
           </div>
         )}
         {actionError && (
           <div className="glass rounded-2xl p-4 border-rose-500/50 text-rose-600 dark:text-rose-300 text-sm flex items-center justify-between gap-3">
             <span>⚠️ {actionError}</span>
-            <button className="btn-ghost shrink-0" aria-label="Dismiss error"
+            <button className="btn-ghost shrink-0" aria-label={t("common.dismissError")}
               onClick={() => setActionError("")}>✕</button>
           </div>
         )}
@@ -399,44 +394,33 @@ export default function App() {
           matchEnabled={settings?.match_score_enabled ?? false}
           onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
 
-        {properties.length === 0 && !loadError && (
+        {properties.length === 0 && !loadFailed && (
           <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
             <p className="text-4xl mb-3">🏘️</p>
             <p className="font-medium t-strong">
-              {hasProfiles
-                ? "No properties match the current filters."
-                : "Welcome! Three steps to get started:"}
+              {hasProfiles ? t("app.noMatches") : t("app.welcome")}
             </p>
             {!hasProfiles && (
               <ol className="mt-4 text-sm text-left max-w-md mx-auto space-y-2">
                 <li className="flex gap-3">
                   <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">1</span>
                   <span>
-                    Add a search above — describe it in words with "💬 Just
-                    describe it", build one with "🧭 Build a search", or paste a
-                    results URL from Immobiliare.it / Idealista.{" "}
-                    <strong>Tip:</strong> to use every portal filter (bathrooms,
-                    floor, elevator, energy class, exclude auctions…), set them
-                    on the portal and use "🔗 Paste a URL" — the app monitors
-                    exactly that search.
+                    {t("app.step1")}{" "}
+                    <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
                   </span>
                 </li>
                 <li className="flex gap-3">
                   <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">2</span>
-                  Press "▶ Start Scan Now" — the first scan builds your
-                  baseline (no notification flood).
+                  <span>{t("app.step2")}</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">3</span>
-                  Optional: open ⚙️ Settings to enable Telegram or Email
-                  alerts for new listings and price drops.
+                  <span>{t("app.step3")}</span>
                 </li>
               </ol>
             )}
             {hasProfiles && (
-              <p className="text-sm mt-1">
-                Try switching the Buy/Rent toggle or relaxing the filters.
-              </p>
+              <p className="text-sm mt-1">{t("app.noMatchesHint")}</p>
             )}
           </div>
         )}
@@ -457,7 +441,7 @@ export default function App() {
                     setSelectionMode(!selectionMode);
                     if (selectionMode) setSelectedIds(new Set());
                   }}>
-                  {selectionMode ? "✕ Close multi-select" : "☐ Select multiple properties"}
+                  {selectionMode ? t("app.closeMultiSelect") : t("app.selectMultiple")}
                 </button>
                 {selectionMode && (
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
@@ -472,7 +456,7 @@ export default function App() {
                         )
                       }
                     />
-                    Select all ({selectedIds.size} of {properties.length})
+                    {t("app.selectAll", { selected: selectedIds.size, total: properties.length })}
                   </label>
                 )}
               </div>
@@ -482,37 +466,39 @@ export default function App() {
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
-                    title="Hidden properties leave the dashboard for good and never come back on their own, even if a scan finds them again. Use Restore to bring one back."
+                    title={t("app.hideSelectedTitle")}
                     onClick={() => bulkAction("hide")}>
-                    🙈 Hide selected ({selectedIds.size})
+                    {t("app.hideSelected", { count: selectedIds.size })}
                   </button>
                   <button
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("sold")}>
-                    🔑 Mark sold ({selectedIds.size})
+                    {t("app.markSold", { count: selectedIds.size })}
                   </button>
                   <button
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
-                    ⭐ Add to favorites
+                    {t("app.addFavorites")}
                   </button>
                   <button
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("unfavorite")}>
-                    ❌ Remove from favorites
+                    {t("app.removeFavorites")}
                   </button>
                   <button
                     type="button"
                     className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={checkSelectedProperties}>
-                    {checkingBatch ? "⏳ Checking…" : `🔎 Check online availability (${selectedIds.size})`}
+                    {checkingBatch
+                      ? t("app.checking")
+                      : t("app.checkAvailability", { count: selectedIds.size })}
                   </button>
                   {checkingBatch && (
                     <button
@@ -520,7 +506,7 @@ export default function App() {
                       className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                       disabled={cancellingBatch}
                       onClick={stopCheckingProperties}>
-                      {cancellingBatch ? "⏳ Stopping…" : "⏹ Stop"}
+                      {cancellingBatch ? t("app.stopping") : t("app.stop")}
                     </button>
                   )}
                 </div>
@@ -534,17 +520,25 @@ export default function App() {
                 total={batchProgress?.total ?? 0}
                 indeterminate={!batchProgress || batchProgress.total <= 0}>
                 {batchProgress
-                  ? `Checking listing ${batchProgress.done} of ${batchProgress.total} — ${batchProgress.online ?? 0} online, ${batchProgress.gone} removed/sold${(batchProgress.unknown ?? 0) > 0 ? `, ${batchProgress.unknown} not verifiable` : ""}`
-                  : "Starting check…"}{" "}
-                A safety pause runs between requests to protect the IP from DataDome blocks.
+                  ? t("app.checkProgress", {
+                      done: batchProgress.done,
+                      total: batchProgress.total,
+                      online: batchProgress.online ?? 0,
+                      gone: batchProgress.gone,
+                    }) +
+                    ((batchProgress.unknown ?? 0) > 0
+                      ? t("app.checkProgressUnknown", { count: batchProgress.unknown ?? 0 })
+                      : "")
+                  : t("app.checkStarting")}{" "}
+                {t("app.checkPacingNote")}
                 {batchProgress?.transport && (
                   <span className="block opacity-75 font-normal">
-                    Transport: {batchProgress.transport}
+                    {t("app.checkTransport", { transport: batchProgress.transport })}
                   </span>
                 )}
                 {batchProgress?.last_error && (
                   <span className="block opacity-75 font-normal">
-                    Last issue from the portal: {batchProgress.last_error}
+                    {t("app.checkLastIssue", { error: batchProgress.last_error })}
                   </span>
                 )}
               </ProgressBar>
@@ -553,39 +547,34 @@ export default function App() {
             {batchSummary && !checkingBatch && (
               <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 text-xs t-muted flex items-center justify-between">
                 <div>
-                  🔎 Checked: <strong>{batchSummary.checked}</strong> |{" "}
-                  <span className="text-rose-600 dark:text-rose-400 font-bold">{batchSummary.gone} removed or sold (moved to Gone)</span> |{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{batchSummary.online} still online</span>
-                  {batchSummary.unknown > 0 && ` (${batchSummary.unknown} not verifiable from the portal)`}
+                  {t("app.summaryChecked")} <strong>{batchSummary.checked}</strong> |{" "}
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">
+                    {t("app.summaryGone", { count: batchSummary.gone })}
+                  </span> |{" "}
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {t("app.summaryOnline", { count: batchSummary.online })}
+                  </span>
+                  {batchSummary.unknown > 0 && t("app.summaryUnknown", { count: batchSummary.unknown })}
                   {batchSummary.cancelled && (
-                    <span className="block">
-                      ⏹ Stopped — the rest of the selection was left unchecked. Select it again to resume.
-                    </span>
+                    <span className="block">{t("app.summaryCancelled")}</span>
                   )}
                   {batchSummary.aborted && !batchSummary.cancelled && (
                     <span className="block text-amber-600 dark:text-amber-400">
-                      ⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.
+                      {t("app.summaryAborted")}
                       {batchSummary.transport && batchSummary.transport.includes("forced") && (
                         <span className="block font-normal opacity-90">
-                          Ran via {batchSummary.transport}. The browser window setting is on, but a
-                          background Windows service has no desktop to show a window on. To solve a
-                          CAPTCHA yourself, stop the service and run the app normally (start.bat /
-                          serve.bat) for this check.
+                          {t("app.summaryAbortedService", { transport: batchSummary.transport })}
                         </span>
                       )}
                       {batchSummary.transport && !batchSummary.transport.includes("window") && !batchSummary.transport.includes("forced") && (
                         <span className="block font-normal opacity-90">
-                          Ran via {batchSummary.transport}. To solve a CAPTCHA yourself, enable
-                          both "Run the check through the browser" and "Show the browser window"
-                          in Settings (needs the browser engine installed).
+                          {t("app.summaryAbortedNoWindow", { transport: batchSummary.transport })}
                         </span>
                       )}
                     </span>
                   )}
                   {batchSummary.capped && !batchSummary.aborted && !batchSummary.cancelled && (
-                    <span className="block">
-                      Per-run request limit reached: run the check again to continue with the rest.
-                    </span>
+                    <span className="block">{t("app.summaryCapped")}</span>
                   )}
                 </div>
                 <button
@@ -663,7 +652,7 @@ export default function App() {
                 className="col-span-full flex justify-center py-4">
                 <button type="button" className="btn-ghost text-sm"
                   onClick={() => setVisibleCount((c) => c + GRID_PAGE)}>
-                  Show more ({properties.length - visibleCount} more)
+                  {t("app.showMoreCount", { count: properties.length - visibleCount })}
                 </button>
               </div>
             )}

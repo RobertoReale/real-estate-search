@@ -1,3 +1,4 @@
+import { formatDate, formatNumber, translateCurrent, useT } from "../../i18n";
 import { formatPrice, safeHref } from "../../services/api";
 import type { ImportedListing } from "../../types";
 import { PortalBadge } from "../PortalBadge";
@@ -13,9 +14,10 @@ export function pricePerSqm(item: ImportedListing): number | null {
 export function formatSqmPrice(item: ImportedListing): string {
   const value = pricePerSqm(item);
   if (value === null) return "";
-  return item.contract === "rent"
-    ? `${value.toLocaleString("en-IE")} €/m² per month`
-    : `${value.toLocaleString("en-IE")} €/m²`;
+  return translateCurrent(
+    item.contract === "rent" ? "email.sqmPriceMonth" : "email.sqmPriceUnit",
+    { value: formatNumber(value) },
+  );
 }
 
 interface Props {
@@ -35,7 +37,10 @@ export function EmailListingCard({
   onDiscard,
   busy,
 }: Props) {
+  const t = useT();
   const sqmPriceStr = formatSqmPrice(item);
+  const fallbackTitle =
+    item.title || item.email_subject || t("email.listingNumber", { id: item.portal_id });
 
   return (
     <li className={`flex flex-wrap items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl panel transition-all duration-200 hover:border-blue-500/40 ${
@@ -53,12 +58,12 @@ export function EmailListingCard({
         href={safeHref(item.url)}
         target="_blank"
         rel="noreferrer"
-        title="Open the original listing on the portal"
+        title={t("email.openOriginal")}
         className="w-24 h-18 sm:w-28 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800 relative group shadow-sm block border border-slate-300/30 dark:border-slate-700/30">
         {item.image_url ? (
           <img
             src={item.image_url}
-            alt={item.title || "Listing photo"}
+            alt={item.title || t("email.listingPhoto")}
             loading="lazy"
             onError={(e) => {
               e.currentTarget.style.display = "none";
@@ -83,8 +88,8 @@ export function EmailListingCard({
             target="_blank"
             rel="noreferrer"
             className="font-semibold text-sm sm:text-base hover:text-blue-500 transition truncate"
-            title={item.title || item.email_subject || `Listing #${item.portal_id}`}>
-            {item.title || item.email_subject || `Listing #${item.portal_id}`}
+            title={fallbackTitle}>
+            {fallbackTitle}
           </a>
 
           {/* Status badges */}
@@ -95,7 +100,7 @@ export function EmailListingCard({
                   ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                   : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
               }`}>
-              {item.status === "accepted" ? "✅ Accepted" : "🗑️ Discarded"}
+              {t(item.status === "accepted" ? "email.badgeAccepted" : "email.badgeDiscarded")}
             </span>
           )}
 
@@ -103,22 +108,22 @@ export function EmailListingCard({
           {item.is_available === true && (
             <span
               className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 flex items-center gap-1"
-              title="The portal confirmed the listing page is still online and reachable">
-              🟢 Online on the portal
+              title={t("email.badgeOnlineTitle")}>
+              {t("email.badgeOnline")}
             </span>
           )}
           {item.is_available === false && (
             <span
               className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0 flex items-center gap-1"
-              title="The portal answered 'page not found' (404/removed)">
-              🔴 Removed / Unavailable
+              title={t("email.badgeRemovedTitle")}>
+              {t("email.badgeRemoved")}
             </span>
           )}
           {item.is_available === null && (
             <span
               className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-500/10 t-dim border border-slate-500/15 shrink-0 flex items-center gap-1"
-              title="Availability not checked on the portal yet. Use 'Check if online'">
-              ⚪ Not checked
+              title={t("email.badgeUncheckedTitle")}>
+              {t("email.badgeUnchecked")}
             </span>
           )}
         </div>
@@ -127,13 +132,11 @@ export function EmailListingCard({
         <p className="text-xs sm:text-sm font-medium t-dim truncate">
           {[
             formatPrice(item.price, item.contract),
-            item.sqm ? `${item.sqm} m²` : "",
-            item.rooms ? `${item.rooms} rooms` : "",
-            item.contract === "rent" ? "rent" : "sale",
+            item.sqm ? t("email.sqmUnit", { value: item.sqm }) : "",
+            item.rooms ? t("email.roomsUnit", { count: item.rooms }) : "",
+            t(item.contract === "rent" ? "email.contractRent" : "email.contractSale"),
             item.city ? item.city : "",
-            item.email_date
-              ? `email of ${new Date(item.email_date).toLocaleDateString("en-IE")}`
-              : "",
+            item.email_date ? t("email.emailOf", { date: formatDate(item.email_date) }) : "",
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -153,7 +156,7 @@ export function EmailListingCard({
       {sqmPriceStr && (
         <span
           className="text-xs font-semibold shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-500/10 border border-slate-500/15"
-          title="Price per square meter computed from the email">
+          title={t("email.sqmPriceTitle")}>
           {sqmPriceStr}
         </span>
       )}
@@ -165,26 +168,26 @@ export function EmailListingCard({
           target="_blank"
           rel="noreferrer"
           className="btn-ghost text-xs py-1.5 px-2.5"
-          title="Open the original page on the portal">
-          Open ↗
+          title={t("email.openPageTitle")}>
+          {t("email.openPage")}
         </a>
         {item.status !== "accepted" && (
           <button
             className="btn py-1.5 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition"
             disabled={busy}
-            title="Add to the main dashboard (automatically deduplicated)"
+            title={t("email.acceptTitle")}
             onClick={onAccept}>
-            ✓ {item.status === "discarded" ? "Recover / Accept" : "Accept"}
+            {t(item.status === "discarded" ? "email.recoverAccept" : "email.accept")}
           </button>
         )}
         {item.status !== "discarded" && (
           <button
             className="btn-ghost text-xs py-1.5 px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
             disabled={busy}
-            title="Discard listing (it will not be re-loaded on future scans)"
-            aria-label="Discard listing"
+            title={t("email.discardTitle")}
+            aria-label={t("email.discardTitle")}
             onClick={onDiscard}>
-            ✕ Discard
+            {t("email.discard")}
           </button>
         )}
       </div>

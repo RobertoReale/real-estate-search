@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProgressPoll } from "../hooks/useProgressPoll";
+import { useT } from "../i18n";
 import { api } from "../services/api";
 import type {
   EmailScanParams,
@@ -43,6 +44,7 @@ interface Props {
 
 /** Review panel for listings mined from the user's inbox. */
 export default function EmailImport({ profiles, settings, onChanged }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [scanParams, setScanParams] = useState<EmailScanParams>(DEFAULT_SCAN);
   const [scanning, setScanning] = useState(false);
@@ -87,16 +89,16 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
       setError("");
     } catch (e) {
       if (seq !== loadSeq.current) return;
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     }
-  }, [filters]);
+  }, [filters, t]);
 
   // debounced like App.tsx's refresh: one request when typing pauses, not
   // one per letter
   useEffect(() => {
     if (!open) return;
-    const t = window.setTimeout(load, 250);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(load, 250);
+    return () => window.clearTimeout(timer);
   }, [open, load]);
 
   useProgressPoll(scanning, api.emailImportProgress, setProgress, 800);
@@ -111,7 +113,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
       setSummary(await api.emailImportScan(scanParams));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setScanning(false);
       setProgress(null);
@@ -138,9 +140,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
     }
 
     if (toCheck.length === 0) {
-      setError(
-        "No listings to check. Scan the emails or select a specific listing to force the recompute.",
-      );
+      setError(t("email.nothingToCheck"));
       return;
     }
     setChecking(true);
@@ -154,7 +154,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
       setCheckSummary(await api.checkImported(toCheck));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setChecking(false);
       setCheckProgress(null);
@@ -176,7 +176,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
       await load();
       if (action === "accept") onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setBusy(false);
     }
@@ -188,8 +188,9 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
   async function discardAllShown() {
     if (items.length === 0) return;
     const ok = window.confirm(
-      `Discard all ${items.length} listing${items.length === 1 ? "" : "s"} ` +
-        "shown here? They won't come back on future scans.",
+      t(items.length === 1 ? "email.confirmDiscardAllOne" : "email.confirmDiscardAll", {
+        count: items.length,
+      }),
     );
     if (ok) await act(items.map((i) => i.id), "discard");
   }
@@ -201,7 +202,9 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
       setCookieInput("***");
       setError("");
     } catch (e) {
-      setError("Failed to save cookie: " + (e instanceof Error ? e.message : String(e)));
+      setError(t("email.cookieSaveFailed", {
+        error: e instanceof Error ? e.message : String(e),
+      }));
     }
   }
 
@@ -227,36 +230,30 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
     <section className="glass rounded-2xl p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-base">
-          📥 Import from email{" "}
+          {t("email.title")}{" "}
           {items.length > 0 && open && (
-            <span className="t-muted text-sm">({items.length} to review)</span>
+            <span className="t-muted text-sm">
+              {t("email.toReview", { count: items.length })}
+            </span>
           )}
         </h2>
         <button className="btn-ghost" onClick={() => setOpen(!open)}>
-          {open ? "Hide" : "Open"}
+          {open ? t("email.hide") : t("email.open")}
         </button>
       </div>
 
       {open && (
         <div className="mt-3 space-y-4">
+          <p className="text-xs t-muted">{t("email.intro")}</p>
           <p className="text-xs t-muted">
-            Mine your own inbox for listing emails and review them here: accept what
-            interests you, discard the rest. Your mailbox is accessed strictly read-only,
-            and duplicates of listings already tracked are skipped automatically. Alert
-            emails can be months old, so an ad may already be sold or withdrawn — "Open
-            ↗" is the only way to find out, since this panel never visits the portals.
-          </p>
-          <p className="text-xs t-muted">
-            Only ads <strong>hosted on Immobiliare.it or Idealista.it</strong> can be
-            imported: the whole app is built around their listing IDs. An agency's own
-            email counts only if it links to a portal ad — one that links to the agency's
-            website instead brings back nothing, whatever sender you search for.
+            {t("email.portalsOnlyPrefix")}
+            <strong>{t("email.portalsOnlyBold")}</strong>
+            {t("email.portalsOnlySuffix")}
           </p>
 
           {!imapReady && (
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              ⚠️ IMAP is not configured yet — open ⚙️ Settings → "Email inbox import" and
-              add host, username and app password first.
+              {t("email.imapMissing")}
             </p>
           )}
 
@@ -307,7 +304,7 @@ export default function EmailImport({ profiles, settings, onChanged }: Props) {
 
           {items.length === 0 && (
             <p className="text-sm t-muted">
-              Nothing to review{summary ? "" : " — run a scan above"}.
+              {t(summary ? "email.nothingToReview" : "email.nothingToReviewYet")}
             </p>
           )}
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { formatDate, formatDateTime, translateCurrent, useT } from "../i18n";
 import { api, authToken } from "../services/api";
 import type { Settings } from "../types";
 
@@ -43,29 +44,35 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
  *  the state unmistakable. `dirty` = the field holds unsaved input that will
  *  replace what is stored; `since` (when known) adds the save date. */
 function SecretStatus({ set, since, dirty }: { set?: boolean; since?: string; dirty?: boolean }) {
+  const t = useT();
   if (dirty) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-amber">
-        ✎ Unsaved change — will replace the stored value
+        {t("settings.secretDirty")}
       </span>
     );
   }
   if (set) {
     return (
-      <span title={since ? `Last saved: ${new Date(since).toLocaleString("en-IE")}` : "A value is currently stored"}
+      <span title={since
+        ? t("settings.secretLastSaved", { date: formatDateTime(since) })
+        : t("settings.secretSavedTitle")}
         className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-emerald">
-        ✓ Saved{since ? ` · ${new Date(since).toLocaleDateString("en-IE")}` : ""}
+        {since
+          ? t("settings.secretSavedOn", { date: formatDate(since) })
+          : t("settings.secretSaved")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-slate">
-      ○ Not set
+      {t("settings.secretNotSet")}
     </span>
   );
 }
 
 export default function SettingsModal({ onClose }: Props) {
+  const t = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [token, setToken] = useState("");
   const [chatId, setChatId] = useState("");
@@ -232,7 +239,7 @@ export default function SettingsModal({ onClose }: Props) {
     setFeedback(null);
     try {
       await persist();
-      setFeedback({ where: "global", ok: true, text: "Settings saved." });
+      setFeedback({ where: "global", ok: true, text: t("settings.saved") });
     } catch (e) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
@@ -255,7 +262,7 @@ export default function SettingsModal({ onClose }: Props) {
     try {
       await persist();
     } catch (e) {
-      setFeedback({ where, ok: false, text: `Could not save settings: ${errorText(e)}` });
+      setFeedback({ where, ok: false, text: t("settings.saveFailed", { error: errorText(e) }) });
       setBusy(null);
       return;
     }
@@ -279,7 +286,7 @@ export default function SettingsModal({ onClose }: Props) {
       const r = await api.datadomeRefresh("immobiliare");
       hydrate(await api.getSettings());
       setFeedback({ where: "global", ok: true,
-        text: `Fresh DataDome cookie saved (${r.cookie_preview}).` });
+        text: t("settings.cookieGrabbed", { preview: r.cookie_preview }) });
     } catch (e) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
@@ -302,8 +309,7 @@ export default function SettingsModal({ onClose }: Props) {
    *  the whole UI is talking to the fresh process. Used after pulling a code
    *  update so the user need not hunt for the terminal window. */
   async function restartBackend() {
-    if (!window.confirm(
-      "Restart the backend now? The dashboard is unavailable for a few seconds, then reloads itself.")) return;
+    if (!window.confirm(t("settings.restartConfirm"))) return;
     setRestarting(true);
     setFeedback(null);
     try {
@@ -315,8 +321,7 @@ export default function SettingsModal({ onClose }: Props) {
       // polling (the process never went down) and pretending it worked.
       if (/Method Not Allowed|Not Found|Error 40[45]/i.test(raw)) {
         setRestarting(false);
-        setFeedback({ where: "global", ok: false,
-          text: "This running backend is too old to restart itself — close its terminal window and re-run start.bat / serve.bat once. After that this button (and the newest features) will work." });
+        setFeedback({ where: "global", ok: false, text: t("settings.restartTooOld") });
         return;
       }
       // Otherwise the socket dropped as the process went down — that is the
@@ -335,8 +340,7 @@ export default function SettingsModal({ onClose }: Props) {
       }
     }
     setRestarting(false);
-    setFeedback({ where: "global", ok: false,
-      text: "The backend did not come back on its own — check its terminal window (or re-run start.bat / serve.bat)." });
+    setFeedback({ where: "global", ok: false, text: t("settings.restartNoReturn") });
   }
 
   async function installHarvester() {
@@ -346,7 +350,7 @@ export default function SettingsModal({ onClose }: Props) {
       const r = await api.installHarvester();
       hydrate(await api.getSettings());
       setFeedback({ where: "global", ok: true,
-        text: r.message || "Playwright & Chromium installed successfully!" });
+        text: r.message || t("settings.harvesterInstalledMsg") });
     } catch (e) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
@@ -361,7 +365,7 @@ export default function SettingsModal({ onClose }: Props) {
       const r = await api.installCamoufox();
       hydrate(await api.getSettings());
       setFeedback({ where: "global", ok: true,
-        text: r.message || "Camoufox installed successfully!" });
+        text: r.message || t("settings.camoufoxInstalledMsg") });
     } catch (e) {
       setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
@@ -377,16 +381,23 @@ export default function SettingsModal({ onClose }: Props) {
     doubleConfirm = false,
   ) {
     if (!window.confirm(confirmText)) return;
-    if (doubleConfirm && !window.confirm(
-      "Last chance: this erases everything and cannot be undone. Continue?")) return;
+    if (doubleConfirm && !window.confirm(t("settings.lastChance"))) return;
     setBusy("data");
     setFeedback(null);
     try {
       const r = await api.resetData(scope);
       const removed = Object.entries(r.deleted)
         .map(([k, v]) => `${v} ${k.replace(/_/g, " ")}`).join(", ");
-      setFeedback({ where: "data", ok: true,
-        text: `Done — removed ${removed || "nothing"}${r.backup ? ` · backup saved: ${r.backup}` : ""}. Reloading…` });
+      setFeedback({
+        where: "data",
+        ok: true,
+        text: r.backup
+          ? t("settings.resetDoneBackup", {
+              removed: removed || t("settings.resetNothing"),
+              backup: r.backup,
+            })
+          : t("settings.resetDone", { removed: removed || t("settings.resetNothing") }),
+      });
       setTimeout(() => window.location.reload(), 1600);
     } catch (e) {
       setFeedback({ where: "data", ok: false, text: errorText(e) });
@@ -399,10 +410,10 @@ export default function SettingsModal({ onClose }: Props) {
     // Providers answer with protocol jargon; translate the two that a user can
     // actually act on, and pass everything else through untouched.
     if (/AUTHENTICATIONFAILED|Username and Password not accepted|535/i.test(raw)) {
-      return `${raw} — the credentials were refused. With Gmail you must use a 16-character App password, not your normal password.`;
+      return translateCurrent("settings.errCredentials", { error: raw });
     }
     if (/timed out|timeout|Connection refused|getaddrinfo|Name or service not known/i.test(raw)) {
-      return `${raw} — could not reach the server. Check the host name and port.`;
+      return translateCurrent("settings.errNetwork", { error: raw });
     }
     return raw;
   }
@@ -431,94 +442,93 @@ export default function SettingsModal({ onClose }: Props) {
       <div className="glass rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold">⚙️ Settings</h2>
-          <button className="btn-ghost" aria-label="Close" onClick={onClose}>✕</button>
+          <h2 className="text-lg font-bold">{t("settings.title")}</h2>
+          <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
         </div>
 
-        <p className="text-xs t-dim mb-5">
-          Each test button saves your changes first, so what it tests is exactly
-          what you typed.
-        </p>
+        <p className="text-xs t-dim mb-5">{t("settings.testNote")}</p>
 
         <h3 className="font-semibold text-sm uppercase t-muted mb-2">
-          📨 Telegram notifications
+          {t("settings.telegramTitle")}
         </h3>
         <HelpSteps
-          summary="How do I set up Telegram? (step-by-step)"
+          summary={t("settings.telegramHelp")}
           steps={[
-            "Open Telegram and search for @BotFather.",
-            'Send "/newbot" and follow the prompts; copy the token it gives you.',
-            "Paste the token below.",
-            "Search for your new bot by name and send it any message (this authorizes it to write to you).",
-            "Get your Chat ID: message @userinfobot and copy the number it replies with.",
-            'Paste the Chat ID below, tick "Enable", then press "Save & send test".',
+            t("settings.tgStep1"),
+            t("settings.tgStep2"),
+            t("settings.tgStep3"),
+            t("settings.tgStep4"),
+            t("settings.tgStep5"),
+            t("settings.tgStep6"),
           ]}
         />
         <div className="space-y-3">
           <div>
             <input className="input w-full" type="password"
-              placeholder={settings.telegram_token_set ? "Token already saved (leave empty to keep)" : "Bot token (from @BotFather)"}
+              placeholder={t(settings.telegram_token_set ? "settings.tokenSaved" : "settings.tokenPlaceholder")}
               value={token} onChange={(e) => setToken(e.target.value)} />
             <div className="mt-1">
               <SecretStatus set={settings.telegram_token_set} dirty={!!token.trim()} />
             </div>
           </div>
-          <input className="input w-full" placeholder="Chat ID (e.g. 123456789)"
+          <input className="input w-full" placeholder={t("settings.chatIdPlaceholder")}
             value={chatId} onChange={(e) => setChatId(e.target.value)} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={tgEnabled}
                 onChange={(e) => setTgEnabled(e.target.checked)} />
-              Enable Telegram notifications
+              {t("settings.enableTelegram")}
             </label>
             <button className="btn-ghost" disabled={anyBusy}
               onClick={() => saveAndTest("telegram", api.telegramTest,
-                () => "Test message sent — check your Telegram chat.")}>
-              {busy === "telegram" ? "Sending…" : "Save & send test"}
+                () => t("settings.telegramTestSent"))}>
+              {busy === "telegram" ? t("settings.sending") : t("settings.saveAndTest")}
             </button>
           </div>
           <Result where="telegram" />
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          ✉️ Email notifications
+          {t("settings.emailTitle")}
         </h3>
         <HelpSteps
-          summary="How do I set up Email alerts? (works with Gmail)"
+          summary={t("settings.emailHelp")}
           steps={[
-            "For Gmail: host smtp.gmail.com, port 587, username = your Gmail address.",
+            t("settings.emStep1"),
             <>
-              Gmail needs an <em>App password</em>, not your normal password. It
-              only exists once 2-Step Verification is on, so{" "}
-              <Link href="https://myaccount.google.com/signinoptions/twosv">turn that on first</Link>
-              {" "}— until you do, the App passwords page will say it is not
-              available for your account.
+              {t("settings.emStep2a")}
+              <Link href="https://myaccount.google.com/signinoptions/twosv">
+                {t("settings.emStep2Link")}
+              </Link>
+              {t("settings.emStep2b")}
             </>,
             <>
-              Then create one at{" "}
-              <Link href="https://myaccount.google.com/apppasswords">myaccount.google.com/apppasswords</Link>
-              {" "}and paste the 16 characters below (spaces are ignored).
+              {t("settings.emStep3a")}
+              <Link href="https://myaccount.google.com/apppasswords">
+                myaccount.google.com/apppasswords
+              </Link>
+              {t("settings.emStep3b")}
             </>,
-            "Recipient: the address where you want to receive alerts (it can be the same one).",
-            'Tick "Enable", then press "Save & send test".',
+            t("settings.emStep4"),
+            t("settings.emStep5"),
           ]}
         />
         <div className="space-y-3">
           {/* host and port share a row only when there is room for both: at
               phone width a 1/3-wide host field cannot show its own hostname */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input className="input w-full sm:col-span-2" placeholder="SMTP host (e.g. smtp.gmail.com)"
+            <input className="input w-full sm:col-span-2" placeholder={t("settings.smtpHost")}
               value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
             <input className="input w-full" type="number" placeholder="587"
-              title="Port (587 STARTTLS, 465 SSL)"
+              title={t("settings.smtpPortTitle")}
               value={smtpPort} onChange={(e) => setSmtpPort(Number(e.target.value))} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder="SMTP username (email address)"
+            <input className="input w-full" placeholder={t("settings.smtpUser")}
               value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
             <div>
               <input className="input w-full" type="password"
-                placeholder={settings.smtp_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
+                placeholder={t(settings.smtp_password_set ? "settings.passwordSaved" : "settings.appPassword")}
                 value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)} />
               <div className="mt-1">
                 <SecretStatus set={settings.smtp_password_set} dirty={!!smtpPassword.trim()} />
@@ -526,56 +536,55 @@ export default function SettingsModal({ onClose }: Props) {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder="Sender (optional, defaults to username)"
+            <input className="input w-full" placeholder={t("settings.emailFrom")}
               value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} />
-            <input className="input w-full" placeholder="Recipient (you@example.com)"
+            <input className="input w-full" placeholder={t("settings.emailTo")}
               value={emailTo} onChange={(e) => setEmailTo(e.target.value)} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={emailEnabled}
                 onChange={(e) => setEmailEnabled(e.target.checked)} />
-              Enable email notifications
+              {t("settings.enableEmail")}
             </label>
             <button className="btn-ghost" disabled={anyBusy}
               onClick={() => saveAndTest("email", api.emailTest,
-                () => `Test email sent to ${emailTo || "the recipient"} — check your inbox (and the spam folder).`)}>
-              {busy === "email" ? "Sending…" : "Save & send test"}
+                () => t("settings.emailTestSent", {
+                  to: emailTo || t("settings.theRecipient"),
+                }))}>
+              {busy === "email" ? t("settings.sending") : t("settings.saveAndTest")}
             </button>
           </div>
           <Result where="email" />
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          📥 Email inbox import (IMAP)
+          {t("settings.imapTitle")}
         </h3>
         <HelpSteps
-          summary="What is this? How do I set it up? (works with Gmail)"
+          summary={t("settings.imapHelp")}
           steps={[
-            "Lets the dashboard mine your own inbox for old Immobiliare.it / Idealista alert emails and import those listings for review.",
-            "Strictly read-only: the app never modifies, marks or deletes your emails, and nothing appears in the dashboard until you accept it.",
-            "For Gmail: host imap.gmail.com, port 993, username = your Gmail address.",
-            "Password: the same 16-character App password as the email section above.",
-            <>
-              Press "Save &amp; test connection", then use the "📥 Import from
-              email" panel in the dashboard.
-            </>,
+            t("settings.imStep1"),
+            t("settings.imStep2"),
+            t("settings.imStep3"),
+            t("settings.imStep4"),
+            t("settings.imStep5"),
           ]}
         />
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input className="input w-full sm:col-span-2" placeholder="IMAP host (e.g. imap.gmail.com)"
+            <input className="input w-full sm:col-span-2" placeholder={t("settings.imapHost")}
               value={imapHost} onChange={(e) => setImapHost(e.target.value)} />
             <input className="input w-full" type="number" placeholder="993"
-              title="Port (993 SSL)"
+              title={t("settings.imapPortTitle")}
               value={imapPort} onChange={(e) => setImapPort(Number(e.target.value))} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder="IMAP username (email address)"
+            <input className="input w-full" placeholder={t("settings.imapUser")}
               value={imapUser} onChange={(e) => setImapUser(e.target.value)} />
             <div>
               <input className="input w-full" type="password"
-                placeholder={settings.imap_password_set ? "Password saved (leave empty to keep)" : "App password (16 characters)"}
+                placeholder={t(settings.imap_password_set ? "settings.passwordSaved" : "settings.appPassword")}
                 value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} />
               <div className="mt-1">
                 <SecretStatus set={settings.imap_password_set} dirty={!!imapPassword.trim()} />
@@ -583,13 +592,11 @@ export default function SettingsModal({ onClose }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs t-dim">
-              Read-only access: your mailbox is never modified.
-            </p>
+            <p className="text-xs t-dim">{t("settings.readOnlyNote")}</p>
             <button className="btn-ghost" disabled={anyBusy}
               onClick={() => saveAndTest("imap", api.imapTest,
                 (r) => (r as { detail: string }).detail)}>
-              {busy === "imap" ? "Connecting…" : "Save & test connection"}
+              {busy === "imap" ? t("settings.connecting") : t("settings.saveAndTestConnection")}
             </button>
           </div>
           <Result where="imap" />
@@ -597,124 +604,104 @@ export default function SettingsModal({ onClose }: Props) {
             <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
               <input type="checkbox" checked={autoImport}
                 onChange={(e) => setAutoImport(e.target.checked)} />
-              Re-scan the inbox automatically for new listing emails
+              {t("settings.autoImport")}
             </label>
             {autoImport && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-2">
                 <label className="text-xs t-muted" htmlFor="import-interval">
-                  Re-scan frequency
+                  {t("settings.rescanFrequency")}
                 </label>
                 <select id="import-interval" className="input w-full"
                   value={autoImportHours}
                   onChange={(e) => setAutoImportHours(Number(e.target.value))}>
-                  <option value={6}>Every 6 hours</option>
-                  <option value={12}>Every 12 hours</option>
-                  <option value={24}>Once a day</option>
-                  <option value={72}>Every 3 days</option>
-                  <option value={168}>Once a week</option>
+                  <option value={6}>{t("settings.every6h")}</option>
+                  <option value={12}>{t("settings.every12h")}</option>
+                  <option value={24}>{t("settings.onceADay")}</option>
+                  <option value={72}>{t("settings.every3d")}</option>
+                  <option value={168}>{t("settings.onceAWeek")}</option>
                 </select>
               </div>
             )}
-            <p className="text-xs t-dim mt-1">
-              New listings are staged silently in the "📥 Import from email"
-              review queue — you are not notified, and nothing appears in the
-              dashboard until you accept it.
-            </p>
+            <p className="text-xs t-dim mt-1">{t("settings.autoImportNote")}</p>
           </div>
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🔄 Automatic scan
+          {t("settings.scanTitle")}
         </h3>
-        <label className="text-xs t-muted" htmlFor="scan-interval">Frequency</label>
+        <label className="text-xs t-muted" htmlFor="scan-interval">{t("settings.frequency")}</label>
         <select id="scan-interval" className="input w-full mt-1" value={interval}
           onChange={(e) => setIntervalMin(Number(e.target.value))}>
-          <option value={30}>Every 30 minutes</option>
-          <option value={60}>Every hour</option>
-          <option value={120}>Every 2 hours</option>
-          <option value={240}>Every 4 hours</option>
-          <option value={480}>Every 8 hours</option>
+          <option value={30}>{t("settings.every30m")}</option>
+          <option value={60}>{t("settings.everyHour")}</option>
+          <option value={120}>{t("settings.every2h")}</option>
+          <option value={240}>{t("settings.every4h")}</option>
+          <option value={480}>{t("settings.every8h")}</option>
         </select>
 
         <label className="flex items-start gap-2 mt-3 cursor-pointer">
           <input type="checkbox" checked={scanPaused} className="mt-0.5"
             onChange={(e) => setScanPaused(e.target.checked)} />
           <span className="text-sm">
-            Pause automatic scans
-            <span className="block text-xs t-dim">
-              Stops scheduled scans from touching the portals — useful for
-              resting the connection while you are away. "Scan now" still works
-              on demand.
-            </span>
+            {t("settings.pauseScans")}
+            <span className="block text-xs t-dim">{t("settings.pauseScansNote")}</span>
           </span>
         </label>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🚨 Scraper health alerts
+          {t("settings.healthTitle")}
         </h3>
-        <p className="text-xs t-dim mb-2">
-          A broken scraper is silent: no listings looks exactly like a quiet
-          market. Get notified when a search fails this many scans in a row.
-          Portals block scrapers occasionally, so a value of 1 will cry wolf.
-        </p>
+        <p className="text-xs t-dim mb-2">{t("settings.healthNote")}</p>
         <label className="text-xs t-muted" htmlFor="health-after">
-          Alert after
+          {t("settings.alertAfter")}
         </label>
         <select id="health-after" className="input w-full mt-1" value={healthAfter}
           onChange={(e) => setHealthAfter(Number(e.target.value))}>
-          <option value={0}>Never (disabled)</option>
-          <option value={2}>2 consecutive failures</option>
-          <option value={3}>3 consecutive failures</option>
-          <option value={5}>5 consecutive failures</option>
-          <option value={10}>10 consecutive failures</option>
+          <option value={0}>{t("settings.neverDisabled")}</option>
+          {[2, 3, 5, 10].map((n) => (
+            <option key={n} value={n}>{t("settings.nFailures", { count: n })}</option>
+          ))}
         </select>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🚫 Excluded keywords (global)
+          {t("settings.keywordsTitle")}
         </h3>
-        <p className="text-xs t-dim mb-2">
-          Listings containing these words are automatically discarded (whole
-          words only, accents ignored). Separate with commas. Each search
-          profile can add its own extra keywords on top of these.
-        </p>
+        <p className="text-xs t-dim mb-2">{t("settings.keywordsNote")}</p>
         <textarea className="input w-full h-20 resize-none"
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🎯 Smart Match Score (dream home)
+          {t("settings.matchTitle")}
         </h3>
         <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
           <input type="checkbox" checked={matchEnabled}
             onChange={(e) => setMatchEnabled(e.target.checked)} />
-          Show a compatibility % on each card, scored against the wishes below
+          {t("settings.matchEnable")}
         </label>
-        <p className="text-xs t-dim mt-1 mb-2">
-          Every field is optional — leave a number at 0 to ignore it. Only the
-          wishes you fill in count towards the score. Nothing leaves your PC.
-        </p>
+        <p className="text-xs t-dim mt-1 mb-2">{t("settings.matchNote")}</p>
         {matchEnabled && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <label className="text-xs t-muted col-span-2 sm:col-span-1">
-                Max price (€)
+                {t("settings.dreamMaxPrice")}
                 <input className="input w-full mt-1" type="number" min={0}
                   value={dreamMaxPrice}
                   onChange={(e) => setDreamMaxPrice(Number(e.target.value))} />
               </label>
               <label className="text-xs t-muted">
-                Min rooms
+                {t("settings.dreamMinRooms")}
                 <input className="input w-full mt-1" type="number" min={0}
                   value={dreamMinRooms}
                   onChange={(e) => setDreamMinRooms(Number(e.target.value))} />
               </label>
               <label className="text-xs t-muted">
-                Min sqm
+                {t("settings.dreamMinSqm")}
                 <input className="input w-full mt-1" type="number" min={0}
                   value={dreamMinSqm}
                   onChange={(e) => setDreamMinSqm(Number(e.target.value))} />
               </label>
               <label className="text-xs t-muted">
-                Min floor
+                {t("settings.dreamMinFloor")}
                 <input className="input w-full mt-1" type="number" min={0}
                   value={dreamMinFloor}
                   onChange={(e) => setDreamMinFloor(Number(e.target.value))} />
@@ -722,14 +709,14 @@ export default function SettingsModal({ onClose }: Props) {
             </div>
             <div>
               <label className="text-xs t-muted block mb-1">
-                Desired features (comma-separated, e.g. balcone, ascensore, terrazzo)
+                {t("settings.dreamFeatures")}
               </label>
               <input className="input w-full" value={dreamKeywords}
                 onChange={(e) => setDreamKeywords(e.target.value)} />
             </div>
             <div>
               <label className="text-xs t-muted block mb-1">
-                Preferred zones or cities (comma-separated)
+                {t("settings.dreamZones")}
               </label>
               <input className="input w-full" value={dreamZones}
                 onChange={(e) => setDreamZones(e.target.value)} />
@@ -738,35 +725,33 @@ export default function SettingsModal({ onClose }: Props) {
         )}
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🧠 Search assistant backend
+          {t("settings.assistantTitle")}
         </h3>
-        <p className="text-xs t-dim mb-2">
-          How the "describe your search in words" box turns text into a search.
-          The default parser is offline and instant. An LLM understands freer
-          phrasing; it falls back to the offline parser on any error, and
-          nothing else on your PC ever leaves it.
-        </p>
+        <p className="text-xs t-dim mb-2">{t("settings.assistantNote")}</p>
         <select className="input w-full" value={nlBackend}
           onChange={(e) => setNlBackend(e.target.value)}>
-          <option value="deterministic">Built-in parser (offline, default)</option>
-          <option value="llm">LLM (OpenAI-compatible / local Ollama)</option>
+          <option value="deterministic">{t("settings.backendBuiltin")}</option>
+          <option value="llm">{t("settings.backendLlm")}</option>
         </select>
         {nlBackend === "llm" && (
           <div className="space-y-2 mt-2">
             <p className="text-xs t-dim">
-              For a free, fully-offline model install{" "}
-              <Link href="https://ollama.com">Ollama</Link> and use base URL{" "}
-              <code className="px-1 rounded bg-black/10 dark:bg-white/10 select-all">http://localhost:11434/v1</code>{" "}
-              with a model like <code className="px-1 rounded bg-black/10 dark:bg-white/10">llama3.1</code> (no key needed).
+              {t("settings.llmHintA")}
+              <Link href="https://ollama.com">Ollama</Link>
+              {t("settings.llmHintB")}
+              <code className="px-1 rounded bg-black/10 dark:bg-white/10 select-all">http://localhost:11434/v1</code>
+              {t("settings.llmHintC")}
+              <code className="px-1 rounded bg-black/10 dark:bg-white/10">llama3.1</code>
+              {t("settings.llmHintD")}
             </p>
-            <input className="input w-full" placeholder="Base URL (e.g. http://localhost:11434/v1)"
+            <input className="input w-full" placeholder={t("settings.llmBaseUrl")}
               value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input className="input w-full" placeholder="Model (e.g. llama3.1)"
+              <input className="input w-full" placeholder={t("settings.llmModel")}
                 value={llmModel} onChange={(e) => setLlmModel(e.target.value)} />
               <div>
                 <input className="input w-full" type="password"
-                  placeholder={settings.llm_api_key_set ? "API key saved (leave empty to keep)" : "API key (blank for local Ollama)"}
+                  placeholder={t(settings.llm_api_key_set ? "settings.llmKeySaved" : "settings.llmKeyPlaceholder")}
                   value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} />
                 <div className="mt-1">
                   <SecretStatus set={settings.llm_api_key_set} dirty={!!llmApiKey.trim()} />
@@ -777,52 +762,40 @@ export default function SettingsModal({ onClose }: Props) {
         )}
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🛡️ Advanced Scraping & Bypass
+          {t("settings.scrapingTitle")}
         </h3>
         <HelpSteps
-          summary="How to resolve DataDome blocks? (instructions)"
+          summary={t("settings.scrapingHelp")}
           steps={[
-            "DataDome blocks raw HTTP requests to individual ad pages on your home IP.",
-            "Option A: Set a Proxy URL (e.g. socks5://127.0.0.1:9050 for Tor, or an HTTP/HTTPS proxy) below to route scraper traffic.",
+            t("settings.ddStep1"),
+            t("settings.ddStep2"),
             <>
-              Option B: Copy the <strong>datadome</strong> cookie value from your web browser:
+              {t("settings.ddStep3Intro")}
               <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Open a portal ad page (e.g., Immobiliare.it) in Chrome/Firefox.</li>
-                <li>Press F12, go to the <strong>Application</strong> (Chrome) or <strong>Storage</strong> (Firefox) tab.</li>
-                <li>Under <strong>Cookies</strong>, select the portal domain, find <strong>datadome</strong>, and copy its value.</li>
-                <li>Paste it in the Cookie field below. Note: it will expire after a few hours.</li>
+                <li>{t("settings.ddStep3a")}</li>
+                <li>{t("settings.ddStep3b")}</li>
+                <li>{t("settings.ddStep3c")}</li>
+                <li>{t("settings.ddStep3d")}</li>
               </ul>
             </>
           ]}
         />
         <div className="space-y-3">
           <div>
-            <label className="text-xs t-muted block mb-1">Proxy URL (HTTP/HTTPS/SOCKS5)</label>
-            <input className="input w-full" placeholder="e.g. socks5://127.0.0.1:9050"
+            <label className="text-xs t-muted block mb-1">{t("settings.proxyUrl")}</label>
+            <input className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
               value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs t-muted block mb-1">
-              Proxy pool (optional, one URL per line)
-            </label>
+            <label className="text-xs t-muted block mb-1">{t("settings.proxyPool")}</label>
             <textarea className="input w-full font-mono text-xs" rows={3}
               placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
               value={proxyUrls} onChange={(e) => setProxyUrls(e.target.value)} />
-            <p className="text-xs t-dim mt-1">
-              With more than one proxy, a blocked exit IP is rested for a while
-              and the next attempt leaves through a different one — one burned
-              address no longer takes every scan down with it.
-            </p>
+            <p className="text-xs t-dim mt-1">{t("settings.proxyPoolNote")}</p>
           </div>
           <div className="rounded-xl panel p-3 space-y-2">
-            <p className="text-xs font-medium t-body">🌐 Scraping API (solves DataDome for you)</p>
-            <p className="text-xs t-dim">
-              Optional. With a provider key set, scans route each portal page
-              through the provider — which returns the already-solved HTML — so
-              blocks stop hitting your home IP. Free tiers (~1,000 calls/month)
-              can cover a small personal scanner. Leave empty to keep the local
-              (free, offline) path.
-            </p>
+            <p className="text-xs font-medium t-body">{t("settings.scrapeApiTitle")}</p>
+            <p className="text-xs t-dim">{t("settings.scrapeApiNote")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <select className="input w-full" value={scrapeApiProvider}
                 onChange={(e) => setScrapeApiProvider(e.target.value)}>
@@ -832,7 +805,7 @@ export default function SettingsModal({ onClose }: Props) {
               </select>
               <div className="sm:col-span-2">
                 <input className="input w-full" type="password"
-                  placeholder={settings.scrape_api_key_set ? "Key already saved (leave empty to keep)" : "Provider API key"}
+                  placeholder={t(settings.scrape_api_key_set ? "settings.scrapeKeySaved" : "settings.scrapeKeyPlaceholder")}
                   value={scrapeApiKey} onChange={(e) => setScrapeApiKey(e.target.value)} />
                 <div className="mt-1">
                   <SecretStatus set={settings.scrape_api_key_set} dirty={!!scrapeApiKey.trim()} />
@@ -840,23 +813,19 @@ export default function SettingsModal({ onClose }: Props) {
               </div>
             </div>
             <div>
-              <label className="text-xs t-muted block mb-1">When to use it</label>
+              <label className="text-xs t-muted block mb-1">{t("settings.whenToUse")}</label>
               <select className="input w-full sm:w-auto" value={scrapeApiMode}
                 onChange={(e) => setScrapeApiMode(e.target.value)}>
-                <option value="fallback">Only as a fallback when the free path is blocked</option>
-                <option value="always">Always (every fetch goes through the provider)</option>
+                <option value="fallback">{t("settings.modeFallback")}</option>
+                <option value="always">{t("settings.modeAlways")}</option>
               </select>
-              <p className="text-xs t-dim mt-1">
-                "Fallback" (the default) spends your API credits only during an
-                actual outage: scans start on the free local path and escalate
-                when blocked.
-              </p>
+              <p className="text-xs t-dim mt-1">{t("settings.modeNote")}</p>
             </div>
           </div>
           <div>
-            <label className="text-xs t-muted block mb-1">DataDome Cookie</label>
+            <label className="text-xs t-muted block mb-1">{t("settings.cookieLabel")}</label>
             <input className="input w-full" type="password"
-              placeholder={settings.datadome_cookie_set ? "Cookie already saved (leave empty to keep)" : "Paste datadome cookie value"}
+              placeholder={t(settings.datadome_cookie_set ? "settings.cookieSaved" : "settings.cookiePlaceholder")}
               value={datadomeCookie} onChange={(e) => setDatadomeCookie(e.target.value)} />
             <div className="mt-1">
               <SecretStatus set={settings.datadome_cookie_set}
@@ -869,101 +838,82 @@ export default function SettingsModal({ onClose }: Props) {
               otherwise the button would just error. The manual paste above
               always stays as the zero-dependency fallback. */}
           <div className="rounded-xl panel p-3 space-y-2">
-            <p className="text-xs font-medium t-body">
-              🤖 Grab the cookie automatically
-            </p>
+            <p className="text-xs font-medium t-body">{t("settings.harvestTitle")}</p>
             {settings.datadome_harvester_available ? (
               <>
-                <p className="text-xs t-dim">
-                  Opens a local browser, earns a fresh cookie, and saves it — no
-                  copy/paste. A window may open: if the portal shows a CAPTCHA,
-                  solve it once and it is remembered next time.
-                </p>
+                <p className="text-xs t-dim">{t("settings.harvestNote")}</p>
                 <div className="flex items-center gap-2">
                   <button className="btn-ghost" onClick={grabCookie}
                     disabled={grabbing || anyBusy}>
-                    {grabbing ? "Opening browser…" : "🔄 Grab a fresh cookie now"}
+                    {grabbing ? t("settings.openingBrowser") : t("settings.grabCookie")}
                   </button>
                   {grabbing && (
                     <button className="btn-ghost" onClick={stopGrabbingCookie}
                       disabled={stoppingGrab}>
-                      {stoppingGrab ? "⏳ Stopping…" : "⏹ Stop"}
+                      {stoppingGrab ? t("app.stopping") : t("app.stop")}
                     </button>
                   )}
                 </div>
                 <label className="flex items-center gap-2 text-xs t-body cursor-pointer pt-1">
                   <input type="checkbox" checked={autoRefresh}
                     onChange={(e) => setAutoRefresh(e.target.checked)} />
-                  Refresh the cookie automatically before each scan (headless)
+                  {t("settings.autoRefreshCookie")}
                 </label>
                 <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
                   <input type="checkbox" checked={browserFirst} className="mt-0.5"
                     onChange={(e) => setBrowserFirst(e.target.checked)} />
-                  <span>
-                    Run the "still online?" check through the browser instead of
-                    fast requests — slower per ad, but it holds a real cookie so
-                    DataDome does not interrupt it with 403 blocks.
-                  </span>
+                  <span>{t("settings.browserFirst")}</span>
                 </label>
                 <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
                   <input type="checkbox" checked={browserHeadful} className="mt-0.5"
                     onChange={(e) => setBrowserHeadful(e.target.checked)} />
-                  <span>
-                    Show the browser window during the check so you can solve a
-                    CAPTCHA by hand if one appears — one solve unblocks the whole
-                    run. Works best together with the option above. Ignored when
-                    the app runs as a background Windows service.
-                  </span>
+                  <span>{t("settings.browserHeadful")}</span>
                 </label>
 
                 <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
                   <input type="checkbox" checked={browserHumanize} className="mt-0.5"
                     onChange={(e) => setBrowserHumanize(e.target.checked)} />
-                  <span>
-                    Move the mouse and scroll like a person on every browser
-                    page — anti-bot systems also score behavior, and a page
-                    visited with zero pointer events looks robotic. Adds about
-                    a second per page.
-                  </span>
+                  <span>{t("settings.browserHumanize")}</span>
                 </label>
 
                 <div className="pt-2 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 space-y-1.5">
                   <label className="flex items-center gap-2 text-xs t-body">
-                    <span className="whitespace-nowrap">Browser engine:</span>
+                    <span className="whitespace-nowrap">{t("settings.browserEngine")}</span>
                     <select className="input py-1 w-full sm:w-auto"
                       value={browserEngine}
                       onChange={(e) => setBrowserEngine(e.target.value)}>
-                      <option value="auto">Auto (Camoufox if installed, else Chromium)</option>
-                      <option value="camoufox">Camoufox (stealth Firefox)</option>
-                      <option value="chromium">Chromium</option>
+                      <option value="auto">{t("settings.engineAuto")}</option>
+                      <option value="camoufox">{t("settings.engineCamoufox")}</option>
+                      <option value="chromium">{t("settings.engineChromium")}</option>
                     </select>
                   </label>
                   <p className="text-[11px] t-muted">
-                    Camoufox is a stealth Firefox that hides the automation signals
-                    DataDome looks for, so the check is challenged far less often.{" "}
-                    {settings.camoufox_available
-                      ? "Installed ✓"
-                      : "Not installed — one-click adds it (~150 MB, one time):"}
+                    {t("settings.camoufoxNote")}{" "}
+                    {t(settings.camoufox_available
+                      ? "settings.camoufoxInstalled"
+                      : "settings.camoufoxMissing")}
                   </p>
                   {!settings.camoufox_available && (
                     <button className="btn-ghost text-xs w-full sm:w-auto" onClick={installCamoufox}
                       disabled={installingCamoufox || anyBusy}>
-                      {installingCamoufox ? "⚡ Installing Camoufox (~1-3 min)…" : "⚡ One-Click Install Camoufox"}
+                      {installingCamoufox
+                        ? t("settings.installingCamoufox")
+                        : t("settings.installCamoufox")}
                     </button>
                   )}
                 </div>
               </>
             ) : (
               <div className="space-y-2.5 pt-1">
-                <p className="text-xs t-dim">
-                  Not installed yet in this Python environment. You can install Playwright and Chromium automatically with one click:
-                </p>
+                <p className="text-xs t-dim">{t("settings.harvesterMissing")}</p>
                 <button className="btn-ghost text-xs w-full sm:w-auto" onClick={installHarvester}
                   disabled={installingHarvester || anyBusy}>
-                  {installingHarvester ? "⚡ Installing Playwright & Chromium (~1-2 min)…" : "⚡ One-Click Install Playwright & Chromium"}
+                  {installingHarvester
+                    ? t("settings.installingHarvester")
+                    : t("settings.installHarvester")}
                 </button>
                 <p className="text-[11px] t-muted pt-1">
-                  Or install manually from terminal using `install-playwright.bat` inside the project folder, or run:{" "}
+                  {t("settings.manualInstall")}
                   <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 select-all">
                     backend\.venv\Scripts\pip install playwright &amp;&amp; backend\.venv\Scripts\playwright install chromium
                   </code>
@@ -974,17 +924,11 @@ export default function SettingsModal({ onClose }: Props) {
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🔒 API access token
+          {t("settings.apiTokenTitle")}
         </h3>
-        <p className="text-xs t-dim mb-2">
-          By default the dashboard is reachable by anyone who can reach its
-          address (that is why it binds to localhost). Set a token to require it
-          on every request — then it is safe to expose the app on your LAN or
-          Tailscale. Leave empty to keep it open. You stay logged in on this
-          device; other devices are asked for the token once.
-        </p>
+        <p className="text-xs t-dim mb-2">{t("settings.apiTokenNote")}</p>
         <input className="input w-full" type="password"
-          placeholder="No token (open access)"
+          placeholder={t("settings.apiTokenPlaceholder")}
           value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
         <div className="mt-1">
           <SecretStatus
@@ -995,78 +939,62 @@ export default function SettingsModal({ onClose }: Props) {
         <Result where="global" />
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          🔄 Backend
+          {t("settings.backendTitle")}
         </h3>
-        <p className="text-xs t-dim mb-2">
-          Restart the backend process — use this after updating the app so new
-          features take effect, instead of closing and re-opening the terminal
-          window. The dashboard goes offline for a few seconds and then reloads
-          on its own.
-        </p>
+        <p className="text-xs t-dim mb-2">{t("settings.backendNote")}</p>
         <button className="btn-ghost w-full sm:w-auto" onClick={restartBackend}
           disabled={restarting || anyBusy}>
-          {restarting ? "⏳ Restarting… (waiting for the backend)" : "🔄 Restart backend"}
+          {restarting ? t("settings.restarting") : t("settings.restart")}
         </button>
 
         <div className="mt-8 pt-5 border-t border-rose-300/40 dark:border-rose-800/40">
           <h3 className="font-semibold text-sm uppercase text-rose-600 dark:text-rose-400 mb-1">
-            🧹 Data management
+            {t("settings.dataTitle")}
           </h3>
-          <p className="text-xs t-dim mb-3">
-            Irreversible. Your notification and login settings are always kept.
-          </p>
+          <p className="text-xs t-dim mb-3">{t("settings.dataNote")}</p>
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 text-xs t-body">
-                <span className="font-medium">Reset email imports</span> — clear
-                every listing found in your inbox so you can import again from
-                scratch (also forgets discarded ones).
+                <span className="font-medium">{t("settings.resetImportsName")}</span>
+                {t("settings.resetImportsBody")}
               </div>
               <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
                 disabled={anyBusy}
-                onClick={() => runReset("email-import",
-                  "Delete ALL imported email listings? You can re-run the inbox import afterwards.")}>
-                Reset imports
+                onClick={() => runReset("email-import", t("settings.resetImportsConfirm"))}>
+                {t("settings.resetImportsButton")}
               </button>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 text-xs t-body">
-                <span className="font-medium">Clear dashboard</span> — delete all
-                found properties and price history. Your search profiles stay; the
-                next scan rebuilds the grid silently.
+                <span className="font-medium">{t("settings.clearDashboardName")}</span>
+                {t("settings.clearDashboardBody")}
               </div>
               <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
                 disabled={anyBusy}
-                onClick={() => runReset("dashboard",
-                  "Delete ALL properties and their price history? Search profiles are kept and the next scan will rebuild the dashboard.")}>
-                Clear dashboard
+                onClick={() => runReset("dashboard", t("settings.clearDashboardConfirm"))}>
+                {t("settings.clearDashboardButton")}
               </button>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 text-xs t-body">
-                <span className="font-medium">Clear price trends</span> — remove
-                the daily median history behind the trend charts, without touching
-                any listing.
+                <span className="font-medium">{t("settings.clearTrendsName")}</span>
+                {t("settings.clearTrendsBody")}
               </div>
               <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
                 disabled={anyBusy}
-                onClick={() => runReset("pricing-snapshots",
-                  "Delete the stored price-trend history? The charts will start over from the next scan.")}>
-                Clear trends
+                onClick={() => runReset("pricing-snapshots", t("settings.clearTrendsConfirm"))}>
+                {t("settings.clearTrendsButton")}
               </button>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 text-xs t-body">
-                <span className="font-medium">Factory reset</span> — wipe
-                everything (dashboard, profiles, imports, trends) back to a fresh
-                install. A backup of the database is saved first.
+                <span className="font-medium">{t("settings.factoryName")}</span>
+                {t("settings.factoryBody")}
               </div>
               <button className="btn-ghost w-full sm:w-auto text-white bg-rose-600 hover:bg-rose-700 border-rose-600"
                 disabled={anyBusy}
-                onClick={() => runReset("factory",
-                  "Factory reset: this deletes the dashboard, ALL search profiles, imports and trends. A backup is saved first. Continue?",
-                  true)}>
-                Factory reset
+                onClick={() => runReset("factory", t("settings.factoryConfirm"), true)}>
+                {t("settings.factoryButton")}
               </button>
             </div>
           </div>
@@ -1074,9 +1002,9 @@ export default function SettingsModal({ onClose }: Props) {
         </div>
 
         <div className="flex justify-end gap-2 mt-6">
-          <button className="btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
           <button className="btn-primary" onClick={save} disabled={anyBusy}>
-            {busy === "global" ? "Saving…" : "Save settings"}
+            {busy === "global" ? t("common.saving") : t("settings.save")}
           </button>
         </div>
       </div>

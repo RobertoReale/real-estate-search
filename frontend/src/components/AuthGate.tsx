@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useT } from "../i18n";
 import { api } from "../services/api";
 import { authToken, setAuthRequiredHandler } from "../services/api";
 
@@ -6,6 +7,7 @@ import { authToken, setAuthRequiredHandler } from "../services/api";
  *  enabled — invariant 14 relaxed to "bind address OR token"). When auth is off,
  *  no request ever 401s and this is inert, so the common case is untouched. */
 export default function AuthGate({ children }: { children: ReactNode }) {
+  const t = useT();
   const [needAuth, setNeedAuth] = useState(false);
   const [token, setToken] = useState("");
   const [checking, setChecking] = useState(false);
@@ -25,7 +27,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       window.location.reload(); // reload so every data load re-runs authenticated
     } catch {
       authToken.clear();
-      setError("That token was not accepted. Check it and try again.");
+      setError(t("auth.rejected"));
       setChecking(false);
     }
   }
@@ -38,13 +40,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           <form onSubmit={submit}
             className="glass rounded-2xl max-w-sm w-full p-6 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">🔒 Authentication required</h2>
-              <p className="text-xs t-dim mt-1">
-                This dashboard is protected by an API token. Enter it to continue.
-              </p>
+              <h2 className="text-lg font-bold">{t("auth.title")}</h2>
+              <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
             </div>
             <input className="input w-full" type="password" autoFocus
-              placeholder="API token"
+              placeholder={t("auth.placeholder")}
               value={token} onChange={(e) => setToken(e.target.value)} />
             {error && (
               <p className="text-sm rounded-lg px-3 py-2 bg-rose-500/10 text-rose-700 dark:text-rose-300">
@@ -53,7 +53,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
             )}
             <button className="btn-primary w-full" type="submit"
               disabled={checking || !token.trim()}>
-              {checking ? "Checking…" : "Unlock"}
+              {checking ? t("auth.checking") : t("auth.unlock")}
             </button>
           </form>
         </div>

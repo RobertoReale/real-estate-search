@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProgressPoll } from "../hooks/useProgressPoll";
+import { useT } from "../i18n";
 import { api } from "../services/api";
 import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
@@ -27,6 +28,7 @@ export default function FiltersBar({
   filters, onChange, count, view, onViewChange, profiles, tags, matchEnabled,
   onReset,
 }: Props) {
+  const t = useT();
   const [repairing, setRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<{
     properties_fixed: number;
@@ -84,8 +86,12 @@ export default function FiltersBar({
   }, [matchEnabled, filters.sort]);
 
   function exportAs(fmt: "html" | "markdown" | "csv") {
-    const what = filters.only_favorites ? "Favorites" : isRent ? "Rentals" : "Properties";
-    const title = filters.city ? `${what} in ${filters.city}` : what;
+    const what = filters.only_favorites
+      ? t("filters.exportFavorites")
+      : isRent
+        ? t("filters.exportRentals")
+        : t("filters.exportProperties");
+    const title = filters.city ? t("filters.exportIn", { what, city: filters.city }) : what;
     // A file download (Content-Disposition attachment): navigating to it starts
     // the download without leaving the page, so a transient anchor is enough.
     const a = document.createElement("a");
@@ -106,11 +112,11 @@ export default function FiltersBar({
           fastest way to prune a cluttered dashboard ("San Siro", "nuova
           costruzione") and searches title, zone, address and the ad text. */}
       <div className="col-span-2 w-full flex flex-col gap-1">
-        <label className="text-xs t-muted">Search</label>
+        <label className="text-xs t-muted">{t("filters.search")}</label>
         <div className="relative">
           <input
             className={`input w-full ${filters.q ? "pr-9" : ""}`}
-            placeholder="Search by zone, address, title, floor or ad text…"
+            placeholder={t("filters.searchPlaceholder")}
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
           />
@@ -118,7 +124,7 @@ export default function FiltersBar({
             <button
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 t-muted hover:t-strong text-lg leading-none px-1"
-              aria-label="Clear search"
+              aria-label={t("filters.clearSearch")}
               onClick={() => set({ q: "" })}>
               ✕
             </button>
@@ -128,7 +134,7 @@ export default function FiltersBar({
       {/* Buy/Rent are separate worlds (different price scales, different
           goals), so the toggle is the most prominent control */}
       <div className="col-span-2 flex flex-col gap-1">
-        <label className="text-xs t-muted">Market</label>
+        <label className="text-xs t-muted">{t("filters.market")}</label>
         <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
           <button
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
@@ -137,7 +143,7 @@ export default function FiltersBar({
                 : "bg-white text-slate-500 hover:text-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
             onClick={() => set({ contract: "sale" })}>
-            🏠 Buy
+            {t("filters.buy")}
           </button>
           <button
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
@@ -146,49 +152,49 @@ export default function FiltersBar({
                 : "bg-white text-slate-500 hover:text-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
             onClick={() => set({ contract: "rent" })}>
-            🔑 Rent
+            {t("filters.rent")}
           </button>
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">City</label>
-        <input className="input w-full sm:w-32" placeholder="e.g. Milan"
+        <label className="text-xs t-muted">{t("filters.city")}</label>
+        <input className="input w-full sm:w-32" placeholder={t("filters.cityPlaceholder")}
           value={filters.city} onChange={(e) => set({ city: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Zone</label>
-        <input className="input w-full sm:w-32" placeholder="e.g. Navigli"
+        <label className="text-xs t-muted">{t("filters.zone")}</label>
+        <input className="input w-full sm:w-32" placeholder={t("filters.zonePlaceholder")}
           value={filters.zone} onChange={(e) => set({ zone: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">
-          Min price € {isRent && "/mo"}
+          {t("filters.minPrice")} {isRent && t("filters.perMonth")}
         </label>
         <input className="input w-full sm:w-28" type="number" placeholder="0"
           value={filters.min_price} onChange={(e) => set({ min_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted">
-          Max price € {isRent && "/mo"}
+          {t("filters.maxPrice")} {isRent && t("filters.perMonth")}
         </label>
         <input className="input w-full sm:w-28" type="number" placeholder="∞"
           value={filters.max_price} onChange={(e) => set({ max_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Min sqm</label>
+        <label className="text-xs t-muted">{t("filters.minSqm")}</label>
         <input className="input w-full sm:w-20" type="number" placeholder="0"
           value={filters.min_sqm} onChange={(e) => set({ min_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Max sqm</label>
+        <label className="text-xs t-muted">{t("filters.maxSqm")}</label>
         <input className="input w-full sm:w-20" type="number" placeholder="∞"
           value={filters.max_sqm} onChange={(e) => set({ max_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Rooms</label>
+        <label className="text-xs t-muted">{t("filters.rooms")}</label>
         <select className="input w-full sm:w-24" value={filters.rooms}
           onChange={(e) => set({ rooms: e.target.value })}>
-          <option value="">All</option>
+          <option value="">{t("common.all")}</option>
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>{n}</option>
           ))}
@@ -198,64 +204,68 @@ export default function FiltersBar({
           ("piano terra", "3", "attico"): a listing whose floor can't be read
           matches no band and drops out while this is set. */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Floor</label>
+        <label className="text-xs t-muted">{t("filters.floor")}</label>
         <select className="input w-full sm:w-36" value={filters.floor_band}
           onChange={(e) => set({
             floor_band: e.target.value as PropertyFilters["floor_band"],
           })}>
-          <option value="">Any floor</option>
-          <option value="ground">Ground floor</option>
-          <option value="low">Low (1–2)</option>
-          <option value="mid">Middle (3–5)</option>
-          <option value="high">High (6+)</option>
-          <option value="top">Top floor (attico/ultimo)</option>
+          <option value="">{t("filters.anyFloor")}</option>
+          <option value="ground">{t("filters.floorGround")}</option>
+          <option value="low">{t("filters.floorLow")}</option>
+          <option value="mid">{t("filters.floorMid")}</option>
+          <option value="high">{t("filters.floorHigh")}</option>
+          <option value="top">{t("filters.floorTop")}</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Sort by</label>
+        <label className="text-xs t-muted">{t("filters.sortBy")}</label>
         <select className="input w-full sm:w-40" value={filters.sort}
           onChange={(e) => set({ sort: e.target.value })}>
-          <option value="newest">Newest</option>
-          <option value="price_asc">Price ascending</option>
-          <option value="price_desc">Price descending</option>
-          <option value="sqm_price">Lowest €/sqm</option>
-          {matchEnabled && <option value="match">🎯 Best match</option>}
+          <option value="newest">{t("filters.sortNewest")}</option>
+          <option value="price_asc">{t("filters.sortPriceAsc")}</option>
+          <option value="price_desc">{t("filters.sortPriceDesc")}</option>
+          <option value="sqm_price">{t("filters.sortSqmPrice")}</option>
+          {matchEnabled && <option value="match">{t("filters.sortMatch")}</option>}
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Status</label>
+        <label className="text-xs t-muted">{t("filters.status")}</label>
         {/* "gone" = no longer seen by scans for days (inferred exit);
             "sold" = user confirmed the sale; manually hidden/sold properties
             never appear in "All" but each has its own filter here */}
         <select className="input w-full sm:w-36" value={filters.status}
           onChange={(e) => set({ status: e.target.value })}>
-          <option value="active">{isRent ? "For rent" : "For sale"}</option>
-          <option value="filtered">🚫 Filtered</option>
-          <option value="gone">💨 Gone</option>
-          <option value="sold">🔑 {isRent ? "Rented out" : "Sold"}</option>
-          <option value="hidden">🙈 Discarded</option>
-          <option value="all">All</option>
+          <option value="active">
+            {isRent ? t("filters.statusForRent") : t("filters.statusForSale")}
+          </option>
+          <option value="filtered">{t("filters.statusFiltered")}</option>
+          <option value="gone">{t("filters.statusGone")}</option>
+          <option value="sold">
+            {isRent ? t("filters.statusRentedOut") : t("filters.statusSold")}
+          </option>
+          <option value="hidden">{t("filters.statusHidden")}</option>
+          <option value="all">{t("filters.statusAll")}</option>
         </select>
       </div>
       {/* Origin: tell inbox imports apart from monitored-search finds — the
           two are otherwise indistinguishable once accepted (source column). */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">Origin</label>
+        <label className="text-xs t-muted">{t("filters.origin")}</label>
         <select className="input w-full sm:w-36" value={filters.source}
           onChange={(e) => set({ source: e.target.value as PropertyFilters["source"] })}>
-          <option value="">All sources</option>
-          <option value="scan">🔎 Monitored search</option>
-          <option value="email">✉️ Email import</option>
+          <option value="">{t("filters.originAll")}</option>
+          <option value="scan">{t("filters.originScan")}</option>
+          <option value="email">{t("filters.originEmail")}</option>
         </select>
       </div>
       {tags.length > 0 && (
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">Tag</label>
+          <label className="text-xs t-muted">{t("filters.tag")}</label>
           <select className="input w-full sm:w-36" value={filters.tag}
             onChange={(e) => set({ tag: e.target.value })}>
-            <option value="">All tags</option>
-            {tags.map((t) => (
-              <option key={t.id} value={t.name}>{t.name} ({t.count})</option>
+            <option value="">{t("filters.allTags")}</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.name}>{tag.name} ({tag.count})</option>
             ))}
           </select>
         </div>
@@ -270,11 +280,11 @@ export default function FiltersBar({
               provenance), not everything that merely matches its city and
               contract. The label used to read "Match a search", which was
               mistaken for a "best match" ranking. */}
-          <label className="text-xs t-muted">Limit to a search</label>
+          <label className="text-xs t-muted">{t("filters.limitToSearch")}</label>
           <select className="input w-full sm:w-44" value={filters.profile_id}
-            title="Show only the properties this saved search found (its 'Found by' provenance). Email imports, which no search found, drop out. This narrows the list — it does not reorder it."
+            title={t("filters.limitToSearchTitle")}
             onChange={(e) => set({ profile_id: e.target.value })}>
-            <option value="">All searches</option>
+            <option value="">{t("filters.allSearches")}</option>
             {groupSearchProfiles(profiles).map((g) => (
               <option key={g.ids[0]} value={String(g.ids[0])}>
                 {g.baseName} {g.portals.length > 1 ? `(${g.portals.join("/")})` : ""}
@@ -287,12 +297,12 @@ export default function FiltersBar({
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
           <input type="checkbox" checked={filters.only_price_drops}
             onChange={(e) => set({ only_price_drops: e.target.checked })} />
-          📉 Price drops
+          {t("filters.priceDrops")}
         </label>
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
           <input type="checkbox" checked={filters.only_favorites}
             onChange={(e) => set({ only_favorites: e.target.checked })} />
-          ⭐ Favorites
+          {t("filters.favorites")}
         </label>
         {/* Gateway to the advanced filters — kept next to the checkboxes so the
             common controls above stay uncluttered. The badge shows how many
@@ -301,7 +311,7 @@ export default function FiltersBar({
           className="flex items-center gap-1.5 text-sm accent-link hover:underline"
           aria-expanded={advOpen}
           onClick={() => setAdvOpen((o) => !o)}>
-          ⚙️ More filters
+          {t("filters.more")}
           {advActiveCount > 0 && (
             <span className="chip-blue text-[11px] px-1.5 py-0.5 rounded-full font-semibold">
               {advActiveCount}
@@ -315,48 +325,49 @@ export default function FiltersBar({
         <div className="col-span-2 w-full p-3 sm:p-4 rounded-xl panel
           grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap animate-fade-in">
           <p className="col-span-2 w-full text-xs font-medium t-muted -mb-1">
-            More filters <span className="font-normal t-dim">· narrow the grid by portal, agency, deal quality or €/sqm</span>
+            {t("filters.moreTitle")}{" "}
+            <span className="font-normal t-dim">{t("filters.moreHint")}</span>
           </p>
           {/* Portal: a card can group ads from several portals, so this keeps
               the ones present on the chosen portal (see main.py `portal=`). */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">Portal</label>
+            <label className="text-xs t-muted">{t("filters.portal")}</label>
             <select className="input w-full sm:w-40" value={filters.portal}
               onChange={(e) => set({
                 portal: e.target.value as PropertyFilters["portal"],
               })}>
-              <option value="">Any portal</option>
+              <option value="">{t("filters.anyPortal")}</option>
               <option value="immobiliare">Immobiliare</option>
               <option value="idealista">Idealista</option>
             </select>
           </div>
           <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
-            <label className="text-xs t-muted">Agency</label>
-            <input className="input w-full sm:w-48" placeholder="e.g. Tecnocasa"
+            <label className="text-xs t-muted">{t("filters.agency")}</label>
+            <input className="input w-full sm:w-48" placeholder={t("filters.agencyPlaceholder")}
               value={filters.agency} onChange={(e) => set({ agency: e.target.value })} />
           </div>
           {/* Deal quality reads the Deal Score (€/sqm gap vs the local median).
               "Fair or better" drops the overpriced; both need a local median,
               so unscored cards fall out when set. */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">Deal</label>
+            <label className="text-xs t-muted">{t("filters.deal")}</label>
             <select className="input w-full sm:w-44" value={filters.deal}
               onChange={(e) => set({
                 deal: e.target.value as PropertyFilters["deal"],
               })}>
-              <option value="">Any deal</option>
-              <option value="undervalued">💎 Undervalued only</option>
-              <option value="fair_plus">👍 Fair or better</option>
+              <option value="">{t("filters.anyDeal")}</option>
+              <option value="undervalued">{t("filters.dealUndervalued")}</option>
+              <option value="fair_plus">{t("filters.dealFairPlus")}</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">Min €/sqm</label>
+            <label className="text-xs t-muted">{t("filters.minSqmPrice")}</label>
             <input className="input w-full sm:w-24" type="number" placeholder="0"
               value={filters.min_sqm_price}
               onChange={(e) => set({ min_sqm_price: e.target.value })} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">Max €/sqm</label>
+            <label className="text-xs t-muted">{t("filters.maxSqmPrice")}</label>
             <input className="input w-full sm:w-24" type="number" placeholder="∞"
               value={filters.max_sqm_price}
               onChange={(e) => set({ max_sqm_price: e.target.value })} />
@@ -364,26 +375,26 @@ export default function FiltersBar({
           <label className="col-span-2 flex items-center gap-2 text-sm t-body cursor-pointer min-h-11 sm:min-h-0 sm:pb-2">
             <input type="checkbox" checked={filters.merged_only}
               onChange={(e) => set({ merged_only: e.target.checked })} />
-            🔗 Merged only (same home on several portals/agencies)
+            {t("filters.mergedOnly")}
           </label>
         </div>
       )}
 
       <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
         <div className="flex flex-col gap-1 justify-end pb-2">
-          <span className="text-sm t-muted">{count} properties</span>
+          <span className="text-sm t-muted">{t("filters.countProperties", { count })}</span>
           {anyFilterActive && (
             <button
               type="button"
               className="text-xs accent-link hover:underline text-left"
               onClick={onReset}
-              title="Clear every filter and go back to the default view">
-              ↺ Reset filters
+              title={t("filters.resetTitle")}>
+              {t("filters.reset")}
             </button>
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium t-muted">Maintenance</label>
+          <label className="text-xs font-medium t-muted">{t("filters.maintenance")}</label>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               repairing
@@ -391,7 +402,7 @@ export default function FiltersBar({
                 : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
             }`}
             disabled={repairing}
-            title="Instantly repair missing titles, zones and photos on previously imported listings"
+            title={t("filters.repairTitle")}
             onClick={async () => {
               setRepairing(true);
               setRepairResult(null);
@@ -403,7 +414,7 @@ export default function FiltersBar({
                 setRepairing(false);
               }
             }}>
-            {repairing ? "⏳ Repairing…" : "🛠️ Repair data"}
+            {repairing ? t("filters.repairing") : t("filters.repair")}
           </button>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
@@ -412,7 +423,7 @@ export default function FiltersBar({
                 : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/30"
             }`}
             disabled={geocoding}
-            title="Find map coordinates for listings that have an address or zone but no pin (uses OpenStreetMap; can take a while)"
+            title={t("filters.findCoordsTitle")}
             onClick={async () => {
               setGeocoding(true);
               setGeocodeResult(null);
@@ -426,9 +437,7 @@ export default function FiltersBar({
               } catch (e) {
                 const raw = e instanceof Error ? e.message : String(e);
                 setGeocodeError(
-                  /Error 404|Not Found/i.test(raw)
-                    ? "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again."
-                    : raw,
+                  /Error 404|Not Found/i.test(raw) ? t("filters.backendTooOld") : raw,
                 );
               } finally {
                 setGeocoding(false);
@@ -436,7 +445,7 @@ export default function FiltersBar({
                 setStoppingGeocode(false);
               }
             }}>
-            {geocoding ? "⏳ Locating…" : "📍 Find coordinates"}
+            {geocoding ? t("filters.locating") : t("filters.findCoords")}
           </button>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
@@ -445,7 +454,7 @@ export default function FiltersBar({
                 : "bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-300 border-slate-500/30"
             }`}
             disabled={clearingCache || geocoding}
-            title="Forget failed geocoding lookups so 'Find coordinates' retries addresses a temporary OpenStreetMap outage froze as 'not found'. Never moves existing pins."
+            title={t("filters.retryFailedTitle")}
             onClick={async () => {
               setClearingCache(true);
               setCacheCleared(null);
@@ -456,21 +465,19 @@ export default function FiltersBar({
               } catch (e) {
                 const raw = e instanceof Error ? e.message : String(e);
                 setGeocodeError(
-                  /Error 404|Not Found/i.test(raw)
-                    ? "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again."
-                    : raw,
+                  /Error 404|Not Found/i.test(raw) ? t("filters.backendTooOld") : raw,
                 );
               } finally {
                 setClearingCache(false);
               }
             }}>
-            {clearingCache ? "⏳ Clearing…" : "🧹 Retry failed lookups"}
+            {clearingCache ? t("filters.clearing") : t("filters.retryFailed")}
           </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
             DB) — see services/exporter.py */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">Export {count > 0 && `(${count})`}</label>
+          <label className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</label>
           <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
             {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"]] as const).map(
               ([fmt, label]) => (
@@ -480,7 +487,7 @@ export default function FiltersBar({
                     dark:text-slate-400 dark:hover:text-slate-200
                     disabled:opacity-40 disabled:cursor-not-allowed"
                   disabled={count === 0}
-                  title={`Download the ${count} filtered properties as ${label}`}
+                  title={t("filters.exportTitle", { count, format: label })}
                   onClick={() => exportAs(fmt)}>
                   {label}
                 </button>
@@ -491,9 +498,9 @@ export default function FiltersBar({
         {/* view switch: the map only shows geolocated listings, so the grid
             stays the authoritative view (see MapView's "without coordinates") */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">View</label>
+          <label className="text-xs t-muted">{t("filters.view")}</label>
           <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
-            {([["grid", "▦ Grid"], ["map", "🗺 Map"]] as const).map(
+            {([["grid", t("filters.viewGrid")], ["map", t("filters.viewMap")]] as const).map(
               ([value, label]) => (
                 <button key={value}
                   className={`px-3 py-2 text-sm font-medium transition ${
@@ -516,36 +523,35 @@ export default function FiltersBar({
             {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 || repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0 ? (
               <>
                 <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
-                  <span>✅</span> Repair completed successfully!
+                  <span>✅</span> {t("filters.repairDone")}
                 </p>
                 <p>
-                  Updated <strong>{repairResult.properties_fixed} properties</strong>,{" "}
-                  <strong>{repairResult.listings_fixed} listings</strong> and recovered{" "}
-                  <strong>{repairResult.images_recovered} photos</strong>.
-                  {(repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0) && (
-                    <>
-                      {" "}Merged <strong>{repairResult.properties_merged} duplicate cards</strong>{" "}
-                      and removed <strong>{repairResult.duplicate_listings_removed} duplicate listings</strong>{" "}
-                      pointing at the same ad.
-                    </>
-                  )}
+                  {t("filters.repairSummary", {
+                    properties: repairResult.properties_fixed,
+                    listings: repairResult.listings_fixed,
+                    images: repairResult.images_recovered,
+                  })}
+                  {(repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0) &&
+                    " " +
+                      t("filters.repairMerged", {
+                        merged: repairResult.properties_merged,
+                        removed: repairResult.duplicate_listings_removed,
+                      })}
                 </p>
               </>
             ) : (
               <>
                 <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-1.5">
-                  <span>✨</span> Everything is in order and fully in sync!
+                  <span>✨</span> {t("filters.repairNothing")}
                 </p>
-                <p>
-                  The check scanned the database: no property or listing with missing data, city (`Location N/A`), photos, or duplicate ad links was found to repair. Every listing is already complete and aligned.
-                </p>
+                <p>{t("filters.repairNothingBody")}</p>
               </>
             )}
           </div>
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setRepairResult(null)}
-            title="Close">
+            title={t("common.close")}>
             ✕
           </button>
         </div>
@@ -555,7 +561,7 @@ export default function FiltersBar({
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-fade-in shadow-sm space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-              <span>📍</span> Locating coordinates in background…
+              <span>📍</span> {t("filters.geocodeRunning")}
             </span>
             <button
               className="btn py-1 px-2.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
@@ -568,7 +574,7 @@ export default function FiltersBar({
                   // ignore
                 }
               }}>
-              {stoppingGeocode ? "Stopping…" : "⏹ Stop"}
+              {stoppingGeocode ? t("app.stopping") : t("app.stop")}
             </button>
           </div>
           <ProgressBar
@@ -576,15 +582,21 @@ export default function FiltersBar({
             total={geocodeProgress?.total ?? 0}
             indeterminate={!geocodeProgress || geocodeProgress.total <= 0}>
             {geocodeProgress
-              ? `Locating listing ${geocodeProgress.done} of ${geocodeProgress.total} — ${geocodeProgress.geocoded} located, ${geocodeProgress.cached} from cache${geocodeProgress.not_found > 0 ? `, ${geocodeProgress.not_found} not found` : ""}`
-              : "Starting coordinate lookup…"}
+              ? t("filters.geocodeProgress", {
+                  done: geocodeProgress.done,
+                  total: geocodeProgress.total,
+                  geocoded: geocodeProgress.geocoded,
+                  cached: geocodeProgress.cached,
+                }) +
+                (geocodeProgress.not_found > 0
+                  ? t("filters.geocodeProgressNotFound", { count: geocodeProgress.not_found })
+                  : "")
+              : t("filters.geocodeStarting")}
             {" "}
-            <span className="opacity-75 font-normal">
-              (Paced at 1 request/sec to respect OpenStreetMap Nominatim usage policy)
-            </span>
+            <span className="opacity-75 font-normal">{t("filters.geocodePacing")}</span>
             {geocodeProgress?.last_error && (
               <span className="block opacity-75 font-normal text-rose-600 dark:text-rose-400">
-                Last issue from Nominatim: {geocodeProgress.last_error}
+                {t("filters.geocodeLastIssue", { error: geocodeProgress.last_error })}
               </span>
             )}
           </ProgressBar>
@@ -597,7 +609,7 @@ export default function FiltersBar({
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setGeocodeError(null)}
-            title="Close">
+            title={t("common.close")}>
             ✕
           </button>
         </div>
@@ -606,16 +618,16 @@ export default function FiltersBar({
       {cacheCleared !== null && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <p>
-            {cacheCleared === 0 ? (
-              <>No stuck lookups to clear — every failed address had already been forgotten or never cached.</>
-            ) : (
-              <>🧹 Cleared <strong>{cacheCleared}</strong> failed lookup{cacheCleared === 1 ? "" : "s"}. Click <strong>📍 Find coordinates</strong> to retry them.</>
-            )}
+            {cacheCleared === 0
+              ? t("filters.cacheClearedNone")
+              : t(cacheCleared === 1 ? "filters.cacheClearedOne" : "filters.cacheCleared", {
+                  count: cacheCleared,
+                })}
           </p>
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setCacheCleared(null)}
-            title="Close">
+            title={t("common.close")}>
             ✕
           </button>
         </div>
@@ -625,25 +637,25 @@ export default function FiltersBar({
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
             <p className="font-semibold text-sky-700 dark:text-sky-400 text-sm flex items-center gap-1.5">
-              <span>📍</span> Coordinate lookup finished
+              <span>📍</span> {t("filters.geocodeDone")}
             </p>
             {geocodeResult.scanned === 0 ? (
-              <p>
-                Nothing to locate: every property either already has a pin or has
-                no address/zone to look one up from. (A bare city is skipped on
-                purpose — it would drop every such listing on one downtown pin.)
-              </p>
+              <p>{t("filters.geocodeNothing")}</p>
             ) : (
               <p>
-                Located <strong>{geocodeResult.geocoded}</strong> of{" "}
-                {geocodeResult.scanned} listings without a pin
-                {geocodeResult.not_found > 0 && <> · {geocodeResult.not_found} could not be resolved</>}.
+                {t("filters.geocodeLocated", {
+                  geocoded: geocodeResult.geocoded,
+                  scanned: geocodeResult.scanned,
+                })}
+                {geocodeResult.not_found > 0 &&
+                  t("filters.geocodeNotFound", { count: geocodeResult.not_found })}
+                .
                 {geocodeResult.cancelled ? (
                   <span className="block mt-1 font-medium text-amber-600 dark:text-amber-400">
-                    ⏹ Stopped — remaining properties were left without pins. Click "Find coordinates" again to resume.
+                    {t("filters.geocodeCancelled")}
                   </span>
                 ) : geocodeResult.remaining > 0 ? (
-                  <> <strong>{geocodeResult.remaining}</strong> left — run it again to continue.</>
+                  <> {t("filters.geocodeRemaining", { count: geocodeResult.remaining })}</>
                 ) : null}
               </p>
             )}
@@ -651,7 +663,7 @@ export default function FiltersBar({
           <button
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setGeocodeResult(null)}
-            title="Close">
+            title={t("common.close")}>
             ✕
           </button>
         </div>

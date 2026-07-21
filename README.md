@@ -227,6 +227,17 @@ contrast, stops scanning it altogether.
 
 ## Beyond the Listing Grid
 
+* **Interface language (English / Italian)**: the 🌐 button in the top bar
+  switches the whole dashboard between English and Italian — every label,
+  button, tooltip and confirmation dialog, plus number and date formats
+  (`€350,000` / `350.000 €`). The first visit follows your browser's language;
+  after that your choice is remembered **per device**, exactly like the light /
+  dark theme next to it, so the phone and the desktop can differ. Two things
+  stay in English on purpose: text the *backend* produces (scan summaries, the
+  availability check's transport line, error messages coming from a portal or
+  from Gmail) — it is rendered before it reaches the browser and the server does
+  not know which language you picked — and the listing text itself, which is
+  whatever the Italian portals published.
 * **Map view**: the same properties as pins on an OpenStreetMap background —
   useful to see how a shortlist is spread across the city. Clicking a pin opens
   the property. Many Immobiliare listings arrive without coordinates, so the map
@@ -638,13 +649,15 @@ DataDome most of the time on its own. These are the levers for when it isn't.
 * **Resilient Scrapers**: Built on 4 fallback strategies (JSON-LD Schema → Embedded `__NEXT_DATA__` state → Heuristic class-free HTML parsing → Internal API fallback). 
 * **Residential IP Scraping**: Designed to run locally or on home networks. Cloud server IPs are heavily blocked by DataDome, whereas your home internet IP is trusted, ensuring reliable scans.
 * **Deduplication Engine**: Listings are merged only if they contain geographical proof (coordinates within 60 meters **OR** exact same street and house number) plus compatible price, rooms, floor, and square meters.
-* **Frontend**: React / Vite / TypeScript / Tailwind CSS.
+* **Frontend**: React / Vite / TypeScript / Tailwind CSS, bilingual (English /
+  Italian) through a small dependency-free dictionary — no i18n library, and a
+  key present in one language but missing in the other fails the build.
 
 ---
 
 ## Testing & Verification
 
-Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason. The frontend has its own unit tests for the pure logic (filter querystring codec).
+Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason. The frontend has its own unit tests for the pure logic (filter querystring codec, floor labels, and the English/Italian dictionaries — key and placeholder parity).
 
 Run the backend tests using the local Python virtual environment:
 ```bash

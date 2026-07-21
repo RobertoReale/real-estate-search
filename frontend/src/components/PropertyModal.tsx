@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDate, formatNumber, useT } from "../i18n";
 import { api, formatPrice, safeHref } from "../services/api";
 import type { Property, Tag } from "../types";
 import Calculators from "./Calculators";
@@ -22,6 +23,7 @@ export default function PropertyModal({
   property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved, onShowOnMap,
   allTags, onAddTag, onRemoveTag,
 }: Props) {
+  const t = useT();
   const history = [...p.price_history].reverse();
   const [notes, setNotes] = useState(p.notes);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -50,10 +52,10 @@ export default function PropertyModal({
       if (located) {
         onShowOnMap(updated);
       } else {
-        setError("Could not place this property — the portal's location is too vague to find coordinates for it.");
+        setError(t("modal.locateFailed"));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not locate this property");
+      setError(e instanceof Error ? e.message : t("modal.locateError"));
     } finally {
       setLocating(false);
     }
@@ -67,14 +69,14 @@ export default function PropertyModal({
       const { property: updated, summary } = await api.checkSingleProperty(p.id);
       onNotesSaved(updated);
       if (summary.gone > 0) {
-        setCheckResult("🔴 Removed / Gone (404)");
+        setCheckResult(t("modal.checkGone"));
       } else if (summary.online > 0) {
-        setCheckResult("🟢 Online (just verified)");
+        setCheckResult(t("modal.checkOnline"));
       } else {
-        setCheckResult("⚠️ Could not verify (blocked by the portal or timeout)");
+        setCheckResult(t("modal.checkUnknown"));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error during the online check");
+      setError(e instanceof Error ? e.message : t("modal.checkError"));
     } finally {
       setCheckingOnline(false);
     }
@@ -88,7 +90,7 @@ export default function PropertyModal({
       setError("");
     } catch (e) {
       // the unsaved text stays in the textarea, so a retry costs one click
-      setError(e instanceof Error ? e.message : "Could not save notes");
+      setError(e instanceof Error ? e.message : t("modal.notesError"));
     } finally {
       setSavingNotes(false);
     }
@@ -112,24 +114,24 @@ export default function PropertyModal({
               <h2 className="text-lg font-bold">
                 {p.contract === "rent" && (
                   <span className="text-[10px] font-bold uppercase align-middle px-2 py-0.5 mr-2 rounded chip-teal">
-                    🔑 rent
+                    {t("card.rent")}
                   </span>
                 )}
-                {p.title || "Untitled"}
+                {p.title || t("card.untitled")}
               </h2>
               <p className="text-sm t-muted mt-1">
-                📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || "N/A"}
+                📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("common.notAvailable")}
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
               <button
                 className={`btn-ghost ${p.is_favorite ? "text-yellow-500 dark:text-yellow-400" : ""}`}
-                title={p.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                aria-label={p.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
+                aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 onClick={onToggleFavorite}>
                 {p.is_favorite ? "★" : "☆"}
               </button>
-              <button className="btn-ghost" aria-label="Close" onClick={onClose}>✕</button>
+              <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
             </div>
           </div>
 
@@ -139,11 +141,13 @@ export default function PropertyModal({
             </span>
             {p.sqm && p.current_min_price && (
               <span className="self-end t-muted">
-                {Math.round(p.current_min_price / p.sqm).toLocaleString("en-IE")} €/sqm
+                {t("common.sqmPrice", {
+                  value: formatNumber(Math.round(p.current_min_price / p.sqm)),
+                })}
               </span>
             )}
-            {p.rooms && <span className="self-end">🚪 {p.rooms} rooms</span>}
-            {p.sqm && <span className="self-end">📐 {p.sqm.toFixed(0)} sqm</span>}
+            {p.rooms && <span className="self-end">🚪 {t("common.rooms", { count: p.rooms })}</span>}
+            {p.sqm && <span className="self-end">📐 {t("common.sqm", { value: p.sqm.toFixed(0) })}</span>}
             <DealBadge property={p} />
             <MarketBadge property={p} />
           </div>
@@ -152,14 +156,14 @@ export default function PropertyModal({
           {p.deal_score !== null && p.deal_label !== "fair" && (
             <div className="mt-4 rounded-xl panel p-3 text-sm">
               <p className="font-medium mb-1">
-                🎯 Deal Score:{" "}
+                {t("modal.dealScoreTitle")}{" "}
                 <span className={p.deal_score > 0 ? "accent-good" : "accent-bad"}>
                   {p.deal_score > 0 ? "+" : ""}{p.deal_score}%
                 </span>{" "}
                 <span className="t-muted">
-                  ({p.deal_label === "undervalued"
-                    ? "below the local market"
-                    : "above the local market"})
+                  ({t(p.deal_label === "undervalued"
+                    ? "modal.dealBelowLocal"
+                    : "modal.dealAboveLocal")})
                 </span>
               </p>
               {p.deal_reasons && p.deal_reasons.length > 0 && (
@@ -169,24 +173,20 @@ export default function PropertyModal({
               )}
               {p.target_price_low && p.target_price_high && (
                 <p className="mt-2 t-body">
-                  💬 Suggested proposal:{" "}
+                  {t("modal.suggestedProposal")}{" "}
                   <span className="font-semibold">
                     {formatPrice(p.target_price_low, p.contract)} –{" "}
                     {formatPrice(p.target_price_high, p.contract)}
                   </span>
                 </p>
               )}
-              <p className="mt-2 text-[11px] t-dim">
-                An estimate from the area's median €/sqm, the listing's condition
-                cues, and the agency's usual discount — a starting point for your
-                own judgement, not an appraisal.
-              </p>
+              <p className="mt-2 text-[11px] t-dim">{t("modal.dealDisclaimer")}</p>
             </div>
           )}
 
           {/* Listings merged across portals */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-            Found listings ({p.listings.length})
+            {t("modal.foundListings", { count: p.listings.length })}
           </h3>
           <div className="space-y-2">
             {p.listings.map((l) => (
@@ -199,7 +199,7 @@ export default function PropertyModal({
                     <p className="text-xs t-dim truncate">🏢 {l.agency}</p>
                   )}
                 </div>
-                <span className="accent-link text-sm shrink-0">Open ↗</span>
+                <span className="accent-link text-sm shrink-0">{t("modal.open")}</span>
               </a>
             ))}
           </div>
@@ -208,7 +208,7 @@ export default function PropertyModal({
           {history.length > 0 && (
             <>
               <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-                Price history
+                {t("modal.priceHistory")}
               </h3>
               <ul className="space-y-1 text-sm">
                 {history.map((h, i) => {
@@ -218,7 +218,7 @@ export default function PropertyModal({
                   return (
                     <li key={i} className="flex flex-wrap items-center gap-x-3">
                       <span className="text-xs t-dim w-24">
-                        {new Date(h.changed_at).toLocaleDateString("en-IE")}
+                        {formatDate(h.changed_at)}
                       </span>
                       <span className="line-through t-dim">
                         {formatPrice(h.old_price)}
@@ -239,7 +239,9 @@ export default function PropertyModal({
           {p.found_by.length > 0 && (
             <>
               <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-                🔍 Found by {p.found_by.length > 1 ? `${p.found_by.length} searches` : "search"}
+                {p.found_by.length > 1
+                  ? t("modal.foundBySearches", { count: p.found_by.length })
+                  : t("modal.foundBySearch")}
               </h3>
               <div className="flex flex-wrap gap-2">
                 {p.found_by.map((s) => (
@@ -252,31 +254,29 @@ export default function PropertyModal({
             </>
           )}
           {p.found_by.length === 0 && p.source === "email" && (
-            <p className="mt-6 text-xs t-dim">
-              🔍 Not linked to any monitored search — imported from your inbox.
-            </p>
+            <p className="mt-6 text-xs t-dim">{t("modal.notLinked")}</p>
           )}
 
           {/* Tags: user-curated categories, scans never touch them */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-            🏷️ Tags
+            {t("modal.tags")}
           </h3>
           <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} />
 
           {/* Personal notes: user-curated, scans never touch them */}
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-            📝 Personal notes
+            {t("modal.notes")}
           </h3>
           <textarea
             className="input w-full h-24 resize-none"
-            placeholder='e.g. "called agent on Monday — viewing scheduled for Friday", "needs 15k renovation"'
+            placeholder={t("modal.notesPlaceholder")}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
           {notesDirty && (
             <div className="flex justify-end mt-2">
               <button className="btn-primary" onClick={saveNotes} disabled={savingNotes}>
-                {savingNotes ? "Saving…" : "Save notes"}
+                {savingNotes ? t("common.saving") : t("modal.saveNotes")}
               </button>
             </div>
           )}
@@ -288,7 +288,7 @@ export default function PropertyModal({
           {p.listings.some((l) => l.description) && (
             <>
               <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-                Description
+                {t("modal.description")}
               </h3>
               <p className="text-sm t-body whitespace-pre-line max-h-48 overflow-y-auto">
                 {p.listings.find((l) => l.description)?.description}
@@ -307,18 +307,16 @@ export default function PropertyModal({
                 className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={checkingOnline || !p.listings.length}
                 onClick={checkIfOnline}
-                title="Probes the portal URL right now to verify if this listing is still online or removed (404)">
-                {checkingOnline ? "⏳ Checking…" : "🔎 Check if still online"}
+                title={t("modal.checkOnlineTitle")}>
+                {checkingOnline ? t("app.checking") : t("modal.checkOnlineButton")}
               </button>
               <button
                 type="button"
                 className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={locating}
                 onClick={viewOnMap}
-                title={hasCoords
-                  ? "Open this property on the map"
-                  : "Find this property's coordinates and open it on the map"}>
-                {locating ? "⏳ Locating…" : "🗺️ View on map"}
+                title={t(hasCoords ? "modal.viewOnMapTitle" : "modal.locateAndViewTitle")}>
+                {locating ? t("filters.locating") : t("modal.viewOnMap")}
               </button>
               {checkResult && (
                 <span className="text-xs font-medium animate-fade-in">
@@ -334,21 +332,23 @@ export default function PropertyModal({
                   // portal redirect or block it misread as removal can still
                   // mark a live listing "gone" — this is the way back for
                   // that case, a manual "Hide", and a mistaken "Mark sold".
-                  const msg = p.status === "gone"
-                    ? "Restore this property? Use this if the availability check marked it \"no longer available\" by mistake."
-                    : p.status === "sold"
-                    ? "Restore this property? Use this if you marked it sold by mistake — it goes back to active lists."
-                    : "Restore this property? It will appear in active lists again.";
+                  const msg = t(
+                    p.status === "gone"
+                      ? "modal.restoreGone"
+                      : p.status === "sold"
+                        ? "modal.restoreSold"
+                        : "modal.restoreHidden",
+                  );
                   if (confirm(msg)) {
                     try {
                       await api.restoreProperty(p.id);
                       onDeleted(); // refresh the parent state
                     } catch (e) {
-                      setError(e instanceof Error ? e.message : "Restore failed");
+                      setError(e instanceof Error ? e.message : t("modal.restoreFailed"));
                     }
                   }
                 }}>
-                👁 Restore property
+                {t("modal.restore")}
               </button>
             ) : (
               <div className="flex items-center gap-3">
@@ -359,33 +359,35 @@ export default function PropertyModal({
                     // like "hidden" but is kept as a real sale date feeding the
                     // market-velocity signals. For the "VENDUTO" re-posts that
                     // stay online for weeks and never leave on their own.
-                    const label = p.contract === "rent" ? "rented out" : "sold";
-                    if (confirm(`Mark this property as ${label}? It leaves the active lists but is kept as a confirmed sale for market statistics.`)) {
+                    const msg = t(
+                      p.contract === "rent" ? "modal.confirmRented" : "modal.confirmSold",
+                    );
+                    if (confirm(msg)) {
                       try {
                         await api.markPropertySold(p.id);
                         onDeleted();
                       } catch (e) {
-                        setError(e instanceof Error ? e.message : "Mark sold failed");
+                        setError(e instanceof Error ? e.message : t("modal.markSoldFailed"));
                       }
                     }
                   }}>
-                  🔑 Mark {p.contract === "rent" ? "rented" : "sold"}
+                  {t(p.contract === "rent" ? "modal.markRented" : "modal.markSold")}
                 </button>
                 <button
                   className="accent-bad hover:opacity-80 text-sm transition"
                   onClick={async () => {
                     // the backend marks as "hidden" rather than physical deletion so
                     // subsequent scans do not re-insert or notify it as new
-                    if (confirm("Hide this property? It will never appear in lists or notifications again.")) {
+                    if (confirm(t("app.confirmHideOne"))) {
                       try {
                         await api.deleteProperty(p.id);
                         onDeleted();
                       } catch (e) {
-                        setError(e instanceof Error ? e.message : "Hide failed");
+                        setError(e instanceof Error ? e.message : t("modal.hideFailed"));
                       }
                     }
                   }}>
-                  🙈 Hide property
+                  {t("modal.hide")}
                 </button>
               </div>
             )}

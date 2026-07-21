@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { formatNumber, useT, type TFunction, type TranslationKey } from "../i18n";
 import { api } from "../services/api";
 import { PortalBadge } from "./PortalBadge";
 import type {
@@ -14,10 +15,10 @@ interface Props {
   onChanged: () => void;
 }
 
-const statusBadge: Record<string, { label: string; cls: string }> = {
-  ok: { label: "OK", cls: "chip-emerald" },
-  blocked: { label: "Blocked (will retry)", cls: "chip-amber" },
-  error: { label: "Error", cls: "chip-rose" },
+const statusBadge: Record<string, { label: TranslationKey; cls: string }> = {
+  ok: { label: "profiles.statusOk", cls: "chip-emerald" },
+  blocked: { label: "profiles.statusBlocked", cls: "chip-amber" },
+  error: { label: "profiles.statusError", cls: "chip-rose" },
 };
 
 const EMPTY_BUILDER: SearchBuilderParams = {
@@ -29,36 +30,36 @@ const EMPTY_BUILDER: SearchBuilderParams = {
 
 /** Feature filters both portals can apply. */
 const FEATURES = [
-  ["balcony", "Balcony"],
-  ["garden", "Garden"],
-  ["parking", "Garage / parking"],
-  ["elevator", "Lift"],
-  ["exclude_auctions", "Exclude auctions"],
-  ["pool", "Swimming pool"],
-] as const;
+  ["balcony", "profiles.featBalcony"],
+  ["garden", "profiles.featGarden"],
+  ["parking", "profiles.featParking"],
+  ["elevator", "profiles.featElevator"],
+  ["exclude_auctions", "profiles.featExcludeAuctions"],
+  ["pool", "profiles.featPool"],
+] as const satisfies readonly (readonly [string, TranslationKey])[];
 
 /** Backend filter keys → what to call them when Idealista cannot apply them.
  *  Kept in step with search_builder.idealista_unsupported. */
-const UNSUPPORTED_LABELS: Record<string, string> = {
-  floor: "this floor band",
-  condition: "this condition",
-  max_rooms: "a cap of 5 or more rooms (its largest bucket is “5 or more”)",
+const UNSUPPORTED_LABELS: Record<string, TranslationKey> = {
+  floor: "profiles.unsupportedFloor",
+  condition: "profiles.unsupportedCondition",
+  max_rooms: "profiles.unsupportedMaxRooms",
 };
 
 const FLOORS = [
-  ["", "Any floor"],
-  ["ground", "Ground floor"],
-  ["middle", "Middle floors"],
-  ["top", "Top floor"],
-] as const;
+  ["", "profiles.floorAny"],
+  ["ground", "profiles.floorGround"],
+  ["middle", "profiles.floorMiddle"],
+  ["top", "profiles.floorTop"],
+] as const satisfies readonly (readonly [string, TranslationKey])[];
 
 const CONDITIONS = [
-  ["", "Any condition"],
-  ["new", "New build"],
-  ["good", "Good / habitable"],
-  ["excellent", "Excellent / renovated"],
-  ["to_renovate", "Needs renovation"],
-] as const;
+  ["", "profiles.condAny"],
+  ["new", "profiles.condNew"],
+  ["good", "profiles.condGood"],
+  ["excellent", "profiles.condExcellent"],
+  ["to_renovate", "profiles.condToRenovate"],
+] as const satisfies readonly (readonly [string, TranslationKey])[];
 
 const ASSISTANT_EXAMPLES = [
   "trilocale in affitto a Milano sotto i 1.200 € al mese",
@@ -110,13 +111,13 @@ function paramsFromProfile(params?: SearchProfile["params"]): SearchBuilderParam
 }
 
 /** Auto-label for a profile created from a parsed search. */
-function searchLabel(search: AssistantSearch): string {
+function searchLabel(search: AssistantSearch, t: TFunction): string {
   const p = search.params;
   return [
-    p.contract === "rent" ? "Rent" : "Buy",
+    t(p.contract === "rent" ? "profiles.labelRent" : "profiles.labelBuy"),
     p.city,
     p.zone,
-    p.min_rooms ? `${p.min_rooms}+ rooms` : "",
+    p.min_rooms ? t("profiles.labelRooms", { count: p.min_rooms }) : "",
   ].filter(Boolean).join(" · ");
 }
 
@@ -124,11 +125,12 @@ function searchLabel(search: AssistantSearch): string {
  *  every search) next to the per-search field, so what gets discarded is
  *  visible where the user is looking instead of a separate modal. */
 function GlobalKeywordsHint({ settings }: { settings: Settings | null }) {
+  const t = useT();
   const words = settings?.excluded_keywords ?? [];
   if (!words.length) return null;
   return (
     <p className="text-xs t-dim -mt-1.5">
-      🌐 Always excluded for every search (from Settings): {words.join(", ")}
+      {t("profiles.globalKeywords", { words: words.join(", ") })}
     </p>
   );
 }
@@ -166,6 +168,7 @@ function channelReadiness(settings: Settings | null) {
 }
 
 export default function SearchProfiles({ profiles, settings, onChanged }: Props) {
+  const t = useT();
   const [mode, setMode] = useState<
     "closed" | "url" | "builder" | "assistant" | "multi"
   >("closed");
@@ -211,27 +214,27 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   const channelOptions = [
     {
       value: "",
-      label: "🔔 All channels",
+      label: t("profiles.chAll"),
       ok: ready.telegram || ready.email,
-      warn: "No notification channel is set up yet — this search won't send alerts. Configure Telegram or Email in ⚙️ Settings.",
+      warn: t("profiles.chAllWarn"),
     },
     {
       value: "telegram",
-      label: ready.telegram ? "📨 Telegram only" : "📨 Telegram only (not set up)",
+      label: t(ready.telegram ? "profiles.chTelegram" : "profiles.chTelegramOff"),
       ok: ready.telegram,
-      warn: "Telegram is not set up — this search won't send alerts. Add the bot token and chat ID in ⚙️ Settings.",
+      warn: t("profiles.chTelegramWarn"),
     },
     {
       value: "email",
-      label: ready.email ? "✉️ Email only" : "✉️ Email only (not set up)",
+      label: t(ready.email ? "profiles.chEmail" : "profiles.chEmailOff"),
       ok: ready.email,
-      warn: "Email is not set up — this search won't send alerts. Configure SMTP in ⚙️ Settings.",
+      warn: t("profiles.chEmailWarn"),
     },
     {
       // silence is a choice, not a misconfiguration: keep the search running
       // and its cards flowing into the dashboard, just never get pinged for it
       value: "none",
-      label: "🔕 No notifications",
+      label: t("profiles.chNone"),
       ok: true,
       warn: "",
     },
@@ -282,11 +285,8 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
 
   async function groupSelected(targets: SearchProfile[]) {
     if (targets.length < 2) return;
-    const defaultName = getBaseName(targets[0].name || "Ricerca monitorata");
-    const newBaseName = window.prompt(
-      "Inserisci il nome univoco per accorpare le ricerche selezionate in un solo box:",
-      defaultName
-    );
+    const defaultName = getBaseName(targets[0].name || t("profiles.defaultName"));
+    const newBaseName = window.prompt(t("profiles.mergePrompt"), defaultName);
     if (!newBaseName || !newBaseName.trim()) return;
     const cleaned = getBaseName(newBaseName.trim());
     setBulkBusy(true);
@@ -308,7 +308,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
 
   async function separateGroup(group: GroupedSearchProfile) {
     if (group.profiles.length < 2) return;
-    if (!window.confirm(`Vuoi separare i portali di "${group.baseName}" in box di ricerca distinti?`)) return;
+    if (!window.confirm(t("profiles.separateConfirm", { name: group.baseName }))) return;
     setBulkBusy(true);
     setError("");
     try {
@@ -465,7 +465,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       });
       setMode("builder");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     }
   }
 
@@ -482,7 +482,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         editInBuilder(result.searches[0]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setAsking(false);
     }
@@ -532,7 +532,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           if (!usePortals[portal]) continue;
           if (findDuplicateProfile(search.urls[portal], keywords)) continue;
           await api.createProfile({
-            name: `${searchLabel(search)} (${portal})`,
+            name: `${searchLabel(search, t)} (${portal})`,
             search_url: search.urls[portal],
             excluded_keywords: keywords,
             is_active: true,
@@ -541,13 +541,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         }
       }
       if (addedCount === 0 && multi.some(s => s.urls)) {
-        setError("Tutte le ricerche selezionate sono già presenti e monitorate.");
+        setError(t("profiles.allAlreadyPresent"));
       } else {
         resetForm();
         onChanged();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -559,14 +559,14 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     try {
       const dup = findDuplicateProfile(url, keywords, editingId !== null ? editingId : undefined);
       if (dup) {
-        setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
+        setError(t("profiles.duplicateExists", { name: dup.name }));
         setSaving(false);
         return;
       }
       if (editingId !== null) {
         const current = profiles.find((p) => p.id === editingId);
         await api.updateProfile(editingId, {
-          name: name || "Untitled search",
+          name: name || t("profiles.untitled"),
           search_url: url,
           excluded_keywords: keywords,
           notify_channels: current?.notify_channels ?? "",
@@ -574,7 +574,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         });
       } else {
         await api.createProfile({
-          name: name || "Untitled search",
+          name: name || t("profiles.untitled"),
           search_url: url,
           excluded_keywords: keywords,
           is_active: true,
@@ -583,7 +583,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       resetForm();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -597,7 +597,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       // slug, so the URL we save is the precise zone page when one exists
       setBuilt(await api.buildSearchUrls(params, true));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setGenerating(false);
     }
@@ -608,7 +608,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     setSaving(true);
     setError("");
     const label = name || [
-      params.contract === "rent" ? "Rent" : "Buy", params.city, params.zone,
+      t(params.contract === "rent" ? "profiles.labelRent" : "profiles.labelBuy"),
+      params.city,
+      params.zone,
     ].filter(Boolean).join(" · ");
     try {
       if (editingId !== null || editingGroupIds.length > 0) {
@@ -624,7 +626,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             if (existingForPortal) {
               const dup = findDuplicateProfile(targetUrl, keywords, existingForPortal.id);
               if (dup && !targetIds.includes(dup.id)) {
-                setError(`Esiste già una ricerca monitorata identica ('${dup.name}') con lo stesso URL e parole chiave escluse.`);
+                setError(t("profiles.duplicateExists", { name: dup.name }));
                 setSaving(false);
                 return;
               }
@@ -661,7 +663,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           addedCount++;
         }
         if (addedCount === 0) {
-          setError("Esiste già una ricerca monitorata identica per i parametri selezionati.");
+          setError(t("profiles.duplicateParams"));
           setSaving(false);
           return;
         }
@@ -669,7 +671,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       resetForm();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : t("email.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -681,48 +683,43 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
     <section className="glass rounded-2xl p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="font-semibold text-base">
-          🔍 Monitored searches{" "}
+          {t("profiles.title")}{" "}
           <span className="t-muted text-sm">({profiles.length})</span>
         </h2>
         <div className="flex flex-wrap gap-2">
           <button className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
-            {mode === "assistant" ? "Cancel" : "💬 Just describe it"}
+            {mode === "assistant" ? t("common.cancel") : t("profiles.modeAssistant")}
           </button>
           <button className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
-            {mode === "builder" ? "Cancel" : "🧭 Build a search"}
+            {mode === "builder" ? t("common.cancel") : t("profiles.modeBuilder")}
           </button>
           <button className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
-            {mode === "url" ? "Cancel" : "🔗 Paste a URL"}
+            {mode === "url" ? t("common.cancel") : t("profiles.modeUrl")}
           </button>
         </div>
       </div>
 
       {mode === "assistant" && (
         <div className="mb-4 p-4 rounded-xl panel space-y-3">
-          <p className="text-xs t-muted">
-            Describe what you are looking for in plain Italian or English —
-            even several alternatives at once ("bilocale in zona X o trilocale
-            in zona Y"). The text is parsed on your PC — nothing is sent to
-            any AI service — and you review every search before it is saved.
-          </p>
+          <p className="text-xs t-muted">{t("profiles.assistantIntro")}</p>
           <div className="flex flex-wrap gap-2">
             <input
               className="input flex-1 basis-full sm:basis-auto sm:min-w-[18rem]"
-              placeholder="e.g. trilocale in affitto a Milano sotto i 1.200 € al mese"
+              placeholder={t("profiles.assistantPlaceholder")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
               autoFocus />
             <button className="btn-primary" onClick={ask}
               disabled={asking || !query.trim()}>
-              {asking ? "Reading…" : "Understand it →"}
+              {asking ? t("profiles.assistantReading") : t("profiles.assistantSubmit")}
             </button>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs t-dim">Try:</span>
+            <span className="text-xs t-dim">{t("profiles.assistantTry")}</span>
             {ASSISTANT_EXAMPLES.map((example) => (
               <button key={example}
                 className="text-xs chip-blue px-2 py-1 rounded-lg hover:opacity-80 transition"
@@ -739,20 +736,18 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         <div className="mb-4 p-4 rounded-xl panel space-y-3">
           <div className="flex items-center gap-2">
             <p className="text-xs t-muted flex-1">
-              I read <strong>{multi.length} alternative searches</strong> in
-              your sentence. Check each one (open the links to verify the
-              results), then create all the profiles at once.
+              {t("profiles.multiIntro", { count: multi.length })}
             </p>
             <button className="text-xs accent-link"
               onClick={() => setMode("assistant")}>
-              ✏️ Reword
+              {t("profiles.reword")}
             </button>
           </div>
           {multi.map((search, idx) => (
             <div key={idx} className="p-3 rounded-xl panel space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded chip-blue">
-                  Search {idx + 1}
+                  {t("profiles.searchNumber", { n: idx + 1 })}
                 </span>
                 {search.interpretation.map((part) => (
                   <span key={part}
@@ -761,12 +756,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   </span>
                 ))}
                 <button className="text-xs accent-link ml-auto"
-                  title="Adjust this search in the builder form"
+                  title={t("profiles.editInBuilder")}
                   onClick={() => editInBuilder(search)}>
-                  Edit
+                  {t("common.edit")}
                 </button>
                 <button className="t-dim hover:text-rose-500 transition text-xs btn-focus"
-                  title="Drop this alternative" aria-label="Drop this alternative"
+                  title={t("profiles.dropAlternative")}
+                  aria-label={t("profiles.dropAlternative")}
                   onClick={() => setMulti((m) => m.filter((_, i) => i !== idx))}>
                   ✕
                 </button>
@@ -789,7 +785,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                     <span className="t-muted truncate flex-1">{urls[portal]}</span>
                     <a href={urls[portal]} target="_blank" rel="noreferrer"
                       className="accent-link shrink-0">
-                      Open ↗
+                      {t("modal.open")}
                     </a>
                   </div>
                 );
@@ -807,7 +803,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               </label>
             ))}
             <input className="input flex-1 basis-full sm:basis-auto sm:min-w-[14rem]"
-              placeholder="Extra excluded keywords (optional, comma-separated)"
+              placeholder={t("profiles.keywordsPlaceholder")}
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
           <GlobalKeywordsHint settings={settings} />
@@ -818,53 +814,49 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               || multi.every((s) => !s.urls)
               || (!usePortals.immobiliare && !usePortals.idealista)
             }>
-            {saving ? "Saving…" : `Create ${
-              multi.filter((s) => s.urls).length
-              * (Number(usePortals.immobiliare) + Number(usePortals.idealista))
-            } profiles`}
+            {saving
+              ? t("common.saving")
+              : t("profiles.createProfiles", {
+                  count:
+                    multi.filter((s) => s.urls).length *
+                    (Number(usePortals.immobiliare) + Number(usePortals.idealista)),
+                })}
           </button>
         </div>
       )}
 
       {mode === "url" && (
         <div className="mb-4 p-4 rounded-xl panel space-y-3">
-          <p className="text-xs t-muted">
-            Go to Immobiliare.it or Idealista, set zone and filters on the map,
-            then copy the results page URL here.
-          </p>
+          <p className="text-xs t-muted">{t("profiles.urlIntro")}</p>
           {/* The one thing a new user must understand: pasting a URL is not a
               fallback, it is the most powerful way to search — every portal
               filter is honored, including the ones the builder cannot express. */}
-          <p className="text-xs rounded-lg px-3 py-2 chip-blue">
-            💡 This is how you use <strong>every</strong> portal filter — bathrooms,
-            floor, elevator, terrace, energy class, property type, exclude auctions,
-            and so on. Set them on the portal, then paste the URL: the app monitors
-            exactly that search. The two helpers above ("Just describe it" / "Build
-            a search") only cover city, price, rooms and surface.
-          </p>
+          <p className="text-xs rounded-lg px-3 py-2 chip-blue">{t("profiles.urlTip")}</p>
           <div className="grid sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder="Name (e.g. 3 rooms South Milan)"
+            <input className="input w-full" placeholder={t("profiles.namePlaceholder")}
               value={name} onChange={(e) => setName(e.target.value)} />
-            <input className="input w-full" placeholder="Extra excluded keywords (optional, comma-separated)"
+            <input className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
           <GlobalKeywordsHint settings={settings} />
           <div className="flex flex-wrap sm:flex-nowrap gap-2">
             <input className="input w-full"
-              placeholder="https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…"
+              placeholder={t("profiles.urlPlaceholder")}
               value={url} onChange={(e) => setUrl(e.target.value)} />
             {url.trim() && (
               <button className="btn-secondary whitespace-nowrap text-xs px-3"
                 type="button"
-                title="Extract city and filters into the Builder form"
+                title={t("profiles.extractParamsTitle")}
                 onClick={extractParamsFromUrl}>
-                🪄 Extract parameters
+                {t("profiles.extractParams")}
               </button>
             )}
           </div>
           {error && <p className="accent-bad text-xs">{error}</p>}
           <button className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
-            {saving ? "Saving…" : editingId !== null ? "Save changes" : "Save profile"}
+            {saving
+              ? t("common.saving")
+              : t(editingId !== null ? "profiles.saveChanges" : "profiles.saveProfile")}
           </button>
         </div>
       )}
@@ -874,7 +866,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           {assistant ? (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs t-muted">I understood:</span>
+                <span className="text-xs t-muted">{t("profiles.understood")}</span>
                 {assistant.interpretation.map((part) => (
                   <span key={part}
                     className="text-xs chip-emerald px-2 py-1 rounded-lg font-medium">
@@ -883,7 +875,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 ))}
                 <button className="text-xs accent-link ml-auto"
                   onClick={() => setMode("assistant")}>
-                  ✏️ Reword
+                  {t("profiles.reword")}
                 </button>
               </div>
               {/* assumptions the parser had to make: visible, not buried */}
@@ -896,71 +888,66 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   ⚠️ {warning}
                 </p>
               ))}
-              <p className="text-xs t-dim">
-                Check the fields below — correct anything the parser got wrong.
-              </p>
+              <p className="text-xs t-dim">{t("profiles.checkFields")}</p>
             </div>
           ) : (
             <p className="text-xs t-muted">
-              Pick your criteria and the correct portal search URLs are generated
-              for you — no copy/paste from the browser needed. This covers the
-              basics (city, price, rooms, surface); for bathrooms, floor,
-              features or energy class, set them on the portal and use{" "}
+              {t("profiles.builderIntroPrefix")}
               <button className="accent-link underline"
-                onClick={() => setMode("url")}>🔗 Paste a URL</button> instead.
+                onClick={() => setMode("url")}>{t("profiles.modeUrl")}</button>
+              {t("profiles.builderIntroSuffix")}
             </p>
           )}
           {/* two columns on a phone, one flowing row from `sm` up — the
               `col-span-2` below is inert once the container turns into a flex */}
           <div className="grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap">
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Contract</label>
+              <label className="text-xs t-muted">{t("email.contract")}</label>
               <select className="input w-full sm:w-28" value={params.contract}
                 onChange={(e) => setParam({ contract: e.target.value as "sale" | "rent" })}>
-                <option value="sale">🏠 Buy</option>
-                <option value="rent">🔑 Rent</option>
+                <option value="sale">{t("filters.buy")}</option>
+                <option value="rent">{t("filters.rent")}</option>
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">City *</label>
-              <input className="input w-full sm:w-40" placeholder="e.g. Milano"
+              <label className="text-xs t-muted">{t("profiles.cityRequired")}</label>
+              <input className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
                 value={params.city} onChange={(e) => setParam({ city: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted" title="Idealista needs the province; leave empty if the city is a province capital">
-                Province
+              <label className="text-xs t-muted" title={t("profiles.provinceTitle")}>
+                {t("profiles.province")}
               </label>
-              <input className="input w-full sm:w-32" placeholder="(optional)"
+              <input className="input w-full sm:w-32" placeholder={t("profiles.optional")}
                 value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted"
-                title="Neighborhood, best-effort: open the generated URLs to check the portal recognises it">
-                Zone
+              <label className="text-xs t-muted" title={t("profiles.zoneTitle")}>
+                {t("filters.zone")}
               </label>
-              <input className="input w-full sm:w-32" placeholder="(optional)"
+              <input className="input w-full sm:w-32" placeholder={t("profiles.optional")}
                 value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Min €</label>
+              <label className="text-xs t-muted">{t("filters.minPrice")}</label>
               <input className="input w-full sm:w-24" type="number" value={params.min_price}
                 onChange={(e) => setParam({ min_price: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Max €</label>
+              <label className="text-xs t-muted">{t("filters.maxPrice")}</label>
               <input className="input w-full sm:w-24" type="number" value={params.max_price}
                 onChange={(e) => setParam({ max_price: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Min rooms</label>
+              <label className="text-xs t-muted">{t("profiles.minRooms")}</label>
               <select className="input w-full sm:w-24" value={params.min_rooms}
                 onChange={(e) => setParam({ min_rooms: e.target.value })}>
-                <option value="">Any</option>
+                <option value="">{t("email.any")}</option>
                 {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Min sqm</label>
+              <label className="text-xs t-muted">{t("filters.minSqm")}</label>
               <input className="input w-full sm:w-20" type="number" value={params.min_sqm}
                 onChange={(e) => setParam({ min_sqm: e.target.value })} />
             </div>
@@ -970,25 +957,26 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               and Idealista (a guessed one 404s silently). For anything finer,
               the "Paste a URL" note at the end is the full-power path. */}
           <p className="text-xs font-medium t-muted -mb-1">
-            More criteria <span className="font-normal t-dim">· applied to both portals</span>
+            {t("profiles.moreCriteria")}{" "}
+            <span className="font-normal t-dim">{t("profiles.moreCriteriaHint")}</span>
           </p>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Floor</label>
+              <label className="text-xs t-muted">{t("filters.floor")}</label>
               <select className="input w-full sm:w-36" value={params.floor}
                 onChange={(e) => setParam({
                   floor: e.target.value as SearchBuilderParams["floor"],
                 })}>
-                {FLOORS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                {FLOORS.map(([v, label]) => <option key={v} value={v}>{t(label)}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">Condition</label>
+              <label className="text-xs t-muted">{t("profiles.condition")}</label>
               <select className="input w-full sm:w-44" value={params.condition}
                 onChange={(e) => setParam({
                   condition: e.target.value as SearchBuilderParams["condition"],
                 })}>
-                {CONDITIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                {CONDITIONS.map(([v, label]) => <option key={v} value={v}>{t(label)}</option>)}
               </select>
             </div>
           </div>
@@ -998,7 +986,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0">
                 <input type="checkbox" checked={params[key]}
                   onChange={(e) => setParam({ [key]: e.target.checked })} />
-                {label}
+                {t(label)}
               </label>
             ))}
           </div>
@@ -1006,17 +994,16 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           {/* The full-power escape hatch, kept next to the filters so it is
               found exactly when the user reaches for a filter that isn't here. */}
           <p className="text-xs rounded-lg px-3 py-2 chip-blue">
-            💡 Need bathrooms, terrace, energy class, property type or another
-            filter? Set it on the portal and{" "}
+            {t("profiles.builderTipPrefix")}
             <button className="underline font-medium"
-              onClick={() => setMode("url")}>paste the results URL</button>{" "}
-            instead — that captures <strong>every</strong> filter the portal offers.
+              onClick={() => setMode("url")}>{t("profiles.builderTipLink")}</button>
+            {t("profiles.builderTipSuffix")}
           </p>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder="Profile name (optional)"
+            <input className="input w-full" placeholder={t("profiles.profileNamePlaceholder")}
               value={name} onChange={(e) => setName(e.target.value)} />
-            <input className="input w-full" placeholder="Extra excluded keywords (optional, comma-separated)"
+            <input className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
               value={keywords} onChange={(e) => setKeywords(e.target.value)} />
           </div>
           <GlobalKeywordsHint settings={settings} />
@@ -1024,16 +1011,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           {!built && (
             <button className="btn-primary" onClick={generate}
               disabled={generating || !params.city.trim()}>
-              {generating ? "Checking the zone on Idealista…" : "Generate search URLs"}
+              {generating ? t("profiles.generating") : t("profiles.generate")}
             </button>
           )}
 
           {built && (
             <div className="space-y-2 pt-1">
-              <p className="text-xs t-muted">
-                Check the generated searches (open them to verify the results),
-                then create the profiles:
-              </p>
+              <p className="text-xs t-muted">{t("profiles.checkGenerated")}</p>
               {(["immobiliare", "idealista"] as const).map((portal) => (
                 <label key={portal}
                   className="flex items-center gap-3 p-2.5 rounded-xl panel cursor-pointer">
@@ -1045,37 +1029,32 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   <a href={built[portal]} target="_blank" rel="noreferrer"
                     className="accent-link text-xs shrink-0"
                     onClick={(e) => e.stopPropagation()}>
-                    Open ↗
+                    {t("modal.open")}
                   </a>
                 </label>
               ))}
               {params.zone.trim() && usePortals.idealista && (
-                built.idealista_zone_page ? (
-                  <p className="text-xs t-muted">
-                    Idealista knows the “{params.zone.trim()}” zone: using its
-                    exact zone page.
-                  </p>
-                ) : (
-                  <p className="text-xs t-muted">
-                    Idealista has no zone page for “{params.zone.trim()}”, so
-                    this searches its name as text — expect some listings from
-                    outside the zone that merely mention it.
-                  </p>
-                )
+                <p className="text-xs t-muted">
+                  {t(built.idealista_zone_page ? "profiles.zoneKnown" : "profiles.zoneUnknown", {
+                    zone: params.zone.trim(),
+                  })}
+                </p>
               )}
               {usePortals.idealista && built.idealista_unsupported?.length ? (
                 <p className="text-xs t-muted">
-                  Idealista has no search filter for{" "}
-                  {built.idealista_unsupported
-                    .map((k) => UNSUPPORTED_LABELS[k] ?? k).join(", ")}
-                  , so its half of this pair is the wider search — expect
-                  listings there that Immobiliare filters out.
+                  {t("profiles.idealistaUnsupported", {
+                    filters: built.idealista_unsupported
+                      .map((k) => (UNSUPPORTED_LABELS[k] ? t(UNSUPPORTED_LABELS[k]) : k))
+                      .join(", "),
+                  })}
                 </p>
               ) : null}
               {error && <p className="accent-bad text-xs">{error}</p>}
               <button className="btn-primary" onClick={createFromBuilder}
                 disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
-                {saving ? "Saving…" : editingId !== null ? "Save changes" : "Create profiles"}
+                {saving
+                  ? t("common.saving")
+                  : t(editingId !== null ? "profiles.saveChanges" : "profiles.createProfilesButton")}
               </button>
             </div>
           )}
@@ -1084,10 +1063,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       )}
 
       {profiles.length === 0 && mode === "closed" && (
-        <p className="text-sm t-muted">
-          No search profiles configured. Build a search with your criteria or
-          paste a results URL from Immobiliare.it / Idealista to get started.
-        </p>
+        <p className="text-sm t-muted">{t("profiles.empty")}</p>
       )}
 
       {profiles.length > 1 && (
@@ -1102,20 +1078,20 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               onChange={() => setSelected(
                 allSelected ? new Set() : new Set(profiles.map((p) => p.id)),
               )} />
-            Select all
+            {t("profiles.selectAll")}
           </label>
           {selected.size > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs chip-blue px-2 py-1 rounded-lg font-medium">
-                {selected.size} selected
+                {t("profiles.selectedCount", { count: selected.size })}
               </span>
               <button className="btn-ghost !text-xs" disabled={bulkBusy}
                 onClick={() => runBulk([...selected], "activate")}>
-                ▶️ Activate
+                {t("profiles.activate")}
               </button>
               <button className="btn-ghost !text-xs" disabled={bulkBusy}
                 onClick={() => runBulk([...selected], "pause")}>
-                ⏸️ Pause
+                {t("profiles.pause")}
               </button>
               {/* value stays on the placeholder: this is an action, not a state
                   — the selection can hold searches with different channels */}
@@ -1123,7 +1099,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 value="" disabled={bulkBusy}
                 onChange={(e) =>
                   runBulk([...selected], "notify", e.target.value)}>
-                <option value="" disabled>Notifications →</option>
+                <option value="" disabled>{t("profiles.notificationsAction")}</option>
                 {channelOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -1132,20 +1108,20 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 className="btn-ghost !text-xs hover:!text-rose-500"
                 disabled={bulkBusy}
                 onClick={() => askDelete(selectedProfiles)}>
-                🗑 Delete
+                {t("profiles.deleteAction")}
               </button>
               {selectedProfiles.length > 1 && (
                 <button
                   className="btn-ghost !text-xs !text-purple-600 dark:!text-purple-400 font-medium"
                   disabled={bulkBusy}
-                  title="Accorpa i portali selezionati in un unico box di ricerca"
+                  title={t("profiles.mergeSelectedTitle")}
                   onClick={() => groupSelected(selectedProfiles)}>
-                  🔗 Accorpa selezionati
+                  {t("profiles.mergeSelected")}
                 </button>
               )}
               <button className="text-xs accent-link"
                 onClick={() => setSelected(new Set())}>
-                Clear
+                {t("profiles.clearSelection")}
               </button>
             </div>
           )}
@@ -1167,7 +1143,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel transition hover:shadow-sm">
               {profiles.length > 1 && (
                 <input type="checkbox" className="shrink-0 cursor-pointer"
-                  aria-label={`Select ${group.baseName}`}
+                  aria-label={t("profiles.selectRow", { name: group.baseName })}
                   checked={isGroupSelected}
                   ref={(el) => {
                     if (el) el.indeterminate = isGroupIndeterminate;
@@ -1180,8 +1156,8 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 ))}
                 {group.profiles.length > 1 && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0"
-                    title="Ricerche su molteplici portali accorpate in un solo box">
-                    Accorpata ({group.profiles.length} portali)
+                    title={t("profiles.mergedTitle")}>
+                    {t("profiles.merged", { count: group.profiles.length })}
                   </span>
                 )}
               </div>
@@ -1209,7 +1185,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                           </a>
                           {pBadge && p.last_run_status !== "ok" && (
                             <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${pBadge.cls}`}>
-                              {pBadge.label}
+                              {t(pBadge.label)}
                             </span>
                           )}
                         </div>
@@ -1221,7 +1197,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
                     {pParams.contract && (
                       <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
-                        {pParams.contract === "rent" ? "🔑 Rent" : "🏠 Buy"}
+                        {t(pParams.contract === "rent" ? "profiles.chipRent" : "profiles.chipBuy")}
                       </span>
                     )}
                     {pParams.city && (
@@ -1232,17 +1208,21 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                     )}
                     {(pParams.min_price || pParams.max_price) && (
                       <span className="text-[11px] chip-amber px-2 py-0.5 rounded-md font-medium">
-                        💰 {pParams.min_price ? `${pParams.min_price.toLocaleString("it-IT")} €` : "0 €"} – {pParams.max_price ? `${pParams.max_price.toLocaleString("it-IT")} €` : "∞"}
+                        💰 {pParams.min_price ? `${formatNumber(pParams.min_price)} €` : "0 €"} – {pParams.max_price ? `${formatNumber(pParams.max_price)} €` : "∞"}
                       </span>
                     )}
                     {(pParams.min_rooms || pParams.max_rooms) && (
                       <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
-                        🛏️ {pParams.min_rooms ?? 1}{pParams.max_rooms ? `–${pParams.max_rooms}` : "+"} rooms
+                        {t("profiles.chipRooms", {
+                          range: `${pParams.min_rooms ?? 1}${
+                            pParams.max_rooms ? `–${pParams.max_rooms}` : "+"
+                          }`,
+                        })}
                       </span>
                     )}
                     {pParams.min_sqm && (
                       <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
-                        📐 ≥ {pParams.min_sqm} sqm
+                        {t("profiles.chipMinSqm", { value: pParams.min_sqm })}
                       </span>
                     )}
                   </div>
@@ -1252,8 +1232,10 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 )}
                 {combinedKeywords(group.profiles[0], settings).length > 0 && (
                   <p className="text-xs t-dim mt-1 truncate"
-                    title="Listings mentioning any of these words are discarded (Settings + this search's own extras)">
-                    🚫 Excludes: {combinedKeywords(group.profiles[0], settings).join(", ")}
+                    title={t("profiles.excludesTitle")}>
+                    {t("profiles.excludes", {
+                      words: combinedKeywords(group.profiles[0], settings).join(", "),
+                    })}
                   </p>
                 )}
                 {!channel.ok && (
@@ -1264,13 +1246,13 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               </div>
               {badge && (
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge.cls}`}>
-                  {badge.label}
+                  {t(badge.label)}
                   {group.consecutive_failures > 1 && ` ×${group.consecutive_failures}`}
                 </span>
               )}
               <select
                 className="input !py-1 !px-2 text-xs w-44 shrink-0"
-                title="Where to send notifications for this search"
+                title={t("profiles.notifyTitle")}
                 value={group.notify_channels}
                 onChange={(e) => runBulk(group.ids, "notify", e.target.value)}>
                 {channelOptions.map((o) => (
@@ -1281,26 +1263,26 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
                 <input type="checkbox" checked={group.is_active}
                   onChange={() =>
                     runBulk(group.ids, group.is_active ? "pause" : "activate")} />
-                Active
+                {t("profiles.active")}
               </label>
               <div className="flex items-center gap-1 shrink-0">
                 <button className="t-dim hover:opacity-70 transition text-sm btn-focus
                     inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                  title="Modifica questo box di ricerca" aria-label="Modifica questo box di ricerca"
+                  title={t("profiles.editBox")} aria-label={t("profiles.editBox")}
                   onClick={() => editGroup(group)}>
                   ✏️
                 </button>
                 {group.profiles.length > 1 && (
                   <button className="t-dim hover:text-purple-500 transition text-sm btn-focus
                       inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                    title="Separa i portali in box singoli indipendenti" aria-label="Separa i portali in box singoli"
+                    title={t("profiles.separateBox")} aria-label={t("profiles.separateBox")}
                     onClick={() => separateGroup(group)}>
                     ✂️
                   </button>
                 )}
                 <button className="t-dim hover:text-rose-500 transition text-sm btn-focus
                     inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                  title="Elimina questo box di ricerca (tutti i portali associati)" aria-label="Elimina questo box di ricerca"
+                  title={t("profiles.deleteBox")} aria-label={t("profiles.deleteBox")}
                   onClick={() => askDelete(group.profiles)}>
                   🗑
                 </button>
@@ -1321,13 +1303,14 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-2">
               {deleting.length === 1
-                ? `Delete “${deleting[0].name}”?`
-                : `Delete “${getBaseName(deleting[0].name)}” (${deleting.length} portals)?`}
+                ? t("profiles.deleteOne", { name: deleting[0].name })
+                : t("profiles.deleteGroup", {
+                    name: getBaseName(deleting[0].name),
+                    count: deleting.length,
+                  })}
             </h2>
             <p className="text-sm t-muted">
-              {deleting.length === 1 ? "The search stops" : "The searches stop"}{" "}
-              being monitored. Their results are already in the dashboard — you
-              choose whether they go too.
+              {t(deleting.length === 1 ? "profiles.deleteBodyOne" : "profiles.deleteBodyMany")}
             </p>
             {deleting.length > 1 && (
               <ul className="mt-2 text-xs t-muted space-y-0.5 max-h-32 overflow-y-auto">
@@ -1337,46 +1320,40 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
 
             <div className="mt-4 p-3 rounded-xl panel text-sm">
               {results === null && !deleteError && (
-                <p className="t-muted">Counting the results…</p>
+                <p className="t-muted">{t("profiles.countingResults")}</p>
               )}
               {results && results.tracked === 0 && (
                 <p className="t-muted">
-                  No property in the dashboard is attributable to{" "}
-                  {deleting.length === 1 ? "this search" : "these searches"}, so
-                  “delete the results too” has nothing to delete. Results are
-                  attributed from the scans that found them: a search deleted
-                  before it has run keeps nothing on record.
+                  {t(
+                    deleting.length === 1
+                      ? "profiles.noneAttributableOne"
+                      : "profiles.noneAttributableMany",
+                  )}
                 </p>
               )}
               {results && results.tracked > 0 && (
                 <>
                   <p>
-                    {deleting.length === 1 ? "It found" : "They found"}{" "}
-                    <strong>{results.tracked}</strong>{" "}
-                    {results.tracked === 1 ? "property" : "properties"};{" "}
-                    <strong>{results.deletable}</strong> would be deleted.
+                    {t(deleting.length === 1 ? "profiles.foundOne" : "profiles.foundMany", {
+                      tracked: results.tracked,
+                      deletable: results.deletable,
+                    })}
                   </p>
                   {/* the spared ones are the whole reason this dialog shows
                       numbers rather than just asking yes/no */}
                   {(results.kept_shared > 0 || results.kept_curated > 0) && (
                     <ul className="mt-2 space-y-0.5 text-xs t-muted">
                       {results.kept_shared > 0 && (
-                        <li>
-                          · {results.kept_shared} kept: also found by a search
-                          you are keeping
-                        </li>
+                        <li>{t("profiles.keptShared", { count: results.kept_shared })}</li>
                       )}
                       {results.kept_curated > 0 && (
-                        <li>
-                          · {results.kept_curated} kept: favorited or annotated
-                          by you
-                        </li>
+                        <li>{t("profiles.keptCurated", { count: results.kept_curated })}</li>
                       )}
                     </ul>
                   )}
                   {results.deletable > 0 && (
                     <p className="mt-2 text-xs accent-bad">
-                      Deleting them is irreversible: price history included.
+                      {t("profiles.deleteIrreversible")}
                     </p>
                   )}
                 </>
@@ -1388,17 +1365,18 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
             <div className="flex flex-wrap gap-2 mt-5">
               <button className="btn-ghost" disabled={deleteBusy}
                 onClick={() => setDeleting(null)}>
-                Cancel
+                {t("common.cancel")}
               </button>
               <button className="btn-ghost flex-1" disabled={deleteBusy}
                 onClick={() => confirmDelete(false)}>
-                Keep the results
+                {t("profiles.keepResults")}
               </button>
               <button className="btn-primary flex-1 !bg-rose-600 hover:!bg-rose-700"
                 disabled={deleteBusy || !results || results.deletable === 0}
                 onClick={() => confirmDelete(true)}>
-                {deleteBusy ? "Deleting…" : `Delete with ${results?.deletable ?? 0} ${
-                  results?.deletable === 1 ? "property" : "properties"}`}
+                {deleteBusy
+                  ? t("profiles.deleting")
+                  : t("profiles.deleteWith", { count: results?.deletable ?? 0 })}
               </button>
             </div>
           </div>

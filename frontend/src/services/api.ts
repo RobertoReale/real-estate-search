@@ -1,6 +1,7 @@
 /** REST API client layer communicating with the local FastAPI backend via `/api`.
  *  In local development (`start.bat`), Vite proxies requests from port 5173 to 8000.
  *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
+import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, EmailScanParams, EmailScanProgress,
   EmailScanSummary, GeocodeProgress, GeocodeSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
@@ -447,14 +448,18 @@ export function safeHref(url: string | null | undefined): string {
   return url && /^https?:\/\//i.test(url) ? url : "#";
 }
 
-/** Format numeric values into human-readable Euro strings (`€350,000` or `€1,200/month`). */
+/** Format numeric values into human-readable Euro strings (`€350,000/month`,
+ *  `350.000 €/mese`): both the grouping and the suffix follow the chosen
+ *  language, via the locale the i18n provider mirrors outside React. */
 export function formatPrice(
   value: number | null | undefined,
   contract: "sale" | "rent" = "sale",
 ): string {
-  if (!value) return "N/A";
-  const formatted = value.toLocaleString("en-IE", {
+  if (!value) return translateCurrent("common.notAvailable");
+  const formatted = formatNumber(value, {
     style: "currency", currency: "EUR", maximumFractionDigits: 0,
   });
-  return contract === "rent" ? `${formatted}/month` : formatted;
+  return contract === "rent"
+    ? `${formatted}${translateCurrent("common.perMonthSuffix")}`
+    : formatted;
 }

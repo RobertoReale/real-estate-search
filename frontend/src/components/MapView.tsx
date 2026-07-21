@@ -1,6 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatNumber, translateCurrent, useT, type TranslationKey } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { GeoFilter, Property } from "../types";
 
@@ -32,13 +33,13 @@ const EMPTY_GEO: GeoFilter = {
  *  says something different from the grid it replaces. Order matters: a
  *  favorited price drop reads as a price drop, the rarer and more actionable
  *  signal. */
-const PIN_STYLE: Record<PinKind, { color: string; label: string }> = {
-  drop: { color: "#059669", label: "📉 Price drop" },
-  favorite: { color: "#d97706", label: "★ Favorite" },
-  filtered: { color: "#e11d48", label: "🚫 Filtered" },
-  gone: { color: "#64748b", label: "💨 No longer available" },
-  sold: { color: "#ca8a04", label: "🔑 Sold / rented out" },
-  active: { color: "#2563eb", label: "Active listing" },
+const PIN_STYLE: Record<PinKind, { color: string; label: TranslationKey }> = {
+  drop: { color: "#059669", label: "map.pinDrop" },
+  favorite: { color: "#d97706", label: "map.pinFavorite" },
+  filtered: { color: "#e11d48", label: "map.pinFiltered" },
+  gone: { color: "#64748b", label: "map.pinGone" },
+  sold: { color: "#ca8a04", label: "map.pinSold" },
+  active: { color: "#2563eb", label: "map.pinActive" },
 };
 
 function pinKind(p: Property): PinKind {
@@ -85,6 +86,7 @@ type DrawMode = "" | "radius" | "polygon";
 export default function MapView({
   properties, onSelect, focusId, geo, onGeoChange, onFindCoordinates, geocoding,
 }: Props) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -278,18 +280,21 @@ export default function MapView({
     for (const p of geolocated) {
       const marker = L.marker([p.latitude!, p.longitude!], {
         icon: makeIcon(pinKind(p)),
-        title: p.title || "Untitled",
+        title: p.title || translateCurrent("card.untitled"),
       });
       const sqmPrice =
         p.current_min_price && p.sqm
-          ? `${Math.round(p.current_min_price / p.sqm).toLocaleString("en-IE")} €/sqm`
+          ? translateCurrent("common.sqmPrice", {
+              value: formatNumber(Math.round(p.current_min_price / p.sqm)),
+            })
           : "";
       marker.bindTooltip(
         `<strong>${formatPrice(p.current_min_price, p.contract)}</strong>` +
           (sqmPrice ? ` · ${sqmPrice}` : "") +
-          `<br/>${escapeHtml(p.title || "Untitled")}` +
+          `<br/>${escapeHtml(p.title || translateCurrent("card.untitled"))}` +
           `<br/><em>${escapeHtml(
-            [p.zone, p.city].filter(Boolean).join(", ") || "Location N/A",
+            [p.zone, p.city].filter(Boolean).join(", ") ||
+              translateCurrent("card.locationUnknown"),
           )}</em>`,
         { direction: "top", offset: [0, -8] },
       );
@@ -336,12 +341,12 @@ export default function MapView({
     <section className="glass rounded-2xl p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm t-muted">
-          {geolocated.length} of {properties.length} properties on the map
+          {t("map.onMap", { shown: geolocated.length, total: properties.length })}
           {missing > 0 && (
             <span
               className="ml-2 text-xs chip-amber px-2 py-0.5 rounded-lg"
-              title="Portals do not publish coordinates for every listing; those properties are still in the grid view.">
-              {missing} without coordinates
+              title={t("map.missingTitle")}>
+              {t("map.missing", { count: missing })}
             </span>
           )}
         </p>
@@ -350,7 +355,7 @@ export default function MapView({
             <span key={kind} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full border border-white/70"
                 style={{ background: PIN_STYLE[kind].color }} />
-              {PIN_STYLE[kind].label}
+              {t(PIN_STYLE[kind].label)}
             </span>
           ))}
         </div>
@@ -363,19 +368,19 @@ export default function MapView({
           type="button"
           onClick={drawMode === "radius" ? cancelDrawing : startRadius}
           className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-sky-400" : ""}`}
-          title="Click the map to set the centre, then drag the handle to size the radius.">
-          ◯ {drawMode === "radius" ? "Click centre, drag handle…" : "Draw radius"}
+          title={t("map.drawRadiusTitle")}>
+          {t(drawMode === "radius" ? "map.drawingRadius" : "map.drawRadius")}
         </button>
         <button
           type="button"
           onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
           className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-sky-400" : ""}`}
-          title="Click to add each corner; double-click or press Finish to close the area.">
-          ⬠ {drawMode === "polygon" ? "Finish area" : "Draw area"}
+          title={t("map.drawAreaTitle")}>
+          {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
         </button>
         {drawMode === "polygon" && (
           <span className="text-xs t-dim">
-            {polyVertsRef.current.length} point(s) — need ≥ 3, then double-click to close
+            {t("map.polyHint", { count: polyVertsRef.current.length })}
           </span>
         )}
         {(hasZone || drawMode) && (
@@ -383,14 +388,16 @@ export default function MapView({
             type="button"
             onClick={clearZone}
             className="btn-ghost min-h-11 sm:min-h-0 text-sm">
-            ✕ Clear zone
+            {t("map.clearZone")}
           </button>
         )}
         {hasZone && (
           <span className="text-xs chip-sky px-2 py-0.5 rounded-lg">
             {activeGeo.geo_mode === "radius"
-              ? `Radius ${(Number(activeGeo.radius_m) / 1000).toFixed(2)} km`
-              : "Area filter"} active
+              ? t("map.radiusActive", {
+                  km: (Number(activeGeo.radius_m) / 1000).toFixed(2),
+                })
+              : t("map.areaActive")}
           </span>
         )}
       </div>
@@ -400,8 +407,7 @@ export default function MapView({
       {hasZone && missing > 0 && (
         <div className="text-xs rounded-lg chip-amber px-3 py-2 flex flex-wrap items-center gap-2">
           <span>
-            Zone filter active — {missing} propert{missing === 1 ? "y" : "ies"} without
-            coordinates can’t be placed and {missing === 1 ? "is" : "are"} excluded.
+            {t(missing === 1 ? "map.zoneWarningOne" : "map.zoneWarning", { count: missing })}
           </span>
           {onFindCoordinates && (
             <button
@@ -409,7 +415,7 @@ export default function MapView({
               onClick={onFindCoordinates}
               disabled={geocoding}
               className="btn-ghost min-h-8 sm:min-h-0 text-xs underline disabled:opacity-60">
-              {geocoding ? "Finding coordinates…" : "Find coordinates"}
+              {t(geocoding ? "map.findingCoordinates" : "map.findCoordinates")}
             </button>
           )}
         </div>
@@ -421,15 +427,9 @@ export default function MapView({
         className="h-[60dvh] min-h-[320px] sm:h-[70dvh] sm:min-h-[420px] rounded-xl overflow-hidden z-0" />
 
       {geolocated.length === 0 && (
-        <p className="text-sm t-muted text-center py-2">
-          None of the current properties has coordinates yet — run a scan, or
-          switch back to the grid view.
-        </p>
+        <p className="text-sm t-muted text-center py-2">{t("map.noneGeolocated")}</p>
       )}
-      <p className="text-xs t-dim">
-        Click a pin to open the property. Map data © OpenStreetMap
-        contributors (tiles are fetched online).
-      </p>
+      <p className="text-xs t-dim">{t("map.attribution")}</p>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useT } from "../i18n";
 import type { Tag } from "../types";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
  *  browsing the grid) and PropertyModal, so classifying a listing never
  *  requires opening the modal first. */
 export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: Props) {
+  const translate = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,8 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
             dark:bg-slate-700 dark:text-slate-200 ${compact ? "text-[10px] px-2 py-0.5" : "text-xs px-2.5 py-1"}`}>
           {t.name}
           <button type="button" className="opacity-60 hover:opacity-100"
-            title={`Remove tag "${t.name}"`} aria-label={`Remove tag "${t.name}"`}
+            title={translate("tags.removeTag", { name: t.name })}
+            aria-label={translate("tags.removeTag", { name: t.name })}
             onClick={() => onRemove(t.id)}>
             ×
           </button>
@@ -68,9 +71,9 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
           className={`rounded-full border border-dashed border-slate-400 text-slate-500
             dark:border-slate-500 dark:text-slate-400 hover:border-blue-500 hover:text-blue-500
             ${compact ? "text-[10px] px-2 py-0.5" : "text-xs px-2.5 py-1"}`}
-          title="Add tag" aria-label="Add tag"
+          title={translate("tags.addTag")} aria-label={translate("tags.addTag")}
           onClick={() => setOpen(true)}>
-          + tag
+          {translate("tags.addTagButton")}
         </button>
       )}
       {open && (
@@ -78,7 +81,7 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
           <input
             autoFocus
             className="input text-xs w-32 py-1"
-            placeholder="Tag name…"
+            placeholder={translate("tags.namePlaceholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -100,7 +103,7 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
                 <button type="button"
                   className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-blue-500/20 font-medium"
                   onClick={() => commit(trimmed)}>
-                  + create "{trimmed}"
+                  {translate("tags.create", { name: trimmed })}
                 </button>
               )}
             </div>

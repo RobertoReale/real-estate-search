@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { Property } from "../types";
 
@@ -45,6 +46,7 @@ function Stat({ label, value, accent }: {
 /** Mortgage estimator + rental yield calculator for sale properties.
  *  Pure client-side math: nothing is persisted. */
 export default function Calculators({ property: p }: { property: Property }) {
+  const t = useT();
   const price = p.current_min_price ?? 0;
   const [downPct, setDownPct] = useState(20);
   const [rate, setRate] = useState(3.5);
@@ -64,49 +66,46 @@ export default function Calculators({ property: p }: { property: Property }) {
   return (
     <>
       <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-        🧮 Mortgage estimator
+        {t("calc.mortgageTitle")}
       </h3>
       <div className="rounded-xl panel p-4 space-y-3">
         <div className="flex flex-wrap gap-4">
-          <Field label="Down payment" suffix="%" value={downPct}
+          <Field label={t("calc.downPayment")} suffix="%" value={downPct}
             onChange={setDownPct} width="w-20" />
-          <Field label="Interest rate" suffix="%/yr" value={rate}
+          <Field label={t("calc.interestRate")} suffix={t("calc.perYear")} value={rate}
             onChange={setRate} step={0.1} width="w-20" />
-          <Field label="Duration" suffix="years" value={years}
+          <Field label={t("calc.duration")} suffix={t("calc.years")} value={years}
             onChange={setYears} width="w-20" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <Stat label="Loan amount" value={formatPrice(loan)} />
-          <Stat label="Down payment" value={formatPrice(price - loan)} />
-          <Stat label="Monthly payment" value={`${formatPrice(mortgage)}/mo`} />
+          <Stat label={t("calc.loanAmount")} value={formatPrice(loan)} />
+          <Stat label={t("calc.downPayment")} value={formatPrice(price - loan)} />
+          <Stat label={t("calc.monthlyPayment")} value={formatPrice(mortgage, "rent")} />
         </div>
       </div>
 
       <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-        📈 Rental yield (investment)
+        {t("calc.yieldTitle")}
       </h3>
       <div className="rounded-xl panel p-4 space-y-3">
         <div className="flex flex-wrap gap-4">
-          <Field label="Expected rent" suffix="€/mo" value={rent}
+          <Field label={t("calc.expectedRent")} suffix={t("calc.perMonthUnit")} value={rent}
             onChange={setRent} step={50} />
-          <Field label="Costs & vacancy" suffix="% of rent" value={costsPct}
+          <Field label={t("calc.costsVacancy")} suffix={t("calc.percentOfRent")} value={costsPct}
             onChange={setCostsPct} width="w-20" />
         </div>
         {grossYield !== null ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <Stat label="Gross yield" value={`${grossYield.toFixed(2)}%`} />
-            <Stat label="Net yield" value={`${(netYield ?? 0).toFixed(2)}%`} />
+            <Stat label={t("calc.grossYield")} value={`${grossYield.toFixed(2)}%`} />
+            <Stat label={t("calc.netYield")} value={`${(netYield ?? 0).toFixed(2)}%`} />
             <Stat
-              label="Cash flow vs mortgage"
-              value={`${formatPrice(cashFlow ?? 0)}/mo`}
+              label={t("calc.cashFlow")}
+              value={formatPrice(cashFlow ?? 0, "rent")}
               accent={(cashFlow ?? 0) >= 0 ? "good" : "bad"}
             />
           </div>
         ) : (
-          <p className="text-xs t-dim">
-            Enter the rent you expect to charge to see gross/net yield and
-            monthly cash flow (rent minus the mortgage payment above).
-          </p>
+          <p className="text-xs t-dim">{t("calc.enterRent")}</p>
         )}
       </div>
     </>

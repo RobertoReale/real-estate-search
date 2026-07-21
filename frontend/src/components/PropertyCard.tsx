@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatNumber, useT } from "../i18n";
 import { formatPrice } from "../services/api";
 import { humanizeFloor } from "../utils/format";
 import { PortalBadge } from "./PortalBadge";
@@ -21,21 +22,23 @@ interface Props {
 /** Badge comparing this property's €/sqm to the local median.
  *  Only shown beyond ±5%: smaller deltas are market noise, not signal. */
 export function MarketBadge({ property: p }: { property: Property }) {
+  const t = useT();
   if (p.sqm_price_delta_pct === null || Math.abs(p.sqm_price_delta_pct) < 5) {
     return null;
   }
   const below = p.sqm_price_delta_pct < 0;
-  const scope = p.area_median_scope === "zone" ? "neighborhood" : "city";
+  const scope = t(p.area_median_scope === "zone" ? "card.scopeZone" : "card.scopeCity");
+  const pct = Math.abs(p.sqm_price_delta_pct).toFixed(0);
   return (
     <span
       className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
         below ? "chip-emerald" : "chip-amber"
       }`}
-      title={`Median in this ${scope}: ${Math.round(
-        p.area_median_sqm_price ?? 0
-      ).toLocaleString("en-IE")} €/sqm`}>
-      {Math.abs(p.sqm_price_delta_pct).toFixed(0)}%{" "}
-      {below ? "below" : "above"} {scope} average
+      title={t("card.medianIn", {
+        scope,
+        value: formatNumber(Math.round(p.area_median_sqm_price ?? 0)),
+      })}>
+      {t(below ? "card.belowAverage" : "card.aboveAverage", { pct, scope })}
     </span>
   );
 }
@@ -44,12 +47,13 @@ export function MarketBadge({ property: p }: { property: Property }) {
  *  Only rendered when the Smart Match Score feature is on (score is non-null).
  *  Colour tracks the score so a strong match reads at a glance. */
 export function MatchBadge({ score }: { score: number | null }) {
+  const t = useT();
   if (score === null || score === undefined) return null;
   const chip = score >= 80 ? "chip-emerald" : score >= 50 ? "chip-amber" : "chip-slate";
   return (
     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${chip}`}
-      title="Compatibility with your dream-home settings">
-      🎯 {score}% match
+      title={t("card.matchBadgeTitle")}>
+      {t("card.matchBadge", { score })}
     </span>
   );
 }
@@ -58,6 +62,7 @@ export function MatchBadge({ score }: { score: number | null }) {
  *  verdict is decisive (undervalued/overpriced); "fair" adds no signal. A
  *  positive score means priced below the local market. */
 export function DealBadge({ property: p }: { property: Property }) {
+  const t = useT();
   if (p.deal_score === null || p.deal_label === "fair" || p.deal_label === null) {
     return null;
   }
@@ -80,8 +85,10 @@ export function DealBadge({ property: p }: { property: Property }) {
       className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
         under ? "chip-emerald" : "chip-amber"
       }`}
-      title={(p.deal_reasons ?? []).join(" · ") || "Deal Score"}>
-      🎯 {Math.abs(p.deal_score)}% {under ? "below" : "above"} market
+      title={(p.deal_reasons ?? []).join(" · ") || t("card.dealScore")}>
+      {t(under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
+        pct: Math.abs(p.deal_score),
+      })}
     </span>
   );
 }
@@ -90,6 +97,7 @@ export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect, isNew,
   allTags, onAddTag, onRemoveTag,
 }: Props) {
+  const t = useT();
   const drop =
     p.first_price && p.current_min_price && p.current_min_price < p.first_price
       ? ((p.current_min_price - p.first_price) / p.first_price) * 100
@@ -124,8 +132,8 @@ export default function PropertyCard({
           {isNew && (
             <span
               className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-600/90 text-white backdrop-blur"
-              title="First appeared since your last visit to the dashboard">
-              🆕 new
+              title={t("card.newTitle")}>
+              {t("card.new")}
             </span>
           )}
           {portals.map((portal) => (
@@ -133,18 +141,18 @@ export default function PropertyCard({
           ))}
           {p.contract === "rent" && (
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-teal-600/80 text-white backdrop-blur">
-              🔑 rent
+              {t("card.rent")}
             </span>
           )}
           {p.listings.length > 1 && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600/80 text-white backdrop-blur">
-              {p.listings.length} merged listings
+              {t("card.mergedListings", { count: p.listings.length })}
             </span>
           )}
           {p.source === "email" && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-600/80 text-white backdrop-blur"
-              title="Imported from your email inbox (not from a monitored search)">
-              ✉️ email
+              title={t("card.emailTitle")}>
+              {t("card.email")}
             </span>
           )}
         </div>
@@ -160,7 +168,7 @@ export default function PropertyCard({
                   ? "bg-blue-600 text-white shadow"
                   : "bg-white/80 text-slate-400 dark:bg-slate-900/60 dark:text-slate-500 hover:text-blue-500"
               }`}
-              title={selected ? "Deselect" : "Select for batch check"}
+              title={selected ? t("card.deselect") : t("card.selectForBatch")}
               onClick={onToggleSelect}>
               {selected ? "✓" : "☐"}
             </button>
@@ -172,8 +180,8 @@ export default function PropertyCard({
                   ? "bg-yellow-500/90 text-white"
                   : "bg-white/80 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300 hover:bg-yellow-500/70 hover:text-white dark:hover:bg-yellow-500/70 dark:hover:text-white"
               }`}
-            title={p.is_favorite ? "Remove from favorites" : "Add to favorites"}
-            aria-label={p.is_favorite ? "Remove from favorites" : "Add to favorites"}
+            title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
+            aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
             onClick={onToggleFavorite}>
             {p.is_favorite ? "★" : "☆"}
           </button>
@@ -183,8 +191,8 @@ export default function PropertyCard({
                 dark:bg-slate-900/60 dark:text-slate-300 backdrop-blur hover:bg-rose-600/80
                 hover:text-white dark:hover:bg-rose-600/80 dark:hover:text-white flex
                 items-center justify-center text-sm transition btn-focus"
-              title="Hide this property (it will never come back on its own)"
-              aria-label="Hide this property"
+              title={t("card.hideTitle")}
+              aria-label={t("card.hideAria")}
               onClick={onQuickHide}>
               ✕
             </button>
@@ -199,17 +207,17 @@ export default function PropertyCard({
           )}
           {p.status === "filtered" && (
             <span className="text-xs px-2 py-1 rounded-lg bg-rose-600/90 text-white backdrop-blur">
-              🚫 Filtered: {p.filtered_reason}
+              {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
             </span>
           )}
           {p.status === "gone" && (
             <span className="text-xs px-2 py-1 rounded-lg bg-slate-600/90 text-white backdrop-blur">
-              💨 No longer available
+              {t("card.noLongerAvailable")}
             </span>
           )}
           {p.status === "sold" && (
             <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-600/90 text-white backdrop-blur">
-              🔑 {p.contract === "rent" ? "Rented out" : "Sold"}
+              {t(p.contract === "rent" ? "card.rentedOut" : "card.sold")}
             </span>
           )}
         </div>
@@ -222,7 +230,7 @@ export default function PropertyCard({
           </span>
           {sqmPrice && (
             <span className="text-xs t-muted">
-              {sqmPrice.toLocaleString("en-IE")} €/sqm
+              {t("common.sqmPrice", { value: formatNumber(sqmPrice) })}
             </span>
           )}
         </div>
@@ -235,22 +243,22 @@ export default function PropertyCard({
           <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} compact />
         </div>
         <h3 className="font-medium text-sm mt-1 line-clamp-2 min-h-[2.5rem]">
-          {p.title || "Untitled"}
+          {p.title || t("card.untitled")}
         </h3>
         <p className="text-xs t-muted mt-1 truncate">
-          📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || "Location N/A"}
+          📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("card.locationUnknown")}
         </p>
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
-          {p.rooms && <span>🚪 {p.rooms} rooms</span>}
-          {p.sqm && <span>📐 {p.sqm.toFixed(0)} sqm</span>}
+          {p.rooms && <span>🚪 {t("common.rooms", { count: p.rooms })}</span>}
+          {p.sqm && <span>📐 {t("common.sqm", { value: p.sqm.toFixed(0) })}</span>}
           {p.floor && <span>🏢 {humanizeFloor(p.floor)}</span>}
-          {p.notes && <span title={p.notes}>📝 notes</span>}
+          {p.notes && <span title={p.notes}>{t("card.notes")}</span>}
           {/* Whether the property is placeable on the map. Called out because a
               zone filter silently drops the un-pinned ones (invariant 19), and
               from the grid there was no way to tell which cards those are. */}
           {(p.latitude === null || p.longitude === null) && (
-            <span className="t-dim" title="No map coordinates yet — this listing won't appear on the map or inside a drawn zone until located (open it and use 'View on map', or run 'Find coordinates').">
-              🗺️✗ not on map
+            <span className="t-dim" title={t("card.notOnMapTitle")}>
+              {t("card.notOnMap")}
             </span>
           )}
         </div>
