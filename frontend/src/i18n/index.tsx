@@ -38,8 +38,9 @@ export function isLang(value: unknown): value is Lang {
 }
 
 /** Pick the startup language: an explicit past choice wins, otherwise follow
- *  the browser. Anything unrecognised falls back to English, so a corrupted
- *  localStorage value can never leave the UI without a dictionary. */
+ *  the browser. Anything unrecognised falls back to Italian, the default for
+ *  this Italian real-estate dashboard, so a corrupted localStorage value or an
+ *  unrecognised browser locale never leaves the UI in the wrong language. */
 export function resolveInitialLang(stored: string | null, browserLangs: readonly string[]): Lang {
   if (isLang(stored)) return stored;
   for (const tag of browserLangs) {
@@ -47,7 +48,7 @@ export function resolveInitialLang(stored: string | null, browserLangs: readonly
     const primary = tag.toLowerCase().split("-")[0];
     if (isLang(primary)) return primary;
   }
-  return "en";
+  return "it";
 }
 
 /** Substitute `{name}` placeholders. An unknown key returns the key itself

@@ -68,10 +68,10 @@ describe("resolveInitialLang", () => {
     expect(resolveInitialLang(null, ["it-CH", "de"])).toBe("it");
   });
 
-  it("defaults to English for an unsupported or corrupted value", () => {
+  it("defaults to Italian for an unsupported or corrupted value", () => {
     // a garbage localStorage value must never leave the UI without a dictionary
-    expect(resolveInitialLang("klingon", ["fr-FR"])).toBe("en");
-    expect(resolveInitialLang(null, [])).toBe("en");
+    expect(resolveInitialLang("klingon", ["fr-FR"])).toBe("it");
+    expect(resolveInitialLang(null, [])).toBe("it");
   });
 });
 
