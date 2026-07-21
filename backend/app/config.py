@@ -105,7 +105,7 @@ DEFAULT_SETTINGS = {
     # every existing parser is untouched. Empty key = the local curl_cffi/
     # browser path stays in charge (the free, offline default). This trades the
     # residential-IP fragility (invariants 8/16/18) for a paid — but free-tier-
-    # capable — dependency; see IMPROVEMENTS.md / ROADMAP.md.
+    # capable — dependency.
     "scrape_api_provider": "scrapfly",  # scrapfly | scraperapi | zyte
     "scrape_api_key": "",
     # How the configured scrape API is spent (scrapers/transport_policy.py).
