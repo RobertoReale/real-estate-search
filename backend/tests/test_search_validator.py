@@ -125,7 +125,7 @@ def test_api_create_and_update_duplicate_prevention(db):
     with pytest.raises(HTTPException) as exc_info:
         create_profile(payload, db=db)
     assert exc_info.value.status_code == 400
-    assert "Esiste già una ricerca monitorata identica" in exc_info.value.detail
+    assert "An identical monitored search already exists" in exc_info.value.detail
 
     # Create another different profile
     payload2 = schemas.SearchProfileIn(
@@ -143,4 +143,4 @@ def test_api_create_and_update_duplicate_prevention(db):
     with pytest.raises(HTTPException) as exc_info2:
         update_profile(bovisa_id, payload, db=db)
     assert exc_info2.value.status_code == 400
-    assert "Esiste già una ricerca monitorata identica" in exc_info2.value.detail
+    assert "An identical monitored search already exists" in exc_info2.value.detail

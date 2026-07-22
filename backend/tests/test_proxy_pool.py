@@ -1,4 +1,4 @@
-"""Proxy pool: IP diversity for the anti-bot transport (plan-resilience B.4).
+"""Proxy pool: IP diversity for the anti-bot transport.
 
 The single `proxy_url` was a second single point of failure next to the
 residential IP: DataDome scores IP reputation, so one blocked exit address

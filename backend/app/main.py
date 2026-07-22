@@ -855,7 +855,7 @@ def create_profile(data: schemas.SearchProfileIn, db: Session = Depends(get_db))
     if dup:
         raise HTTPException(
             status_code=400,
-            detail=f"Esiste già una ricerca monitorata identica ('{dup.name}') con lo stesso URL e parole chiave escluse.",
+            detail=f"An identical monitored search already exists ('{dup.name}'): same URL and same excluded keywords.",
         )
     profile = SearchProfile(
         name=data.name,
@@ -882,7 +882,7 @@ def update_profile(profile_id: int, data: schemas.SearchProfileIn, db: Session =
     if dup:
         raise HTTPException(
             status_code=400,
-            detail=f"Esiste già una ricerca monitorata identica ('{dup.name}') con lo stesso URL e parole chiave escluse.",
+            detail=f"An identical monitored search already exists ('{dup.name}'): same URL and same excluded keywords.",
         )
 
     if data.search_url != profile.search_url:
@@ -1248,7 +1248,7 @@ def scraper_health_endpoint(
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
 ):
-    """Per-portal scraping health over the window (plan-resilience B.5): daily
+    """Per-portal scraping health over the window: daily
     attempts/blocked/errors accumulated at scan time, the transport that
     carried the last scan, and the live per-profile failure streaks. This is
     the panel that turns "scans mysteriously stopped" into a visible trend and

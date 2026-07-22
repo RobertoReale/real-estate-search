@@ -1,4 +1,4 @@
-"""Transport ladder policy + persisted scraper health (plan-resilience B.3/B.5).
+"""Transport ladder policy + persisted scraper health.
 
 The pieces (TLS rotation, proxy pool, cookie recovery, browser, scrape API)
 all existed; what was missing is the policy choosing between them from a

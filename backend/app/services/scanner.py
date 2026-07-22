@@ -223,7 +223,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     scraper = get_scraper(profile.portal)
     scraper.delay_seconds = float(settings.get("request_delay_seconds", 6.0))
     scraper.max_pages = int(settings.get("max_pages_per_search", 10))
-    # health-driven transport choice (plan B.3): with scrape_api_mode=
+    # health-driven transport choice: with scrape_api_mode=
     # "fallback" the scan starts on the free local path and only spends the
     # paid API when this profile's failure streak says local is down; the
     # default "always" keeps a configured key routing everything as before.
@@ -232,7 +232,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
 
     result = scraper.scrape(profile.search_url)
     profile.last_run_at = datetime.now(UTC)
-    # observability (plan B.5): accumulate this scan into today's per-portal
+    # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local
     # ladder may have escalated to the API mid-scan.
     _status = (

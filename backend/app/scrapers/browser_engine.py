@@ -18,7 +18,7 @@ for the free path.
 
 Only `PlaywrightEngine` exists today: extra engines are diversification, not a
 new capability, and stay gated on scraper_health evidence (see
-docs/plan-browser-humanization.md §2.4). Teardown of the underlying context is
+the Scraper Health block-rate justifies it). Teardown of the underlying context is
 NOT this adapter's job for the probe's persistent session — `AdProbe` owns its
 context lifecycle (`_close_browser_session_inner`) exactly as before.
 """

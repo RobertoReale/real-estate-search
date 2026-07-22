@@ -3,7 +3,7 @@ logic must be engine-agnostic. A FakeEngine speaking only the Protocol surface
 proves the check's block detection, gone detection, cookie export and
 fail-open behavior never reach for Playwright specifics — which is exactly
 what lets a future non-Playwright engine (Nodriver, SeleniumBase-CDP) drop in
-as an adapter instead of a fork (docs/plan-browser-humanization.md §2).
+as an adapter instead of a fork.
 
 Real engine launches stay in the documented untestable-network bucket, like
 the Camoufox path.

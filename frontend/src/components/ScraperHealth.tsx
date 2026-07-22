@@ -3,7 +3,7 @@ import { translateCurrent, useT } from "../i18n";
 import { api } from "../services/api";
 import type { ScraperHealth, ScraperHealthDay } from "../types";
 
-/** Scraper Health panel (plan-resilience B.5): the anti-bot pipeline degrades
+/** Scraper Health panel: the anti-bot pipeline degrades
  *  silently — a blocked scraper looks exactly like a quiet market — so this
  *  panel turns the persisted per-portal daily counts into a visible trend:
  *  block-rate per portal, the transport that carried the last scan, and the

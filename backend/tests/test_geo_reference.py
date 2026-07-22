@@ -1,4 +1,4 @@
-"""Offline comuni gazetteer (de-Milanization, plan-resilience A).
+"""Offline comuni gazetteer (de-Milanization).
 
 The hand-enumerated KNOWN_CITIES / KNOWN_CITY_BOXES lists silently degraded
 outside Milan's orbit: a Lecce pin was accepted only because Lecce was NOT in
