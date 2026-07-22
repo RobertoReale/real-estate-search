@@ -614,3 +614,32 @@ def test_bulk_skips_missing_ids(db):
     scan, _ = _seed_mixed(db)
     res = bulk_properties(schemas.PropertyBulkIn(ids=[scan.id, 999999], action="hide"), db)
     assert res["processed"] == 1
+
+
+def test_newest_sort_survives_mixed_naive_and_aware_timestamps(db):
+    """`upsert_listing` stamps timezone-aware datetimes, but SQLite gives them
+    back naive — and `SessionLocal` keeps `expire_on_commit=False`, so a session
+    can genuinely hold both shapes at once. Sorting them together raised
+    "can't compare offset-naive and offset-aware datetimes", taking down the
+    whole grid (and the export, which shares this selection)."""
+    upsert_listing(db, _raw(portal_id="111"))
+    second, _, _ = upsert_listing(
+        db,
+        # a different building: same-coordinates + same-price would be merged
+        # into one card by the deduplicator and the test would prove nothing
+        _raw(
+            portal_id="222",
+            url="https://www.immobiliare.it/annunci/222/",
+            address="Via Bergamo, 3",
+            latitude=45.5,
+            longitude=9.3,
+            price=410_000.0,
+        ),
+    )
+    db.commit()
+    # force one of the two to be re-read from SQLite: it comes back naive,
+    # while the other keeps the aware value it was created with
+    db.expire(second)
+
+    props = list_properties(db=db, sort="newest")
+    assert len(props) == 2

@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import BASE_DIR, load_settings, save_settings
+from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -203,9 +204,7 @@ def cookie_is_stale(updated_at: str | None, ttl_minutes: int, now: datetime) -> 
         saved = datetime.fromisoformat(updated_at)
     except ValueError:
         return True
-    if saved.tzinfo is None:
-        saved = saved.replace(tzinfo=UTC)
-    return now - saved >= timedelta(minutes=max(ttl_minutes, 1))
+    return now - as_utc(saved) >= timedelta(minutes=max(ttl_minutes, 1))
 
 
 def is_camoufox_available() -> bool:

@@ -44,6 +44,7 @@ from .services.query_parser import parse_query_auto
 from .services.scanner import run_scan, scan_state
 from .services.search_builder import build_search_urls, parse_search_url
 from .services.search_validator import check_duplicate_profile
+from .services.timeutils import as_utc
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -400,7 +401,11 @@ def _select_properties(
         ]
     annotate_match_scores(props, load_settings())
     if sort == "newest":
-        props.sort(key=lambda p: p.first_seen_at, reverse=True)
+        # as_utc, not the raw column: SQLite returns naive datetimes while a row
+        # created earlier in this same session still carries the aware value it
+        # was built with (SessionLocal keeps `expire_on_commit=False`). Sorting
+        # the two kinds together raises TypeError and takes the whole grid down.
+        props.sort(key=lambda p: as_utc(p.first_seen_at), reverse=True)
     elif sort == "price_asc":
         props.sort(key=lambda p: p.current_min_price or 1e12)
     elif sort == "price_desc":

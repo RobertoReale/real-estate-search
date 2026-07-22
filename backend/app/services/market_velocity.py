@@ -38,14 +38,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..models import Property
 from .pricing_stats import compute_sqm_price_medians, lookup_area_median
+from .timeutils import as_utc as _as_utc
 
 # below this many observations a median is not reported (see module docstring)
 MIN_SAMPLE = 3
-
-
-def _as_utc(value: datetime) -> datetime:
-    """SQLite hands back naive datetimes; they were all written in UTC."""
-    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def _is_closed(prop: Property) -> bool:

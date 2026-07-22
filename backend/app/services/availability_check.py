@@ -27,6 +27,7 @@ from .email_import import (
     _check_run_lock,
     _try_cookie_recovery,
 )
+from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,7 @@ def _is_recently_checked(dt, hours: float = 6.0) -> bool:
     if dt is None or hours <= 0:
         return False
     now = datetime.now(UTC)
-    dt_tz = dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
-    return (now - dt_tz).total_seconds() < hours * 3600
+    return (now - as_utc(dt)).total_seconds() < hours * 3600
 
 
 def check_properties_availability(

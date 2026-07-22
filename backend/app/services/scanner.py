@@ -14,6 +14,7 @@ from ..scrapers import get_scraper, transport_policy
 from . import deal_score, notifier, pricing_stats, scraper_health
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
+from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +153,9 @@ def _mark_vanished_properties(db) -> int:
     count = 0
     query = select(Property).where(Property.status.in_(("active", "filtered")))
     for prop in db.scalars(query):
-        last_seen = prop.last_seen_at
-        if last_seen.tzinfo is None:
-            # SQLite returns naive datetime: they were saved in UTC
-            last_seen = last_seen.replace(tzinfo=UTC)
+        # No None guard: `properties.last_seen_at` is NOT NULL in the schema
+        # (default `utcnow`), so SQLite itself refuses a row without it.
+        last_seen = as_utc(prop.last_seen_at)
         if last_seen < cutoff:
             prop.status = "gone"
             # the listing disappeared when it was last seen, not today:

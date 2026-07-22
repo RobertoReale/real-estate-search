@@ -135,6 +135,7 @@ progetto/
 │   │       ├── llm_parser.py     # optional LLM backend for the assistant (OpenAI-compatible, falls back to query_parser)
 │   │       ├── geocoder.py       # opt-in Nominatim geocoding for missing map coordinates (cached, fail-open)
 │   │       ├── geo_filter.py     # pure geometry for the map's zone filter (haversine, point-in-polygon)
+│   │       ├── timeutils.py      # the one place that reattaches UTC to a datetime read back from SQLite
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
@@ -143,7 +144,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 630 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 632 tests (incl. hypothesis property tests)
 │   ├── requirements.txt
 │   ├── requirements-dev.txt      # dev-only: ruff, hypothesis, pytest-cov, pip-audit, pre-commit
 │   ├── pyproject.toml            # ruff + coverage config (never read by the runtime)
@@ -184,7 +185,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (630, `pytest`)
+### Automated Tests (632, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

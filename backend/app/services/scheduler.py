@@ -13,6 +13,7 @@ from ..database import SessionLocal
 from ..models import SearchProfile
 from . import backup, email_import, pricing_stats
 from .scanner import run_scan
+from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +59,7 @@ def _scan_overdue(db: Session, interval_minutes: int) -> bool:
     newest = max((t for t in last_runs if t is not None), default=None)
     if newest is None:
         return True
-    if newest.tzinfo is None:
-        # SQLite returns naive datetimes; values are written as UTC
-        newest = newest.replace(tzinfo=UTC)
-    return datetime.now(UTC) - newest > timedelta(minutes=interval_minutes)
+    return datetime.now(UTC) - as_utc(newest) > timedelta(minutes=interval_minutes)
 
 
 def start_scheduler():

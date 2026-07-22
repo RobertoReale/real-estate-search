@@ -293,6 +293,25 @@ def test_properties_not_seen_for_days_become_gone(db):
     assert p_new.status == "active"
 
 
+def test_gone_marking_handles_aware_and_naive_timestamps_together(db):
+    """SQLite returns naive datetimes, but a property written earlier in the
+    same session still carries the aware value it was built with
+    (`expire_on_commit=False`). Both shapes must survive the comparison."""
+    old_naive = (datetime.now(UTC) - timedelta(days=scanner.GONE_AFTER_DAYS + 1)).replace(
+        tzinfo=None
+    )
+    old_aware = datetime.now(UTC) - timedelta(days=scanner.GONE_AFTER_DAYS + 1)
+    p1 = _prop(title="Naive", fingerprint="a")
+    p2 = _prop(title="Aware", fingerprint="b")
+    db.add_all([p1, p2])
+    db.commit()
+    p1.last_seen_at = old_naive
+    p2.last_seen_at = old_aware
+    db.commit()
+
+    assert scanner._mark_vanished_properties(db) == 2
+
+
 def test_hidden_property_is_not_reactivated(db, monkeypatch):
     """ "Hide property" must resist subsequent scans: hidden status
     never returns to active on its own (unlike filtered/gone)."""
