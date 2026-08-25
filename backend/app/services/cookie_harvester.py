@@ -244,7 +244,9 @@ def _launch_camoufox(headless: bool) -> Any:
     check (its browser binary may simply not be fetched yet)."""
     cam = None
     try:
-        from camoufox.sync_api import Camoufox
+        # Optional like Playwright (invariant 18): `pip install camoufox` is the
+        # opt-in, so the import is unresolvable on a default install.
+        from camoufox.sync_api import Camoufox  # pyright: ignore[reportMissingImports]
 
         # no_viewport=True is required against a newer Playwright (1.5x+): its
         # launch_persistent_context sends a `viewport.isMobile` field that the

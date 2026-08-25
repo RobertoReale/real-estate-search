@@ -890,7 +890,9 @@ class AdProbe(BaseScraper):
         pw_holder: dict = {}
 
         def make_p():
-            from playwright.sync_api import sync_playwright
+            # Playwright is optional (invariant 18) and deliberately absent from
+            # requirements.txt, so a clean checkout cannot resolve this import.
+            from playwright.sync_api import sync_playwright  # pyright: ignore[reportMissingImports]
 
             pw = sync_playwright().start()
             pw_holder["pw"] = pw

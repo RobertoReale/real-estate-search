@@ -1,6 +1,17 @@
-# Dev-only tooling config (ruff). The runtime never reads this file; it exists
-# so `ruff` and coverage share one source of truth. Line length tracks the
-# existing hand-written code rather than imposing a narrower wrap after the fact.
+# Dev-only tooling config (ruff, pyright). The runtime never reads this file; it
+# exists so `ruff`, `pyright` and coverage share one source of truth. Line length
+# tracks the existing hand-written code rather than imposing a narrower wrap
+# after the fact.
+
+# Pyright resolves the interpreter from PATH unless told otherwise, and on a
+# machine where `python` is the system install that means every third-party
+# import fails to resolve — 100 phantom errors that hide the two or three real
+# ones. Pinning the venv here is what makes the documented `cd backend &&
+# pyright` behave the same on any machine, including CI.
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
