@@ -149,12 +149,27 @@ npm test
 ```
 *(All tests must pass before committing changes).*
 
+### Dependency locking
+
+`backend/requirements.txt` and `requirements-dev.txt` are **generated**
+lockfiles: every package pinned to the exact version, with hashes, so the same
+checkout installs the same application on any machine and at any point in the
+future. Edit the `.in` file beside them and recompile with
+[uv](https://docs.astral.sh/uv/):
+
+```bash
+cd backend
+uv pip compile requirements.in --universal --python-version 3.11 --generate-hashes -o requirements.txt
+uv pip compile requirements-dev.in --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
+```
+
 ### Optional developer tooling
 
 Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,
 property-based tests, dependency CVE scanning, and a pre-commit hook) lives in
 `backend/requirements-dev.txt`. It is **never** installed on the target device —
-only in a development checkout:
+only in a development checkout (it includes the runtime set, so it is the only
+file a developer needs to install):
 ```bash
 cd backend
 & .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
