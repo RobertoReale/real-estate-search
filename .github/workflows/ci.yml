@@ -97,8 +97,11 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          # Vite 7 needs ^20.19 || >=22.12; 22 is the LTS inside that range.
-          node-version: "22"
+          # Matches the development machine, and therefore the npm that writes
+          # package-lock.json. The first CI run failed here: a lock written by
+          # npm 11 was rejected by the npm 10 that ships with Node 22, so the
+          # two must not drift. (Vite 7 needs ^20.19 || >=22.12 regardless.)
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
