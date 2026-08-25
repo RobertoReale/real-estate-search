@@ -1,0 +1,121 @@
+# Runs the same gates a developer runs, on both operating systems this project
+# is used on: Windows (the daily driver) and Linux (the Raspberry Pi target).
+#
+# It installs from the lockfiles rather than resolving fresh, so it also proves
+# the locks are installable — which is the whole point of Phase 0. The test
+# suite is offline by construction (simulated HTML, fake IMAP client, in-memory
+# SQLite), so no step here ever reaches a portal: CI must never become a source
+# of DataDome blocks against the addresses the real scans depend on.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            venv_bin: bin
+          - os: windows-latest
+            venv_bin: Scripts
+
+    # Every step speaks bash, including on the Windows runner: one spelling of
+    # each command instead of a PowerShell variant that drifts from it.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          # The version the README recommends, inside the requires-python range
+          # pyproject.toml declares.
+          python-version: "3.12"
+
+      # A real venv at backend/.venv, exactly like a developer's checkout.
+      # pyright's [tool.pyright] pins venvPath/venv there, so building it here
+      # is what makes the type check resolve the same packages it does locally.
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install from the lockfile
+        working-directory: backend
+        # --require-hashes is technically redundant — every pinned line carries
+        # hashes, which already puts pip in hash-checking mode — but it turns a
+        # future edit that drops one into a loud failure instead of a silent
+        # downgrade to ordinary resolution.
+        run: .venv/${{ matrix.venv_bin }}/python -m pip install --require-hashes -r requirements-dev.txt
+
+      - name: Tests
+        working-directory: backend
+        # Playwright and camoufox are deliberately absent (invariant 18), so one
+        # test skips here. That is the supported configuration, not a gap: the
+        # gate is green with no optional browser stack installed.
+        run: .venv/${{ matrix.venv_bin }}/python -m pytest tests -q
+
+      - name: Lint
+        working-directory: backend
+        # `python -m ruff`, not the console script: the venv installs ruff.exe on
+        # Windows and ruff on Linux, and the module form spells the same on both.
+        run: |
+          .venv/${{ matrix.venv_bin }}/python -m ruff check app tests
+          .venv/${{ matrix.venv_bin }}/python -m ruff format --check app tests
+
+      - name: Install pyright
+        # Pinned to the version this was verified against: an unpinned global
+        # install turns a new pyright release into a red build on a commit that
+        # changed nothing.
+        run: npm install -g pyright@1.1.410
+
+      - name: Type check
+        working-directory: backend
+        run: pyright
+
+  frontend:
+    name: frontend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Matches the development machine, and therefore the npm that writes
+          # package-lock.json. The first CI run failed here: a lock written by
+          # npm 11 was rejected by the npm 10 that ships with Node 22, so the
+          # two must not drift. (Vite 7 needs ^20.19 || >=22.12 regardless.)
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `ci`, not `install`: it installs exactly what the lock pins and fails
+      # when the lock and package.json disagree, where `install` would rewrite
+      # the lock and hand this runner a toolchain of its own.
+      - name: Install from the lockfile
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Tests
+        working-directory: frontend
+        run: npm test

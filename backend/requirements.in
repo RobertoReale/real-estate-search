@@ -1,0 +1,37 @@
+# Runtime dependencies — the product. This is the file humans edit; the pinned,
+# hashed `requirements.txt` beside it is generated from it and is what actually
+# gets installed (see CLAUDE.md -> Commands for the regeneration command).
+#
+# The floors below say "the oldest release known to work"; the lock says "the
+# exact release this was developed and tested against". Both matter: the floor
+# documents intent, the lock is what makes two machines identical.
+
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+alembic>=1.13
+# TLS impersonation against DataDome (invariant 8). Exact-pinned, unlike its
+# neighbours: a release can retire the impersonation profile names the scrapers
+# ride on ("safari184", …), so this one is bumped deliberately and verified
+# against a live portal fetch, never carried along by a routine lock refresh.
+# 0.16.1 is the version the suite is green against.
+curl_cffi==0.16.1
+beautifulsoup4>=4.12
+apscheduler>=3.10
+pydantic>=2.7
+
+# NOT a runtime dependency, deliberately:
+#
+# - pytest and the rest of the test/lint tooling live in requirements-dev.in.
+#   This file is the manifest installed on the Raspberry Pi; a test runner has
+#   no business shipping with the product.
+#
+# - playwright: OPTIONAL, for automatic DataDome cookie harvesting
+#   (services/cookie_harvester.py) and the availability check's browser
+#   transport. It pulls a ~300 MB browser and the app runs fine without it —
+#   the feature just hides its button (invariant 18). To enable:
+#       pip install playwright && playwright install chromium
+#
+# - camoufox: OPTIONAL, the stealth-Firefox engine preferred over Chromium when
+#   present (`browser_engine="auto"`). Same reasoning, its own browser download:
+#       pip install camoufox

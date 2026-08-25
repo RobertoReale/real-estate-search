@@ -156,6 +156,14 @@ def test_update_settings_preserves_harvester_flag(monkeypatch):
 
 
 def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
+    # The one test in this module that needs the real Playwright package: its
+    # monkeypatch target is a string, so pytest imports playwright.sync_api to
+    # resolve it. Playwright is optional by design (invariant 18) and absent
+    # from a default install, so skip here rather than at module level — the
+    # other 19 tests cover pure decision logic and must keep running on a clean
+    # machine, which is exactly what CI is.
+    pytest.importorskip("playwright")
+
     class FakeResp:
         status = 403
 

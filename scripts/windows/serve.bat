@@ -7,6 +7,8 @@ echo   Real Estate Search - Serving to the phone
 echo ============================================
 
 if not exist "backend\.venv\Scripts\python.exe" (
+    call :require_python
+    if errorlevel 1 goto :setup_failed
     echo [SETUP] Creating Python virtual environment...
     python -m venv backend\.venv
     backend\.venv\Scripts\pip install -r backend\requirements.txt
@@ -15,7 +17,9 @@ if not exist "backend\.venv\Scripts\python.exe" (
 if not exist "frontend\node_modules" (
     echo [SETUP] Installing frontend dependencies...
     pushd frontend
-    call npm install
+    rem `ci` installs exactly what package-lock.json pins; `install` would
+    rem rewrite it (see start.bat).
+    call npm ci
     popd
 )
 
@@ -68,3 +72,30 @@ echo.
 pushd backend
 .venv\Scripts\python run.py
 popd
+exit /b 0
+
+:setup_failed
+echo.
+echo Setup stopped - nothing was started.
+pause
+exit /b 1
+
+rem ---------------------------------------------------------------------------
+:require_python
+rem Same pre-flight as start.bat: backend\pyproject.toml declares
+rem requires-python = ">=3.11,<3.15", and an unsupported interpreter must say so
+rem before the venv is built rather than fail inside the dependency install.
+rem The caller checks `if errorlevel 1` rather than using `|| exit /b 1`, which
+rem stops the script but leaves the process reporting success.
+python -c "import sys; raise SystemExit(0 if (3,11) <= sys.version_info < (3,15) else 1)" 2>nul
+if errorlevel 1 (
+    echo.
+    echo [ERROR] This project needs Python 3.11 to 3.14 ^(3.12 is the tested pick^).
+    echo         Found:
+    python --version 2>nul
+    echo         Nothing printed above means Python is not on PATH at all.
+    echo         Install it from https://www.python.org/downloads/ with
+    echo         "Add python.exe to PATH" ticked, then run this script again.
+    exit /b 1
+)
+exit /b 0

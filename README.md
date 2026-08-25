@@ -17,9 +17,21 @@ Real estate portals erase history and hide metrics to protect listing agencies. 
 
 ## Quick Start
 
+### Prerequisites
+
+**Python 3.11 – 3.14**, and **Node.js 18+**. The start scripts check the Python
+version before creating the virtual environment and stop with an explanation if
+it is out of range, rather than failing partway through installing dependencies.
+
+**3.12 is the recommended version**: it is the one with the widest wheel
+availability for this dependency set, so nothing needs a compiler to install.
+3.11 is the declared floor (`requires-python` in `backend/pyproject.toml`) and
+the version the dependency locks are resolved against; the suite is also run on
+3.14.
+
 ### Windows
 Double-click on **`scripts\windows\start.bat`**:
-- Installs all dependencies on first run (requires Python 3.11+ and Node.js 18+).
+- Installs all dependencies on first run.
 - Starts the backend server (http://localhost:8000) and the frontend dashboard (http://localhost:5173).
 - Automatically opens the web interface in your default browser.
 
@@ -122,7 +134,7 @@ least automatic.
 
 ## Technical Architecture
 
-* **Backend**: Python 3.11+ / FastAPI / SQLite / APScheduler.
+* **Backend**: Python 3.11–3.14 / FastAPI / SQLite / APScheduler.
 * **Resilient Scrapers**: Built on 4 fallback strategies (JSON-LD Schema → Embedded `__NEXT_DATA__` state → Heuristic class-free HTML parsing → Internal API fallback). 
 * **Residential IP Scraping**: Designed to run locally or on home networks. Cloud server IPs are heavily blocked by DataDome, whereas your home internet IP is trusted, ensuring reliable scans.
 * **Deduplication Engine**: Listings are merged only if they contain geographical proof (coordinates within 60 meters **OR** exact same street and house number) plus compatible price, rooms, floor, and square meters.
@@ -149,12 +161,27 @@ npm test
 ```
 *(All tests must pass before committing changes).*
 
+### Dependency locking
+
+`backend/requirements.txt` and `requirements-dev.txt` are **generated**
+lockfiles: every package pinned to the exact version, with hashes, so the same
+checkout installs the same application on any machine and at any point in the
+future. Edit the `.in` file beside them and recompile with
+[uv](https://docs.astral.sh/uv/):
+
+```bash
+cd backend
+uv pip compile requirements.in --universal --python-version 3.11 --generate-hashes -o requirements.txt
+uv pip compile requirements-dev.in --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
+```
+
 ### Optional developer tooling
 
 Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,
 property-based tests, dependency CVE scanning, and a pre-commit hook) lives in
 `backend/requirements-dev.txt`. It is **never** installed on the target device —
-only in a development checkout:
+only in a development checkout (it includes the runtime set, so it is the only
+file a developer needs to install):
 ```bash
 cd backend
 & .venv/Scripts/python.exe -m pip install -r requirements-dev.txt

@@ -145,9 +145,11 @@ progetto/
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
 │   ├── tests/                    # 632 tests (incl. hypothesis property tests)
-│   ├── requirements.txt
-│   ├── requirements-dev.txt      # dev-only: ruff, hypothesis, pytest-cov, pip-audit, pre-commit
-│   ├── pyproject.toml            # ruff + coverage config (never read by the runtime)
+│   ├── requirements.in           # runtime deps, hand-edited (floors + why)
+│   ├── requirements.txt          # generated lock: pinned + hashed (uv pip compile)
+│   ├── requirements-dev.in       # dev-only: pytest, ruff, hypothesis, pytest-cov, pip-audit, pre-commit
+│   ├── requirements-dev.txt      # generated lock for the above (includes the runtime set)
+│   ├── pyproject.toml            # ruff + pyright + coverage config (never read by the runtime)
 │   └── run.py
 ├── frontend/                     # React + Vite + Tailwind CSS 4
 │   └── src/

@@ -244,7 +244,9 @@ def _launch_camoufox(headless: bool) -> Any:
     check (its browser binary may simply not be fetched yet)."""
     cam = None
     try:
-        from camoufox.sync_api import Camoufox
+        # Optional like Playwright (invariant 18): `pip install camoufox` is the
+        # opt-in, so the import is unresolvable on a default install.
+        from camoufox.sync_api import Camoufox  # pyright: ignore[reportMissingImports]
 
         # no_viewport=True is required against a newer Playwright (1.5x+): its
         # launch_persistent_context sends a `viewport.isMobile` field that the
@@ -493,10 +495,14 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
     import sys
     from ctypes import wintypes
 
-    wtsapi32 = ctypes.windll.wtsapi32
-    kernel32 = ctypes.windll.kernel32
-    advapi32 = ctypes.windll.advapi32
-    userenv = ctypes.windll.userenv
+    # `ctypes.windll` exists only on Windows, and this whole function is the NT
+    # path (callers gate on os.name). Type-checking on Linux — which CI does,
+    # because the Raspberry Pi is a target — otherwise reports four errors for
+    # code that cannot run there.
+    wtsapi32 = ctypes.windll.wtsapi32  # pyright: ignore[reportAttributeAccessIssue]
+    kernel32 = ctypes.windll.kernel32  # pyright: ignore[reportAttributeAccessIssue]
+    advapi32 = ctypes.windll.advapi32  # pyright: ignore[reportAttributeAccessIssue]
+    userenv = ctypes.windll.userenv  # pyright: ignore[reportAttributeAccessIssue]
 
     session_id = kernel32.WTSGetActiveConsoleSessionId()
     if session_id == 0xFFFFFFFF:
