@@ -3,6 +3,18 @@
 # tracks the existing hand-written code rather than imposing a narrower wrap
 # after the fact.
 
+# Not a distributable package — nothing here is ever built or published. The
+# [project] table exists so `requires-python` has the home the standard defines,
+# where uv reads it when resolving the locks and the start scripts check it
+# before building a venv. The upper bound is honest rather than pessimistic: it
+# says "no version beyond this has been tested", and it is what turns an
+# unsupported interpreter into one clear message instead of a missing-wheel
+# traceback halfway through installing.
+[project]
+name = "real-estate-search-backend"
+version = "0.0.0"
+requires-python = ">=3.11,<3.15"
+
 # Pyright resolves the interpreter from PATH unless told otherwise, and on a
 # machine where `python` is the system install that means every third-party
 # import fails to resolve — 100 phantom errors that hide the two or three real

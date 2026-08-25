@@ -21,6 +21,15 @@ fi
 
 # 1. Setup Backend Virtual Environment
 if [ ! -d "backend/.venv" ]; then
+    # backend/pyproject.toml declares requires-python = ">=3.11,<3.15". Check it
+    # before building the venv: an unsupported interpreter otherwise surfaces as
+    # a wheel that will not build, midway through installing dependencies.
+    if ! python3 -c 'import sys; raise SystemExit(0 if (3,11) <= sys.version_info < (3,15) else 1)'; then
+        echo "[ERROR] This project needs Python 3.11 to 3.14 (3.12 is the tested pick)."
+        echo "        Found: $(python3 --version 2>&1)"
+        echo "        Install a supported version, then run this script again."
+        exit 1
+    fi
     echo "[SETUP] Creating Python virtual environment..."
     python3 -m venv backend/.venv
     echo "[SETUP] Installing Python dependencies..."
