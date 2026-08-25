@@ -1290,14 +1290,6 @@ def scraper_status():
     }
 
 
-@app.post("/api/maintenance/repair-listings")
-def repair_listings_endpoint(db: Session = Depends(get_db)):
-    """Instantly repairs existing dashboard properties lacking city, zone, title, or photos."""
-    from .services.repair_listings import repair_empty_listings_locally
-
-    return repair_empty_listings_locally(db)
-
-
 @app.post("/api/maintenance/geocode-missing")
 def geocode_missing_endpoint(db: Session = Depends(get_db)):
     """Fills in map coordinates for properties that have an address/zone but no

@@ -139,12 +139,12 @@ progetto/
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── email_import.py   # read-only IMAP inbox import, staged for review
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
-│   │       ├── repair_listings.py # local data repair (titles, images) + duplicate-card merge by listing URL
+│   │       ├── listing_text.py   # recognizes portal boilerplate in a title or zone
 │   │       ├── data_reset.py      # scoped irreversible data wipes (Settings -> Data management)
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 632 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 628 tests (incl. hypothesis property tests)
 │   ├── requirements.in           # runtime deps, hand-edited (floors + why)
 │   ├── requirements.txt          # generated lock: pinned + hashed (uv pip compile)
 │   ├── requirements-dev.in       # dev-only: pytest, ruff, hypothesis, pytest-cov, pip-audit, pre-commit
@@ -187,7 +187,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (632, `pytest`)
+### Automated Tests (628, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

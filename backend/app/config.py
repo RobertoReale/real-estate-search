@@ -161,10 +161,12 @@ DEFAULT_SETTINGS = {
     # browser rung is already opt-in and the cost is ~0.5-1.5s per page, well
     # inside the probe's pacing (invariant 16). Off pins the bare-goto behavior.
     "browser_humanize": True,
-    # Agency names whose "AGENCY: ..." prefixes the repair maintenance strips
-    # from imported titles (services/repair_listings.py). Seeded with the
-    # agencies met so far so behavior is unchanged on existing data; a user in
-    # another market appends their local agencies here instead of editing code.
+    # Agency names whose branding marks a title as boilerplate rather than a
+    # description of the property (services/listing_text.py `is_bad_title`, so
+    # the availability check may replace it with the ad page's og:title).
+    # Seeded with the agencies met so far so behavior is unchanged on existing
+    # data; a user in another market appends their local agencies here instead
+    # of editing code.
     "repair_agency_prefixes": [
         "affiliato",
         "gabetti",

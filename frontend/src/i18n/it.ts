@@ -294,10 +294,6 @@ export const it: Dict = {
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
   "filters.maintenance": "Manutenzione",
-  "filters.repair": "🛠️ Ripara i dati",
-  "filters.repairing": "⏳ Riparazione…",
-  "filters.repairTitle":
-    "Ripara subito titoli, zone e foto mancanti sugli annunci importati in precedenza",
   "filters.findCoords": "📍 Trova le coordinate",
   "filters.locating": "⏳ Localizzazione…",
   "filters.findCoordsTitle":
@@ -310,14 +306,6 @@ export const it: Dict = {
     "Il backend non ha ancora questa funzione — riavvialo (chiudi e rilancia start.bat / serve.bat) e riprova.",
 
   // ── esiti della manutenzione ────────────────────────────────────────────
-  "filters.repairDone": "Riparazione completata!",
-  "filters.repairSummary":
-    "Aggiornati {properties} immobili, {listings} annunci e recuperate {images} foto.",
-  "filters.repairMerged":
-    "Unificate {merged} schede duplicate e rimossi {removed} annunci duplicati che puntavano allo stesso inserimento.",
-  "filters.repairNothing": "È tutto in ordine e perfettamente allineato!",
-  "filters.repairNothingBody":
-    "Il controllo ha analizzato il database: nessun immobile o annuncio con dati mancanti, città (`Location N/A`), foto o link duplicati da riparare. Ogni annuncio è già completo e allineato.",
   "filters.geocodeRunning": "Ricerca delle coordinate in background…",
   "filters.geocodeProgress":
     "Localizzazione annuncio {done} di {total} — {geocoded} localizzati, {cached} dalla cache",

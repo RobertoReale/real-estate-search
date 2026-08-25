@@ -17,7 +17,7 @@
 * **Map view**: the same properties as pins on an OpenStreetMap background —
   useful to see how a shortlist is spread across the city. Clicking a pin opens
   the property. Many Immobiliare listings arrive without coordinates, so the map
-  can look sparse; the **📍 Find coordinates** button (next to *Repair data*)
+  can look sparse; the **📍 Find coordinates** button under *Maintenance*
   looks up the missing pins from each listing's address or zone via OpenStreetMap
   (opt-in, cached, and it never invents a wrong pin — a lookup it cannot resolve
   is simply left off the map). It works in batches, so on a large dashboard press
@@ -29,11 +29,10 @@
   OpenStreetMap outage can leave a perfectly good address stuck as "not found";
   the **🧹 Retry failed lookups** button (next to *Find coordinates*) forgets
   those failed lookups so the next *Find coordinates* tries them again — it only
-  clears the lookup memory and never moves a pin you already have. Both the
-  lookup's sanity check and the *Repair data* city detection work for **every
-  Italian comune** (a bundled offline index of all ~7,900 municipalities), not
-  just a shortlist of big cities — a wrong-looking pin is judged against its own
-  town's actual location, and city names anywhere in Italy are recognized.
+  clears the lookup memory and never moves a pin you already have. The lookup's
+  sanity check works for **every Italian comune** (a bundled offline index of
+  all ~7,900 municipalities), not just a shortlist of big cities — a
+  wrong-looking pin is judged against its own town's actual location.
 * **Draw a zone on the map**: filter the whole dashboard by area directly on the
   map. Press **◯ Draw radius**, click a centre and drag the handle to size the
   circle; or **⬠ Draw area**, click each corner and double-click to close a free

@@ -291,10 +291,6 @@ export const en = {
 
   // ── maintenance actions ─────────────────────────────────────────────────
   "filters.maintenance": "Maintenance",
-  "filters.repair": "🛠️ Repair data",
-  "filters.repairing": "⏳ Repairing…",
-  "filters.repairTitle":
-    "Instantly repair missing titles, zones and photos on previously imported listings",
   "filters.findCoords": "📍 Find coordinates",
   "filters.locating": "⏳ Locating…",
   "filters.findCoordsTitle":
@@ -307,14 +303,6 @@ export const en = {
     "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again.",
 
   // ── maintenance result banners ──────────────────────────────────────────
-  "filters.repairDone": "Repair completed successfully!",
-  "filters.repairSummary":
-    "Updated {properties} properties, {listings} listings and recovered {images} photos.",
-  "filters.repairMerged":
-    "Merged {merged} duplicate cards and removed {removed} duplicate listings pointing at the same ad.",
-  "filters.repairNothing": "Everything is in order and fully in sync!",
-  "filters.repairNothingBody":
-    "The check scanned the database: no property or listing with missing data, city (`Location N/A`), photos, or duplicate ad links was found to repair. Every listing is already complete and aligned.",
   "filters.geocodeRunning": "Locating coordinates in background…",
   "filters.geocodeProgress":
     "Locating listing {done} of {total} — {geocoded} located, {cached} from cache",

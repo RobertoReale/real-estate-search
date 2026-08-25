@@ -209,7 +209,7 @@ def _check_properties_availability_inner(
                             listing.image_url = str(og_img["content"]).strip()[:500]
                     if not prop.image_url and listing.image_url:
                         prop.image_url = listing.image_url
-                    from .repair_listings import is_bad_title
+                    from .listing_text import is_bad_title
 
                     if is_bad_title(prop.title):
                         og_title = soup.find("meta", property="og:title")
