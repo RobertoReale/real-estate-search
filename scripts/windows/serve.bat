@@ -17,7 +17,9 @@ if not exist "backend\.venv\Scripts\python.exe" (
 if not exist "frontend\node_modules" (
     echo [SETUP] Installing frontend dependencies...
     pushd frontend
-    call npm install
+    rem `ci` installs exactly what package-lock.json pins; `install` would
+    rem rewrite it (see start.bat).
+    call npm ci
     popd
 )
 

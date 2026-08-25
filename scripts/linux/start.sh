@@ -41,7 +41,10 @@ fi
 if [ ! -d "frontend/node_modules" ]; then
     echo "[SETUP] Installing frontend dependencies..."
     cd frontend
-    npm install
+    # `ci`, not `install`: it installs exactly what package-lock.json pins and
+    # refuses if the lock disagrees with package.json, where `install` would
+    # quietly rewrite the lock and give this machine a different toolchain.
+    npm ci
     cd ..
 fi
 
