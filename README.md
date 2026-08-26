@@ -185,7 +185,7 @@ least automatic.
 
 ## Testing & Verification
 
-Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason. The frontend has its own unit tests for the pure logic (filter querystring codec, floor labels, and the English/Italian dictionaries — key and placeholder parity).
+Automated tests cover all parser strategies, price formatting edge cases, deduplication rules, price history changes, and scanner routines — all offline (no network calls), so they always pass or fail for a real reason. The frontend has its own unit tests for the pure logic (filter querystring codec, floor labels, the English/Italian dictionaries — key and placeholder parity — and the settings dialog's save, so a field cannot quietly stop persisting).
 
 Run the backend tests using the local Python virtual environment:
 ```bash
