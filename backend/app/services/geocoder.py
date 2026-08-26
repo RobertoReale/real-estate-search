@@ -14,8 +14,8 @@ Two rules keep it safe and inside the free tier:
   "via Dante, Milano" is never asked twice — that is what lets an opt-in batch
   stay under Nominatim's 1-request-per-second policy.
 
-Like `repair_listings`, it only ever runs when the user triggers it (a batched,
-paced maintenance endpoint), never inside the hot scan path. The outbound HTTP
+It only ever runs when the user triggers it (a batched, paced maintenance
+endpoint), never inside the hot scan path. The outbound HTTP
 call lives in `_nominatim_lookup` alone, so tests drive the whole cache/batch
 logic with it mocked — no network, fully reproducible (invariant 17's spirit).
 """
@@ -203,7 +203,7 @@ def build_queries(prop: Property) -> list[str]:
             _add(f"{clean_addr}, {city}, Italia")
 
     zone = (prop.zone or "").strip()
-    from .repair_listings import is_placeholder_zone
+    from .listing_text import is_placeholder_zone
 
     if zone and not is_placeholder_zone(zone):
         clean_zone = _clean_street_name(zone)

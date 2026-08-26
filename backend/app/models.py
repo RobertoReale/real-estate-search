@@ -213,47 +213,6 @@ class PriceHistory(Base):
     property: Mapped[Property] = relationship(back_populates="price_history")
 
 
-class ImportedListing(Base):
-    """A listing found in the user's email inbox (IMAP import), waiting for
-    review. Deliberately NOT a Listing: nothing enters the dashboard without
-    the user accepting it, and the data quality is whatever the alert email
-    contained (many of these listings are long gone from the portals).
-
-    `status` lifecycle: pending -> accepted (a Property was created/merged,
-    `property_id` set) or discarded. Discarded rows are kept: they are the
-    memory that makes a re-scan of the same inbox idempotent.
-    """
-
-    __tablename__ = "imported_listings"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    portal: Mapped[str] = mapped_column(String, index=True)
-    portal_id: Mapped[str] = mapped_column(String, index=True)
-    url: Mapped[str] = mapped_column(String)
-    title: Mapped[str] = mapped_column(String, default="")
-    price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    city: Mapped[str] = mapped_column(String, default="")
-    zone: Mapped[str] = mapped_column(String, default="")
-    rooms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    sqm: Mapped[float | None] = mapped_column(Float, nullable=True)
-    image_url: Mapped[str] = mapped_column(String, default="")
-    # guessed from the email text ("affitto"/"rent"), NOT authoritative like
-    # a search URL: the user reviews it before accepting
-    contract: Mapped[str] = mapped_column(String, default="sale")
-    email_from: Mapped[str] = mapped_column(String, default="")
-    email_subject: Mapped[str] = mapped_column(String, default="")
-    email_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    status: Mapped[str] = mapped_column(String, default="pending", index=True)
-    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True)
-    # Filled by an explicit availability check (AdProbe), never by the scan:
-    # NULL means "never checked", which is not the same as "gone". The check
-    # itself answers None when the portal blocks it, so the column keeps its
-    # previous value rather than condemning a listing on no evidence.
-    is_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-
-
 class PricingSnapshot(Base):
     """One daily median €/sqm reading for an area, kept so the dashboard can
     plot how prices move over time.

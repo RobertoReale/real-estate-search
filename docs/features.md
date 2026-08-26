@@ -17,7 +17,7 @@
 * **Map view**: the same properties as pins on an OpenStreetMap background —
   useful to see how a shortlist is spread across the city. Clicking a pin opens
   the property. Many Immobiliare listings arrive without coordinates, so the map
-  can look sparse; the **📍 Find coordinates** button (next to *Repair data*)
+  can look sparse; the **📍 Find coordinates** button under *Maintenance*
   looks up the missing pins from each listing's address or zone via OpenStreetMap
   (opt-in, cached, and it never invents a wrong pin — a lookup it cannot resolve
   is simply left off the map). It works in batches, so on a large dashboard press
@@ -29,11 +29,10 @@
   OpenStreetMap outage can leave a perfectly good address stuck as "not found";
   the **🧹 Retry failed lookups** button (next to *Find coordinates*) forgets
   those failed lookups so the next *Find coordinates* tries them again — it only
-  clears the lookup memory and never moves a pin you already have. Both the
-  lookup's sanity check and the *Repair data* city detection work for **every
-  Italian comune** (a bundled offline index of all ~7,900 municipalities), not
-  just a shortlist of big cities — a wrong-looking pin is judged against its own
-  town's actual location, and city names anywhere in Italy are recognized.
+  clears the lookup memory and never moves a pin you already have. The lookup's
+  sanity check works for **every Italian comune** (a bundled offline index of
+  all ~7,900 municipalities), not just a shortlist of big cities — a
+  wrong-looking pin is judged against its own town's actual location.
 * **Draw a zone on the map**: filter the whole dashboard by area directly on the
   map. Press **◯ Draw radius**, click a centre and drag the handle to size the
   circle; or **⬠ Draw area**, click each corner and double-click to close a free
@@ -94,8 +93,8 @@
 * **Which search found it**: a property's detail modal shows **🔍 Found by** —
   the monitored searches that turned it up. Overlapping searches both appear, so
   you can tell at a glance whether a listing came from your "Milano trilocali" or
-  your "Navigli" search (or both). A listing imported only from your inbox, never
-  yet matched by a scan, says so instead.
+  your "Navigli" search (or both). A property that predates the provenance links
+  says so instead.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
 * **Share a shortlist**: the **Export** buttons on the filter bar download the
@@ -106,6 +105,6 @@
   or agent over chat or email, without giving anyone access to your dashboard or
   database. (The HTML dossier's thumbnails load from the portals, so those need
   a connection; everything else works fully offline.)
-* **Email inbox import**: see [Email Inbox Import](email-import.md) for the full
-  walkthrough — importing listing links from your own mailbox, checking whether
-  they're still online, and dealing with DataDome blocks during that check.
+* **Is this ad still online?**: see [Is This Ad Still Online?](availability-check.md)
+  for the full walkthrough — checking a selection against the portals on demand,
+  why it is paced the way it is, and dealing with DataDome blocks during a check.

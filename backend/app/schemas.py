@@ -281,12 +281,6 @@ class SettingsIn(BaseModel):
     smtp_password: str | None = None
     email_from: str | None = None
     email_to: str | None = None
-    imap_host: str | None = None
-    imap_port: int | None = None
-    imap_user: str | None = None
-    imap_password: str | None = None
-    email_import_auto_scan: bool | None = None
-    email_import_auto_scan_interval_hours: int | None = None
     scan_interval_minutes: int | None = None
     scanning_paused: bool | None = None
     match_score_enabled: bool | None = None
@@ -348,13 +342,6 @@ class SettingsIn(BaseModel):
     def known_nl_backend(cls, v: str | None) -> str | None:
         if v is not None and v not in ("deterministic", "llm"):
             raise ValueError("must be one of: deterministic, llm")
-        return v
-
-    @field_validator("email_import_auto_scan_interval_hours")
-    @classmethod
-    def import_interval_at_least_hourly(cls, v: int | None) -> int | None:
-        if v is not None and v < 1:
-            raise ValueError("must be >= 1 hour")
         return v
 
     @field_validator("dream_max_price", "dream_min_rooms", "dream_min_sqm", "dream_min_floor")
@@ -448,82 +435,6 @@ class AssistantSearch(BaseModel):
 
 class AssistantOut(BaseModel):
     searches: list[AssistantSearch]
-
-
-class EmailImportScanIn(BaseModel):
-    """How to look for listing emails in the user's inbox (IMAP read-only)."""
-
-    # portals = messages sent by the portals' own alert addresses
-    # address = messages from user-specified senders (agencies, etc.)
-    # any     = any message mentioning the portals anywhere (slowest net)
-    mode: str = "portals"
-    senders: str = ""  # CSV, used by mode="address"
-    since_days: int = 365
-    max_emails: int = 200
-
-    @field_validator("mode")
-    @classmethod
-    def mode_valid(cls, v: str) -> str:
-        if v not in ("portals", "address", "any"):
-            raise ValueError("mode must be 'portals', 'address' or 'any'")
-        return v
-
-    @field_validator("since_days", "max_emails")
-    @classmethod
-    def positive(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("must be >= 1")
-        return v
-
-
-class ImportedListingOut(BaseModel):
-    """API response model representing a listing extracted from an alert email."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    portal: str
-    portal_id: str
-    url: str
-    title: str
-    price: float | None
-    city: str
-    zone: str
-    rooms: int | None
-    sqm: float | None
-    image_url: str = ""
-    contract: str
-    email_from: str
-    email_subject: str
-    email_date: datetime | None
-    status: str  # pending | accepted | discarded
-    property_id: int | None
-    # None = never checked against the portal, which is not the same as "gone"
-    is_available: bool | None
-    last_checked_at: datetime | None
-    created_at: datetime
-
-
-class ImportBulkIn(BaseModel):
-    """Payload for bulk acceptance or rejection of email-staged listings."""
-
-    ids: list[int]
-    action: str  # accept | discard
-
-    @field_validator("action")
-    @classmethod
-    def action_valid(cls, v: str) -> str:
-        if v not in ("accept", "discard"):
-            raise ValueError("action must be 'accept' or 'discard'")
-        return v
-
-
-class ImportCheckIn(BaseModel):
-    """Which staged listings to verify against the portal — one HTTP request
-    each, spaced by `request_delay_seconds`. Capped server-side: this is an
-    on-demand probe, not a crawl."""
-
-    ids: list[int]
 
 
 class AreaVelocityOut(BaseModel):

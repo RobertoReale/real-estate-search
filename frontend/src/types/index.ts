@@ -170,13 +170,6 @@ export interface Settings {
   smtp_password_set?: boolean;
   email_from: string;
   email_to: string;
-  imap_host: string;
-  imap_port: number;
-  imap_user: string;
-  imap_password: string;
-  imap_password_set?: boolean;
-  email_import_auto_scan?: boolean;
-  email_import_auto_scan_interval_hours?: number;
   scan_interval_minutes: number;
   scanning_paused?: boolean;
   match_score_enabled?: boolean;
@@ -338,34 +331,9 @@ export interface AssistantResult {
   searches: AssistantSearch[];
 }
 
-/** A listing found in the user's inbox, staged for review. */
-export interface ImportedListing {
-  id: number;
-  portal: "immobiliare" | "idealista";
-  portal_id: string;
-  url: string;
-  title: string;
-  price: number | null;
-  city: string;
-  zone: string;
-  rooms: number | null;
-  sqm: number | null;
-  image_url: string;
-  contract: "sale" | "rent";
-  email_from: string;
-  email_subject: string;
-  email_date: string | null;
-  status: "pending" | "accepted" | "discarded";
-  property_id: number | null;
-  // null = never checked against the portal; false = the ad page is gone
-  is_available: boolean | null;
-  last_checked_at: string | null;
-  created_at: string;
-}
-
-/** Outcome of probing staged listings against the portals. `unknown` counts the
+/** Outcome of probing dashboard properties against the portals. `unknown` counts the
  *  ones the portal would not answer for (a block, a timeout): not gone. */
-export interface ImportCheckSummary {
+export interface AvailabilityCheckSummary {
   checked: number;
   gone: number;
   online: number;
@@ -386,7 +354,7 @@ export interface ImportCheckSummary {
   transport?: string;
 }
 
-export interface ImportCheckProgress {
+export interface AvailabilityCheckProgress {
   active: boolean;
   done: number;
   total: number;
@@ -395,46 +363,6 @@ export interface ImportCheckProgress {
   unknown?: number;
   last_error?: string | null;
   transport?: string;
-}
-
-export interface EmailScanParams {
-  mode: "portals" | "address" | "any";
-  senders: string;
-  since_days: number;
-  max_emails: number;
-}
-
-export interface EmailScanSummary {
-  emails_scanned: number;
-  emails_with_listings: number;
-  listings_found: number;
-  imported: number;
-  already_tracked: number;
-  already_imported: number;
-  // links the email said nothing about (footer URLs, CTA buttons): not staged
-  blank_links: number;
-  // blank rows left behind by scans that ran before those links were filtered
-  blank_removed: number;
-}
-
-/** Live state of a running inbox scan, polled while it works. */
-export interface EmailScanProgress {
-  active: boolean;
-  phase: "idle" | "connecting" | "searching" | "fetching";
-  emails_done: number;
-  emails_total: number;   // 0 until the IMAP search has answered
-  staged: number;
-}
-
-export interface ImportFilters {
-  status: "pending" | "accepted" | "discarded" | "all";
-  profile_id: string;      // "" = ad-hoc filters below
-  contract: "" | "sale" | "rent";
-  city: string;
-  min_price: string;
-  max_price: string;
-  rooms: string;
-  q: string;
 }
 
 export interface AreaVelocity {

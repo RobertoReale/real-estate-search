@@ -17,9 +17,9 @@ or nowhere at all (see *Silencing one search* in [Using the App](using-the-app.m
 
 ## Gmail: use an app password
 
-Gmail rejects your normal password; both the email alerts and the inbox import
-need a 16-character **app password** (`smtp.gmail.com:587`, `imap.gmail.com:993`,
-username = your Gmail address). Google only offers app passwords once **2-Step
+Gmail rejects your normal password; the email alerts need a 16-character
+**app password** (`smtp.gmail.com:587`, username = your Gmail address). Google
+only offers app passwords once **2-Step
 Verification is on** — until then
 [the app passwords page](https://myaccount.google.com/apppasswords) answers *"the
 setting you are looking for is not available for your account"*, which is

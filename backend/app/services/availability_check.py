@@ -1,12 +1,18 @@
 """Live availability check (`AdProbe`) for properties already in the dashboard.
 
-Just like `services/email_import.py` checks `ImportedListing` rows against
-the portals one at a time, this module checks `Property` rows (`Listing` URLs)
-on demand. It features:
-- Lock-protected batch run (email_import's shared `_check_run_lock`) with live
-  progress polling (`_prop_check_progress`).
+Asks the portals, on demand and one at a time, whether the ads behind a
+`Property`'s `Listing` rows are still online. It features:
+- Lock-protected batch run (`_check_run_lock`) with live progress polling
+  (`_prop_check_progress`).
 - Polite delay (`request_delay_seconds` & portal floors) between URL probes.
 - Automatic DataDome cookie recovery if the portal blocks mid-batch.
+
+The endpoint driving it is a sync `def` on purpose: FastAPI runs it in a
+threadpool, so `/api/properties/check-progress` can still answer while a
+minutes-long batch works. An `async def` would own the event loop for the whole
+run and freeze the progress bar at 0% — exactly the "is it hung?" the bar
+exists to answer. That is also why the progress dict below is module-level
+(written by the worker thread, read by the poller) and cleared in a `finally`.
 """
 
 import logging
@@ -19,14 +25,6 @@ from sqlalchemy.orm import Session
 from ..config import load_settings
 from ..models import Property
 from ..scrapers.base import AdProbe
-from .email_import import (
-    BLOCK_STREAK_ABORT,
-    MAX_CHECKS_PER_CALL,
-    MAX_COOKIE_REFRESHES_PER_CHECK,
-    MIN_PROBE_DELAY,
-    _check_run_lock,
-    _try_cookie_recovery,
-)
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
@@ -36,12 +34,68 @@ class AvailabilityCheckError(Exception):
     """Raised when a check cannot start (e.g. lock already held)."""
 
 
+# Serialized for a harsher reason than the scan: two concurrent batches double
+# the request rate to the portals, and the pacing, the block-streak abort and
+# the once-per-host warm-up all assume a single probe is talking to them.
+# Threadpool execution means two requests genuinely can arrive at once — the
+# dashboard is often open on phone and desktop at the same time — so the second
+# run is refused with a readable error rather than allowed to race.
+_check_run_lock = threading.Lock()
+
+# The cap on live portal fetches per run. Few listings, on demand, spaced out:
+# it is what keeps this from becoming a crawl of the whole dashboard.
+MAX_CHECKS_PER_CALL = 50
+
+# Idealista's own scraper raises its floor to 8s because "DataDome is sensitive
+# to request frequency" there; an ad page is not gentler than a search page.
+MIN_PROBE_DELAY = {"immobiliare": 6.0, "idealista": 8.0}
+
+# Once the portal has started refusing, every further request digs the hole
+# deeper — and the block lands on the IP the real scans need. Three in a row is
+# an answer: stop, and tell the user why the batch ended early.
+BLOCK_STREAK_ABORT = 3
+
+# When checking large batches (e.g. 218 listings), allow up to 2 cookie refreshes
+# or deep session resets before aborting.
+MAX_COOKIE_REFRESHES_PER_CHECK = 2
+
+
+def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> bool:
+    """Recover from a block during the availability check by minting a fresh
+    DataDome cookie in a headless browser and rebuilding the probe's session
+    around it, so the batch can carry on instead of giving up.
+
+    Opt-in (`datadome_auto_refresh`) and best-effort: a missing browser, a
+    CAPTCHA it cannot pass headless, or a refresh failure all return False and
+    the caller aborts as before. This is the *same* mechanism the scanner runs
+    before a scan (invariant 18) — here it fires reactively, on a block, which
+    is exactly when the cookie has demonstrably burned.
+    """
+    if not settings.get("datadome_auto_refresh"):
+        return False
+    from . import cookie_harvester
+
+    if not cookie_harvester.is_available():
+        return False
+    logger.info("availability check: portal blocking; grabbing a fresh DataDome cookie")
+    try:
+        result = cookie_harvester.refresh_into_settings(portal, headless=True)
+    except Exception:
+        logger.exception("availability check: cookie recovery failed")
+        return False
+    if not result.get("ok"):
+        return False
+    # Rebuild the probe around the new cookie, back to the preferred handshake,
+    # and force a re-warm of the homepage so the fresh cookie is carried in.
+    probe._imp_index = 0
+    probe.session = probe._new_session()
+    probe._warmed_hosts = set()
+    probe.was_blocked = False
+    summary["cookie_refreshed"] = summary.get("cookie_refreshed", 0) + 1
+    return True
+
+
 _prop_check_progress: dict = {"active": False, "done": 0, "total": 0, "gone": 0}
-# THE probe lock is email_import's `_check_run_lock`, shared on purpose: the
-# pacing/streak/warm-up model assumes a single probe is talking to the portals,
-# and two module-private locks let the dashboard check and the email-import
-# check run concurrently — doubling the request rate to the very hosts the
-# pacing exists to protect.
 # Cooperative cancellation: the batch loop only owns the portal connection on
 # its own thread, so there is no way to kill it from the outside. It polls
 # this flag at the same per-property checkpoint as the probe budget cap
@@ -209,14 +263,12 @@ def _check_properties_availability_inner(
                             listing.image_url = str(og_img["content"]).strip()[:500]
                     if not prop.image_url and listing.image_url:
                         prop.image_url = listing.image_url
-                    from .repair_listings import is_bad_title
+                    from .listing_text import clean_title, is_bad_title
 
                     if is_bad_title(prop.title):
                         og_title = soup.find("meta", property="og:title")
                         if og_title and og_title.get("content"):
-                            from .email_import import _clean_title
-
-                            clean_og = _clean_title(str(og_title["content"]))
+                            clean_og = clean_title(str(og_title["content"]))
                             if clean_og and not is_bad_title(clean_og):
                                 prop.title = clean_og
                 if res is None and getattr(probe, "last_error", None):

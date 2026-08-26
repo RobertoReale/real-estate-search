@@ -429,8 +429,9 @@ class BaseScraper:
     _warmed = False
     _current_proxy: str | None = None
     # Whether a configured scrape-API key routes fetches through the provider
-    # from the start. True at class level so the non-scan paths (AdProbe,
-    # email-import) keep using a set key unconditionally; the scanner sets it
+    # from the start. True at class level so the non-scan paths (AdProbe, and
+    # the availability check through it) keep using a set key unconditionally;
+    # the scanner sets it
     # per profile from transport_policy.decide, where `scrape_api_mode=
     # "fallback"` (the default) starts on the free path and only escalates on
     # a block.

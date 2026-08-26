@@ -13,6 +13,20 @@ from sqlalchemy import create_engine, inspect, text
 from app import database
 
 
+def _head() -> str:
+    """The revision `upgrade head` lands on. Read from the script directory
+    rather than hardcoded, so authoring a migration does not mean editing the
+    expected value into four separate tests."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(database.ALEMBIC_INI))
+    cfg.set_main_option("script_location", str(database.ALEMBIC_DIR))
+    head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert head is not None, "the migration directory has no head"
+    return head
+
+
 def _version(engine) -> str | None:
     insp = inspect(engine)
     if not insp.has_table("alembic_version"):
@@ -21,23 +35,20 @@ def _version(engine) -> str | None:
         return conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
 
 
-def test_fresh_db_is_stamped_at_baseline(tmp_path, monkeypatch):
+def test_fresh_db_is_stamped_at_baseline_then_upgraded(tmp_path, monkeypatch):
     """A brand-new DB is fully built by create_all; Alembic must record it at the
-    baseline (so future upgrades apply only post-baseline migrations) rather than
-    try to create the tables a second time."""
+    baseline (rather than try to create the tables a second time) and then apply
+    the post-baseline migrations from there, landing on the head."""
     engine = create_engine(f"sqlite:///{tmp_path / 'fresh.db'}")
     monkeypatch.setattr(database, "engine", engine)
     database.init_db()
 
-    assert _version(engine) == "0001_baseline"
+    assert _version(engine) == _head()
     tables = set(inspect(engine).get_table_names())
-    assert {
-        "properties",
-        "listings",
-        "price_history",
-        "search_profiles",
-        "imported_listings",
-    } <= tables
+    assert {"properties", "listings", "price_history", "search_profiles"} <= tables
+    # dropped by 0002, and create_all never built it: the drop must be a no-op
+    # here, not the failure that would strand the version at the baseline
+    assert "imported_listings" not in tables
 
 
 def test_pre_alembic_db_is_adopted_not_rebuilt(tmp_path, monkeypatch):
@@ -58,7 +69,7 @@ def test_pre_alembic_db_is_adopted_not_rebuilt(tmp_path, monkeypatch):
 
     database.init_db()  # must not raise
 
-    assert _version(engine) == "0001_baseline"
+    assert _version(engine) == _head()
     cols = {c["name"] for c in inspect(engine).get_columns("properties")}
     assert {"contract", "is_favorite", "notes"} <= cols
 
@@ -69,7 +80,7 @@ def test_migrations_are_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "engine", engine)
     database.init_db()
     database.init_db()
-    assert _version(engine) == "0001_baseline"
+    assert _version(engine) == _head()
 
 
 def test_script_directory_has_a_single_head():
@@ -82,7 +93,7 @@ def test_script_directory_has_a_single_head():
     cfg = Config(str(database.ALEMBIC_INI))
     cfg.set_main_option("script_location", str(database.ALEMBIC_DIR))
     heads = ScriptDirectory.from_config(cfg).get_heads()
-    assert heads == ["0001_baseline"], f"expected one head, got {heads}"
+    assert len(heads) == 1, f"expected one head, got {heads}"
 
 
 def test_missing_alembic_degrades_to_additive(tmp_path, monkeypatch):

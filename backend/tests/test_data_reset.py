@@ -13,7 +13,6 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import (
-    ImportedListing,
     Listing,
     ListingProfile,
     PriceHistory,
@@ -65,19 +64,6 @@ def _seed_profile(db, **over) -> SearchProfile:
     return p
 
 
-def test_reset_email_import_clears_every_status(db):
-    """The whole point is to forget past decisions and re-review: even the
-    'discarded' rows (normally kept forever for idempotency, invariant 12) go."""
-    for pid, status in (("1", "pending"), ("2", "discarded"), ("3", "accepted")):
-        db.add(ImportedListing(portal="immobiliare", portal_id=pid, url="u", status=status))
-    db.commit()
-
-    out = data_reset.reset_email_import(db)
-
-    assert out["deleted"]["imported_listings"] == 3
-    assert _count(db, ImportedListing) == 0
-
-
 def test_clear_dashboard_deletes_listings_but_keeps_profiles(db):
     _seed_dashboard(db)
     _seed_profile(db)
@@ -108,23 +94,6 @@ def test_clear_dashboard_resets_the_baseline(db):
     assert prof.health_alert_sent is False
 
 
-def test_clear_dashboard_drops_dangling_import_references(db):
-    """An accepted import points at a property we are about to delete: the
-    reference must be nulled, not left dangling at a ghost id."""
-    prop = _seed_dashboard(db)
-    imp = ImportedListing(
-        portal="immobiliare", portal_id="9", url="u", status="accepted", property_id=prop.id
-    )
-    db.add(imp)
-    db.commit()
-
-    data_reset.clear_dashboard(db)
-    db.refresh(imp)
-
-    assert imp.property_id is None
-    assert _count(db, ImportedListing) == 1  # the row itself is kept
-
-
 def test_clear_pricing_snapshots_leaves_listings(db):
     _seed_dashboard(db)
     db.add(
@@ -149,7 +118,6 @@ def test_clear_pricing_snapshots_leaves_listings(db):
 def test_factory_reset_empties_everything(db, monkeypatch, tmp_path):
     _seed_dashboard(db)
     _seed_profile(db)
-    db.add(ImportedListing(portal="immobiliare", portal_id="1", url="u"))
     db.add(
         PricingSnapshot(
             captured_on=datetime.now(UTC).date(),
@@ -172,7 +140,7 @@ def test_factory_reset_empties_everything(db, monkeypatch, tmp_path):
 
     out = data_reset.factory_reset(db)
 
-    for model in (Property, Listing, PriceHistory, PricingSnapshot, ImportedListing, SearchProfile):
+    for model in (Property, Listing, PriceHistory, PricingSnapshot, SearchProfile):
         assert _count(db, model) == 0
     assert out["deleted"]["search_profiles"] == 1
     assert out["backup"] is None
@@ -223,10 +191,10 @@ def _seed_found(db, profile, portal_id="1", **over) -> Property:
 
 
 def test_profile_results_ignores_properties_it_never_found(db):
-    """Untracked cards (imported by email, or predating the provenance links)
-    are not this search's to delete: attribution is by recorded link, never by
-    a guess at the search criteria, which would sweep up a sibling search's
-    results in the same city."""
+    """Untracked cards (those predating the provenance links) are not this
+    search's to delete: attribution is by recorded link, never by a guess at
+    the search criteria, which would sweep up a sibling search's results in
+    the same city."""
     prof = _seed_profile(db)
     _seed_found(db, prof, "1")
     _seed_dashboard(db)  # no link: nothing says this search found it
@@ -292,11 +260,7 @@ def test_delete_profile_results_takes_the_whole_card_with_it(db):
     that one hides because a scan would resurrect the ad, while here the search
     that produced the card is going away in the same transaction."""
     prof = _seed_profile(db)
-    prop = _seed_found(db, prof, "1")
-    imp = ImportedListing(
-        portal="immobiliare", portal_id="9", url="u", status="accepted", property_id=prop.id
-    )
-    db.add(imp)
+    _seed_found(db, prof, "1")
     db.commit()
 
     out = data_reset.delete_profile_results(db, [prof.id])
@@ -307,8 +271,6 @@ def test_delete_profile_results_takes_the_whole_card_with_it(db):
     assert _count(db, Listing) == 0
     assert _count(db, PriceHistory) == 0
     assert _count(db, ListingProfile) == 0  # cascaded with the listing
-    db.refresh(imp)
-    assert imp.property_id is None  # never left pointing at a ghost
     assert _count(db, SearchProfile) == 1  # the profile itself is the caller's job
 
 

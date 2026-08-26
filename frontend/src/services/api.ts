@@ -3,9 +3,8 @@
  *  In production (`serve.bat`), the FastAPI backend serves static frontend files directly. */
 import { formatNumber, translateCurrent } from "../i18n";
 import type {
-  AssistantResult, EmailScanParams, EmailScanProgress,
-  EmailScanSummary, GeocodeProgress, GeocodeSummary, ImportCheckProgress, ImportCheckSummary, ImportedListing,
-  ImportFilters, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
+  AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
+  GeocodeProgress, GeocodeSummary, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, ScanStatus, ScraperHealth, SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
 } from "../types";
@@ -286,16 +285,6 @@ export const api = {
   getScanStatus(): Promise<ScanStatus> {
     return request("/scrapers/status");
   },
-  /** Instantly repair existing dashboard properties lacking city, zone, title, or photos, and merge duplicate cards sharing the same listing URL. */
-  repairListings(): Promise<{
-    properties_fixed: number;
-    listings_fixed: number;
-    images_recovered: number;
-    properties_merged: number;
-    duplicate_listings_removed: number;
-  }> {
-    return request("/maintenance/repair-listings", { method: "POST" });
-  },
   /** Backfill map coordinates for properties with an address/zone but no pin,
    *  via Nominatim (opt-in, batched, paced, cached). */
   geocodeMissing(): Promise<GeocodeSummary> {
@@ -316,7 +305,7 @@ export const api = {
   },
 
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
-  resetData(scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory"): Promise<{
+  resetData(scope: "dashboard" | "pricing-snapshots" | "factory"): Promise<{
     scope: string; deleted: Record<string, number>; backup?: string | null;
   }> {
     return request(`/maintenance/reset/${scope}`, { method: "POST" });
@@ -365,69 +354,18 @@ export const api = {
     return request("/settings/email-test", { method: "POST" });
   },
 
-  /** Verify IMAP connection and authentication against the mail server. */
-  imapTest(): Promise<{ ok: boolean; detail: string }> {
-    return request("/email-import/test", { method: "POST" });
-  },
-  /** Launch a read-only IMAP search across the inbox for portal alert emails. */
-  emailImportScan(params: EmailScanParams): Promise<EmailScanSummary> {
-    return request("/email-import/scan", {
-      method: "POST", body: JSON.stringify(params),
-    });
-  },
-  /** Poll current progress metrics of an active IMAP inbox scan. */
-  emailImportProgress(): Promise<EmailScanProgress> {
-    return request("/email-import/progress");
-  },
-  /** Query listings extracted from alert emails staged for user review. */
-  getImportedListings(filters: Partial<ImportFilters>): Promise<ImportedListing[]> {
-    const params = new URLSearchParams();
-    if (filters.status) params.set("status", filters.status);
-    if (filters.profile_id) params.set("profile_id", filters.profile_id);
-    if (filters.contract) params.set("contract", filters.contract);
-    if (filters.city) params.set("city", filters.city);
-    if (filters.min_price) params.set("min_price", filters.min_price);
-    if (filters.max_price) params.set("max_price", filters.max_price);
-    if (filters.rooms) params.set("rooms", filters.rooms);
-    if (filters.q) params.set("q", filters.q);
-    return request(`/email-import?${params}`);
-  },
-  /** Accept a staged listing into the active database (`upsert_listing`). */
-  acceptImported(id: number): Promise<{ ok: boolean; property_id: number }> {
-    return request(`/email-import/${id}/accept`, { method: "POST" });
-  },
-  /** Discard an unwanted staged listing (retained to prevent re-importing on future scans). */
-  discardImported(id: number) {
-    return request(`/email-import/${id}/discard`, { method: "POST" });
-  },
-  /** Bulk accept or discard multiple staged listings. */
-  bulkImported(ids: number[], action: "accept" | "discard") {
-    return request<{ ok: boolean; processed: number }>("/email-import/bulk", {
-      method: "POST", body: JSON.stringify({ ids, action }),
-    });
-  },
-  /** Probe portals (`AdProbe`) to check if staged listings are still online. */
-  checkImported(ids: number[]): Promise<ImportCheckSummary> {
-    return request("/email-import/check", {
-      method: "POST", body: JSON.stringify({ ids }),
-    });
-  },
-  /** Poll live progress of an ongoing portal availability check (`AdProbe`). */
-  importCheckProgress(): Promise<ImportCheckProgress> {
-    return request("/email-import/check-progress");
-  },
   /** Probe portals (`AdProbe`) to check if dashboard properties are still online. */
-  checkProperties(ids: number[]): Promise<ImportCheckSummary> {
+  checkProperties(ids: number[]): Promise<AvailabilityCheckSummary> {
     return request("/properties/check", {
       method: "POST", body: JSON.stringify({ ids }),
     });
   },
   /** Probe portals for a single dashboard property and get updated status right away. */
-  checkSingleProperty(id: number): Promise<{ property: Property; summary: ImportCheckSummary }> {
+  checkSingleProperty(id: number): Promise<{ property: Property; summary: AvailabilityCheckSummary }> {
     return request(`/properties/${id}/check`, { method: "POST" });
   },
   /** Poll live progress of an ongoing dashboard properties availability check. */
-  propertiesCheckProgress(): Promise<ImportCheckProgress> {
+  propertiesCheckProgress(): Promise<AvailabilityCheckProgress> {
     return request("/properties/check-progress");
   },
   /** Stops the running dashboard properties availability check after its

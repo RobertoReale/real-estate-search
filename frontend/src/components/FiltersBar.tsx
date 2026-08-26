@@ -29,14 +29,6 @@ export default function FiltersBar({
   onReset,
 }: Props) {
   const t = useT();
-  const [repairing, setRepairing] = useState(false);
-  const [repairResult, setRepairResult] = useState<{
-    properties_fixed: number;
-    listings_fixed: number;
-    images_recovered: number;
-    properties_merged: number;
-    duplicate_listings_removed: number;
-  } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeResult, setGeocodeResult] = useState<GeocodeSummary | null>(null);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
@@ -397,27 +389,6 @@ export default function FiltersBar({
           <label className="text-xs font-medium t-muted">{t("filters.maintenance")}</label>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
-              repairing
-                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
-                : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
-            }`}
-            disabled={repairing}
-            title={t("filters.repairTitle")}
-            onClick={async () => {
-              setRepairing(true);
-              setRepairResult(null);
-              try {
-                const res = await api.repairListings();
-                setRepairResult(res);
-                onChange({ ...filters });
-              } finally {
-                setRepairing(false);
-              }
-            }}>
-            {repairing ? t("filters.repairing") : t("filters.repair")}
-          </button>
-          <button
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               geocoding
                 ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
                 : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/30"
@@ -516,46 +487,6 @@ export default function FiltersBar({
           </div>
         </div>
       </div>
-
-      {repairResult && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
-          <div className="space-y-1">
-            {repairResult.properties_fixed > 0 || repairResult.listings_fixed > 0 || repairResult.images_recovered > 0 || repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0 ? (
-              <>
-                <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
-                  <span>✅</span> {t("filters.repairDone")}
-                </p>
-                <p>
-                  {t("filters.repairSummary", {
-                    properties: repairResult.properties_fixed,
-                    listings: repairResult.listings_fixed,
-                    images: repairResult.images_recovered,
-                  })}
-                  {(repairResult.properties_merged > 0 || repairResult.duplicate_listings_removed > 0) &&
-                    " " +
-                      t("filters.repairMerged", {
-                        merged: repairResult.properties_merged,
-                        removed: repairResult.duplicate_listings_removed,
-                      })}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-1.5">
-                  <span>✨</span> {t("filters.repairNothing")}
-                </p>
-                <p>{t("filters.repairNothingBody")}</p>
-              </>
-            )}
-          </div>
-          <button
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => setRepairResult(null)}
-            title={t("common.close")}>
-            ✕
-          </button>
-        </div>
-      )}
 
       {geocoding && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-fade-in shadow-sm space-y-2">

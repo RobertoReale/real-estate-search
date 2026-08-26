@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from ..config import DB_PATH
 from ..models import (
-    ImportedListing,
     Listing,
     ListingProfile,
     PriceHistory,
@@ -115,36 +114,12 @@ def delete_profile_results(db: Session, profile_ids: Sequence[int]) -> dict:
     summary = profile_results(db, profile_ids)
     props = summary.pop("properties")
     listings = sum(len(p.listings) for p in props)
-    ids = [p.id for p in props]
-    if ids:
-        # accepted inbox imports point at these properties: drop the reference
-        # before the row goes, or the import stays wired to a ghost id
-        db.execute(
-            update(ImportedListing)
-            .where(ImportedListing.property_id.in_(ids))
-            .values(property_id=None)
-        )
     for prop in props:
         db.delete(prop)  # cascades listings (and their links) + price history
     db.flush()
     summary["listings"] = listings
     logger.info("Deleted results of search profiles %s: %s", list(profile_ids), summary)
     return summary
-
-
-def reset_email_import(db: Session) -> dict:
-    """Wipes every staged inbox listing so the import can be redone from zero.
-
-    This deliberately drops the `discarded` rows too — normally kept forever as
-    the memory that makes a re-scan idempotent (invariant 12). That is the whole
-    point here: the user is asking to forget those decisions and re-review the
-    inbox afresh, so the next scan will re-stage listings previously rejected.
-    """
-    n = _count(db, ImportedListing)
-    db.execute(delete(ImportedListing))
-    db.commit()
-    logger.info("data-reset: cleared %d imported listings", n)
-    return {"scope": "email-import", "deleted": {"imported_listings": n}}
 
 
 def clear_dashboard(db: Session) -> dict:
@@ -167,13 +142,6 @@ def clear_dashboard(db: Session) -> dict:
     db.execute(delete(Listing))
     # same reason: property_tags rows would otherwise survive their Property
     db.execute(delete(property_tags))
-    # accepted imports pointed at properties we are about to delete: drop the
-    # dangling reference so a later enrich/re-scan does not chase a ghost id
-    db.execute(
-        update(ImportedListing)
-        .where(ImportedListing.property_id.is_not(None))
-        .values(property_id=None)
-    )
     db.execute(delete(Property))
     db.execute(
         update(SearchProfile).values(
@@ -224,14 +192,12 @@ def factory_reset(db: Session) -> dict:
         "listings": _count(db, Listing),
         "properties": _count(db, Property),
         "pricing_snapshots": _count(db, PricingSnapshot),
-        "imported_listings": _count(db, ImportedListing),
         "search_profiles": _count(db, SearchProfile),
     }
     for model in (
         PriceHistory,
         ListingProfile,
         Listing,
-        ImportedListing,
         PricingSnapshot,
         Property,
         SearchProfile,
