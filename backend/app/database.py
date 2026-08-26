@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import DB_PATH
@@ -14,10 +14,48 @@ logger = logging.getLogger(__name__)
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 ALEMBIC_DIR = Path(__file__).resolve().parent.parent / "alembic"
 
-engine = create_engine(
-    f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-)
+
+def _sqlite_pragmas(dbapi_conn, _record):
+    """Per-connection PRAGMAs, applied on every new pooled connection.
+
+    They are not persisted in the connection string and `journal_mode` is the
+    only one of the three that sticks to the file, so this has to run per
+    connection, not once at startup.
+
+    The problem they solve is concurrency. `check_same_thread=False` lets any
+    thread use a connection, and six background modules (scanner, geocoder,
+    availability check, harvester, scheduler) write alongside FastAPI's
+    threadpool — under the default rollback journal a writer locks out readers
+    entirely, so the losers got an immediate `database is locked`.
+
+    - WAL: readers no longer block on the single writer, which is the shape of
+      this workload (one scan writing, the dashboard polling).
+    - busy_timeout: the second writer *waits* up to 5s for the lock instead of
+      failing instantly. WAL still serialises writers; this is what makes that
+      serialisation invisible rather than an error.
+    - synchronous=NORMAL: safe under WAL (a crash can lose the last commits but
+      cannot corrupt the file) and much faster than FULL's fsync per commit.
+    """
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.close()
+
+
+def make_engine(url: str):
+    """The one place an engine for this app is built.
+
+    Shared with the test fixtures on purpose: an engine created by hand would
+    silently lack the PRAGMAs above, so a concurrency regression would pass its
+    test and only appear in production.
+    """
+    eng = create_engine(url, connect_args={"check_same_thread": False})
+    event.listen(eng, "connect", _sqlite_pragmas)
+    return eng
+
+
+engine = make_engine(f"sqlite:///{DB_PATH}")
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

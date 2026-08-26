@@ -17,7 +17,6 @@ a real credential nor real data is ever reachable from a test run.
 """
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import config, database
@@ -44,10 +43,7 @@ def isolated_database(tmp_path, monkeypatch):
     final session to a different database than the one `init_db()` had just
     built its tables in.
     """
-    engine = create_engine(
-        f"sqlite:///{tmp_path / 'case.db'}",
-        connect_args={"check_same_thread": False},
-    )
+    engine = database.make_engine(f"sqlite:///{tmp_path / 'case.db'}")
     monkeypatch.setattr(database, "engine", engine)
 
     def _session_factory():
