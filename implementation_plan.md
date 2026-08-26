@@ -144,7 +144,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 628 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 631 tests (incl. hypothesis property tests)
 │   ├── requirements.in           # runtime deps, hand-edited (floors + why)
 │   ├── requirements.txt          # generated lock: pinned + hashed (uv pip compile)
 │   ├── requirements-dev.in       # dev-only: pytest, ruff, hypothesis, pytest-cov, pip-audit, pre-commit
@@ -187,7 +187,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (628, `pytest`)
+### Automated Tests (631, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
