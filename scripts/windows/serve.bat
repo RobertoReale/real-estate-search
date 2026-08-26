@@ -6,12 +6,19 @@ echo ============================================
 echo   Real Estate Search - Serving to the phone
 echo ============================================
 
+rem Setup steps are checked exactly as in start.bat, and for the same reason:
+rem this script already refused to serve a frontend that failed to build, but a
+rem failed `pip install` upstream of that used to sail straight past.
+
 if not exist "backend\.venv\Scripts\python.exe" (
     call :require_python
     if errorlevel 1 goto :setup_failed
     echo [SETUP] Creating Python virtual environment...
     python -m venv backend\.venv
+    if errorlevel 1 goto :venv_failed
+    echo [SETUP] Installing backend dependencies...
     backend\.venv\Scripts\pip install -r backend\requirements.txt
+    if errorlevel 1 goto :pip_failed
 )
 
 if not exist "frontend\node_modules" (
@@ -20,8 +27,15 @@ if not exist "frontend\node_modules" (
     rem `ci` installs exactly what package-lock.json pins; `install` would
     rem rewrite it (see start.bat).
     call npm ci
+    if errorlevel 1 (
+        popd
+        goto :npm_failed
+    )
     popd
 )
+
+rem An interrupted install leaves the directory behind but no interpreter in it.
+if not exist "backend\.venv\Scripts\python.exe" goto :venv_failed
 
 echo [1/3] Building the frontend (this is what the phone loads)...
 pushd frontend
@@ -73,6 +87,31 @@ pushd backend
 .venv\Scripts\python run.py
 popd
 exit /b 0
+
+:venv_failed
+echo.
+echo [ERROR] Could not create the virtual environment in backend\.venv.
+echo         On Windows the usual cause is a missing "venv" module or no write
+echo         permission in this folder. Delete backend\.venv if it is there and
+echo         run this script again.
+goto :setup_failed
+
+:pip_failed
+echo.
+echo [ERROR] Installing the backend dependencies failed.
+echo         Most often this is no internet connection - check it and run this
+echo         script again. If the error above names a package that failed to
+echo         build, the Python version is probably out of range: this project
+echo         needs 3.11 to 3.14.
+goto :setup_failed
+
+:npm_failed
+echo.
+echo [ERROR] Installing the frontend dependencies failed ^(npm ci^).
+echo         Check the internet connection. If npm complains that the lock file
+echo         is out of sync with package.json, the checkout is inconsistent -
+echo         restore package-lock.json rather than running `npm install`.
+goto :setup_failed
 
 :setup_failed
 echo.

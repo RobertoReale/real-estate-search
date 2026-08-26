@@ -5,7 +5,8 @@ import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
   GeocodeProgress, GeocodeSummary, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
-  ProfileResults, Property, PropertyFilters, ScanStatus, ScraperHealth, SearchBuilderParams,
+  ProfileResults, Property, PropertyFilters, PropertyPage, ScanStatus, ScraperHealth,
+  SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
 } from "../types";
 
@@ -97,9 +98,20 @@ export function propertyParams(filters: PropertyFilters): URLSearchParams {
 }
 
 export const api = {
-  /** Fetch a filtered and sorted list of properties (`active`, `filtered`, `gone`, `hidden`, or `all`). */
-  getProperties(filters: PropertyFilters): Promise<Property[]> {
-    return request(`/properties?${propertyParams(filters)}`);
+  /** Fetch one page of the filtered, sorted property set.
+   *
+   *  Answers `{items, total, limit, offset}`: `total` is the size of the whole
+   *  filtered set, so the caller can tell whether another page exists without
+   *  downloading it. `limit: 0` asks for everything — what the map (a pin per
+   *  property) and "select all" need, and deliberately not what the poll uses. */
+  getProperties(
+    filters: PropertyFilters,
+    page?: { limit?: number; offset?: number },
+  ): Promise<PropertyPage> {
+    const params = propertyParams(filters);
+    if (page?.limit !== undefined) params.set("limit", String(page.limit));
+    if (page?.offset) params.set("offset", String(page.offset));
+    return request(`/properties?${params}`);
   },
 
   /** Direct URL to download the filtered shortlist as a dossier. Not fetched

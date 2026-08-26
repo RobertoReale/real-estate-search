@@ -41,7 +41,9 @@ def list_properties(*, db, **kw):
         sort="newest",
     )
     params.update(kw)
-    return _select_properties(db, **params)
+    # (page, total): this helper stands in for the grid's property list
+    props, _total = _select_properties(db, **params)
+    return props
 
 
 @pytest.fixture

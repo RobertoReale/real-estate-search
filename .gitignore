@@ -1,6 +1,11 @@
 # Local user data: NEVER commit to git (the DB contains collected history,
 # settings.json contains the Telegram bot token in plaintext)
 backend/case.db
+# WAL sidecars (database.py sets journal_mode=WAL): SQLite keeps recent
+# transactions here until a checkpoint folds them back into case.db, so they
+# are user data exactly like it is.
+backend/case.db-wal
+backend/case.db-shm
 backend/settings.json
 backend/app.log*
 backend/service.log*

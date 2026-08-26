@@ -34,6 +34,7 @@ Double-click on **`scripts\windows\start.bat`**:
 - Installs all dependencies on first run.
 - Starts the backend server (http://localhost:8000) and the frontend dashboard (http://localhost:5173).
 - Automatically opens the web interface in your default browser.
+- If a setup step fails — no internet while installing, an unsupported Python — it stops there, says what went wrong and what to do about it, and starts nothing. The window stays open so you can read it.
 
 All Windows-only helpers (service install/uninstall, restart, stop, hidden
 autostart) live in `scripts\windows\` — see [Remote Access & Running in the
@@ -47,6 +48,7 @@ chmod +x scripts/linux/start.sh
 ```
 - Installs dependencies and starts both services concurrently.
 - Makes the dashboard accessible from any device on your local network at `http://<IP_OF_YOUR_PI>:5173`.
+- Stops with an explanation if a setup step fails, exactly like the Windows script. It can be run from anywhere — it resolves the project directory from its own location.
 
 ---
 
@@ -100,7 +102,8 @@ a shortlist against the portals on demand.
 * **Restart from the dashboard**: after updating the app, press **Settings → 🔄 Restart backend** instead of hunting for the terminal window. The dashboard goes offline for a few seconds and reloads itself. With `start.bat` (which runs with auto-reload) a code update is usually picked up on its own; with `serve.bat` this button is the quick way to apply one. *(It restarts the backend only — with `serve.bat`, which serves a pre-built frontend, re-run the script if the frontend itself changed.)*
 * **Pause automatic scans**: **Settings → Automatic scan → Pause automatic scans** stops the scheduled scans from touching the portals — handy for resting the connection while you are away, without deactivating every search one by one. The top bar shows *⏸ Automatic scans paused* while it is on, and **Start Scan Now** still works on demand (an explicit request bypasses the pause). To silence a single search instead, untick it in the search list.
 * **Catch-up Scan**: the scheduled scan normally fires one full interval after startup. If the PC was off and the last scan is already older than the configured interval, a catch-up scan runs ~2 minutes after startup instead — so switching the PC on is enough to bring the listings up to date.
-* **Automatic Backups**: a copy of `case.db` is written to `backend/backups/` at most once per day (checked at startup; the 14 most recent copies are kept). The folder is local — point your cloud-sync or a second drive at it if you want off-machine safety.
+* **Automatic Backups**: a copy of `case.db` is written to `backend/backups/` at most once per day (checked at startup; the 14 most recent copies are kept). The folder is local — point your cloud-sync or a second drive at it if you want off-machine safety. The copies are taken through SQLite's own backup API, so they are consistent even if a scan is writing at that moment. *If you ever copy the database by hand, take `case.db-wal` and `case.db-shm` with it*: the newest changes live in those two companion files until the database folds them in, and `case.db` on its own would be missing them.
+* **Paged Loading**: the dashboard loads results a page at a time and fetches the next as you scroll, so a large collection opens quickly instead of downloading everything up front. The count beside the filters is always the full number of matches, and **Select all**, the map and the dossier export still work on the whole filtered set — not just the part on screen. While a scan is running the dashboard checks for changes with a lightweight request and only reloads the grid when something has actually changed.
 * **In-App Log Viewer**: click **📜** in the top bar to see the backend's own log — scan progress, the availability check advancing line by line, DataDome blocks — without opening `backend/app.log` in a text editor. It filters by keyword and auto-refreshes every few seconds while open, so you can tell a slow-but-working check apart from a genuinely stuck one.
 * **Data Management (start fresh)**: **Settings → Data management** has three irreversible resets, each behind a confirmation. *Clear dashboard* deletes all found properties and price history but keeps your search profiles — the next scan rebuilds the grid silently (no notification flood). *Clear price trends* drops only the trend-chart history. *Factory reset* wipes everything back to a fresh install (a backup of the database is saved first). Your notification and login settings are never touched.
 
@@ -173,6 +176,19 @@ future. Edit the `.in` file beside them and recompile with
 cd backend
 uv pip compile requirements.in --universal --python-version 3.11 --generate-hashes -o requirements.txt
 uv pip compile requirements-dev.in --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
+```
+
+The frontend is locked the same way by `frontend/package-lock.json`. Install it
+with **`npm ci`, never `npm install`**: `ci` installs exactly what the lock pins
+and fails loudly if the lock and `package.json` disagree, where `install`
+quietly rewrites the lock and gives that machine a different toolchain. The
+start scripts and CI both use `npm ci`, so the only time `npm install` is right
+is when you are deliberately adding or upgrading a dependency — and then the
+rewritten lock is part of the change and gets committed with it.
+
+```bash
+cd frontend
+npm ci
 ```
 
 ### Optional developer tooling

@@ -119,6 +119,21 @@ class PropertyOut(BaseModel):
         return v or []
 
 
+class PropertyPage(BaseModel):
+    """One window of the filtered property set, plus the size of the whole.
+
+    `total` is what the dashboard counts and what tells the infinite scroll
+    whether another page exists — it is the size of the filtered set, not of
+    `items`. Keep `frontend/src/types/index.ts` (`PropertyPage`) in step with
+    this shape.
+    """
+
+    items: list[PropertyOut]
+    total: int
+    limit: int | None
+    offset: int
+
+
 class PropertyPatch(BaseModel):
     """User-curated fields; scans never touch them."""
 

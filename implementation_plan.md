@@ -143,7 +143,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 580 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 593 tests (incl. hypothesis property tests)
 │   ├── requirements.in           # runtime deps, hand-edited (floors + why)
 │   ├── requirements.txt          # generated lock: pinned + hashed (uv pip compile)
 │   ├── requirements-dev.in       # dev-only: pytest, ruff, hypothesis, pytest-cov, pip-audit, pre-commit
@@ -186,12 +186,12 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (580, `pytest`)
+### Automated Tests (593, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
 ```
-Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). The frontend has its own vitest suite (22 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, and the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution).
+Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). The frontend has its own vitest suite (26 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, and the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution).
 
 ### Manual Verification
 1. Double click `scripts\windows\start.bat`.

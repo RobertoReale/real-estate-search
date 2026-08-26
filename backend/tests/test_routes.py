@@ -56,6 +56,18 @@ def client():
     main.app.dependency_overrides.clear()
 
 
+def grid(api, **params) -> list[dict]:
+    """The grid's properties.
+
+    `/api/properties` answers a page object (`{items, total, limit, offset}`),
+    so the tests that only care about the properties unwrap it here rather than
+    indexing `["items"]` in thirty places.
+    """
+    resp = api.get("/api/properties", params=params or None)
+    assert resp.status_code == 200
+    return resp.json()["items"]
+
+
 def _seed(db) -> None:
     now = datetime.now(UTC).replace(tzinfo=None)  # as SQLite hands them back
     rows = [
@@ -104,10 +116,11 @@ def test_grid_returns_active_properties_with_provenance_field(client):
     resp = api.get("/api/properties")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 3
+    assert body["total"] == 3
+    assert len(body["items"]) == 3
     # found_by is a transient annotation: an un-annotated serialization path
     # used to 500 on the missing attribute, hence the before-validator
-    assert all(item["found_by"] == [] for item in body)
+    assert all(item["found_by"] == [] for item in body["items"])
 
 
 @pytest.mark.parametrize(
@@ -130,7 +143,11 @@ def test_each_filter_narrows_the_grid(client, params, expected):
     api = client
     resp = api.get("/api/properties", params=params)
     assert resp.status_code == 200
-    assert len(resp.json()) == expected
+    body = resp.json()
+    assert len(body["items"]) == expected
+    # the total counts the filtered set, not the table: a filter that reached
+    # only the page slice would leave this at 3
+    assert body["total"] == expected
 
 
 @pytest.mark.parametrize("sort", ["newest", "price_asc", "price_desc", "sqm_price", "match"])
@@ -140,7 +157,7 @@ def test_every_sort_survives_missing_prices_and_surfaces(client, sort):
     api = client
     resp = api.get("/api/properties", params={"sort": sort, "status": "all"})
     assert resp.status_code == 200
-    assert len(resp.json()) == 3
+    assert len(resp.json()["items"]) == 3
 
 
 @pytest.mark.parametrize(
@@ -172,6 +189,102 @@ def test_malformed_polygon_is_a_400_not_a_silent_pass(client):
 def test_unknown_profile_overlay_is_404(client):
     api = client
     assert api.get("/api/properties", params={"profile_id": 9999}).status_code == 404
+
+
+# --- pagination -------------------------------------------------------------
+
+
+def test_grid_pages_and_reports_the_whole_total(client):
+    """`total` is the filtered set, `items` is the window into it.
+
+    The endpoint used to return every filtered property with its market
+    position, deal score and provenance computed, on a grid the dashboard
+    re-polled every 30s (4s during a scan). A page that reported its own length
+    as the total would leave the UI unable to tell there is more to fetch.
+    """
+    api = client
+    body = api.get("/api/properties", params={"limit": 2, "status": "all"}).json()
+    assert body["total"] == 3
+    assert len(body["items"]) == 2
+    assert body["limit"] == 2 and body["offset"] == 0
+
+
+def test_pages_walk_the_set_without_gaps_or_repeats(client):
+    """Paging must partition the same ordering the unpaged call produces.
+
+    The window is applied after the Python post-filters and the sort for exactly
+    this reason: a SQL LIMIT would page over the pre-filter set, so pages would
+    overlap, skip rows, and reshuffle as the user scrolled.
+    """
+    api = client
+    whole = [p["id"] for p in grid(api, status="all", limit=0)]
+    assert len(whole) == 3
+    paged: list[int] = []
+    for offset in range(0, 3, 2):
+        page = api.get(
+            "/api/properties", params={"status": "all", "limit": 2, "offset": offset}
+        ).json()
+        assert page["total"] == 3
+        paged += [p["id"] for p in page["items"]]
+    assert paged == whole
+
+
+def test_limit_zero_returns_everything(client):
+    """The map draws a pin per property and "select all" needs every id, so both
+    ask for the unbounded set. They are one-off user actions, not the poll that
+    made pagination necessary."""
+    api = client
+    body = api.get("/api/properties", params={"status": "all", "limit": 0}).json()
+    assert len(body["items"]) == body["total"] == 3
+    assert body["limit"] is None
+
+
+def test_offset_past_the_end_is_empty_but_still_counts(client):
+    api = client
+    body = api.get("/api/properties", params={"status": "all", "offset": 99}).json()
+    assert body["items"] == []
+    assert body["total"] == 3
+
+
+def test_pagination_does_not_disturb_ordering_or_filters(client):
+    """Same sort, same filter, same order — whichever window is asked for."""
+    api = client
+    whole = [p["id"] for p in grid(api, status="all", sort="price_desc", limit=0)]
+    first = grid(api, status="all", sort="price_desc", limit=1)
+    assert [p["id"] for p in first] == whole[:1]
+    # a filter still narrows the total, not just the page
+    body = api.get("/api/properties", params={"city": "milano", "limit": 1}).json()
+    assert body["total"] == 1
+
+
+def test_export_ignores_pagination(client):
+    """A dossier holds the whole filtered shortlist, never the page the grid
+    happens to be showing — `_select_properties` is shared, the limit is not."""
+    api = client
+    dossier = api.get("/api/properties/export", params={"fmt": "csv", "status": "all"}).text
+    assert "Trilocale Isola" in dossier
+    assert "Bilocale Prati" in dossier
+
+
+def test_status_carries_a_data_version_that_moves_with_the_data(client):
+    """The "did anything change?" half of the polling split: the dashboard polls
+    this string and refetches the grid only when it moves, instead of
+    re-downloading every annotated property every four seconds."""
+    api = client
+    before = api.get("/api/scrapers/status").json()["data_version"]
+    assert before
+    # stable while nothing changes: a version that moved on its own would make
+    # the poll refetch every time and buy nothing
+    assert api.get("/api/scrapers/status").json()["data_version"] == before
+
+    # Hiding a property leaves the row count untouched but takes it out of the
+    # grid, which is why the fingerprint counts per status rather than in total.
+    api.delete(f"/api/properties/{grid(api)[0]['id']}")
+    hidden = api.get("/api/scrapers/status").json()["data_version"]
+    assert hidden != before
+
+    api.post(f"/api/properties/{grid(api)[0]['id']}/sold")
+    assert api.get("/api/scrapers/status").json()["data_version"] != hidden
 
 
 # --- route registration order ----------------------------------------------
@@ -209,9 +322,9 @@ def test_export_applies_the_same_filters_as_the_grid(client):
     """The dossier "mirrors the screen" convention: both go through
     `_select_properties`, so a filter must reach the file too."""
     api = client
-    grid = api.get("/api/properties", params={"city": "milano"}).json()
+    shown = grid(api, city="milano")
     dossier = api.get("/api/properties/export", params={"fmt": "csv", "city": "milano"}).text
-    assert len(grid) == 1
+    assert len(shown) == 1
     assert "Trilocale Isola" in dossier
     assert "Bilocale Prati" not in dossier
 
@@ -221,17 +334,17 @@ def test_export_applies_the_same_filters_as_the_grid(client):
 
 def test_hide_then_restore_round_trip(client):
     api = client
-    pid = api.get("/api/properties").json()[0]["id"]
+    pid = grid(api)[0]["id"]
     assert api.delete(f"/api/properties/{pid}").status_code == 200
     assert api.get(f"/api/properties/{pid}").json()["status"] == "hidden"
-    assert pid not in [p["id"] for p in api.get("/api/properties").json()]
+    assert pid not in [p["id"] for p in grid(api)]
     assert api.post(f"/api/properties/{pid}/restore").status_code == 200
     assert api.get(f"/api/properties/{pid}").json()["status"] == "active"
 
 
 def test_sold_records_a_confirmed_close_date_and_restore_clears_it(client):
     api = client
-    pid = api.get("/api/properties").json()[0]["id"]
+    pid = grid(api)[0]["id"]
     api.post(f"/api/properties/{pid}/sold")
     sold = api.get(f"/api/properties/{pid}").json()
     assert sold["status"] == "sold"
@@ -242,12 +355,12 @@ def test_sold_records_a_confirmed_close_date_and_restore_clears_it(client):
 
 def test_patch_updates_curated_fields_only(client):
     api = client
-    pid = api.get("/api/properties").json()[0]["id"]
+    pid = grid(api)[0]["id"]
     resp = api.patch(f"/api/properties/{pid}", json={"is_favorite": True, "notes": "da vedere"})
     assert resp.status_code == 200
     assert resp.json()["is_favorite"] is True
     assert resp.json()["notes"] == "da vedere"
-    assert len(api.get("/api/properties", params={"only_favorites": True}).json()) == 1
+    assert len(grid(api, only_favorites=True)) == 1
 
 
 def test_missing_property_is_404_on_every_single_item_route(client):
@@ -261,7 +374,7 @@ def test_missing_property_is_404_on_every_single_item_route(client):
 
 def test_bulk_skips_unknown_ids_instead_of_failing_the_batch(client):
     api = client
-    ids = [p["id"] for p in api.get("/api/properties").json()] + [9999]
+    ids = [p["id"] for p in grid(api)] + [9999]
     resp = api.post("/api/properties/bulk", json={"ids": ids, "action": "favorite"})
     assert resp.status_code == 200
     assert resp.json()["processed"] == 3
@@ -287,9 +400,9 @@ def test_tag_creation_is_idempotent_case_insensitively(client):
 def test_tag_filter_and_deletion(client):
     api = client
     tag = api.post("/api/tags", json={"name": "Preferiti"}).json()
-    pid = api.get("/api/properties").json()[0]["id"]
+    pid = grid(api)[0]["id"]
     api.patch(f"/api/properties/{pid}", json={"tag_ids": [tag["id"]]})
-    assert len(api.get("/api/properties", params={"tag": "preferiti"}).json()) == 1
+    assert len(grid(api, tag="preferiti")) == 1
     assert api.delete(f"/api/tags/{tag['id']}").status_code == 200
     assert api.get("/api/tags").json() == []
     # the property survives its tag being deleted globally

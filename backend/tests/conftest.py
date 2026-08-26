@@ -7,18 +7,16 @@ reach out to the developer's own machine unless every test is pointed elsewhere:
   developer configured real Gmail credentials there,
   `test_disabled_channels_send_nothing` stopped testing "disabled channels": it
   logged into smtp.gmail.com and delivered an actual email.
-- `database.py` builds its engine and session factory from `DB_PATH` at import
-  time, so anything reaching them lands in the real `case.db` — creating it on a
-  clean machine, and on a developed one running `deduplicate_search_profiles`
-  over the user's actual searches.
+- `database.py` builds its engine from `DB_PATH` at import time, so anything
+  reaching it lands in the real `case.db` — creating it on a clean machine, and
+  on a developed one running `deduplicate_search_profiles` over the user's
+  actual searches.
 
 Point every test at throwaway copies of both, so the defaults apply and neither
 a real credential nor real data is ever reachable from a test run.
 """
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app import config, database
 
@@ -30,29 +28,19 @@ def isolated_settings(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_database(tmp_path, monkeypatch):
-    """Repoint the engine *and* the session factory at a per-test database.
+    """Repoint the database at a per-test file.
 
-    Patching only `database.engine` is not enough, and that gap is exactly what
-    made six tests touch the real `case.db`: `SessionLocal` is bound to the
-    engine at import time, so `init_db()`'s closing
-    `with SessionLocal() as db: deduplicate_search_profiles(db)` kept opening the
-    developer's database no matter which engine the test had installed.
+    One symbol is enough: `SessionLocal` resolves `database.engine` on every
+    call, so redirecting the engine redirects every session with it — including
+    the ones `init_db()` opens at the end of its own run, and the ones `scanner`
+    and `scheduler` open through their `from ..database import SessionLocal`.
+    While the factory was bound at import instead, this fixture had to patch
+    both names, and even then the two from-importers were out of its reach.
 
-    The replacement resolves `database.engine` on every call rather than
-    capturing it here, because several tests install an engine of their own and
-    then call `init_db()`. A factory bound once at fixture setup would send that
-    final session to a different database than the one `init_db()` had just
-    built its tables in.
+    `make_engine` rather than a hand-built engine, so tests run against the same
+    PRAGMAs (WAL, busy_timeout) as production.
     """
-    engine = create_engine(
-        f"sqlite:///{tmp_path / 'case.db'}",
-        connect_args={"check_same_thread": False},
-    )
+    engine = database.make_engine(f"sqlite:///{tmp_path / 'case.db'}")
     monkeypatch.setattr(database, "engine", engine)
-
-    def _session_factory():
-        return sessionmaker(bind=database.engine, autoflush=False, expire_on_commit=False)()
-
-    monkeypatch.setattr(database, "SessionLocal", _session_factory)
     yield
     engine.dispose()

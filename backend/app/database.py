@@ -4,8 +4,8 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import DB_PATH
 
@@ -14,11 +14,72 @@ logger = logging.getLogger(__name__)
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 ALEMBIC_DIR = Path(__file__).resolve().parent.parent / "alembic"
 
-engine = create_engine(
-    f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+def _sqlite_pragmas(dbapi_conn, _record):
+    """Per-connection PRAGMAs, applied on every new pooled connection.
+
+    They are not persisted in the connection string and `journal_mode` is the
+    only one of the three that sticks to the file, so this has to run per
+    connection, not once at startup.
+
+    The problem they solve is concurrency. `check_same_thread=False` lets any
+    thread use a connection, and six background modules (scanner, geocoder,
+    availability check, harvester, scheduler) write alongside FastAPI's
+    threadpool — under the default rollback journal a writer locks out readers
+    entirely, so the losers got an immediate `database is locked`.
+
+    - WAL: readers no longer block on the single writer, which is the shape of
+      this workload (one scan writing, the dashboard polling).
+    - busy_timeout: the second writer *waits* up to 5s for the lock instead of
+      failing instantly. WAL still serialises writers; this is what makes that
+      serialisation invisible rather than an error.
+    - synchronous=NORMAL: safe under WAL (a crash can lose the last commits but
+      cannot corrupt the file) and much faster than FULL's fsync per commit.
+    """
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.close()
+
+
+def make_engine(url: str):
+    """The one place an engine for this app is built.
+
+    Shared with the test fixtures on purpose: an engine created by hand would
+    silently lack the PRAGMAs above, so a concurrency regression would pass its
+    test and only appear in production.
+    """
+    eng = create_engine(url, connect_args={"check_same_thread": False})
+    event.listen(eng, "connect", _sqlite_pragmas)
+    return eng
+
+
+engine = make_engine(f"sqlite:///{DB_PATH}")
+
+# Deliberately unbound: the bind is chosen per session, in SessionLocal below.
+_session_factory = sessionmaker(autoflush=False, expire_on_commit=False)
+
+
+def SessionLocal() -> Session:
+    """Opens a session on whatever `engine` is *now*, not at import time.
+
+    `sessionmaker(bind=engine)` at module level captured the engine the instant
+    this file was first imported, and that single line made the database
+    impossible to redirect. Anything that swapped `database.engine` — the test
+    fixtures, most visibly — kept getting sessions on the real `case.db`, so
+    `init_db()`'s closing `deduplicate_search_profiles(db)` ran over the
+    developer's own searches. Worse, `scanner` and `scheduler` do
+    `from ..database import SessionLocal`, which copies the bound factory into
+    their namespace: patching `database.SessionLocal` could not reach them at
+    all, and each had to be patched separately.
+
+    Keeping the name a callable that resolves the module global on every call
+    fixes both. The from-imports hold this function rather than a frozen bind,
+    so redirecting the engine redirects every caller at once, and the engine
+    stays the single symbol that decides which database the app talks to.
+    """
+    return _session_factory(bind=engine)
 
 
 class Base(DeclarativeBase):
@@ -36,12 +97,18 @@ def get_db():
 def _apply_additive_migrations() -> set[str]:
     """Adds columns that exist in the models but not in the on-disk DB.
 
-    There is no Alembic in this project: create_all only creates *missing
-    tables*, so adding a column to a model would silently break every query
-    against an existing case.db. Deleting the DB is not acceptable either —
-    price history would be lost. Additive ALTER TABLE covers the only schema
-    change made so far (new nullable/defaulted columns); anything more
-    invasive is the trigger for finally introducing Alembic.
+    This runs *before* Alembic (see `_run_migrations` below), and the two divide
+    the work rather than competing. `create_all` only creates missing **tables**,
+    so adding a column to a model would otherwise silently break every query
+    against an existing case.db — and deleting the database is not an option,
+    since months of price history live there and no re-scan can rebuild them.
+
+    Additive ALTER TABLE covers the common case completely: a new nullable or
+    defaulted column needs no migration and never will, which keeps the ordinary
+    "add a field to a model" change a one-line edit. Alembic's job starts where
+    this cannot follow — a rename, a drop, a type change — so by the time it
+    runs, every current table and column already exists and it only has to apply
+    what was authored deliberately.
 
     Returns the set of "table.column" names newly created, so callers can run
     a one-time backfill exactly when a column first appears (never again).

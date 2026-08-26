@@ -42,14 +42,24 @@ export default function App() {
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
   const [view, setView] = useState<ViewMode>("grid");
-  // Incremental grid rendering: the backend returns the whole filtered set (so
-  // select-all, export and the map keep seeing everything), but mounting a card
-  // per result bogs the DOM down at a few hundred listings. Render a growing
-  // window and extend it as the user scrolls. State stays the full `properties`,
-  // so nothing downstream changes — only how many cards are on screen.
+  // Real pagination: `properties` holds the pages fetched so far, `total` the
+  // size of the whole filtered set. The grid used to download all of it — every
+  // property with its market position, deal score and provenance computed — and
+  // re-poll it every 30s, every 4s during a scan. Now it asks for a page and
+  // extends as the user scrolls.
+  //
+  // The map is the exception and asks for everything (`limit: 0`): a map missing
+  // every pin past the first page is not a map. So is "select all". Both are
+  // one-off user actions, which is what makes them affordable — the poll was the
+  // problem, not the occasional full read.
   const GRID_PAGE = 60;
-  const [visibleCount, setVisibleCount] = useState(GRID_PAGE);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  // read inside refreshProperties without making it depend on `properties` —
+  // that dependency would rebuild the callback on every fetch, and the effect
+  // below would fire it again, forever
+  const loadedCount = useRef(0);
   // set by a card's "View on map" jump so MapView centers on that property;
   // cleared on any manual view switch so the map fits the whole set again
   const [mapFocusId, setMapFocusId] = useState<number | null>(null);
@@ -70,6 +80,9 @@ export default function App() {
   // and without this guard a slow older response would land after the newer
   // one and overwrite the grid with stale results
   const refreshSeq = useRef(0);
+  // last `data_version` seen from the status endpoint; the poll refetches the
+  // grid only when it differs. null = never read one yet.
+  const dataVersion = useRef<string | null>(null);
 
   // "New" badge threshold: properties first seen after this instant are
   // flagged as new for the rest of this browser session, even if a scan
@@ -94,9 +107,16 @@ export default function App() {
   const refreshProperties = useCallback(async () => {
     const seq = ++refreshSeq.current;
     try {
-      const props = await api.getProperties(filters);
+      // The map needs every pin. The grid re-reads the pages it already has, so
+      // a refresh triggered by a scan does not snap a scrolled-down user back
+      // to the first page.
+      const limit = view === "map" ? 0 : Math.max(GRID_PAGE, loadedCount.current);
+      const page = await api.getProperties(filters, { limit, offset: 0 });
       if (seq !== refreshSeq.current) return; // a newer refresh superseded this one
+      const props = page.items;
+      loadedCount.current = props.length;
       setProperties(props);
+      setTotal(page.total);
       setSelectedIds((prev) => {
         if (prev.size === 0) return prev;
         const validIds = new Set<number>();
@@ -116,7 +136,33 @@ export default function App() {
       if (seq !== refreshSeq.current) return;
       setLoadFailed(true);
     }
-  }, [filters]);
+  }, [filters, view]);
+
+  /** Append the next page. Guarded against the refresh running underneath it:
+   *  if a newer refresh has started, its result is the truth and this page is
+   *  dropped rather than concatenated onto a set it no longer belongs to. */
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+    const seq = refreshSeq.current;
+    setLoadingMore(true);
+    try {
+      const page = await api.getProperties(filters, {
+        limit: GRID_PAGE,
+        offset: loadedCount.current,
+      });
+      if (seq !== refreshSeq.current) return;
+      setProperties((prev) => {
+        const next = [...prev, ...page.items];
+        loadedCount.current = next.length;
+        return next;
+      });
+      setTotal(page.total);
+    } catch {
+      // leave the grid as it is; the sentinel stays and the user can retry
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [filters, loadingMore]);
 
   // Reference data, independent of the filters: profiles, settings, tags and
   // scan status. A failure here must not clobber the "backend unreachable"
@@ -133,6 +179,9 @@ export default function App() {
       setScanStatus(status);
       setSettings(sett);
       setTags(tagList);
+      // keep the poll's baseline in step: this call has just read the current
+      // state, so the next tick must not mistake it for a change
+      if (status.data_version) dataVersion.current = status.data_version;
     } catch {
       // best-effort: keep the last-known panels rather than emptying them
     }
@@ -154,40 +203,52 @@ export default function App() {
     refreshMeta();
   }, [refreshMeta]);
 
-  // polling: frequent during scan, slow otherwise; refreshes everything so the
-  // scan status and any newly-found listings both surface
+  // Polling asks "did anything change?", not "give me everything again".
+  //
+  // The scan status is a cheap endpoint that touches two small aggregates, and
+  // it carries a `data_version` fingerprint of the property set. Only when that
+  // moves is the grid refetched. Before this, every tick re-downloaded the whole
+  // filtered set with market position, match score, deal score and provenance
+  // computed for each — every 4 seconds for as long as a scan ran.
   useEffect(() => {
     const ms = scanStatus?.running ? 4000 : 30000;
-    const t = window.setInterval(refresh, ms);
+    const t = window.setInterval(async () => {
+      try {
+        const status = await api.getScanStatus();
+        setScanStatus(status);
+        if (status.data_version && status.data_version !== dataVersion.current) {
+          // first poll of the session has nothing to compare against: adopt the
+          // value rather than treating it as a change and refetching for nothing
+          const known = dataVersion.current !== null;
+          dataVersion.current = status.data_version;
+          if (known) {
+            refreshProperties();
+            refreshMeta();
+          }
+        }
+      } catch {
+        // keep the last-known status; the property fetch owns the error banner
+      }
+    }, ms);
     return () => window.clearInterval(t);
-  }, [refresh, scanStatus?.running]);
+  }, [scanStatus?.running, refreshProperties, refreshMeta]);
 
-  // Reset the grid window to the top when the user asks for a different set (a
-  // filter change) — but NOT on a background poll, which replaces `properties`
-  // with a fresh array yet must not snap a scrolled-down user back to the first
-  // page. `slice(0, visibleCount)` naturally clamps if the new set is smaller.
-  useEffect(() => {
-    setVisibleCount(GRID_PAGE);
-  }, [filters]);
-
-  // Extend the window as the sentinel below the grid scrolls into view. The
-  // rootMargin pre-loads the next page before it is reached, so scrolling feels
-  // seamless rather than paged.
+  // Fetch the next page as the sentinel below the grid scrolls into view. The
+  // rootMargin pre-loads it before it is reached, so scrolling feels seamless
+  // rather than paged.
   useEffect(() => {
     if (view !== "grid") return;
     const el = loadMoreRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((c) => (c < properties.length ? c + GRID_PAGE : c));
-        }
+        if (entries[0]?.isIntersecting) loadMore();
       },
       { rootMargin: "800px" },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [view, properties.length]);
+  }, [view, loadMore]);
 
   // a failed click must say so: without this wrapper the rejection is
   // unhandled and the button silently does nothing, which reads as "broken"
@@ -300,6 +361,25 @@ export default function App() {
     800,
   );
 
+  /** "Select all" means the whole filtered set, not the pages on screen.
+   *
+   *  With the grid paginated, selecting only what is loaded would silently turn
+   *  "hide all 300 results" into "hide the first 60" — the kind of quiet
+   *  mismatch between the label and the action that this codebase avoids
+   *  elsewhere by sharing one selection path. So it asks the backend for the
+   *  full set (`limit: 0`), which is affordable precisely because it is a
+   *  deliberate click and not the poll. */
+  function toggleSelectAll() {
+    if (selectedIds.size === total && total > 0) {
+      setSelectedIds(new Set());
+      return;
+    }
+    return runAction(async () => {
+      const page = await api.getProperties(filters, { limit: 0 });
+      setSelectedIds(new Set(page.items.map((p) => p.id)));
+    });
+  }
+
   function bulkAction(action: "hide" | "favorite" | "unfavorite" | "sold") {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
@@ -386,7 +466,8 @@ export default function App() {
             onOpenProperty={setSelected} />
         )}
 
-        <FiltersBar filters={filters} onChange={setFilters} count={properties.length}
+        {/* the whole filtered set, not the pages loaded so far */}
+        <FiltersBar filters={filters} onChange={setFilters} count={total}
           view={view} onViewChange={changeView} profiles={profiles} tags={tags}
           matchEnabled={settings?.match_score_enabled ?? false}
           onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
@@ -444,16 +525,10 @@ export default function App() {
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === properties.length && properties.length > 0}
-                      onChange={() =>
-                        setSelectedIds(
-                          selectedIds.size === properties.length
-                            ? new Set()
-                            : new Set(properties.map((p) => p.id))
-                        )
-                      }
+                      checked={selectedIds.size === total && total > 0}
+                      onChange={() => toggleSelectAll()}
                     />
-                    {t("app.selectAll", { selected: selectedIds.size, total: properties.length })}
+                    {t("app.selectAll", { selected: selectedIds.size, total })}
                   </label>
                 )}
               </div>
@@ -605,7 +680,7 @@ export default function App() {
           )
         ) : (
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {properties.slice(0, visibleCount).map((p) => (
+            {properties.map((p) => (
               <PropertyCard
                 key={p.id}
                 property={p}
@@ -641,15 +716,18 @@ export default function App() {
                 onRemoveTag={(tagId) => removeTag(p, tagId)}
               />
             ))}
-            {/* Grows the window as it scrolls into view (see the observer
+            {/* Fetches the next page as it scrolls into view (see the observer
                 above); the button is the no-observer fallback and a manual
                 nudge. Spans the whole grid row. */}
-            {visibleCount < properties.length && (
+            {properties.length < total && (
               <div ref={loadMoreRef}
                 className="col-span-full flex justify-center py-4">
                 <button type="button" className="btn-ghost text-sm"
-                  onClick={() => setVisibleCount((c) => c + GRID_PAGE)}>
-                  {t("app.showMoreCount", { count: properties.length - visibleCount })}
+                  disabled={loadingMore}
+                  onClick={() => loadMore()}>
+                  {loadingMore
+                    ? t("common.loading")
+                    : t("app.showMoreCount", { count: total - properties.length })}
                 </button>
               </div>
             )}

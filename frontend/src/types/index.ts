@@ -225,6 +225,19 @@ export interface ScanStatus {
   last_summary: string;
   next_auto_run: string | null;
   paused?: boolean;
+  /** Fingerprint of the property set (main._properties_version). The dashboard
+   *  polls this cheap endpoint and refetches the grid only when it moves,
+   *  instead of re-downloading every annotated property every few seconds. */
+  data_version?: string;
+}
+
+/** One window of the filtered property set — mirrors `schemas.PropertyPage`.
+ *  `total` sizes the whole filtered set, not `items`. */
+export interface PropertyPage {
+  items: Property[];
+  total: number;
+  limit: number | null;
+  offset: number;
 }
 
 /** User-selected filter state for querying properties in the UI. */

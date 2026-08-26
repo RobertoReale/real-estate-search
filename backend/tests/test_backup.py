@@ -36,6 +36,36 @@ def test_backup_is_a_readable_copy(db_file, tmp_path):
     conn.close()
 
 
+def test_backup_captures_transactions_still_in_the_wal(tmp_path):
+    """Under WAL, the newest commits are not in case.db yet.
+
+    The database runs in WAL (database.py's connect PRAGMAs), where a commit
+    lands in `case.db-wal` and only reaches `case.db` at a checkpoint. A backup
+    that copied the file alone would therefore silently lose everything since
+    the last checkpoint — the most recent scan being exactly what the user would
+    miss. `maybe_backup` uses sqlite3's backup API, which reads through the WAL,
+    so this holds without any checkpoint being forced first.
+    """
+    db_path = tmp_path / "case.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE t (x)")
+    conn.execute("INSERT INTO t VALUES (42)")
+    conn.commit()
+    assert (tmp_path / "case.db-wal").exists(), "expected an un-checkpointed WAL"
+    try:
+        target = backup.maybe_backup(db_path, tmp_path / "backups")
+        assert target is not None
+        copy = sqlite3.connect(target)
+        try:
+            assert copy.execute("SELECT x FROM t").fetchone() == (42,)
+        finally:
+            copy.close()
+    finally:
+        # closing checkpoints, so it must happen after the backup is verified
+        conn.close()
+
+
 def test_missing_db_is_not_an_error(tmp_path):
     """Fresh install: there is nothing to protect yet, and no folder to create."""
     assert backup.maybe_backup(tmp_path / "case.db", tmp_path / "backups") is None
