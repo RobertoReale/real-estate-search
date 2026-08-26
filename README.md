@@ -52,7 +52,8 @@ Background](docs/remote-access.md).
 
 ### Windows, without installing anything
 If you would rather not install Python and Node at all, use the packaged app:
-unpack the release folder and double-click **`RealEstateSearch.exe`**. It runs
+download the `-windows-x64.zip` from the [Releases page](../../releases), unpack
+it anywhere, and double-click **`RealEstateSearch.exe`**. It runs
 in the notification area — right-click the icon for **Open dashboard**, **Open
 data folder** and **Quit** — with no terminal window to keep open.
 
@@ -69,7 +70,8 @@ included. Set `APP_DATA_DIR` if you want to choose the location yourself.
 ```bash
 docker compose -f packaging/docker-compose.yml up -d
 ```
-Builds for x86-64 and ARM64, keeps `case.db` and `settings.json` on a volume
+Builds for x86-64 and ARM64 (a prebuilt image is published to `ghcr.io` with
+each release), keeps `case.db` and `settings.json` on a volume
 (`packaging/data/`), and restarts with the machine. The port is published to
 **loopback only** — the API is unauthenticated by default (see
 [Remote Access](docs/remote-access.md) before widening it).
