@@ -6,12 +6,23 @@ echo ============================================
 echo   Real Estate Search - Starting Platform
 echo ============================================
 
+rem Every setup step is checked. Unchecked, a failed `pip install` still reached
+rem the `start` lines below and the user met an import traceback in a window that
+rem closes itself, three steps away from the actual cause.
+rem
+rem `if errorlevel 1` and not `%errorlevel%`: inside a parenthesised block the
+rem percent form is expanded when the block is *parsed*, so it holds the value
+rem from before the command ran. The keyword form is evaluated at run time.
+
 if not exist "backend\.venv\Scripts\python.exe" (
     call :require_python
     if errorlevel 1 goto :setup_failed
     echo [SETUP] Creating Python virtual environment...
     python -m venv backend\.venv
+    if errorlevel 1 goto :venv_failed
+    echo [SETUP] Installing backend dependencies...
     backend\.venv\Scripts\pip install -r backend\requirements.txt
+    if errorlevel 1 goto :pip_failed
 )
 
 if not exist "frontend\node_modules" (
@@ -21,8 +32,16 @@ if not exist "frontend\node_modules" (
     rem refuses if the lock disagrees with package.json, where `install` would
     rem quietly rewrite the lock and give this machine a different toolchain.
     call npm ci
+    if errorlevel 1 (
+        popd
+        goto :npm_failed
+    )
     popd
 )
+
+rem Catches a venv that exists but is incomplete — an install interrupted
+rem halfway leaves the directory behind, and the check above would accept it.
+if not exist "backend\.venv\Scripts\python.exe" goto :venv_failed
 
 echo [1/2] Starting backend on http://localhost:8000 ...
 start "Backend - FastAPI" cmd /k "cd /d %~dp0..\..\backend && set APP_RELOAD=1&& .venv\Scripts\python run.py"
@@ -36,6 +55,31 @@ start http://localhost:5173
 echo.
 echo Platform started! Close the two windows "Backend" and "Frontend" to stop it.
 exit /b 0
+
+:venv_failed
+echo.
+echo [ERROR] Could not create the virtual environment in backend\.venv.
+echo         On Windows the usual cause is a missing "venv" module or no write
+echo         permission in this folder. Delete backend\.venv if it is there and
+echo         run this script again.
+goto :setup_failed
+
+:pip_failed
+echo.
+echo [ERROR] Installing the backend dependencies failed.
+echo         Most often this is no internet connection - check it and run this
+echo         script again. If the error above names a package that failed to
+echo         build, the Python version is probably out of range: this project
+echo         needs 3.11 to 3.14.
+goto :setup_failed
+
+:npm_failed
+echo.
+echo [ERROR] Installing the frontend dependencies failed ^(npm ci^).
+echo         Check the internet connection. If npm complains that the lock file
+echo         is out of sync with package.json, the checkout is inconsistent -
+echo         restore package-lock.json rather than running `npm install`.
+goto :setup_failed
 
 :setup_failed
 echo.

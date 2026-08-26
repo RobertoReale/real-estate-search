@@ -34,6 +34,7 @@ Double-click on **`scripts\windows\start.bat`**:
 - Installs all dependencies on first run.
 - Starts the backend server (http://localhost:8000) and the frontend dashboard (http://localhost:5173).
 - Automatically opens the web interface in your default browser.
+- If a setup step fails — no internet while installing, an unsupported Python — it stops there, says what went wrong and what to do about it, and starts nothing. The window stays open so you can read it.
 
 All Windows-only helpers (service install/uninstall, restart, stop, hidden
 autostart) live in `scripts\windows\` — see [Remote Access & Running in the
@@ -47,6 +48,7 @@ chmod +x scripts/linux/start.sh
 ```
 - Installs dependencies and starts both services concurrently.
 - Makes the dashboard accessible from any device on your local network at `http://<IP_OF_YOUR_PI>:5173`.
+- Stops with an explanation if a setup step fails, exactly like the Windows script. It can be run from anywhere — it resolves the project directory from its own location.
 
 ---
 
