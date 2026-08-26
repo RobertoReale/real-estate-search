@@ -74,13 +74,14 @@
      several portals/agencies). A small badge shows how many of these are active
      while the panel is collapsed.
      *Origin* separates listings your
-     monitored searches found (**🔎 Monitored search**) from ones you pulled in
-     from your inbox (**✉️ Email import**) — an email-imported card also carries
-     a small **✉️ email** badge. *Limit to a search* narrows the grid down to the
-     properties one of your saved monitored searches actually found — the same
-     searches listed under each card's **🔍 Found by**. Email imports, which no
-     search found, drop out. (It is a filter, not a ranking — it shrinks the
-     list, it does not reorder it.)
+     monitored searches found (**🔎 Monitored search**) from ones an older
+     version pulled in from your mailbox (**✉️ Email import**), which still
+     carry a small **✉️ email** badge — the inbox import itself is gone, so
+     nothing new arrives that way. *Limit to a search* narrows the grid down to
+     the properties one of your saved monitored searches actually found — the
+     same searches listed under each card's **🔍 Found by**. Cards no search
+     found drop out. (It is a filter, not a ranking — it shrinks the list, it
+     does not reorder it.)
    - **Bulk cleanup**: click **`Selezione multipla annunci`**, tick the cards
      (or *Seleziona tutti*), and **hide**, **mark sold** or **star** the whole
      selection at once — the fast way to clear a batch (e.g. every *nuova

@@ -22,6 +22,9 @@ export const en = {
   "common.no": "No",
   "common.all": "All",
   "common.none": "None",
+  "common.any": "Any",
+  "common.contract": "Contract",
+  "common.unknownError": "Unknown error",
   "common.optional": "optional",
   "common.of": "of",
   "common.dismissError": "Dismiss error",
@@ -388,32 +391,6 @@ export const en = {
     "Test email sent to {to} — check your inbox (and the spam folder).",
   "settings.theRecipient": "the recipient",
 
-  // ── settings: IMAP ──────────────────────────────────────────────────────
-  "settings.imapTitle": "📥 Email inbox import (IMAP)",
-  "settings.imapHelp": "What is this? How do I set it up? (works with Gmail)",
-  "settings.imStep1":
-    "Lets the dashboard mine your own inbox for old Immobiliare.it / Idealista alert emails and import those listings for review.",
-  "settings.imStep2":
-    "Strictly read-only: the app never modifies, marks or deletes your emails, and nothing appears in the dashboard until you accept it.",
-  "settings.imStep3": "For Gmail: host imap.gmail.com, port 993, username = your Gmail address.",
-  "settings.imStep4": "Password: the same 16-character App password as the email section above.",
-  "settings.imStep5":
-    'Press "Save & test connection", then use the "📥 Import from email" panel in the dashboard.',
-  "settings.imapHost": "IMAP host (e.g. imap.gmail.com)",
-  "settings.imapPortTitle": "Port (993 SSL)",
-  "settings.imapUser": "IMAP username (email address)",
-  "settings.readOnlyNote": "Read-only access: your mailbox is never modified.",
-  "settings.connecting": "Connecting…",
-  "settings.saveAndTestConnection": "Save & test connection",
-  "settings.autoImport": "Re-scan the inbox automatically for new listing emails",
-  "settings.rescanFrequency": "Re-scan frequency",
-  "settings.every6h": "Every 6 hours",
-  "settings.every12h": "Every 12 hours",
-  "settings.onceADay": "Once a day",
-  "settings.every3d": "Every 3 days",
-  "settings.onceAWeek": "Once a week",
-  "settings.autoImportNote":
-    'New listings are staged silently in the "📥 Import from email" review queue — you are not notified, and nothing appears in the dashboard until you accept it.',
 
   // ── settings: scanning ──────────────────────────────────────────────────
   "settings.scanTitle": "🔄 Automatic scan",
@@ -550,12 +527,6 @@ export const en = {
   // ── settings: data management ───────────────────────────────────────────
   "settings.dataTitle": "🧹 Data management",
   "settings.dataNote": "Irreversible. Your notification and login settings are always kept.",
-  "settings.resetImportsName": "Reset email imports",
-  "settings.resetImportsBody":
-    " — clear every listing found in your inbox so you can import again from scratch (also forgets discarded ones).",
-  "settings.resetImportsButton": "Reset imports",
-  "settings.resetImportsConfirm":
-    "Delete ALL imported email listings? You can re-run the inbox import afterwards.",
   "settings.clearDashboardName": "Clear dashboard",
   "settings.clearDashboardBody":
     " — delete all found properties and price history. Your search profiles stay; the next scan rebuilds the grid silently.",
@@ -748,146 +719,6 @@ export const en = {
   "profiles.keepResults": "Keep the results",
   "profiles.deleting": "Deleting…",
   "profiles.deleteWith": "Delete with {count} properties",
-
-  // ── email import: panel shell ───────────────────────────────────────────
-  "email.title": "📥 Import from email",
-  "email.toReview": "({count} to review)",
-  "email.hide": "Hide",
-  "email.open": "Open",
-  "email.intro":
-    'Mine your own inbox for listing emails and review them here: accept what interests you, discard the rest. Your mailbox is accessed strictly read-only, and duplicates of listings already tracked are skipped automatically. Alert emails can be months old, so an ad may already be sold or withdrawn — "Open ↗" is the only way to find out, since this panel never visits the portals.',
-  "email.portalsOnlyPrefix": "Only ads ",
-  "email.portalsOnlyBold": "hosted on Immobiliare.it or Idealista.it",
-  "email.portalsOnlySuffix":
-    " can be imported: the whole app is built around their listing IDs. An agency's own email counts only if it links to a portal ad — one that links to the agency's website instead brings back nothing, whatever sender you search for.",
-  "email.imapMissing":
-    '⚠️ IMAP is not configured yet — open ⚙️ Settings → "Email inbox import" and add host, username and app password first.',
-  "email.unknownError": "Unknown error",
-  "email.nothingToCheck":
-    "No listings to check. Scan the emails or select a specific listing to force the recompute.",
-  "email.confirmDiscardAll":
-    "Discard all {count} listings shown here? They won't come back on future scans.",
-  "email.confirmDiscardAllOne":
-    "Discard the {count} listing shown here? It won't come back on future scans.",
-  "email.cookieSaveFailed": "Failed to save cookie: {error}",
-  "email.nothingToReview": "Nothing to review.",
-  "email.nothingToReviewYet": "Nothing to review — run a scan above.",
-
-  // ── email import: scan form ─────────────────────────────────────────────
-  "email.lookFor": "Look for",
-  "email.modePortals": "Portal alert emails",
-  "email.modeAddress": "Specific sender(s)",
-  "email.modeAny": "Any email linking a portal ad",
-  "email.senders": "Senders (comma-separated addresses or domains)",
-  "email.sendersTitle":
-    "Their emails must link an Immobiliare.it or Idealista.it ad: a link to the agency's own site cannot be imported",
-  "email.sendersPlaceholder": "e.g. agenzia@example.com, immobiliare.it",
-  "email.period": "Period",
-  "email.lastMonth": "Last month",
-  "email.last6Months": "Last 6 months",
-  "email.lastYear": "Last year",
-  "email.last5Years": "Last 5 years",
-  "email.maxEmails": "Max emails",
-  "email.maxEmailsTitle":
-    "Newest messages first; re-run the scan to go deeper (already imported listings are skipped)",
-  "email.scan": "Scan inbox",
-  "email.scanning": "Scanning inbox…",
-  "email.phaseConnecting": "Connecting to your mailbox…",
-  "email.phaseSearching": "Searching the inbox…",
-  "email.phaseReading": "Reading email {done} of {total} — {staged} new listings staged",
-  "email.phaseReadingOne": "Reading email {done} of {total} — {staged} new listing staged",
-  "email.phaseStarting": "Starting…",
-  "email.scanNote":
-    "Large mailboxes take a few minutes; you can keep using the dashboard meanwhile.",
-  "email.scanSummary":
-    "✅ Scanned {emails} emails ({withListings} with listings) — {imported} new listings staged, {tracked} already tracked by your searches, {seen} seen in a previous scan.",
-  "email.blankLinks":
-    " {count} links were skipped: the email gave no price, size or name to review them by.",
-  "email.blankLinksOne":
-    " {count} link was skipped: the email gave no price, size or name to review it by.",
-  "email.blankRemoved": " {count} such rows left by earlier scans were cleaned up.",
-  "email.blankRemovedOne": " {count} such row left by earlier scans was cleaned up.",
-
-  // ── email import: review filters ────────────────────────────────────────
-  "email.statusTitle": "Choose whether to show pending, discarded or already accepted listings",
-  "email.statusPending": "⏳ Pending",
-  "email.statusDiscarded": "🗑️ Discarded",
-  "email.statusAccepted": "✅ Accepted",
-  "email.statusAll": "📋 All",
-  "email.filterLikeSearch": "Filter like search",
-  "email.filterLikeSearchTitle":
-    "Reuse the contract, city and excluded keywords of a search you already monitor",
-  "email.adHocFilters": "— ad-hoc filters —",
-  "email.contract": "Contract",
-  "email.any": "Any",
-  "email.textSearch": "Text search",
-  "email.textSearchPlaceholder": "in title/subject",
-
-  // ── email import: actions bar ───────────────────────────────────────────
-  "email.selectAll": "Select all ({count})",
-  "email.acceptSelected": "✓ Accept selected",
-  "email.discardSelected": "✕ Discard selected",
-  "email.discardAll": "🗑 Discard all ({count})",
-  "email.discardAllTitle":
-    "Discard all currently shown listings (the filters above stay applied).",
-  "email.cookieSaved": "DataDome cookie saved",
-  "email.cookiePaste": "Paste DataDome cookie…",
-  "email.cookieTitle":
-    "Paste the 'datadome' cookie from your browser here to get past the portals' blocks",
-  "email.checkTitle":
-    "Probe the portal pages to see which are still online and refresh their photos and data. If nothing is selected, it checks the not-yet-verified ones.",
-  "email.checkSelected": "🔎 Check selected ({count})",
-  "email.checkAll": "🔎 Check online availability",
-  "email.discardGone": "🚫 Discard the {count} removed",
-  "email.discardGoneTitle":
-    "Discard in one go all listings the portal confirmed as removed/non-existent",
-  "email.sortBy": "Sort by:",
-  "email.sortDate": "Most recent email",
-  "email.sortSqmPrice": "€/m² (cheapest)",
-  "email.sortPrice": "Price (lowest)",
-  "email.checkProgress": "Checking listing {done} of {total} — {gone} already removed…",
-  "email.checkPacing": "(One page every 6 seconds to avoid the portals blocking the IP)",
-  "email.checkResult": "🔎 Check result for {count} listings:",
-  "email.checkGone": "{count} no longer online (removed)",
-  "email.checkOnline": "{count} still online and refreshed",
-  "email.checkUnknown": " ({count} inconclusive due to a block or network error)",
-  "email.cookieRefreshedOnce":
-    "🔄 DataDome cookie auto-refreshed once during the check to get past the anti-bot controls.",
-  "email.cookieRefreshed":
-    "🔄 DataDome cookie auto-refreshed {count} times during the check to get past the anti-bot controls.",
-  "email.lastErrorDetail": "❌ Last error detail: {error}",
-  "email.checkAborted":
-    "⚠️ The portal started blocking the requests, so the check was stopped to protect the network IP. Paste a fresh DataDome cookie or try again later.",
-
-  // ── email import: listing card ──────────────────────────────────────────
-  "email.openOriginal": "Open the original listing on the portal",
-  "email.listingPhoto": "Listing photo",
-  "email.listingNumber": "Listing #{id}",
-  "email.badgeAccepted": "✅ Accepted",
-  "email.badgeDiscarded": "🗑️ Discarded",
-  "email.badgeOnline": "🟢 Online on the portal",
-  "email.badgeOnlineTitle":
-    "The portal confirmed the listing page is still online and reachable",
-  "email.badgeRemoved": "🔴 Removed / Unavailable",
-  "email.badgeRemovedTitle": "The portal answered 'page not found' (404/removed)",
-  "email.badgeUnchecked": "⚪ Not checked",
-  "email.badgeUncheckedTitle":
-    "Availability not checked on the portal yet. Use 'Check if online'",
-  "email.sqmUnit": "{value} m²",
-  "email.roomsUnit": "{count} rooms",
-  "email.contractRent": "rent",
-  "email.contractSale": "sale",
-  "email.emailOf": "email of {date}",
-  "email.sqmPriceMonth": "{value} €/m² per month",
-  "email.sqmPriceUnit": "{value} €/m²",
-  "email.sqmPriceTitle": "Price per square meter computed from the email",
-  "email.openPage": "Open ↗",
-  "email.openPageTitle": "Open the original page on the portal",
-  "email.accept": "✓ Accept",
-  "email.recoverAccept": "✓ Recover / Accept",
-  "email.acceptTitle": "Add to the main dashboard (automatically deduplicated)",
-  "email.discard": "✕ Discard",
-  "email.discardTitle": "Discard listing (it will not be re-loaded on future scans)",
 
   // ── map view ────────────────────────────────────────────────────────────
   "map.pinDrop": "📉 Price drop",

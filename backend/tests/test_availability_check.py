@@ -16,8 +16,11 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Listing, Property
 from app.services import availability_check
-from app.services.availability_check import check_properties_availability
-from app.services.email_import import BLOCK_STREAK_ABORT, MAX_CHECKS_PER_CALL
+from app.services.availability_check import (
+    BLOCK_STREAK_ABORT,
+    MAX_CHECKS_PER_CALL,
+    check_properties_availability,
+)
 
 
 @pytest.fixture

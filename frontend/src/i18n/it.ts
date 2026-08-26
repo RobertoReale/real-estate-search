@@ -23,6 +23,9 @@ export const it: Dict = {
   "common.no": "No",
   "common.all": "Tutti",
   "common.none": "Nessuno",
+  "common.any": "Qualsiasi",
+  "common.contract": "Contratto",
+  "common.unknownError": "Errore sconosciuto",
   "common.optional": "facoltativo",
   "common.of": "di",
   "common.dismissError": "Chiudi l'errore",
@@ -394,34 +397,6 @@ export const it: Dict = {
     "Email di test inviata a {to} — controlla la posta in arrivo (e lo spam).",
   "settings.theRecipient": "il destinatario",
 
-  // ── impostazioni: IMAP ──────────────────────────────────────────────────
-  "settings.imapTitle": "📥 Import dalla casella email (IMAP)",
-  "settings.imapHelp": "Cos'è? Come si configura? (funziona con Gmail)",
-  "settings.imStep1":
-    "Permette alla dashboard di setacciare la tua casella alla ricerca di vecchie email di avviso Immobiliare.it / Idealista e importarne gli annunci per la revisione.",
-  "settings.imStep2":
-    "Rigorosamente in sola lettura: l'app non modifica, non marca e non elimina mai le tue email, e nulla compare nella dashboard finché non lo accetti.",
-  "settings.imStep3": "Per Gmail: host imap.gmail.com, porta 993, utente = il tuo indirizzo Gmail.",
-  "settings.imStep4":
-    "Password: la stessa password per app di 16 caratteri della sezione email qui sopra.",
-  "settings.imStep5":
-    'Premi "Salva e prova la connessione", poi usa il pannello "📥 Importa dalle email" nella dashboard.',
-  "settings.imapHost": "Host IMAP (es. imap.gmail.com)",
-  "settings.imapPortTitle": "Porta (993 SSL)",
-  "settings.imapUser": "Utente IMAP (indirizzo email)",
-  "settings.readOnlyNote": "Accesso in sola lettura: la casella non viene mai modificata.",
-  "settings.connecting": "Connessione…",
-  "settings.saveAndTestConnection": "Salva e prova la connessione",
-  "settings.autoImport":
-    "Ripeti automaticamente la scansione della casella per nuove email di annunci",
-  "settings.rescanFrequency": "Frequenza di ri-scansione",
-  "settings.every6h": "Ogni 6 ore",
-  "settings.every12h": "Ogni 12 ore",
-  "settings.onceADay": "Una volta al giorno",
-  "settings.every3d": "Ogni 3 giorni",
-  "settings.onceAWeek": "Una volta a settimana",
-  "settings.autoImportNote":
-    'I nuovi annunci vengono messi in attesa silenziosamente nella coda di revisione "📥 Importa dalle email" — non ricevi notifiche e nulla compare nella dashboard finché non lo accetti.',
 
   // ── impostazioni: scansioni ─────────────────────────────────────────────
   "settings.scanTitle": "🔄 Scansione automatica",
@@ -564,12 +539,6 @@ export const it: Dict = {
   "settings.dataTitle": "🧹 Gestione dei dati",
   "settings.dataNote":
     "Irreversibile. Le impostazioni di notifica e di accesso vengono sempre mantenute.",
-  "settings.resetImportsName": "Azzera gli import da email",
-  "settings.resetImportsBody":
-    " — cancella ogni annuncio trovato nella casella così puoi reimportare da zero (dimentica anche quelli scartati).",
-  "settings.resetImportsButton": "Azzera gli import",
-  "settings.resetImportsConfirm":
-    "Eliminare TUTTI gli annunci importati dalle email? Potrai rilanciare l'import dalla casella in seguito.",
   "settings.clearDashboardName": "Svuota la dashboard",
   "settings.clearDashboardBody":
     " — elimina tutti gli immobili trovati e lo storico dei prezzi. Le tue ricerche restano; la prossima scansione ricostruisce la griglia in silenzio.",
@@ -769,151 +738,6 @@ export const it: Dict = {
   "profiles.keepResults": "Mantieni i risultati",
   "profiles.deleting": "Eliminazione…",
   "profiles.deleteWith": "Elimina con {count} immobili",
-
-  // ── import da email: struttura del pannello ─────────────────────────────
-  "email.title": "📥 Importa dalle email",
-  "email.toReview": "({count} da rivedere)",
-  "email.hide": "Nascondi",
-  "email.open": "Apri",
-  "email.intro":
-    'Setaccia la tua casella alla ricerca di email con annunci e rivedili qui: accetta quelli che ti interessano, scarta il resto. La casella viene letta in sola lettura e i duplicati di annunci già monitorati vengono saltati automaticamente. Le email di avviso possono avere mesi, quindi un annuncio potrebbe essere già venduto o ritirato — "Apri ↗" è l\'unico modo per scoprirlo, perché questo pannello non visita mai i portali.',
-  "email.portalsOnlyPrefix": "Si possono importare solo gli annunci ",
-  "email.portalsOnlyBold": "ospitati su Immobiliare.it o Idealista.it",
-  "email.portalsOnlySuffix":
-    ": tutta l'app è costruita attorno ai loro ID annuncio. L'email di un'agenzia vale solo se rimanda a un annuncio su un portale — una che rimanda al sito dell'agenzia non porta nulla, qualunque mittente tu cerchi.",
-  "email.imapMissing":
-    '⚠️ IMAP non è ancora configurato — apri ⚙️ Impostazioni → "Import dalla casella email" e inserisci host, utente e password per app.',
-  "email.unknownError": "Errore sconosciuto",
-  "email.nothingToCheck":
-    "Nessun annuncio da verificare. Scansiona le email o seleziona un annuncio specifico per forzare il ricalcolo.",
-  "email.confirmDiscardAll":
-    "Scartare tutti i {count} annunci mostrati qui? Non torneranno nelle prossime scansioni.",
-  "email.confirmDiscardAllOne":
-    "Scartare l'annuncio ({count}) mostrato qui? Non tornerà nelle prossime scansioni.",
-  "email.cookieSaveFailed": "Impossibile salvare il cookie: {error}",
-  "email.nothingToReview": "Niente da rivedere.",
-  "email.nothingToReviewYet": "Niente da rivedere — lancia una scansione qui sopra.",
-
-  // ── import da email: modulo di scansione ────────────────────────────────
-  "email.lookFor": "Cerca",
-  "email.modePortals": "Email di avviso dei portali",
-  "email.modeAddress": "Mittenti specifici",
-  "email.modeAny": "Qualsiasi email con un link a un annuncio",
-  "email.senders": "Mittenti (indirizzi o domini separati da virgola)",
-  "email.sendersTitle":
-    "Le loro email devono rimandare a un annuncio Immobiliare.it o Idealista.it: un link al sito dell'agenzia non è importabile",
-  "email.sendersPlaceholder": "es. agenzia@example.com, immobiliare.it",
-  "email.period": "Periodo",
-  "email.lastMonth": "Ultimo mese",
-  "email.last6Months": "Ultimi 6 mesi",
-  "email.lastYear": "Ultimo anno",
-  "email.last5Years": "Ultimi 5 anni",
-  "email.maxEmails": "Email max",
-  "email.maxEmailsTitle":
-    "Prima i messaggi più recenti; rilancia la scansione per andare più a fondo (gli annunci già importati vengono saltati)",
-  "email.scan": "Scansiona la casella",
-  "email.scanning": "Scansione della casella…",
-  "email.phaseConnecting": "Connessione alla casella…",
-  "email.phaseSearching": "Ricerca nella casella…",
-  "email.phaseReading": "Lettura email {done} di {total} — {staged} nuovi annunci in attesa",
-  "email.phaseReadingOne": "Lettura email {done} di {total} — {staged} nuovo annuncio in attesa",
-  "email.phaseStarting": "Avvio…",
-  "email.scanNote":
-    "Le caselle grandi richiedono qualche minuto; nel frattempo puoi continuare a usare la dashboard.",
-  "email.scanSummary":
-    "✅ Analizzate {emails} email ({withListings} con annunci) — {imported} nuovi annunci in attesa, {tracked} già monitorati dalle tue ricerche, {seen} già visti in una scansione precedente.",
-  "email.blankLinks":
-    " {count} link sono stati saltati: l'email non dava prezzo, superficie o nome per poterli valutare.",
-  "email.blankLinksOne":
-    " {count} link è stato saltato: l'email non dava prezzo, superficie o nome per poterlo valutare.",
-  "email.blankRemoved":
-    " {count} righe di questo tipo lasciate da scansioni precedenti sono state ripulite.",
-  "email.blankRemovedOne":
-    " {count} riga di questo tipo lasciata da scansioni precedenti è stata ripulita.",
-
-  // ── import da email: filtri di revisione ────────────────────────────────
-  "email.statusTitle":
-    "Scegli se mostrare gli annunci in attesa, scartati o già accettati",
-  "email.statusPending": "⏳ In attesa",
-  "email.statusDiscarded": "🗑️ Scartati",
-  "email.statusAccepted": "✅ Accettati",
-  "email.statusAll": "📋 Tutti",
-  "email.filterLikeSearch": "Filtra come una ricerca",
-  "email.filterLikeSearchTitle":
-    "Riusa contratto, città e parole escluse di una ricerca che già monitori",
-  "email.adHocFilters": "— filtri ad hoc —",
-  "email.contract": "Contratto",
-  "email.any": "Qualsiasi",
-  "email.textSearch": "Ricerca testuale",
-  "email.textSearchPlaceholder": "nel titolo/oggetto",
-
-  // ── import da email: barra delle azioni ─────────────────────────────────
-  "email.selectAll": "Seleziona tutti ({count})",
-  "email.acceptSelected": "✓ Accetta i selezionati",
-  "email.discardSelected": "✕ Scarta i selezionati",
-  "email.discardAll": "🗑 Scarta tutti ({count})",
-  "email.discardAllTitle":
-    "Scarta tutti gli annunci attualmente mostrati (i filtri qui sopra restano applicati).",
-  "email.cookieSaved": "Cookie DataDome salvato",
-  "email.cookiePaste": "Incolla il cookie DataDome…",
-  "email.cookieTitle":
-    "Incolla qui il cookie 'datadome' del tuo browser per superare i blocchi dei portali",
-  "email.checkTitle":
-    "Interroga le pagine dei portali per vedere quali sono ancora online e aggiornarne foto e dati. Se non selezioni nulla, verifica quelli non ancora controllati.",
-  "email.checkSelected": "🔎 Verifica i selezionati ({count})",
-  "email.checkAll": "🔎 Verifica la disponibilità online",
-  "email.discardGone": "🚫 Scarta i {count} rimossi",
-  "email.discardGoneTitle":
-    "Scarta in un colpo solo tutti gli annunci che il portale ha confermato come rimossi/inesistenti",
-  "email.sortBy": "Ordina per:",
-  "email.sortDate": "Email più recente",
-  "email.sortSqmPrice": "€/m² (più economici)",
-  "email.sortPrice": "Prezzo (più basso)",
-  "email.checkProgress": "Verifica annuncio {done} di {total} — {gone} già rimossi…",
-  "email.checkPacing":
-    "(Una pagina ogni 6 secondi per evitare che i portali blocchino l'IP)",
-  "email.checkResult": "🔎 Esito della verifica su {count} annunci:",
-  "email.checkGone": "{count} non più online (rimossi)",
-  "email.checkOnline": "{count} ancora online e aggiornati",
-  "email.checkUnknown": " ({count} non conclusivi per un blocco o un errore di rete)",
-  "email.cookieRefreshedOnce":
-    "🔄 Cookie DataDome rinnovato automaticamente una volta durante la verifica per superare i controlli anti-bot.",
-  "email.cookieRefreshed":
-    "🔄 Cookie DataDome rinnovato automaticamente {count} volte durante la verifica per superare i controlli anti-bot.",
-  "email.lastErrorDetail": "❌ Dettaglio dell'ultimo errore: {error}",
-  "email.checkAborted":
-    "⚠️ Il portale ha iniziato a bloccare le richieste, quindi la verifica è stata interrotta per proteggere l'IP della rete. Incolla un cookie DataDome fresco o riprova più tardi.",
-
-  // ── import da email: scheda annuncio ────────────────────────────────────
-  "email.openOriginal": "Apri l'annuncio originale sul portale",
-  "email.listingPhoto": "Foto dell'annuncio",
-  "email.listingNumber": "Annuncio #{id}",
-  "email.badgeAccepted": "✅ Accettato",
-  "email.badgeDiscarded": "🗑️ Scartato",
-  "email.badgeOnline": "🟢 Online sul portale",
-  "email.badgeOnlineTitle":
-    "Il portale ha confermato che la pagina dell'annuncio è ancora online e raggiungibile",
-  "email.badgeRemoved": "🔴 Rimosso / Non disponibile",
-  "email.badgeRemovedTitle": "Il portale ha risposto 'pagina non trovata' (404/rimosso)",
-  "email.badgeUnchecked": "⚪ Non verificato",
-  "email.badgeUncheckedTitle":
-    "Disponibilità non ancora verificata sul portale. Usa 'Verifica se è online'",
-  "email.sqmUnit": "{value} m²",
-  "email.roomsUnit": "{count} locali",
-  "email.contractRent": "affitto",
-  "email.contractSale": "vendita",
-  "email.emailOf": "email del {date}",
-  "email.sqmPriceMonth": "{value} €/m² al mese",
-  "email.sqmPriceUnit": "{value} €/m²",
-  "email.sqmPriceTitle": "Prezzo al metro quadro calcolato dall'email",
-  "email.openPage": "Apri ↗",
-  "email.openPageTitle": "Apri la pagina originale sul portale",
-  "email.accept": "✓ Accetta",
-  "email.recoverAccept": "✓ Recupera / Accetta",
-  "email.acceptTitle": "Aggiungi alla dashboard principale (con deduplica automatica)",
-  "email.discard": "✕ Scarta",
-  "email.discardTitle":
-    "Scarta l'annuncio (non verrà ricaricato nelle prossime scansioni)",
 
   // ── mappa ───────────────────────────────────────────────────────────────
   "map.pinDrop": "📉 Calo di prezzo",

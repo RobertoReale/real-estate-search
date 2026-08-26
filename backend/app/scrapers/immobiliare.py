@@ -364,7 +364,7 @@ class ImmobiliareScraper(BaseScraper):
         """Reactive DataDome cookie recovery when api-next answers 403/429 under
         every impersonation. Opt-in (`datadome_auto_refresh`) and best-effort —
         the SAME lever the availability check fires on a block
-        (`email_import._try_cookie_recovery`) and the scanner runs before a scan
+        (`availability_check._try_cookie_recovery`) and the scanner runs before a scan
         (invariant 18): mint a fresh cookie in a headless browser, rebuild the
         session around it, re-warm the homepage so the new cookie is carried in.
         Returns whether it recovered. Never raises into the scrape."""

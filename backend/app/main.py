@@ -19,7 +19,6 @@ from . import schemas
 from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
 from .database import get_db, init_db
 from .models import (
-    ImportedListing,
     Listing,
     ListingProfile,
     Property,
@@ -28,9 +27,8 @@ from .models import (
     property_tags,
 )
 from .scrapers import detect_portal
-from .services import availability_check, data_reset, email_import, exporter, notifier, scheduler
+from .services import availability_check, data_reset, exporter, notifier, scheduler
 from .services.deal_score import annotate_deal_scores
-from .services.filter_engine import find_excluded_keyword
 from .services.geo_filter import haversine_m, parse_polygon, point_in_polygon
 from .services.market_velocity import compute_market_velocity
 from .services.match_score import _parse_floor, annotate_match_scores
@@ -973,9 +971,9 @@ def search_builder(data: schemas.SearchBuilderIn):
     """Generates ready-to-use search URLs for both portals from structured
     parameters, so the user does not have to copy/paste from the browser.
 
-    Declared sync on purpose, like email_import_scan (invariant 15): with
-    `verify` set this makes a live request to Idealista, and an `async def`
-    would hold the event loop for its whole duration.
+    Declared sync on purpose, like the availability check: with `verify` set
+    this makes a live request to Idealista, and an `async def` would hold the
+    event loop for its whole duration.
     """
     payload = data.model_dump()
     verify = payload.pop("verify", False)
@@ -1016,176 +1014,6 @@ def search_assistant(data: schemas.AssistantQueryIn):
             )
         )
     return schemas.AssistantOut(searches=searches)
-
-
-# --- Email inbox import (IMAP, read-only) ---
-
-
-@app.post("/api/email-import/test")
-def email_import_test():
-    """Verifies the IMAP credentials by opening INBOX read-only."""
-    try:
-        return email_import.test_connection()
-    except email_import.ImapError as e:
-        raise HTTPException(400, str(e)) from e
-
-
-@app.get("/api/email-import/progress")
-def email_import_progress():
-    """How far the running scan has got, for the UI to poll: fetching a
-    thousand messages over IMAP takes minutes, and a button stuck on
-    "Scanning…" is indistinguishable from a hung app."""
-    return email_import.get_progress()
-
-
-@app.post("/api/email-import/scan")
-def email_import_scan(data: schemas.EmailImportScanIn, db: Session = Depends(get_db)):
-    """Scans the inbox for listing emails and stages what it finds for review.
-    Deliberately a sync `def`: FastAPI then runs it in a threadpool, so the
-    event loop stays free to answer /email-import/progress while it works."""
-    try:
-        return email_import.scan_inbox(
-            db,
-            mode=data.mode,
-            senders=data.senders,
-            since_days=data.since_days,
-            max_emails=data.max_emails,
-        )
-    except email_import.ImapError as e:
-        raise HTTPException(400, str(e)) from e
-
-
-@app.get("/api/email-import", response_model=list[schemas.ImportedListingOut])
-def list_imported(
-    db: Session = Depends(get_db),
-    status: str = Query("pending", pattern="^(pending|accepted|discarded|all)$"),
-    profile_id: int | None = None,
-    contract: str | None = Query(None, pattern="^(sale|rent)$"),
-    city: str | None = None,
-    min_price: float | None = None,
-    max_price: float | None = None,
-    rooms: int | None = None,
-    q: str | None = None,
-):
-    """Staged listings, filterable ad-hoc or by an existing search profile
-    (profile_id derives contract, city and excluded keywords from it, so the
-    user reviews the imports against the search they already monitor)."""
-    keywords: list[str] = []
-    if profile_id is not None:
-        profile = db.get(SearchProfile, profile_id)
-        if not profile:
-            raise HTTPException(404, "Profile not found")
-        criteria = email_import.profile_criteria(
-            profile, load_settings().get("excluded_keywords", [])
-        )
-        contract = contract or criteria["contract"]
-        city = city or criteria["city"]
-        keywords = criteria["keywords"]
-
-    query = select(ImportedListing)
-    if status != "all":
-        query = query.where(ImportedListing.status == status)
-    if contract:
-        query = query.where(ImportedListing.contract == contract)
-    if min_price is not None:
-        query = query.where(ImportedListing.price >= min_price)
-    if max_price is not None:
-        query = query.where(ImportedListing.price <= max_price)
-    if rooms is not None:
-        query = query.where(ImportedListing.rooms == rooms)
-    items = list(db.scalars(query))
-
-    if city:
-        # emails rarely state the city as a structured field: match the
-        # title/subject text too, otherwise the filter would hide everything
-        needle = city.strip().lower()
-        items = [
-            i
-            for i in items
-            if needle in i.city.lower()
-            or needle in i.title.lower()
-            or needle in i.email_subject.lower()
-        ]
-    if q:
-        needle = q.strip().lower()
-        items = [i for i in items if needle in i.title.lower() or needle in i.email_subject.lower()]
-    if keywords:
-        items = [
-            i for i in items if find_excluded_keyword([i.title, i.email_subject], keywords) is None
-        ]
-    # newest email first; undated ones sink to the bottom
-    items.sort(
-        key=lambda i: (i.email_date is not None, i.email_date or i.created_at),
-        reverse=True,
-    )
-    return items
-
-
-@app.post("/api/email-import/{item_id}/accept")
-def accept_imported(item_id: int, db: Session = Depends(get_db)):
-    item = db.get(ImportedListing, item_id)
-    if not item:
-        raise HTTPException(404, "Imported listing not found")
-    prop = email_import.accept_import(db, item)
-    return {"ok": True, "property_id": prop.id}
-
-
-@app.post("/api/email-import/{item_id}/discard")
-def discard_imported(item_id: int, db: Session = Depends(get_db)):
-    """Discarded rows are kept (not deleted): they are what makes re-scanning
-    the same inbox idempotent — a rejected listing must not reappear."""
-    item = db.get(ImportedListing, item_id)
-    if not item:
-        raise HTTPException(404, "Imported listing not found")
-    item.status = "discarded"
-    db.commit()
-    return {"ok": True}
-
-
-@app.get("/api/email-import/check-progress")
-def email_import_check_progress():
-    """How far the availability check has got: one listing every few seconds."""
-    return email_import.get_check_progress()
-
-
-@app.post("/api/email-import/check")
-def email_import_check(data: schemas.ImportCheckIn, db: Session = Depends(get_db)):
-    """Asks the portals whether these staged listings still exist.
-
-    Sync `def` for the same reason as the scan (invariant 15): FastAPI runs it
-    in a threadpool, so /email-import/check-progress can answer while it works.
-    The service caps live portal fetches per run (invariant 16); rows resolved
-    without a fetch don't consume that budget, so repeat runs make progress.
-    """
-    items = [i for i in (db.get(ImportedListing, x) for x in data.ids) if i]
-    if not items:
-        raise HTTPException(400, "No listing to check")
-    try:
-        return email_import.check_availability(db, items)
-    except email_import.ImapError as e:
-        # "already running": same user-facing path as a refused scan
-        raise HTTPException(400, str(e)) from e
-
-
-@app.post("/api/email-import/check/cancel")
-def cancel_email_import_check():
-    """Stops the running email-import availability check after its current
-    listing — same semantics as the dashboard check's cancel. A no-op if
-    nothing is running."""
-    email_import.request_check_cancel()
-    return {"ok": True}
-
-
-@app.post("/api/email-import/bulk")
-def bulk_imported(data: schemas.ImportBulkIn, db: Session = Depends(get_db)):
-    items = [i for i in (db.get(ImportedListing, x) for x in data.ids) if i]
-    for item in items:
-        if data.action == "accept":
-            email_import.accept_import(db, item)
-        else:
-            item.status = "discarded"
-    db.commit()
-    return {"ok": True, "processed": len(items)}
 
 
 # --- Market velocity ---
@@ -1335,7 +1163,7 @@ def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
 # distinct deliberate choice, so they are separate scopes rather than flags on
 # one call. `factory` and `dashboard` delete rows a running scan is writing, so
 # they refuse while one is in flight; `factory` snapshots the DB first.
-_RESET_SCOPES = ("email-import", "dashboard", "pricing-snapshots", "factory")
+_RESET_SCOPES = ("dashboard", "pricing-snapshots", "factory")
 
 
 @app.post("/api/maintenance/reset/{scope}")
@@ -1345,7 +1173,6 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
     if scope in ("dashboard", "factory") and scan_state["running"]:
         raise HTTPException(409, "A scan is running: wait for it to finish before resetting")
     fn = {
-        "email-import": data_reset.reset_email_import,
         "dashboard": data_reset.clear_dashboard,
         "pricing-snapshots": data_reset.clear_pricing_snapshots,
         "factory": data_reset.factory_reset,
@@ -1443,8 +1270,6 @@ def get_settings():
     # secrets never leave the backend in clear text
     settings["smtp_password_set"] = bool(settings.get("smtp_password"))
     settings["smtp_password"] = "***" if settings.get("smtp_password") else ""
-    settings["imap_password_set"] = bool(settings.get("imap_password"))
-    settings["imap_password"] = "***" if settings.get("imap_password") else ""
     settings["datadome_cookie_set"] = bool(settings.get("datadome_cookie"))
     settings["datadome_cookie"] = "***" if settings.get("datadome_cookie") else ""
     settings["scrape_api_key_set"] = bool(settings.get("scrape_api_key"))
@@ -1468,8 +1293,6 @@ def update_settings(data: schemas.SettingsIn):
         values.pop("telegram_bot_token")
     if values.get("smtp_password") == "***":
         values.pop("smtp_password")
-    if values.get("imap_password") == "***":
-        values.pop("imap_password")
     if values.get("datadome_cookie") == "***":
         values.pop("datadome_cookie")
     if values.get("scrape_api_key") == "***":
@@ -1479,8 +1302,6 @@ def update_settings(data: schemas.SettingsIn):
     save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
-    if "email_import_auto_scan" in values or "email_import_auto_scan_interval_hours" in values:
-        scheduler.reschedule_email_import()
     return get_settings()
 
 

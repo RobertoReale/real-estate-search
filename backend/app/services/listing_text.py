@@ -82,6 +82,69 @@ def is_placeholder_zone(zone: str) -> bool:
     return _place_tail_is_comuni(m.group("place"))
 
 
+_NON_TITLES = {
+    "vedi l'annuncio",
+    "vedi annuncio",
+    "vai all'annuncio",
+    "guarda l'annuncio",
+    "scopri di piu",
+    "scopri di più",
+    "vedi di piu",
+    "vedi di più",
+    "clicca qui",
+    "leggi tutto",
+    "visualizza",
+    "apri",
+    "dettagli",
+    "vedi tutti gli annunci",
+    "vedi altri annunci",
+    "view listing",
+    "see more",
+    "more details",
+    "click here",
+}
+_URLISH_RE = re.compile(r"^(?:https?://|www\.)\S*$", re.IGNORECASE)
+
+
+def clean_title(text: str) -> str:
+    """Portal text reduced to a usable title, or "" when it carries no name.
+
+    The Italian wording in `_NON_TITLES` is deliberate: these are call-to-action
+    labels the portals actually write ("Vedi l'annuncio"), and a bare URL or a
+    digit is the same thing — a link with nothing said about it. Used on an ad
+    page's `og:title` before it may replace a title `is_bad_title` rejected, so
+    a "better" title that is really boilerplate cannot sneak in.
+    """
+    title = " ".join((text or "").replace("’", "'").split())
+    if not title or title.isdigit() or _URLISH_RE.match(title):
+        return ""
+    if title.casefold().strip(" .!:>›»→") in _NON_TITLES:
+        return ""
+    # Strip common agency and email alert boilerplate
+    title = re.sub(
+        r"^(?:Affiliato\s+[^:]+|Gabetti\s+[^:]+|TEMPOCASA\s+[^:]+|STUDIO\s+[^:]+|Strategie\s+Immobiliari\s*|Dhome\s+Real\s+Estate\s*|Cosetta\s+Fiori\s*):\s*",
+        "",
+        title,
+        flags=re.I,
+    )
+    title = re.sub(
+        r"\b(?:ti propone un immobile per la tua ricerca\s*:?|ti propone\s*:?|\s+:\s+Residenziale in vendita)\s*",
+        "",
+        title,
+        flags=re.I,
+    )
+    title = re.sub(r"\s*\|\s*(?:Immobiliare\.it|Idealista|Casa\.it).*$", "", title, flags=re.I)
+    title = " ".join(title.split()).strip(" :-")
+    if not title or title.casefold() in (
+        "residenziale in vendita a milano, milano",
+        "in vendita a milano, milano",
+        "vendita a milano, milano",
+        "residenziale in vendita a milano",
+    ):
+        return ""
+    return title[:200]
+
+
 def is_bad_title(title: str) -> bool:
     """Is this title portal/agency boilerplate rather than a description of the
     property? Empty, "n/a", the auto-generated phrase, an agency's "ti propone"

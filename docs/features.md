@@ -93,8 +93,8 @@
 * **Which search found it**: a property's detail modal shows **🔍 Found by** —
   the monitored searches that turned it up. Overlapping searches both appear, so
   you can tell at a glance whether a listing came from your "Milano trilocali" or
-  your "Navigli" search (or both). A listing imported only from your inbox, never
-  yet matched by a scan, says so instead.
+  your "Navigli" search (or both). A property that predates the provenance links
+  says so instead.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
 * **Share a shortlist**: the **Export** buttons on the filter bar download the
@@ -105,6 +105,6 @@
   or agent over chat or email, without giving anyone access to your dashboard or
   database. (The HTML dossier's thumbnails load from the portals, so those need
   a connection; everything else works fully offline.)
-* **Email inbox import**: see [Email Inbox Import](email-import.md) for the full
-  walkthrough — importing listing links from your own mailbox, checking whether
-  they're still online, and dealing with DataDome blocks during that check.
+* **Is this ad still online?**: see [Is This Ad Still Online?](availability-check.md)
+  for the full walkthrough — checking a selection against the portals on demand,
+  why it is paced the way it is, and dealing with DataDome blocks during a check.

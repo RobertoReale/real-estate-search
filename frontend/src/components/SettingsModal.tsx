@@ -8,7 +8,7 @@ interface Props {
 }
 
 /** Which section a success/error message belongs to, so it can render there. */
-type Section = "telegram" | "email" | "imap" | "global" | "data";
+type Section = "telegram" | "email" | "global" | "data";
 
 interface Feedback {
   where: Section;
@@ -84,12 +84,6 @@ export default function SettingsModal({ onClose }: Props) {
   const [smtpPassword, setSmtpPassword] = useState("");
   const [emailFrom, setEmailFrom] = useState("");
   const [emailTo, setEmailTo] = useState("");
-  const [imapHost, setImapHost] = useState("");
-  const [imapPort, setImapPort] = useState(993);
-  const [imapUser, setImapUser] = useState("");
-  const [imapPassword, setImapPassword] = useState("");
-  const [autoImport, setAutoImport] = useState(false);
-  const [autoImportHours, setAutoImportHours] = useState(24);
   const [interval, setIntervalMin] = useState(60);
   const [scanPaused, setScanPaused] = useState(false);
   const [healthAfter, setHealthAfter] = useState(3);
@@ -139,11 +133,6 @@ export default function SettingsModal({ onClose }: Props) {
     setSmtpUser(s.smtp_user);
     setEmailFrom(s.email_from);
     setEmailTo(s.email_to);
-    setImapHost(s.imap_host);
-    setImapPort(s.imap_port);
-    setImapUser(s.imap_user);
-    setAutoImport(s.email_import_auto_scan ?? false);
-    setAutoImportHours(s.email_import_auto_scan_interval_hours ?? 24);
     setIntervalMin(s.scan_interval_minutes);
     setScanPaused(s.scanning_paused ?? false);
     setHealthAfter(s.health_alert_after_failures);
@@ -172,7 +161,6 @@ export default function SettingsModal({ onClose }: Props) {
     // back to their "already saved" placeholder rather than showing stale dots.
     setToken("");
     setSmtpPassword("");
-    setImapPassword("");
     setDatadomeCookie("");
     setScrapeApiKey("");
     setLlmApiKey("");
@@ -189,11 +177,6 @@ export default function SettingsModal({ onClose }: Props) {
       smtp_user: smtpUser,
       email_from: emailFrom,
       email_to: emailTo,
-      imap_host: imapHost,
-      imap_port: imapPort,
-      imap_user: imapUser,
-      email_import_auto_scan: autoImport,
-      email_import_auto_scan_interval_hours: autoImportHours,
       scan_interval_minutes: interval,
       scanning_paused: scanPaused,
       health_alert_after_failures: healthAfter,
@@ -227,7 +210,6 @@ export default function SettingsModal({ onClose }: Props) {
     // Pasted app passwords keep their display spaces; save_settings strips them.
     if (token.trim()) payload.telegram_bot_token = token.trim();
     if (smtpPassword.trim()) payload.smtp_password = smtpPassword;
-    if (imapPassword.trim()) payload.imap_password = imapPassword;
     if (datadomeCookie.trim()) payload.datadome_cookie = datadomeCookie;
     if (scrapeApiKey.trim()) payload.scrape_api_key = scrapeApiKey.trim();
     if (llmApiKey.trim()) payload.llm_api_key = llmApiKey.trim();
@@ -376,7 +358,7 @@ export default function SettingsModal({ onClose }: Props) {
   /** Irreversible data reset. Confirmed in the browser (a second time for the
    * factory wipe), then the page reloads so the dashboard reflects the change. */
   async function runReset(
-    scope: "email-import" | "dashboard" | "pricing-snapshots" | "factory",
+    scope: "dashboard" | "pricing-snapshots" | "factory",
     confirmText: string,
     doubleConfirm = false,
   ) {
@@ -556,74 +538,6 @@ export default function SettingsModal({ onClose }: Props) {
             </button>
           </div>
           <Result where="email" />
-        </div>
-
-        <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
-          {t("settings.imapTitle")}
-        </h3>
-        <HelpSteps
-          summary={t("settings.imapHelp")}
-          steps={[
-            t("settings.imStep1"),
-            t("settings.imStep2"),
-            t("settings.imStep3"),
-            t("settings.imStep4"),
-            t("settings.imStep5"),
-          ]}
-        />
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input className="input w-full sm:col-span-2" placeholder={t("settings.imapHost")}
-              value={imapHost} onChange={(e) => setImapHost(e.target.value)} />
-            <input className="input w-full" type="number" placeholder="993"
-              title={t("settings.imapPortTitle")}
-              value={imapPort} onChange={(e) => setImapPort(Number(e.target.value))} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input className="input w-full" placeholder={t("settings.imapUser")}
-              value={imapUser} onChange={(e) => setImapUser(e.target.value)} />
-            <div>
-              <input className="input w-full" type="password"
-                placeholder={t(settings.imap_password_set ? "settings.passwordSaved" : "settings.appPassword")}
-                value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} />
-              <div className="mt-1">
-                <SecretStatus set={settings.imap_password_set} dirty={!!imapPassword.trim()} />
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs t-dim">{t("settings.readOnlyNote")}</p>
-            <button className="btn-ghost" disabled={anyBusy}
-              onClick={() => saveAndTest("imap", api.imapTest,
-                (r) => (r as { detail: string }).detail)}>
-              {busy === "imap" ? t("settings.connecting") : t("settings.saveAndTestConnection")}
-            </button>
-          </div>
-          <Result where="imap" />
-          <div className="pt-1">
-            <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-              <input type="checkbox" checked={autoImport}
-                onChange={(e) => setAutoImport(e.target.checked)} />
-              {t("settings.autoImport")}
-            </label>
-            {autoImport && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-2">
-                <label className="text-xs t-muted" htmlFor="import-interval">
-                  {t("settings.rescanFrequency")}
-                </label>
-                <select id="import-interval" className="input w-full"
-                  value={autoImportHours}
-                  onChange={(e) => setAutoImportHours(Number(e.target.value))}>
-                  <option value={6}>{t("settings.every6h")}</option>
-                  <option value={12}>{t("settings.every12h")}</option>
-                  <option value={24}>{t("settings.onceADay")}</option>
-                  <option value={72}>{t("settings.every3d")}</option>
-                  <option value={168}>{t("settings.onceAWeek")}</option>
-                </select>
-              </div>
-            )}
-            <p className="text-xs t-dim mt-1">{t("settings.autoImportNote")}</p>
-          </div>
         </div>
 
         <h3 className="font-semibold text-sm uppercase t-muted mt-6 mb-2">
@@ -953,17 +867,6 @@ export default function SettingsModal({ onClose }: Props) {
           </h3>
           <p className="text-xs t-dim mb-3">{t("settings.dataNote")}</p>
           <div className="space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <div className="flex-1 text-xs t-body">
-                <span className="font-medium">{t("settings.resetImportsName")}</span>
-                {t("settings.resetImportsBody")}
-              </div>
-              <button className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
-                disabled={anyBusy}
-                onClick={() => runReset("email-import", t("settings.resetImportsConfirm"))}>
-                {t("settings.resetImportsButton")}
-              </button>
-            </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 text-xs t-body">
                 <span className="font-medium">{t("settings.clearDashboardName")}</span>

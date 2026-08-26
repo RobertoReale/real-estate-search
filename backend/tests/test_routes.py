@@ -341,8 +341,6 @@ def test_updating_a_missing_profile_is_404(client):
         ("/api/scrapers/status", {}),
         ("/api/tags", {}),
         ("/api/search-profiles", {}),
-        ("/api/email-import/progress", {}),
-        ("/api/email-import/check-progress", {}),
     ],
 )
 def test_analytics_endpoints_answer_without_history(client, path, params):

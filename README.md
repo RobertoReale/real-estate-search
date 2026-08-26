@@ -88,9 +88,9 @@ The dashboard has a full toolbox beyond the grid itself: a bilingual interface,
 a map view with drawable filter zones, price-fairness and Deal Score checks, a
 Smart Match Score against your "dream home", price-trend and market-velocity
 charts, a scraper-health panel, free-form tags, shortlist exports (HTML/MD/CSV),
-a mortgage calculator, and an email inbox import that can pull in listings from
-your own mailbox. See [Features](docs/features.md) for the full rundown, and
-[Email Inbox Import](docs/email-import.md) for that last one specifically.
+and a mortgage calculator. See [Features](docs/features.md) for the full
+rundown, and [Is This Ad Still Online?](docs/availability-check.md) for checking
+a shortlist against the portals on demand.
 
 ---
 
@@ -102,7 +102,7 @@ your own mailbox. See [Features](docs/features.md) for the full rundown, and
 * **Catch-up Scan**: the scheduled scan normally fires one full interval after startup. If the PC was off and the last scan is already older than the configured interval, a catch-up scan runs ~2 minutes after startup instead — so switching the PC on is enough to bring the listings up to date.
 * **Automatic Backups**: a copy of `case.db` is written to `backend/backups/` at most once per day (checked at startup; the 14 most recent copies are kept). The folder is local — point your cloud-sync or a second drive at it if you want off-machine safety.
 * **In-App Log Viewer**: click **📜** in the top bar to see the backend's own log — scan progress, the availability check advancing line by line, DataDome blocks — without opening `backend/app.log` in a text editor. It filters by keyword and auto-refreshes every few seconds while open, so you can tell a slow-but-working check apart from a genuinely stuck one.
-* **Data Management (start fresh)**: **Settings → Data management** has four irreversible resets, each behind a confirmation. *Reset email imports* clears everything the inbox import staged, so you can import again from scratch. *Clear dashboard* deletes all found properties and price history but keeps your search profiles — the next scan rebuilds the grid silently (no notification flood). *Clear price trends* drops only the trend-chart history. *Factory reset* wipes everything back to a fresh install (a backup of the database is saved first). Your notification and login settings are never touched.
+* **Data Management (start fresh)**: **Settings → Data management** has three irreversible resets, each behind a confirmation. *Clear dashboard* deletes all found properties and price history but keeps your search profiles — the next scan rebuilds the grid silently (no notification flood). *Clear price trends* drops only the trend-chart history. *Factory reset* wipes everything back to a fresh install (a backup of the database is saved first). Your notification and login settings are never touched.
 
 ---
 

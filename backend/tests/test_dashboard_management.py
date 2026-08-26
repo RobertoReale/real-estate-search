@@ -100,12 +100,14 @@ def test_email_origin_upgraded_to_scan_when_a_scan_refinds_it(db):
     assert prop_again.source == "scan"
 
 
-def test_email_import_into_scan_property_never_downgrades(db):
-    """An email import merging into a scan-origin property leaves it "scan":
-    source is only ever upgraded, never lowered."""
+def test_email_origin_merging_into_a_scan_property_never_downgrades(db):
+    """A row carrying the legacy "email" origin merging into a scan-origin
+    property leaves it "scan": source is only ever upgraded, never lowered.
+    Nothing writes "email" any more (the inbox import is gone), but existing
+    databases still hold such rows and they must keep behaving this way."""
     prop, _, _ = upsert_listing(db, _raw())
     assert prop.source == "scan"
-    # a different portal ad of the same physical house, imported from email
+    # a different portal ad of the same physical house, carrying the legacy origin
     same, is_new, _ = upsert_listing(
         db,
         _raw(
@@ -143,7 +145,7 @@ def _seed_mixed(db):
     return scan, email
 
 
-def test_source_filter_isolates_email_imports(db):
+def test_source_filter_isolates_email_origin_rows(db):
     scan, email = _seed_mixed(db)
     out = list_properties(db=db, source="email")
     assert [p.id for p in out] == [email.id]

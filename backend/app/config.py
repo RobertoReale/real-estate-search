@@ -34,20 +34,6 @@ DEFAULT_SETTINGS = {
     "smtp_password": "",
     "email_from": "",
     "email_to": "",
-    # email inbox import (IMAP, strictly read-only): lets the user mine years
-    # of portal alert emails for listings; for Gmail use imap.gmail.com with
-    # the same app-password mechanism as SMTP
-    "imap_host": "",
-    "imap_port": 993,
-    "imap_user": "",
-    "imap_password": "",
-    # Opt-in periodic inbox re-scan (piggybacks on APScheduler). Off by default:
-    # a scan opens an IMAP connection, and the app must not reach into the user's
-    # mailbox on a schedule they never asked for. Newly staged listings wait
-    # silently in the review queue — nothing enters the dashboard without an
-    # explicit accept (invariant 12), so there is nothing to notify about.
-    "email_import_auto_scan": False,
-    "email_import_auto_scan_interval_hours": 24,
     "scan_interval_minutes": 60,
     # Global pause for automatic (scheduled) scans. When on, the scheduler's
     # scans return immediately without touching the portals — the point is to
@@ -197,12 +183,11 @@ def load_settings() -> dict:
 
 
 # Gmail shows app passwords as four groups of four ("abcd efgh ijkl mnop") and
-# users paste them verbatim. smtplib/imaplib forward the spaces to the server,
+# users paste them verbatim. smtplib forwards the spaces to the server,
 # which answers with an opaque AUTHENTICATIONFAILED. No provider allows spaces
 # in a password, so stripping them can only help.
 _SPACELESS_SECRETS = (
     "smtp_password",
-    "imap_password",
     "telegram_bot_token",
     "datadome_cookie",
     "scrape_api_key",

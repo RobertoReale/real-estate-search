@@ -108,8 +108,17 @@ def _backfill_property_source():
     origin from there. Run only the first time the column appears (see
     init_db), otherwise it would fight the email->scan upgrade in
     deduplicator.upsert_listing on every startup.
+
+    The inbox import is gone and its table with it (migration 0002), so this
+    only still has a source to read on a database old enough to predate the
+    `source` column: there the additive step runs before Alembic drops the
+    table, and the origins are recovered in that one window. Past it the table
+    is absent and there is nothing to recover — not a failure, so skip rather
+    than raise, or an upgrade would die on a missing table.
     """
     with engine.begin() as conn:
+        if not inspect(conn).has_table("imported_listings"):
+            return
         conn.execute(
             text(
                 "UPDATE properties SET source = 'email' "

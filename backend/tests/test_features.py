@@ -915,7 +915,7 @@ def test_idealista_cerca_url_parses_back_to_city_zone_and_contract():
 
 def test_saved_secrets_lose_their_display_spaces():
     """Gmail renders an app password as "abcd efgh ijkl mnop" and users paste it
-    as shown. imaplib/smtplib forward the spaces and Gmail answers with a bare
+    as shown. smtplib forwards the spaces and Gmail answers with a bare
     AUTHENTICATIONFAILED, which reads as "wrong password" and sends the user
     back to regenerate a perfectly good credential.
 
@@ -924,15 +924,13 @@ def test_saved_secrets_lose_their_display_spaces():
 
     saved = config.save_settings(
         {
-            "smtp_password": "jetd xuwl wvpy embm",
-            "imap_password": " jetd\txuwl\nwvpy embm ",
+            "smtp_password": " jetd\txuwl\nwvpy embm ",
             "telegram_bot_token": "123456:AAH ExampleToken",
             "smtp_user": "someone@gmail.com",
         }
     )
 
     assert saved["smtp_password"] == "jetdxuwlwvpyembm"
-    assert saved["imap_password"] == "jetdxuwlwvpyembm"
     assert saved["telegram_bot_token"] == "123456:AAHExampleToken"
     # only secrets are squeezed: a display name or keyword keeps its spaces
     assert saved["smtp_user"] == "someone@gmail.com"

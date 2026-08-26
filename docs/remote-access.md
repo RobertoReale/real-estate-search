@@ -105,5 +105,5 @@ Both self-elevate via UAC. Remember to start the service again afterwards
 > real window opens for you to solve it in. The availability check's own
 > **"Show the browser window during the check"** option cannot do this — it
 > runs the browser in the service itself, so under the service it is always
-> headless no matter the setting (see [Email Inbox Import](email-import.md) for
-> the workaround: run "Grab a fresh cookie now" first).
+> headless no matter the setting (see [Is This Ad Still Online?](availability-check.md)
+> for the workaround: run "Grab a fresh cookie now" first).

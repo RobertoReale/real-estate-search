@@ -1,10 +1,9 @@
 /** Root application dashboard component orchestrating global layout and state.
  *  Manages live property listings, search filters, view modes (Grid / Map),
- *  search profile diagnostics, email import pipelines, and modal dialogues.
+ *  search profile diagnostics, and modal dialogues.
  *  Uses a monotonic sequence ref (`refreshSeq`) to prevent race conditions during rapid filter keystrokes. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useProgressPoll } from "./hooks/useProgressPoll";
-import EmailImport from "./components/EmailImport";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
@@ -20,7 +19,7 @@ import SettingsModal from "./components/SettingsModal";
 import { api } from "./services/api";
 import { useT } from "./i18n";
 import type {
-  ImportCheckProgress, ImportCheckSummary, Property, PropertyFilters,
+  AvailabilityCheckProgress, AvailabilityCheckSummary, Property, PropertyFilters,
   ScanStatus, SearchProfile, Settings, Tag, ViewMode,
 } from "./types";
 
@@ -59,8 +58,8 @@ export default function App() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkingBatch, setCheckingBatch] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<ImportCheckProgress | null>(null);
-  const [batchSummary, setBatchSummary] = useState<ImportCheckSummary | null>(null);
+  const [batchProgress, setBatchProgress] = useState<AvailabilityCheckProgress | null>(null);
+  const [batchSummary, setBatchSummary] = useState<AvailabilityCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   // a flag, not a message: the text is translated at render time, so switching
@@ -375,8 +374,6 @@ export default function App() {
         )}
 
         <SearchProfiles profiles={profiles} settings={settings} onChanged={refresh} />
-
-        <EmailImport profiles={profiles} settings={settings} onChanged={refresh} />
 
         {hasProfiles && <ScraperHealthPanel />}
 

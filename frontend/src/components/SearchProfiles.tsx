@@ -465,7 +465,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       });
       setMode("builder");
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     }
   }
 
@@ -482,7 +482,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         editInBuilder(result.searches[0]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     } finally {
       setAsking(false);
     }
@@ -547,7 +547,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         onChanged();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -583,7 +583,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       resetForm();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -597,7 +597,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       // slug, so the URL we save is the precise zone page when one exists
       setBuilt(await api.buildSearchUrls(params, true));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     } finally {
       setGenerating(false);
     }
@@ -671,7 +671,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       resetForm();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("email.unknownError"));
+      setError(e instanceof Error ? e.message : t("common.unknownError"));
     } finally {
       setSaving(false);
     }
@@ -902,7 +902,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               `col-span-2` below is inert once the container turns into a flex */}
           <div className="grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap">
             <div className="flex flex-col gap-1">
-              <label className="text-xs t-muted">{t("email.contract")}</label>
+              <label className="text-xs t-muted">{t("common.contract")}</label>
               <select className="input w-full sm:w-28" value={params.contract}
                 onChange={(e) => setParam({ contract: e.target.value as "sale" | "rent" })}>
                 <option value="sale">{t("filters.buy")}</option>
@@ -942,7 +942,7 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
               <label className="text-xs t-muted">{t("profiles.minRooms")}</label>
               <select className="input w-full sm:w-24" value={params.min_rooms}
                 onChange={(e) => setParam({ min_rooms: e.target.value })}>
-                <option value="">{t("email.any")}</option>
+                <option value="">{t("common.any")}</option>
                 {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+</option>)}
               </select>
             </div>
