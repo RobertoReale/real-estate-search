@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine, event, inspect, text
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import DB_PATH
 
@@ -56,7 +56,30 @@ def make_engine(url: str):
 
 
 engine = make_engine(f"sqlite:///{DB_PATH}")
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+# Deliberately unbound: the bind is chosen per session, in SessionLocal below.
+_session_factory = sessionmaker(autoflush=False, expire_on_commit=False)
+
+
+def SessionLocal() -> Session:
+    """Opens a session on whatever `engine` is *now*, not at import time.
+
+    `sessionmaker(bind=engine)` at module level captured the engine the instant
+    this file was first imported, and that single line made the database
+    impossible to redirect. Anything that swapped `database.engine` — the test
+    fixtures, most visibly — kept getting sessions on the real `case.db`, so
+    `init_db()`'s closing `deduplicate_search_profiles(db)` ran over the
+    developer's own searches. Worse, `scanner` and `scheduler` do
+    `from ..database import SessionLocal`, which copies the bound factory into
+    their namespace: patching `database.SessionLocal` could not reach them at
+    all, and each had to be patched separately.
+
+    Keeping the name a callable that resolves the module global on every call
+    fixes both. The from-imports hold this function rather than a frozen bind,
+    so redirecting the engine redirects every caller at once, and the engine
+    stays the single symbol that decides which database the app talks to.
+    """
+    return _session_factory(bind=engine)
 
 
 class Base(DeclarativeBase):

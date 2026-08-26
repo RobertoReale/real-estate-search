@@ -92,3 +92,40 @@ def test_concurrent_writers_do_not_raise_database_is_locked(file_engine):
     assert not errors, f"concurrent writers raised: {errors!r}"
     with factory() as db:
         assert db.query(SearchProfile).count() == 2 * writes_each
+
+
+def test_session_factory_follows_the_current_engine(tmp_path, monkeypatch):
+    """`SessionLocal()` resolves `database.engine` at call time, not at import.
+
+    Bound at import it captured one engine forever, so swapping the engine could
+    not redirect a single session — the leak that had tests opening the real
+    case.db. Redirecting the engine alone must now be enough.
+    """
+    engine = database.make_engine(f"sqlite:///{tmp_path / 'other.db'}")
+    Base.metadata.create_all(bind=engine)
+    monkeypatch.setattr(database, "engine", engine)
+    try:
+        with database.SessionLocal() as db:
+            assert db.get_bind() is engine
+    finally:
+        engine.dispose()
+
+
+def test_from_imported_session_factory_is_redirected_too(tmp_path, monkeypatch):
+    """The reason `SessionLocal` stays a function rather than a bound factory.
+
+    `scanner` and `scheduler` do `from ..database import SessionLocal`, which
+    copies whatever object that name holds into their own namespace. A bound
+    sessionmaker went in frozen to one engine and no patch of `database` could
+    reach it; a function that reads the global follows the swap.
+    """
+    from app.services.scanner import SessionLocal as scanner_session
+
+    engine = database.make_engine(f"sqlite:///{tmp_path / 'scanner.db'}")
+    Base.metadata.create_all(bind=engine)
+    monkeypatch.setattr(database, "engine", engine)
+    try:
+        with scanner_session() as db:
+            assert db.get_bind() is engine
+    finally:
+        engine.dispose()
