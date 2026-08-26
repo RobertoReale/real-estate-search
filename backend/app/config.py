@@ -1,16 +1,168 @@
-"""Application configuration: paths, defaults, and settings persisted to JSON file."""
+"""Application configuration: paths, defaults, and settings persisted to JSON file.
+
+**Two roots, and the difference matters.** `BASE_DIR` is where the code and its
+read-only assets live; `DATA_DIR` is where the user's own data lives. In a
+source checkout they are the same folder (`backend/`), which is why the split
+went unnoticed for so long — packaging is what separates them. Under
+PyInstaller the code is unpacked into a temporary directory that is **deleted
+when the app exits**, so a `case.db` resolved against it would take the user's
+entire price history with it on every quit, silently, and the app would open
+empty the next morning with nothing to recover.
+
+`DATA_DIR` therefore resolves, in order:
+
+1. `APP_DATA_DIR`, when set — the explicit answer, and what the Docker image
+   points at its volume.
+2. A per-user application-data folder, when frozen. Not the folder next to the
+   executable: an app installed under `C:\\Program Files` cannot write there.
+3. `BASE_DIR` otherwise, so an existing development checkout keeps reading and
+   writing exactly the `backend/case.db` it always has.
+"""
 
 import json
+import logging
+import os
+import shutil
+import sqlite3
+import sys
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # backend/ folder
-DB_PATH = BASE_DIR / "case.db"
-SETTINGS_PATH = BASE_DIR / "settings.json"
+logger = logging.getLogger(__name__)
+
+
+def _is_frozen() -> bool:
+    """True inside a PyInstaller bundle, where `__file__` is a temp directory."""
+    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+
+
+def _bundle_dir() -> Path:
+    if _is_frozen():
+        return Path(str(getattr(sys, "_MEIPASS"))).resolve()
+    return Path(__file__).resolve().parent.parent  # backend/ folder
+
+
+def _default_data_dir(bundle: Path) -> Path:
+    if not _is_frozen():
+        return bundle
+    if os.name == "nt":
+        local = os.environ.get("LOCALAPPDATA")
+        root = Path(local) if local else Path.home() / "AppData" / "Local"
+        return root / "RealEstateSearch"
+    xdg = os.environ.get("XDG_DATA_HOME")
+    return (Path(xdg) if xdg else Path.home() / ".local" / "share") / "real-estate-search"
+
+
+def _resolve_data_dir(bundle: Path) -> Path:
+    override = os.environ.get("APP_DATA_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    return _default_data_dir(bundle)
+
+
+BASE_DIR = _bundle_dir()
+DATA_DIR = _resolve_data_dir(BASE_DIR)
+
+# SQLite will not create a missing parent directory, and neither will the
+# settings writer. Fail-open: an unwritable location must surface as the real
+# error from whoever tries to use it, not as an import that never completes.
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:  # pragma: no cover - depends on filesystem permissions
+    logger.warning("could not create the data directory %s", DATA_DIR)
+
+DB_PATH = DATA_DIR / "case.db"
+SETTINGS_PATH = DATA_DIR / "settings.json"
+LOG_PATH = DATA_DIR / "app.log"
+BACKUP_DIR = DATA_DIR / "backups"
+# Playwright's persistent profile: browser state the user has earned (a solved
+# DataDome CAPTCHA lives here), so it belongs with their data, not the bundle.
+BROWSER_PROFILE_DIR = DATA_DIR / "browser_profile"
+
 # Production build of the React app. When present the backend serves it at "/",
 # so phones reach dashboard and API on a single origin (no Vite, no CORS).
 # Absent in the dev flow, where Vite serves the app on :5173 and proxies /api.
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+# Packaged, it is copied into the bundle beside the code it is served by.
+FRONTEND_DIST = (BASE_DIR if _is_frozen() else BASE_DIR.parent) / "frontend" / "dist"
+
+
+def _copy_database(source: Path, target: Path) -> None:
+    """Copies a database through SQLite's backup API, never as a file copy.
+
+    Under WAL the newest commits sit in `case.db-wal` until a checkpoint, so
+    copying the one file drops however much of the recent history has not been
+    folded back in yet. The backup API reads them together and takes a
+    consistent snapshot even if something else is mid-write — the same reason
+    `services/backup.py` uses it.
+    """
+    with closing(sqlite3.connect(source)) as src, closing(sqlite3.connect(target)) as dst:
+        src.backup(dst)
+
+
+def _legacy_data_candidates() -> list[Path]:
+    """Folders that may hold a database from before this install.
+
+    Only meaningful when frozen: a source checkout already reads its own
+    `backend/` and has nothing to adopt. The executable's own folder comes
+    first because dropping `case.db` next to the program is what someone
+    carrying their data across does without being told to.
+    """
+    if not _is_frozen():
+        return []
+    exe_dir = Path(sys.executable).resolve().parent
+    return [exe_dir, exe_dir / "backend", exe_dir.parent / "backend"]
+
+
+def adopt_existing_data(
+    data_dir: Path | None = None, candidates: list[Path] | None = None
+) -> Path | None:
+    """Adopts a previous install's `case.db` when the data directory has none.
+
+    Returns the folder adopted from, or None when there was nothing to do. Call
+    it once, before anything opens the database or reads the settings.
+
+    The alternative — starting empty next to a perfectly good database — is the
+    single most expensive way this packaging step can fail: the price history
+    it would abandon is months of daily readings the portals themselves do not
+    keep, and nothing in the UI would suggest the data still exists on disk.
+    """
+    data_dir = DATA_DIR if data_dir is None else data_dir
+    candidates = _legacy_data_candidates() if candidates is None else candidates
+
+    target = data_dir / "case.db"
+    if target.exists():
+        return None  # live data: never overwrite it, whatever else is lying around
+
+    for source_dir in candidates:
+        source = source_dir / "case.db"
+        if not source.is_file() or source_dir.resolve() == data_dir.resolve():
+            continue
+        try:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            _copy_database(source, target)
+        except (OSError, sqlite3.Error):
+            # A candidate that cannot be read is not a reason to give up: the
+            # next one may be the real database.
+            logger.warning("could not adopt the database at %s", source, exc_info=True)
+            target.unlink(missing_ok=True)
+            continue
+
+        # The settings carry the Telegram token and the DataDome cookie, so
+        # leaving them behind would mean a working database with no way to
+        # notify and a scraper that has to earn its cookie again.
+        settings_source = source_dir / "settings.json"
+        if settings_source.is_file() and not (data_dir / "settings.json").exists():
+            try:
+                shutil.copy2(settings_source, data_dir / "settings.json")
+            except OSError:
+                logger.warning("adopted the database but not the settings at %s", settings_source)
+
+        logger.info("adopted an existing database from %s", source_dir)
+        return source_dir
+
+    return None
+
 
 DEFAULT_EXCLUDED_KEYWORDS = [
     "nuda proprietà",

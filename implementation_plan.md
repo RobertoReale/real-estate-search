@@ -25,7 +25,7 @@ This document describes the architecture and implementation status of a **unifie
 4. **Search Mode — Direct Link:** paste the URL copied from Immobiliare.it or Idealista with zone and filters already configured on the portal.
    *v1 shipped with the direct URL alone, because it already covers every portal filter, including hand-drawn polygons on the map. A guided form was added later, plus an offline natural-language assistant that fills it in; both only generate a URL the user can still open and verify on the portal — the pasted URL remains the authoritative input.*
 5. **Notifications & Automation:** background scheduler (30 min / 1h / 2h / 4h / 8h) or immediate manual scan; Telegram and/or Email notifications for new properties, price variations, and scraper outages.
-6. **Web Interface:** single-page dashboard on `http://localhost:5173`, connected to the backend on `http://localhost:8000`.
+6. **Web Interface:** single-page dashboard served by the backend itself on `http://localhost:8000`. While developing it is served by Vite on `http://localhost:5173` instead, proxying `/api` to the backend.
 
 ---
 
@@ -143,7 +143,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 593 tests (incl. hypothesis property tests)
+│   ├── tests/                    # 602 tests (incl. hypothesis property tests)
 │   ├── requirements.in           # runtime deps, hand-edited (floors + why)
 │   ├── requirements.txt          # generated lock: pinned + hashed (uv pip compile)
 │   ├── requirements-dev.in       # dev-only: pytest, ruff, hypothesis, pytest-cov, pip-audit, pre-commit
@@ -159,9 +159,15 @@ progetto/
 │       │                         # ErrorBoundary
 │       ├── services/api.ts
 │       └── types/index.ts
+├── packaging/                    # tray_app.py (frozen entry point), the PyInstaller
+│                                 # spec, Dockerfile + docker-compose.yml
 ├── scripts/
-│   ├── windows/                  # start/serve/install-service/uninstall-service/
-│   │                             # restart-services/stop-service/install-playwright/run-hidden
+│   ├── build_frontend.py         # rebuilds frontend/dist when it is stale
+│   ├── build_release.py          # the shippable payload; --package freezes the app
+│   ├── open_dashboard.py         # waits for the port, then opens the browser
+│   ├── windows/                  # start (one window) / dev (two windows) / serve /
+│   │                             # install-service/uninstall-service/restart-services/
+│   │                             # stop-service/install-playwright
 │   └── linux/                    # start.sh (Linux / Raspberry Pi)
 └── README.md
 ```
@@ -186,7 +192,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (593, `pytest`)
+### Automated Tests (602, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
@@ -195,7 +201,7 @@ Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter b
 
 ### Manual Verification
 1. Double click `scripts\windows\start.bat`.
-2. On `http://localhost:5173`, paste one search URL from Immobiliare.it and one from Idealista.
+2. On `http://localhost:8000`, paste one search URL from Immobiliare.it and one from Idealista.
 3. Click **"▶ Start Scan Now"**: the grid populates with unified property cards.
 4. ⚙️ Settings → bot token and Chat ID → **"Send test message"**.
 

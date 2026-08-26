@@ -1,0 +1,145 @@
+# Tag-triggered release: the Windows package and the multi-arch image.
+#
+# The natural extension of ci.yml, and it deliberately repeats none of it: this
+# workflow builds artifacts, it does not re-run the gates. A tag is pushed at a
+# commit CI has already judged, and duplicating the suite here would only add a
+# second place for the same failure to be reported.
+#
+# Nothing here reaches a real estate portal, for the same reason CI does not:
+# a blocked build runner is harmless, but the addresses the scans depend on are
+# not something to spend on a release pipeline.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Buildable on demand against a branch, so the packaging can be exercised
+  # without minting a version number to throw away.
+  workflow_dispatch:
+
+permissions:
+  contents: write # creating the release and attaching artifacts to it
+  packages: write # pushing the container image to ghcr.io
+
+jobs:
+  windows-package:
+    name: Windows package
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7
+        with:
+          # Same major as CI and as the machine that writes package-lock.json:
+          # npm 10 and npm 11 disagree about what a valid lock is, and `npm ci`
+          # rejects the other one's on a checkout that is otherwise fine.
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      # The packaging manifest, not the product or the dev one: it carries the
+      # runtime set plus pystray/pillow (the tray app) and pyinstaller itself.
+      # No --require-hashes: pyinstaller resolves a hook package at build time.
+      - name: Install the packaging toolchain
+        working-directory: backend
+        run: .venv/Scripts/python -m pip install -r requirements-package.txt
+
+      # Builds frontend/dist, verifies the payload is complete, then freezes.
+      # The dashboard is compiled here, once, so the user never installs Node.
+      - name: Build the package
+        run: backend/.venv/Scripts/python scripts/build_release.py --package
+
+      - name: Smoke-test the package
+        # A build that produces an .exe which cannot start is the failure this
+        # whole phase exists to prevent, and it is invisible to PyInstaller.
+        # Run it against a scratch data directory and require the dashboard and
+        # the API to answer, then leave it alone: a release must never be cut
+        # from a bundle nobody launched.
+        run: |
+          export APP_DATA_DIR="$RUNNER_TEMP/smoke-data"
+          export APP_PORT=8123
+          ./dist/RealEstateSearch/RealEstateSearch.exe &
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:8123/api/scrapers/status" >/dev/null; then
+              echo "the packaged app answers"
+              curl -fsS "http://127.0.0.1:8123/" | grep -q 'id="root"' \
+                && echo "the dashboard is served from the bundle"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the packaged app never answered on port 8123"
+          exit 1
+
+      - name: Name the archive after the tag
+        id: archive
+        run: |
+          version="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || version="${GITHUB_SHA::7}"
+          name="RealEstateSearch-${version}-windows-x64"
+          mv dist/RealEstateSearch "dist/${name}"
+          7z a -tzip "dist/${name}.zip" "./dist/${name}" >/dev/null
+          echo "path=dist/${name}.zip" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: ${{ steps.archive.outputs.path }}
+
+      - name: Attach it to the release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.archive.outputs.path }}
+          # The package holds no data, so there is nothing to warn about beyond
+          # where the data goes on first run - which the README covers.
+          generate_release_notes: true
+
+  image:
+    name: Docker image (amd64 + arm64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # QEMU is what makes the arm64 half buildable at all on an x86 runner,
+      # and arm64 is the Raspberry Pi target this image exists for.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          # A branch run proves the image builds without publishing anything.
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

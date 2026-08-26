@@ -1,0 +1,30 @@
+# Run from the repository root:
+#   docker compose -f packaging/docker-compose.yml up -d
+#
+# Built for a NAS or a Raspberry Pi left running: the scheduler only scans while
+# the process is alive, which is the whole reason to run this as a service.
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: packaging/Dockerfile
+    image: real-estate-search:latest
+    container_name: real-estate-search
+    ports:
+      # Published to loopback ONLY. The API has no authentication unless
+      # `api_auth_token` is set (invariant 14), and a bare "8000:8000" would
+      # hand the whole database to every device on the network - including a
+      # guest on the Wi-Fi. To reach it from a phone, put Tailscale in front or
+      # set the token first, then widen this deliberately.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # case.db, settings.json, app.log and backups/. This is the only thing
+      # here that cannot be rebuilt: back it up, not the image.
+      - ./data:/data
+    environment:
+      # Portal timestamps and the scan scheduler read local time; without this
+      # a Pi in Europe/Rome reports scans in UTC and the daily backup fires at
+      # the wrong hour.
+      - TZ=Europe/Rome
+    restart: unless-stopped

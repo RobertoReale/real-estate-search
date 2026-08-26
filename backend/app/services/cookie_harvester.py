@@ -41,14 +41,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..config import BASE_DIR, load_settings, save_settings
+from ..config import BASE_DIR, BROWSER_PROFILE_DIR, DATA_DIR, load_settings, save_settings
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
 # Where the browser keeps its persistent profile (cookies, solved challenges).
-# gitignored, like case.db and settings.json — it is local state, not code.
-PROFILE_DIR = BASE_DIR / "browser_profile"
+# gitignored, like case.db and settings.json — it is local state, not code, and
+# it follows the data directory so a packaged app does not throw away a solved
+# CAPTCHA every time it exits.
+PROFILE_DIR = BROWSER_PROFILE_DIR
 
 PORTAL_HOMES = {
     "immobiliare": "https://www.immobiliare.it/",
@@ -106,6 +108,9 @@ def _ensure_browsers_path() -> None:
         return
 
     candidates: list[Path] = [
+        # The data directory first: packaged, it is the only one of the three
+        # that survives a restart.
+        DATA_DIR / "browser_binaries",
         BASE_DIR / "browser_binaries",
         BASE_DIR.parent / "browser_binaries",
     ]

@@ -1,0 +1,33 @@
+# The build context is the repository root, so everything heavy or local is
+# excluded here - otherwise a 300 MB browser profile is uploaded to the daemon
+# on every build.
+
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+
+# User data: it belongs on the volume, never baked into an image layer.
+backend/case.db
+backend/case.db-wal
+backend/case.db-shm
+backend/settings.json
+backend/app.log*
+backend/backups/
+backend/browser_profile/
+backend/browser_binaries/
+packaging/data/
+
+# Build outputs. frontend/dist is rebuilt by the image's own node stage, so
+# copying in a stale local one would ship whatever was last built by hand.
+frontend/dist
+dist/
+build/
+**/*.tsbuildinfo
+
+.git
+.github
+**/.pytest_cache
+**/.ruff_cache
+**/.hypothesis
+**/htmlcov

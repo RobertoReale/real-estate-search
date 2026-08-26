@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from . import schemas
-from .config import BASE_DIR, FRONTEND_DIST, load_settings, save_settings
+from .config import BASE_DIR, DATA_DIR, FRONTEND_DIST, LOG_PATH, load_settings, save_settings
 from .database import get_db, init_db
 from .models import (
     Listing,
@@ -54,7 +54,7 @@ logging.basicConfig(
     handlers=[
         logging.StreamHandler(),
         RotatingFileHandler(
-            BASE_DIR / "app.log",
+            LOG_PATH,
             maxBytes=1_000_000,
             backupCount=2,
             encoding="utf-8",
@@ -1314,8 +1314,8 @@ def system_restart():
 
 
 # --- Logs ---
-
-LOG_PATH = BASE_DIR / "app.log"
+# LOG_PATH comes from config: it follows the data directory, not the code, so a
+# packaged app writes its log somewhere the user can actually reach it.
 
 
 @app.get("/api/logs/tail")
@@ -1480,9 +1480,10 @@ def install_harvester(request: Request):
                 if candidate.exists():
                     browsers_path = str(candidate)
             if not browsers_path:
-                from .config import BASE_DIR
-
-                browsers_path = str(BASE_DIR / "browser_binaries")
+                # The data directory, not the bundle: a packaged app's code
+                # lives in a temp folder that is wiped on exit, and a ~150 MB
+                # browser download would be re-fetched every single run.
+                browsers_path = str(DATA_DIR / "browser_binaries")
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
         env = os.environ.copy()

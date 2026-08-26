@@ -39,6 +39,18 @@ frontend/dist/
 frontend/*.tsbuildinfo
 frontend/vite.config.ts.timestamp-*.mjs
 
+# PyInstaller output and work directory (scripts/build_release.py --package).
+# Anchored with a leading slash so this never swallows frontend/dist's sibling
+# names further down the tree.
+/dist/
+/build/
+# Generated from frontend/public/icon-512.png at build time, so the tray icon
+# and the PWA icon cannot drift into being two different logos.
+packaging/app.ico
+# Bind mount for packaging/docker-compose.yml: holds case.db and settings.json,
+# so it follows the same never-commit rule as the database itself.
+packaging/data/
+
 # Automatic DB backups (see backend/app/services/backup.py): local copies of
 # case.db, same never-commit rule as the DB itself
 backend/backups/

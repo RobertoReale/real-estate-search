@@ -18,11 +18,10 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from ..config import BASE_DIR, DB_PATH
+from ..config import BACKUP_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
-BACKUP_DIR = BASE_DIR / "backups"
 BACKUP_EVERY = timedelta(hours=24)
 BACKUP_KEEP = 14
 
