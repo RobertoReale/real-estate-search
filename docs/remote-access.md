@@ -45,33 +45,35 @@ phone without any of this. The dashboard is for browsing and triaging.
 ## Running it 24/7 on Windows (no window to keep open)
 
 Don't have a Raspberry Pi yet? You can make the app run in the background on
-Windows, with no console window. Whichever option you pick, **build the
-dashboard once first** so the backend serves it on a single port — run
-`scripts\windows\serve.bat` once (Ctrl+C after "Building the frontend"), or `cd frontend && npm
-run build`. Then open **http://localhost:8000** and bookmark it. Everything
-stays on `127.0.0.1` — the API has no password, so it must not be exposed.
+Windows, with no console window.
 
-All the scripts below live in **`scripts\windows\`**.
+**First, decide whether you need a service at all.** The packaged app (see the
+[README](../README.md#windows-without-installing-anything)) already runs with no
+console window: it sits in the notification area, and you can put a shortcut to
+`RealEstateSearch.exe` in your Startup folder (`Win+R` → `shell:startup`) to have
+it come up at every login. For most people that is the whole answer, and it
+needs nothing installed.
 
-Three options, from simplest to most robust:
+A **service** buys exactly two things that cannot: it starts at **boot, before
+anyone logs in**, and it **restarts itself after a crash**. If you want those,
+there is one supported way to get them, below. (Earlier versions also documented
+a Startup-folder shortcut and a Task Scheduler task pointing at a
+`run-hidden.vbs` helper. Both were the packaged app's job done less well, so the
+helper is gone — use the tray app for the at-login case.)
 
-| Option | What it does | Trade-off |
-|---|---|---|
-| **A — Start at login (hidden)** | A shortcut to `run-hidden.vbs` in your Startup folder launches the backend, hidden, every time you log in. | Simplest. Runs only after you log in; no auto-restart if it crashes. |
-| **B — Task Scheduler (hidden)** | A scheduled task runs `run-hidden.vbs` "At log on", with more control (delay, run even on battery, etc.). | Still tied to login, but more configurable than A. |
-| **C — Windows Service (NSSM)** ⭐ | `install-service.bat` registers the backend as a real service: starts at **boot** (before login), **auto-restarts on crash**, logs to `backend/service.log`. | The closest to an always-on appliance. One-time setup, needs a small download. |
+Everything stays on `127.0.0.1` — the API has no password unless you set one, so
+it must not be exposed. All the scripts below live in **`scripts\windows\`**.
 
-**Option A — Start at login.** Press `Win+R`, type `shell:startup`, Enter. In
-the folder that opens, right-click → *New → Shortcut*, and point it at
-`scripts\windows\run-hidden.vbs`. Done — it launches silently at every
-login. (To stop it, delete the shortcut and end `pythonw.exe` in Task Manager.)
+### Windows Service (NSSM) — the supported service path
 
-**Option B — Task Scheduler.** Open *Task Scheduler* → *Create Task* → trigger
-*At log on*, action *Start a program* → `wscript.exe` with argument the full path
-to `scripts\windows\run-hidden.vbs`. This gives you options A doesn't (delay after login, "run
-whether logged on or not", stop if idle, …).
+It registers the backend as a real service: starts at **boot** (before login),
+**auto-restarts on crash**, and logs to `backend/service.log`. One-time setup,
+and it needs a small download.
 
-**Option C — Windows Service (recommended).**
+Running it from a source checkout? **Build the dashboard once first** so the
+backend serves it on a single port — `scripts\windows\start.bat` does that and
+can then be closed, or `cd frontend && npm run build`.
+
 1. Download **NSSM** from <https://nssm.cc/download>, and copy `win64\nssm.exe`
    into `scripts\windows\` (next to `install-service.bat`).
 2. Right-click **`scripts\windows\install-service.bat`** → *Run as administrator*. It builds the
@@ -97,8 +99,8 @@ availability check, since a service has no desktop to show that window on).
 Both self-elevate via UAC. Remember to start the service again afterwards
 (`restart-services.bat`, or `nssm start RealEstateSearch`).
 
-> Notes for all three: don't run `start.bat` at the same time (both use port
-> 8000 — stop the autostart first). After changing the code, rebuild the
+> Notes: don't run `start.bat` or the packaged app at the same time (they use
+> port 8000 too — stop the service first). After changing the code, rebuild the
 > frontend and restart. The automatic DataDome cookie grab runs headless
 > (`maybe_auto_refresh`) cleanly in the background right when needed. Any
 > **interactive** browser step (solving a CAPTCHA by hand) still works under

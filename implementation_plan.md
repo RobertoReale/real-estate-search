@@ -159,9 +159,15 @@ progetto/
 │       │                         # ErrorBoundary
 │       ├── services/api.ts
 │       └── types/index.ts
+├── packaging/                    # tray_app.py (frozen entry point), the PyInstaller
+│                                 # spec, Dockerfile + docker-compose.yml
 ├── scripts/
-│   ├── windows/                  # start/serve/install-service/uninstall-service/
-│   │                             # restart-services/stop-service/install-playwright/run-hidden
+│   ├── build_frontend.py         # rebuilds frontend/dist when it is stale
+│   ├── build_release.py          # the shippable payload; --package freezes the app
+│   ├── open_dashboard.py         # waits for the port, then opens the browser
+│   ├── windows/                  # start (one window) / dev (two windows) / serve /
+│   │                             # install-service/uninstall-service/restart-services/
+│   │                             # stop-service/install-playwright
 │   └── linux/                    # start.sh (Linux / Raspberry Pi)
 └── README.md
 ```
