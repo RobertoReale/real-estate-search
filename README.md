@@ -19,9 +19,14 @@ Real estate portals erase history and hide metrics to protect listing agencies. 
 
 ### Prerequisites
 
-**Python 3.11 – 3.14**, and **Node.js 18+**. The start scripts check the Python
-version before creating the virtual environment and stop with an explanation if
-it is out of range, rather than failing partway through installing dependencies.
+**Python 3.11 – 3.14**, and **Node.js 18+** to build the dashboard. The start
+scripts check the Python version before creating the virtual environment and
+stop with an explanation if it is out of range, rather than failing partway
+through installing dependencies.
+
+Node is only needed when there is something to build. `start.bat` compiles the
+dashboard the first time and after any change to its sources, then serves the
+compiled result — so running the app afterwards needs Python alone.
 
 **3.12 is the recommended version**: it is the one with the widest wheel
 availability for this dependency set, so nothing needs a compiler to install.
