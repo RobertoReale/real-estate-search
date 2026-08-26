@@ -8,10 +8,12 @@ The scraper stays on the PC — portals trust residential IPs and block cloud on
 (see *Technical Architecture* in the README) — but the dashboard can be used from
 an Android or iOS browser, and installed as an app icon.
 
-Run **`scripts\windows\serve.bat`** instead of `start.bat`. It builds the frontend and serves the
-dashboard *and* the API from a single port (8000), so there is nothing to
-configure on the phone: open the URL the script prints, then use the browser's
-**"Add to home screen"** to get a standalone app icon.
+Run **`scripts\windows\serve.bat`** instead of `start.bat`. Both serve the
+dashboard *and* the API from a single port (8000), but `start.bat` binds
+loopback, which only this PC can reach; `serve.bat` binds the Tailscale address
+instead, so there is nothing to configure on the phone: open the URL the script
+prints, then use the browser's **"Add to home screen"** to get a standalone app
+icon.
 
 The layout adapts to the screen: filter bars and forms fold into two columns,
 the property grid becomes a single column, and buttons grow to a thumb-sized

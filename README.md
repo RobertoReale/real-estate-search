@@ -32,9 +32,14 @@ the version the dependency locks are resolved against; the suite is also run on
 ### Windows
 Double-click on **`scripts\windows\start.bat`**:
 - Installs all dependencies on first run.
-- Starts the backend server (http://localhost:8000) and the frontend dashboard (http://localhost:5173).
-- Automatically opens the web interface in your default browser.
+- Builds the dashboard when it is missing or older than the code, then serves it and the API together on **http://localhost:8000**. One window, one port — close it to stop the app.
+- Automatically opens the web interface in your default browser, once the server actually answers.
 - If a setup step fails — no internet while installing, an unsupported Python — it stops there, says what went wrong and what to do about it, and starts nothing. The window stays open so you can read it.
+
+Working on the code instead of using the app? **`scripts\windows\dev.bat`** is the
+development flow: two windows, the backend on :8000 with auto-reload and Vite on
+:5173 with hot module reload, so an edit is on screen before the editor loses
+focus.
 
 All Windows-only helpers (service install/uninstall, restart, stop, hidden
 autostart) live in `scripts\windows\` — see [Remote Access & Running in the
@@ -56,9 +61,9 @@ chmod +x scripts/linux/start.sh
 
 The scraper stays on the PC — portals trust residential IPs and block cloud ones
 — but the dashboard works from an Android or iOS browser, installable as an app
-icon. Run **`scripts\windows\serve.bat`** instead of `start.bat`: it builds the
-frontend and serves the dashboard and API from a single port (8000), so there
-is nothing to configure on the phone. Reaching it from outside the house, the
+icon. Run **`scripts\windows\serve.bat`** instead of `start.bat`: it serves the
+same single port (8000) but binds it to your Tailscale address instead of
+loopback, so the phone can reach it and nothing else can. Reaching it from outside the house, the
 security model of the open (unauthenticated) API, and the optional API token
 are covered in [Remote Access & Running in the Background](docs/remote-access.md).
 
@@ -99,7 +104,7 @@ a shortlist against the portals on demand.
 ## Background Operations & Caching
 * **Data Persistence**: All settings, search profiles, listings, price history, and hidden statuses are saved locally in a database file (`backend/case.db`). You can close the app or shut down your PC at any time without losing any progress or history.
 * **Always-on Scanning**: background scans, price-trend snapshots, and alerts run only while the app is running. With `start.bat`/`serve.bat` that means keeping the terminal window open (minimized). To run it silently with no window, see [Running it 24/7 on Windows](docs/remote-access.md#running-it-247-on-windows-no-window-to-keep-open).
-* **Restart from the dashboard**: after updating the app, press **Settings → 🔄 Restart backend** instead of hunting for the terminal window. The dashboard goes offline for a few seconds and reloads itself. With `start.bat` (which runs with auto-reload) a code update is usually picked up on its own; with `serve.bat` this button is the quick way to apply one. *(It restarts the backend only — with `serve.bat`, which serves a pre-built frontend, re-run the script if the frontend itself changed.)*
+* **Restart from the dashboard**: after updating the app, press **Settings → 🔄 Restart backend** instead of hunting for the terminal window. The dashboard goes offline for a few seconds and reloads itself. `start.bat` and `serve.bat` both serve a pre-built dashboard, so this applies a backend change — if the frontend itself changed, re-run the script and it rebuilds. With `dev.bat` the auto-reloader usually picks a code change up on its own.
 * **Pause automatic scans**: **Settings → Automatic scan → Pause automatic scans** stops the scheduled scans from touching the portals — handy for resting the connection while you are away, without deactivating every search one by one. The top bar shows *⏸ Automatic scans paused* while it is on, and **Start Scan Now** still works on demand (an explicit request bypasses the pause). To silence a single search instead, untick it in the search list.
 * **Catch-up Scan**: the scheduled scan normally fires one full interval after startup. If the PC was off and the last scan is already older than the configured interval, a catch-up scan runs ~2 minutes after startup instead — so switching the PC on is enough to bring the listings up to date.
 * **Automatic Backups**: a copy of `case.db` is written to `backend/backups/` at most once per day (checked at startup; the 14 most recent copies are kept). The folder is local — point your cloud-sync or a second drive at it if you want off-machine safety. The copies are taken through SQLite's own backup API, so they are consistent even if a scan is writing at that moment. *If you ever copy the database by hand, take `case.db-wal` and `case.db-shm` with it*: the newest changes live in those two companion files until the database folds them in, and `case.db` on its own would be missing them.

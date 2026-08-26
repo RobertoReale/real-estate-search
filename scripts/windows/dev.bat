@@ -1,21 +1,25 @@
 @echo off
-title Real Estate Search
+title Real Estate Search - Development
 cd /d "%~dp0..\.."
 
 echo ============================================
-echo   Real Estate Search
+echo   Real Estate Search - Development Mode
 echo ============================================
+echo.
+echo   Backend  :8000  (auto-reload on save)
+echo   Frontend :5173  (Vite hot module reload)
+echo.
+echo   For normal use run start.bat instead: one window, one port.
+echo.
 
-rem One window, one port. The backend serves the built React app at "/" (the
-rem StaticFiles mount in main.py), so there is no second process and no second
-rem port to explain - closing this window stops the application.
-rem
-rem The two-process Vite flow this script used to be is still here as dev.bat:
-rem it is the right tool for editing code, and the wrong one for using the app.
+rem This is the two-process flow: uvicorn with its file watcher, and Vite serving
+rem the React app with HMR and proxying /api to :8000. It is what start.bat used
+rem to be, and it is the right shape for editing code - a saved .tsx is on screen
+rem before the editor loses focus, which no rebuild-and-serve loop can match.
 rem
 rem Every setup step is checked. Unchecked, a failed `pip install` still reached
-rem the startup line below and the user met an import traceback three steps away
-rem from the actual cause.
+rem the `start` lines below and the user met an import traceback in a window that
+rem closes itself, three steps away from the actual cause.
 rem
 rem `if errorlevel 1` and not `%errorlevel%`: inside a parenthesised block the
 rem percent form is expanded when the block is *parsed*, so it holds the value
@@ -32,28 +36,35 @@ if not exist "backend\.venv\Scripts\python.exe" (
     if errorlevel 1 goto :pip_failed
 )
 
-rem Catches a venv that exists but is incomplete - an install interrupted
+if not exist "frontend\node_modules" (
+    echo [SETUP] Installing frontend dependencies...
+    pushd frontend
+    rem `ci`, not `install`: it installs exactly what package-lock.json pins and
+    rem refuses if the lock disagrees with package.json, where `install` would
+    rem quietly rewrite the lock and give this machine a different toolchain.
+    call npm ci
+    if errorlevel 1 (
+        popd
+        goto :npm_failed
+    )
+    popd
+)
+
+rem Catches a venv that exists but is incomplete — an install interrupted
 rem halfway leaves the directory behind, and the check above would accept it.
 if not exist "backend\.venv\Scripts\python.exe" goto :venv_failed
 
-rem Builds only when frontend\dist is missing or older than the sources, and
-rem only then needs Node at all - a release ships dist prebuilt, so this is a
-rem no-op there. See scripts\build_frontend.py.
-backend\.venv\Scripts\python scripts\build_frontend.py
-if errorlevel 1 goto :frontend_failed
+echo [1/2] Starting backend on http://localhost:8000 ...
+start "Backend - FastAPI" cmd /k "cd /d %~dp0..\..\backend && set APP_RELOAD=1&& .venv\Scripts\python run.py"
+
+echo [2/2] Starting frontend on http://localhost:5173 ...
+start "Frontend - Vite" cmd /k "cd /d %~dp0..\..\frontend && npm run dev"
+
+timeout /t 4 /nobreak >nul
+start http://localhost:5173
 
 echo.
-echo Dashboard: http://localhost:8000
-echo Press Ctrl+C in this window to stop.
-echo.
-
-rem Opens the browser once the port actually answers. It has to run alongside
-rem the server, because the server below owns this window until it exits.
-start "" /b backend\.venv\Scripts\python scripts\open_dashboard.py
-
-pushd backend
-.venv\Scripts\python run.py
-popd
+echo Dev servers started! Close the two windows "Backend" and "Frontend" to stop them.
 exit /b 0
 
 :venv_failed
@@ -73,11 +84,12 @@ echo         build, the Python version is probably out of range: this project
 echo         needs 3.11 to 3.14.
 goto :setup_failed
 
-:frontend_failed
+:npm_failed
 echo.
-echo [ERROR] Could not build the dashboard - see the message above.
-echo         Building it needs Node.js 18+ on PATH. A downloaded release comes
-echo         with the dashboard already built and does not need Node at all.
+echo [ERROR] Installing the frontend dependencies failed ^(npm ci^).
+echo         Check the internet connection. If npm complains that the lock file
+echo         is out of sync with package.json, the checkout is inconsistent -
+echo         restore package-lock.json rather than running `npm install`.
 goto :setup_failed
 
 :setup_failed
