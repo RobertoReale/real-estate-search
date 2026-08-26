@@ -201,7 +201,10 @@ def _select(db, **kw):
         sort="newest",
     )
     params.update(kw)
-    return _select_properties(db, **params)
+    # (page, total): these tests are about which properties the zone keeps, so
+    # they take the page — unbounded here, since no limit is passed
+    props, _total = _select_properties(db, **params)
+    return props
 
 
 def test_radius_keeps_only_inside(db):

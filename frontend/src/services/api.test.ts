@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PropertyFilters } from "../types";
-import { propertyParams } from "./api";
+import { api, propertyParams } from "./api";
 
 // The first frontend test (the backend has ~500, the UI had zero). It targets
 // the propertyParams codec: the one piece of api.ts pure enough to test in
@@ -151,5 +151,62 @@ describe("propertyParams", () => {
     expect(p.get("merged_only")).toBe("true");
     expect(p.get("only_price_drops")).toBe("true");
     expect(p.get("only_favorites")).toBe("true");
+  });
+});
+
+// The paging window rides alongside the filters on the same request. A dropped
+// `limit` un-paginates the grid back to "download everything, every poll" — the
+// exact regression 2.4 removed, and one nothing else would notice.
+describe("getProperties paging window", () => {
+  function captureUrl(): { url: () => string } {
+    let seen = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (u: string) => {
+        seen = u;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], total: 0, limit: null, offset: 0 }),
+        } as unknown as Response;
+      }),
+    );
+    return { url: () => seen };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("omits limit and offset when no window is asked for", async () => {
+    const cap = captureUrl();
+    await api.getProperties(base);
+    const q = new URL(cap.url(), "http://x").searchParams;
+    expect(q.has("limit")).toBe(false);
+    expect(q.has("offset")).toBe(false);
+  });
+
+  it("sends the requested page", async () => {
+    const cap = captureUrl();
+    await api.getProperties(base, { limit: 60, offset: 120 });
+    const q = new URL(cap.url(), "http://x").searchParams;
+    expect(q.get("limit")).toBe("60");
+    expect(q.get("offset")).toBe("120");
+    // the filters still travel with it: paging must not replace them
+    expect(q.get("status")).toBe("active");
+  });
+
+  it("sends limit=0 verbatim — it means 'everything', not 'no window'", async () => {
+    // the map and select-all rely on this: a falsy-check that dropped the 0
+    // would silently hand them the default first page instead
+    const cap = captureUrl();
+    await api.getProperties(base, { limit: 0 });
+    expect(new URL(cap.url(), "http://x").searchParams.get("limit")).toBe("0");
+  });
+
+  it("omits a zero offset but keeps a zero limit", async () => {
+    const cap = captureUrl();
+    await api.getProperties(base, { limit: 0, offset: 0 });
+    const q = new URL(cap.url(), "http://x").searchParams;
+    expect(q.get("limit")).toBe("0");
+    expect(q.has("offset")).toBe(false);
   });
 });

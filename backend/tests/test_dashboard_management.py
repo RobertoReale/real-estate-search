@@ -42,7 +42,10 @@ def list_properties(*, db, **kw):
         sort="newest",
     )
     params.update(kw)
-    return _select_properties(db, **params)
+    # (page, total): these tests are about which properties a filter keeps, so
+    # they take the page — unbounded, since no limit is passed
+    props, _total = _select_properties(db, **params)
+    return props
 
 
 @pytest.fixture

@@ -21,6 +21,7 @@ from .database import get_db, init_db
 from .models import (
     Listing,
     ListingProfile,
+    PriceHistory,
     Property,
     SearchProfile,
     Tag,
@@ -204,11 +205,26 @@ def _select_properties(
     center_lng: float | None = None,
     radius_m: float | None = None,
     poly_vertices: list[tuple[float, float]] | None = None,
-) -> list[Property]:
-    """Shared property selection + annotation for the grid and the exports, so
-    a dossier holds exactly what the dashboard is showing under the same
-    filters. Match scores are annotated before the sort (compatibility ranking
-    needs them); market position and deal score are order-independent.
+    limit: int | None = None,
+    offset: int = 0,
+) -> tuple[list[Property], int]:
+    """Shared property selection + annotation for the grid, the map and the
+    exports, so a dossier holds exactly what the dashboard is showing under the
+    same filters. Match scores are annotated before the sort (compatibility
+    ranking needs them); market position and deal score are order-independent.
+
+    Returns `(page, total)`. `total` counts the whole filtered set, `page` is the
+    `limit`/`offset` window of it — `limit=None` means "everything", which is
+    what the export and the map ask for (a dossier of one page, or a map missing
+    every pin past the fiftieth, would both be wrong).
+
+    **The window is applied last, not as SQL LIMIT.** Half of these filters
+    cannot be expressed in the query — floor band, price drops, merged-only, the
+    €/sqm band, the drawn zone, the deal label are all Python post-filters, and
+    `sort=match` orders on a score computed in Python too. A `LIMIT` in the
+    statement would therefore page over the *pre-filter* set: pages with holes in
+    them, a `total` that counts rows the user cannot see, and an ordering that
+    changes as later pages arrive.
 
     `profile_id` limits the grid to the properties a monitored search actually
     found — its ListingProfile provenance links (the card's "🔍 Found by"),
@@ -415,16 +431,30 @@ def _select_properties(
     elif sort == "match":
         # best matches first; unscored (None) sink to the bottom
         props.sort(key=lambda p: p.match_score if p.match_score is not None else -1, reverse=True)
-    annotate_market_position(db, props)
-    annotate_deal_scores(db, props)
-    if deal == "undervalued":
-        props = [p for p in props if p.deal_label == "undervalued"]
-    elif deal == "fair_plus":
-        # "fair or better": drop the overpriced ones (and those with no score,
-        # since without a local median a deal cannot be confirmed)
-        props = [p for p in props if p.deal_label in ("undervalued", "fair")]
-    _annotate_provenance(db, props)
-    return props
+    if deal:
+        # The deal label is itself a filter here, so it has to exist for every
+        # candidate before the window is cut — annotating the page only would
+        # filter one page and report a total for a different population.
+        annotate_market_position(db, props)
+        annotate_deal_scores(db, props)
+        if deal == "undervalued":
+            props = [p for p in props if p.deal_label == "undervalued"]
+        elif deal == "fair_plus":
+            # "fair or better": drop the overpriced ones (and those with no
+            # score, since without a local median a deal cannot be confirmed)
+            props = [p for p in props if p.deal_label in ("undervalued", "fair")]
+
+    total = len(props)
+    page = props[offset:] if limit is None else props[offset : offset + limit]
+    if not deal:
+        # Purely presentational here, and both are per-property lookups against
+        # medians read from the DB — the values do not depend on which other
+        # properties are in the list, so computing them for the window alone is
+        # identical to computing them for all and throwing most away.
+        annotate_market_position(db, page)
+        annotate_deal_scores(db, page)
+    _annotate_provenance(db, page)
+    return page, total
 
 
 def _parse_poly_param(poly: str | None) -> list[tuple[float, float]] | None:
@@ -440,9 +470,16 @@ def _parse_poly_param(poly: str | None) -> list[tuple[float, float]] | None:
         raise HTTPException(400, f"Invalid polygon: {exc}") from exc
 
 
-@app.get("/api/properties", response_model=list[schemas.PropertyOut])
+@app.get("/api/properties", response_model=schemas.PropertyPage)
 def list_properties(
     db: Session = Depends(get_db),
+    # Paginated by default: the grid used to download the whole filtered set —
+    # every property with its market position, deal score and provenance — and
+    # the dashboard re-polled it every 30s, every 4s during a scan. `limit=0`
+    # asks for everything, which the map (a pin per property) and "select all"
+    # genuinely need; those are one-off user actions, not the poll.
+    limit: int = Query(50, ge=0, le=5000),
+    offset: int = Query(0, ge=0),
     # validated like `contract`/`sort`: a typo'd status would otherwise return
     # an empty list, indistinguishable from "no matches" — a silent failure
     status: str = Query("active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
@@ -476,7 +513,7 @@ def list_properties(
         pattern="^(newest|price_asc|price_desc|sqm_price|match)$",
     ),
 ):
-    return _select_properties(
+    items, total = _select_properties(
         db,
         status=status,
         contract=contract,
@@ -505,7 +542,12 @@ def list_properties(
         source=source,
         profile_id=profile_id,
         tag=tag,
+        # 0 is the caller asking for the unbounded set, which _select_properties
+        # spells None (a literal LIMIT 0 would mean "no rows")
+        limit=limit or None,
+        offset=offset,
     )
+    return {"items": items, "total": total, "limit": limit or None, "offset": offset}
 
 
 @app.get("/api/properties/export")
@@ -545,8 +587,11 @@ def export_properties(
 
     Same selection as the grid, so the file mirrors what the user sees. Returned
     as an attachment (no server, no DB) that can be shared over chat or email —
-    the reason the export exists rather than sharing the live dashboard."""
-    props = _select_properties(
+    the reason the export exists rather than sharing the live dashboard.
+
+    No `limit`: a dossier holds the whole filtered shortlist, not the page the
+    grid happens to be showing."""
+    props, _total = _select_properties(
         db,
         status=status,
         contract=contract,
@@ -1109,12 +1154,52 @@ def trigger_scan(profile_id: int | None = None):
     return {"status": "started"}
 
 
+def _properties_version(db: Session) -> str:
+    """A cheap fingerprint of the property set, for the dashboard's poll.
+
+    This is the "did anything change?" half of the polling split. The dashboard
+    used to answer that question by re-downloading every filtered property —
+    market position, match score, deal score and provenance computed for each —
+    every 30 seconds, and every 4 seconds during a scan. Now it polls this
+    string and refetches the grid only when it moves.
+
+    Two small aggregates. The per-status counts are what make it trustworthy:
+    a new property raises one, and every lifecycle transition — a scan marking
+    rows `gone`, the user hiding one or marking it `sold` — moves a row from one
+    bucket to another, which the grid must reflect because those rows enter or
+    leave it. Grouping rather than a single total is the difference: hiding a
+    property leaves `count(*)` exactly where it was. `max(last_seen_at)` catches
+    a scan that re-found existing listings and changed nothing else, and the
+    newest price-history id catches a price change on a property already shown.
+
+    Not a perfect change detector, and it does not try to be: editing notes or
+    toggling a favourite moves none of these. Those are user actions, and the
+    client that performs one already refreshes on the response — the poll is for
+    what happens *elsewhere*, which is scans. The 30s idle poll is the backstop.
+    """
+    rows = db.execute(
+        select(
+            Property.status,
+            func.count(Property.id),
+            func.max(Property.id),
+            func.max(Property.last_seen_at),
+        ).group_by(Property.status)
+    ).all()
+    last_price = db.execute(select(func.max(PriceHistory.id))).scalar()
+    buckets = ";".join(
+        f"{status}:{count}:{max_id}:{last_seen}"
+        for status, count, max_id, last_seen in sorted(rows, key=lambda r: r[0] or "")
+    )
+    return f"{buckets}|{last_price}"
+
+
 @app.get("/api/scrapers/status")
-def scraper_status():
+def scraper_status(db: Session = Depends(get_db)):
     return {
         **scan_state,
         "next_auto_run": scheduler.next_run_time(),
         "paused": bool(load_settings().get("scanning_paused")),
+        "data_version": _properties_version(db),
     }
 
 
