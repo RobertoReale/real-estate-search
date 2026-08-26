@@ -14,6 +14,8 @@ rather than trusting that npm exited 0.
 Run it directly to build and check:  python scripts/build_release.py
 """
 
+import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,6 +23,9 @@ import build_frontend
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "frontend" / "dist"
+PACKAGING = ROOT / "packaging"
+BUILD_DIR = ROOT / "build"
+PACKAGE_OUT = ROOT / "dist" / "RealEstateSearch"
 
 # What a servable build contains. `assets/` holds the hashed JS and CSS bundles;
 # the manifest and the two icons are what makes the dashboard installable as an
@@ -62,5 +67,72 @@ def build_frontend_payload() -> int:
     return 0
 
 
+def write_app_icon() -> Path:
+    """Derives the Windows .ico from the PWA icon the dashboard already ships.
+
+    Generated rather than committed so the two cannot drift into being
+    different logos, and so there is no binary in the tree whose source nobody
+    remembers.
+    """
+    from PIL import Image
+
+    source = ROOT / "frontend" / "public" / "icon-512.png"
+    target = PACKAGING / "app.ico"
+    # Windows picks the size it needs per context (tray, taskbar, Explorer); an
+    # .ico carrying only 512px is downscaled badly in the 16px tray slot.
+    Image.open(source).save(target, sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])
+    return target
+
+
+def build_windows_package() -> int:
+    """Freezes the app into `dist/RealEstateSearch` with PyInstaller."""
+    if build_frontend_payload() != 0:
+        return 1
+
+    try:
+        write_app_icon()
+    except (OSError, ImportError) as exc:
+        print(f"[ERROR] Could not build the app icon: {exc}", file=sys.stderr)
+        return 1
+
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "PyInstaller",
+            "--noconfirm",
+            "--distpath", str(ROOT / "dist"),
+            "--workpath", str(BUILD_DIR),
+            str(PACKAGING / "realestatesearch.spec"),
+        ],
+        cwd=ROOT,
+    )
+    if result.returncode != 0:
+        print(
+            "[ERROR] PyInstaller failed. Install the packaging toolchain first:\n"
+            "        backend\\.venv\\Scripts\\python -m pip install -r "
+            "backend\\requirements-package.txt",
+            file=sys.stderr,
+        )
+        return 1
+
+    exe = PACKAGE_OUT / "RealEstateSearch.exe"
+    if not exe.is_file():
+        print(f"[ERROR] The build reported success but {exe} is missing.", file=sys.stderr)
+        return 1
+
+    print(f"[RELEASE] Windows package ready: {PACKAGE_OUT}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--package",
+        action="store_true",
+        help="also freeze the Windows package (needs requirements-package.txt)",
+    )
+    args = parser.parse_args(argv)
+    return build_windows_package() if args.package else build_frontend_payload()
+
+
 if __name__ == "__main__":
-    raise SystemExit(build_frontend_payload())
+    raise SystemExit(main())

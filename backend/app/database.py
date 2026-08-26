@@ -2,17 +2,20 @@
 
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from .config import DB_PATH
+from .config import BASE_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
-ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
-ALEMBIC_DIR = Path(__file__).resolve().parent.parent / "alembic"
+# Migration scripts are code, so they follow BASE_DIR (the bundle when packaged,
+# `backend/` from a checkout) rather than the data directory the database lives
+# in. Packaging must copy both of these in, or every install would run with an
+# un-upgraded schema and the fail-open Alembic step would say so only in the log.
+ALEMBIC_INI = BASE_DIR / "alembic.ini"
+ALEMBIC_DIR = BASE_DIR / "alembic"
 
 
 def _sqlite_pragmas(dbapi_conn, _record):

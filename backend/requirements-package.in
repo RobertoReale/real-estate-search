@@ -1,0 +1,27 @@
+# The Windows package toolchain — a third manifest, and it earns its keep.
+#
+# `requirements.in` is the product (and what the Raspberry Pi installs);
+# `requirements-dev.in` is the workbench (and what CI installs to run the
+# gates). Neither is the right home for what follows:
+#
+# - pystray and pillow are RUNTIME dependencies, but only of the frozen Windows
+#   app. Putting them in requirements.in would build pillow on every Pi for a
+#   tray icon that machine has no desktop to draw.
+# - pyinstaller is BUILD tooling, but only for the release. Putting it in
+#   requirements-dev.in would make every CI test run install it to do nothing.
+#
+# Install it only when building a package:
+#   .venv\Scripts\python -m pip install -r requirements-package.txt
+
+-r requirements.in
+
+# System-tray icon for the packaged app: it owns the process lifecycle, so
+# there is no terminal window to keep open and no terminal window to close by
+# accident. pillow is pystray's image backend, used to load the icon.
+pystray>=0.19
+pillow>=10.0
+
+# One-folder bundle. Not one-file: one-file unpacks to a temp directory on every
+# launch, which is slow for a ~40 MB app and, more importantly, is the exact
+# behaviour that makes an on-disk database dangerous to resolve against the code.
+pyinstaller>=6.10

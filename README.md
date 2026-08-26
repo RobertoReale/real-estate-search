@@ -50,7 +50,31 @@ All Windows-only helpers (service install/uninstall, restart, stop, hidden
 autostart) live in `scripts\windows\` — see [Remote Access & Running in the
 Background](docs/remote-access.md).
 
-### Linux / Raspberry Pi
+### Windows, without installing anything
+If you would rather not install Python and Node at all, use the packaged app:
+unpack the release folder and double-click **`RealEstateSearch.exe`**. It runs
+in the notification area — right-click the icon for **Open dashboard**, **Open
+data folder** and **Quit** — with no terminal window to keep open.
+
+Your data does *not* live next to the program. It goes in
+`%LOCALAPPDATA%\RealEstateSearch\` (the **Open data folder** menu item goes
+straight there), because a program installed under `C:\Program Files` cannot
+write to its own folder. **Moving an existing database across:** put your old
+`case.db` — and `settings.json`, if you want your Telegram token and DataDome
+cookie to come with it — in the same folder as `RealEstateSearch.exe` before
+the first launch. It is copied into the data folder on startup, price history
+included. Set `APP_DATA_DIR` if you want to choose the location yourself.
+
+### Docker (NAS, Raspberry Pi)
+```bash
+docker compose -f packaging/docker-compose.yml up -d
+```
+Builds for x86-64 and ARM64, keeps `case.db` and `settings.json` on a volume
+(`packaging/data/`), and restarts with the machine. The port is published to
+**loopback only** — the API is unauthenticated by default (see
+[Remote Access](docs/remote-access.md) before widening it).
+
+### Linux / Raspberry Pi (from source)
 Open a terminal inside the project directory and run:
 ```bash
 chmod +x scripts/linux/start.sh
@@ -107,7 +131,7 @@ a shortlist against the portals on demand.
 ---
 
 ## Background Operations & Caching
-* **Data Persistence**: All settings, search profiles, listings, price history, and hidden statuses are saved locally in a database file (`backend/case.db`). You can close the app or shut down your PC at any time without losing any progress or history.
+* **Data Persistence**: All settings, search profiles, listings, price history, and hidden statuses are saved locally in a database file. Running from source that is `backend/case.db`; in the packaged app it is `%LOCALAPPDATA%\RealEstateSearch\case.db`, and under Docker it is the `/data` volume — in every case outside the program's own folder, so updating or reinstalling never touches it. You can close the app or shut down your PC at any time without losing any progress or history.
 * **Always-on Scanning**: background scans, price-trend snapshots, and alerts run only while the app is running. With `start.bat`/`serve.bat` that means keeping the terminal window open (minimized). To run it silently with no window, see [Running it 24/7 on Windows](docs/remote-access.md#running-it-247-on-windows-no-window-to-keep-open).
 * **Restart from the dashboard**: after updating the app, press **Settings → 🔄 Restart backend** instead of hunting for the terminal window. The dashboard goes offline for a few seconds and reloads itself. `start.bat` and `serve.bat` both serve a pre-built dashboard, so this applies a backend change — if the frontend itself changed, re-run the script and it rebuilds. With `dev.bat` the auto-reloader usually picks a code change up on its own.
 * **Pause automatic scans**: **Settings → Automatic scan → Pause automatic scans** stops the scheduled scans from touching the portals — handy for resting the connection while you are away, without deactivating every search one by one. The top bar shows *⏸ Automatic scans paused* while it is on, and **Start Scan Now** still works on demand (an explicit request bypasses the pause). To silence a single search instead, untick it in the search list.
