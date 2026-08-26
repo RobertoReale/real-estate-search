@@ -163,6 +163,7 @@ def adopt_existing_data(
 
     return None
 
+
 DEFAULT_EXCLUDED_KEYWORDS = [
     "nuda proprietà",
     "nuda proprieta",
