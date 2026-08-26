@@ -97,12 +97,18 @@ def get_db():
 def _apply_additive_migrations() -> set[str]:
     """Adds columns that exist in the models but not in the on-disk DB.
 
-    There is no Alembic in this project: create_all only creates *missing
-    tables*, so adding a column to a model would silently break every query
-    against an existing case.db. Deleting the DB is not acceptable either —
-    price history would be lost. Additive ALTER TABLE covers the only schema
-    change made so far (new nullable/defaulted columns); anything more
-    invasive is the trigger for finally introducing Alembic.
+    This runs *before* Alembic (see `_run_migrations` below), and the two divide
+    the work rather than competing. `create_all` only creates missing **tables**,
+    so adding a column to a model would otherwise silently break every query
+    against an existing case.db — and deleting the database is not an option,
+    since months of price history live there and no re-scan can rebuild them.
+
+    Additive ALTER TABLE covers the common case completely: a new nullable or
+    defaulted column needs no migration and never will, which keeps the ordinary
+    "add a field to a model" change a one-line edit. Alembic's job starts where
+    this cannot follow — a rename, a drop, a type change — so by the time it
+    runs, every current table and column already exists and it only has to apply
+    what was authored deliberately.
 
     Returns the set of "table.column" names newly created, so callers can run
     a one-time backfill exactly when a column first appears (never again).

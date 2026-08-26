@@ -178,6 +178,19 @@ uv pip compile requirements.in --universal --python-version 3.11 --generate-hash
 uv pip compile requirements-dev.in --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
 ```
 
+The frontend is locked the same way by `frontend/package-lock.json`. Install it
+with **`npm ci`, never `npm install`**: `ci` installs exactly what the lock pins
+and fails loudly if the lock and `package.json` disagree, where `install`
+quietly rewrites the lock and gives that machine a different toolchain. The
+start scripts and CI both use `npm ci`, so the only time `npm install` is right
+is when you are deliberately adding or upgrading a dependency — and then the
+rewritten lock is part of the change and gets committed with it.
+
+```bash
+cd frontend
+npm ci
+```
+
 ### Optional developer tooling
 
 Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,
