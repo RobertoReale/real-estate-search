@@ -9,7 +9,8 @@ behavior.
 
 from app import config
 from app.scrapers import base
-from app.scrapers.base import BaseScraper, BlockedError, ProxyPool
+from app.scrapers.base import BaseScraper
+from app.scrapers.transport import BlockedError, ProxyPool
 
 
 def _settings(**overrides) -> dict:

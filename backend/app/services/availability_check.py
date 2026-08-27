@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..config import load_settings
 from ..models import Property
-from ..scrapers.base import AdProbe
+from ..scrapers.probe import AdProbe
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)

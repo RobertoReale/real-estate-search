@@ -139,7 +139,7 @@ def test_ensure_browsers_path_and_find_chromium(monkeypatch, tmp_path):
 
 def test_update_settings_preserves_harvester_flag(monkeypatch):
     from app import schemas
-    from app.main import get_settings, update_settings
+    from app.routers.settings import get_settings, update_settings
 
     monkeypatch.setattr(ch, "is_available", lambda: True)
 

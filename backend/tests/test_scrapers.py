@@ -3,17 +3,12 @@ the parser must dynamically choose JSON-LD -> embedded -> heuristic."""
 
 import json
 
-from app.scrapers.base import (
-    AdProbe,
-    BaseScraper,
-    parse_price,
-    parse_rooms,
-    parse_sqm,
-    resolve_impersonations,
-    supported_impersonations,
-)
+from app.scrapers.base import BaseScraper
 from app.scrapers.idealista import IdealistaScraper
 from app.scrapers.immobiliare import ImmobiliareScraper
+from app.scrapers.parsing import parse_price, parse_rooms, parse_sqm
+from app.scrapers.probe import AdProbe
+from app.scrapers.transport import resolve_impersonations, supported_impersonations
 
 # --- Simulated Pages ---
 
@@ -156,7 +151,7 @@ def test_empty_search_is_an_answer_not_a_failure():
     "Error", and the health streak (invariant 11) counted it towards alerting
     about a scraper that was working perfectly.
     """
-    from app.scrapers.base import text_says_no_results
+    from app.scrapers.page_text import text_says_no_results
 
     assert text_says_no_results(IDEALISTA_NO_RESULTS) is True
     assert text_says_no_results(IMMOBILIARE_NO_RESULTS) is True
@@ -167,7 +162,7 @@ def test_a_real_markup_change_still_raises_the_alarm():
     rewriting its markup would go unnoticed and the searches would quietly
     return nothing forever. Only the portal's own words may excuse an empty
     parse — a page that says nothing must still be an error."""
-    from app.scrapers.base import text_says_no_results
+    from app.scrapers.page_text import text_says_no_results
 
     assert text_says_no_results("<html><body>Case in vendita</body></html>") is False
     assert text_says_no_results("") is False
@@ -178,7 +173,7 @@ def test_no_results_message_hidden_in_scripts_does_not_count():
     the portals ship their i18n dictionaries inside the page's JSON, so a raw
     substring scan would call a page full of listings "empty" and silence the
     markup-change alarm on every scan."""
-    from app.scrapers.base import text_says_no_results
+    from app.scrapers.page_text import text_says_no_results
 
     html = (
         '<html><body><script>var i18n = {"empty": "non ci sono annunci '
@@ -1010,7 +1005,7 @@ def test_detect_contract_reads_idcontratto_on_polygon_urls():
     "affitto"/"vendita" path segment, so a rental polygon search was tagged
     "sale" — wrong Property.contract (invariant 9) and sale price bounds
     applied to monthly rents."""
-    from app.scrapers.base import detect_contract
+    from app.scrapers.parsing import detect_contract
 
     assert (
         detect_contract("https://www.immobiliare.it/search-list/?idContratto=2&idCategoria=1")

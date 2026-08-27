@@ -15,7 +15,8 @@ from app import config
 from app.database import Base
 from app.models import ScraperHealthSnapshot, SearchProfile
 from app.scrapers import transport_policy
-from app.scrapers.base import BaseScraper, BlockedError
+from app.scrapers.base import BaseScraper
+from app.scrapers.transport import BlockedError
 from app.services import scraper_health
 
 
@@ -84,7 +85,7 @@ class _AlwaysBlocked(BaseScraper):
         return "<html>solved</html>"
 
     def _fetch_once(self, url: str) -> str:
-        from app.scrapers.base import scrape_api_config
+        from app.scrapers.transport import scrape_api_config
 
         provider, key = scrape_api_config()
         if key and self.use_scrape_api:

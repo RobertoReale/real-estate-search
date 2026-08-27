@@ -14,15 +14,15 @@ from sqlalchemy.orm import sessionmaker
 
 from app import schemas
 from app.database import Base
-from app.main import (
-    _select_properties,
+from app.models import Property, Tag, property_tags
+from app.routers.properties import (
     bulk_properties,
     create_tag,
     delete_tag,
     list_tags,
     patch_property,
 )
-from app.models import Property, Tag, property_tags
+from app.routers.selection import select_properties
 from app.scrapers.base import RawListing
 from app.services.deduplicator import upsert_listing
 
@@ -42,7 +42,7 @@ def list_properties(*, db, **kw):
     )
     params.update(kw)
     # (page, total): this helper stands in for the grid's property list
-    props, _total = _select_properties(db, **params)
+    props, _total = select_properties(db, **params)
     return props
 
 
@@ -155,7 +155,7 @@ def test_filter_by_tag_name_case_insensitive(db):
 
 
 def test_export_respects_tag_filter(db):
-    from app.main import export_properties
+    from app.routers.properties import export_properties
 
     tagged = _property(db, portal_id="1")
     _property(db, portal_id="2")

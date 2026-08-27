@@ -113,13 +113,28 @@ DataDome inspects the TLS handshake, not just the `User-Agent`. **Measured on bo
 progetto/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py               # FastAPI: REST routes + static frontend mount
+│   │   ├── main.py               # FastAPI app: middleware, router registration order, static frontend mount
 │   │   ├── config.py             # settings.json (Telegram/SMTP, keywords, intervals)
 │   │   ├── database.py           # SQLAlchemy + SQLite (case.db), additive migrations + Alembic
 │   │   ├── models.py             # Property, Listing, PriceHistory, SearchProfile, PricingSnapshot, Tag
 │   │   ├── schemas.py            # Pydantic v2
+│   │   ├── routers/              # the REST surface, one module per group of routes
+│   │   │   ├── properties.py     # grid, one card, curation, tags, export, availability check
+│   │   │   ├── selection.py      # the shared property query behind grid, map and export
+│   │   │   ├── profiles.py       # monitored searches (CRUD + bulk, incl. delete-with-results)
+│   │   │   ├── searches.py       # search URL builder, its reverse parser, NL assistant
+│   │   │   ├── analytics.py      # market velocity + €/sqm trends and their comparables
+│   │   │   ├── scans.py          # manual trigger, dashboard poll, scraper health
+│   │   │   ├── maintenance.py    # opt-in geocoding batch, scoped data resets
+│   │   │   ├── settings.py       # settings read/write, notification tests, browser installers
+│   │   │   └── system.py         # backend restart, log tail
 │   │   ├── scrapers/
-│   │   │   ├── base.py           # BaseScraper, TLS rotation, price/sqm parser, card boundary
+│   │   │   ├── base.py           # BaseScraper: the 3-strategy scrape pipeline
+│   │   │   ├── transport.py      # TLS impersonation, proxy pool, scrape-API provider calls
+│   │   │   ├── parsing.py        # price/sqm/rooms parsers, contract from URL
+│   │   │   ├── page_text.py      # "ad gone" / "no results" / DataDome-wall predicates
+│   │   │   ├── html_cards.py     # card boundary (no CSS classes) + JSON-LD blocks
+│   │   │   ├── probe.py          # AdProbe: "is this ad still online?", fails open
 │   │   │   ├── immobiliare.py    # 4 strategies, including internal API
 │   │   │   └── idealista.py      # Safari impersonation + heuristic parsing
 │   │   └── services/
@@ -157,10 +172,15 @@ progetto/
 │       │                         # PropertyCard, PropertyModal, SettingsModal, TagPicker,
 │       │                         # MapView, MarketVelocity, Calculators,
 │       │                         # ErrorBoundary
-│       │   └── settings/         # one file per settings section (Telegram, Email,
-│       │                         # Scanning, Match, Assistant, Scraping, System),
-│       │                         # each owning its own fields; SettingsModal is
-│       │                         # the shell that loads, saves and composes them
+│       │   ├── settings/         # one file per settings section (Telegram, Email,
+│       │   │                     # Scanning, Match, Assistant, Scraping, System),
+│       │   │                     # each owning its own fields; SettingsModal is
+│       │   │                     # the shell that loads, saves and composes them
+│       │   └── searchProfiles/   # one file per mode/section of the search panel
+│       │                         # (AssistantPanel, MultiPanel, UrlForm,
+│       │                         # BuilderForm, BulkToolbar, ProfileList,
+│       │                         # DeleteDialog) + its constants and helpers
+│       ├── hooks/useSearchProfiles.ts  # the search panel's state machine and mutations
 │       ├── services/api.ts
 │       └── types/index.ts
 ├── packaging/                    # tray_app.py (frozen entry point), the PyInstaller

@@ -9,7 +9,7 @@ Real engine launches stay in the documented untestable-network bucket, like
 the Camoufox path.
 """
 
-from app.scrapers.base import AdProbe
+from app.scrapers.probe import AdProbe
 from app.services import cookie_harvester
 
 

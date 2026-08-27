@@ -26,14 +26,10 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
-from .base import (
-    BaseScraper,
-    BlockedError,
-    RawListing,
-    ScrapeResult,
+from .base import BaseScraper, RawListing, ScrapeResult
+from .html_cards import extract_json_ld_blocks, find_card_container
+from .parsing import (
     detect_contract,
-    extract_json_ld_blocks,
-    find_card_container,
     parse_price,
     parse_rooms,
     parse_sqm,
@@ -41,6 +37,7 @@ from .base import (
     to_float,
     to_int,
 )
+from .transport import BlockedError
 
 logger = logging.getLogger(__name__)
 

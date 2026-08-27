@@ -17,8 +17,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app import schemas
 from app.database import Base
-from app.main import _select_properties, bulk_properties, restore_property
 from app.models import SearchProfile
+from app.routers.properties import bulk_properties, restore_property
+from app.routers.selection import select_properties
 from app.scrapers.base import RawListing
 from app.services.deduplicator import upsert_listing
 
@@ -28,7 +29,7 @@ def list_properties(*, db, **kw):
 
     The real endpoint uses FastAPI `Query(...)` defaults which only resolve
     under a request; called directly they leak Query objects into the SQL, so
-    tests target the shared `_select_properties` helper instead."""
+    tests target the shared `select_properties` helper instead."""
     params: dict[str, Any] = dict(
         status="active",
         contract=None,
@@ -44,7 +45,7 @@ def list_properties(*, db, **kw):
     params.update(kw)
     # (page, total): these tests are about which properties a filter keeps, so
     # they take the page — unbounded, since no limit is passed
-    props, _total = _select_properties(db, **params)
+    props, _total = select_properties(db, **params)
     return props
 
 

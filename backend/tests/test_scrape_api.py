@@ -11,12 +11,12 @@ import base64
 import pytest
 
 from app import config
-from app.scrapers.base import (
+from app.scrapers.immobiliare import ImmobiliareScraper
+from app.scrapers.transport import (
     BlockedError,
     build_scrape_api_request,
     unwrap_scrape_api_response,
 )
-from app.scrapers.immobiliare import ImmobiliareScraper
 
 
 class _ApiResponse:

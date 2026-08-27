@@ -1,5 +1,5 @@
 """Tests for the map's geographic filter: the pure geometry (`geo_filter`) and
-its wiring into `_select_properties` / the endpoint.
+its wiring into `select_properties` / the endpoint.
 
 Offline like everything else: fake in-memory properties, no network. The one
 thing that matters beyond "does the maths work" is the invariant the caveat is
@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.main import _parse_poly_param, _select_properties
+from app.routers.selection import parse_poly_param, select_properties
 from app.scrapers.base import RawListing
 from app.services.deduplicator import upsert_listing
 from app.services.geo_filter import haversine_m, parse_polygon, point_in_polygon
@@ -138,21 +138,21 @@ def test_parse_polygon_empty():
         parse_polygon("")
 
 
-# --- _parse_poly_param (endpoint helper) -----------------------------------
+# --- parse_poly_param (endpoint helper) -----------------------------------
 
 
 def test_parse_poly_param_none_when_absent():
-    assert _parse_poly_param(None) is None
-    assert _parse_poly_param("  ") is None
+    assert parse_poly_param(None) is None
+    assert parse_poly_param("  ") is None
 
 
 def test_parse_poly_param_malformed_raises_400():
     with pytest.raises(HTTPException) as exc:
-        _parse_poly_param("45.1,9.1;45.2,9.2")  # only 2 vertices
+        parse_poly_param("45.1,9.1;45.2,9.2")  # only 2 vertices
     assert exc.value.status_code == 400
 
 
-# --- _select_properties integration ----------------------------------------
+# --- select_properties integration ----------------------------------------
 
 
 @pytest.fixture
@@ -203,7 +203,7 @@ def _select(db, **kw):
     params.update(kw)
     # (page, total): these tests are about which properties the zone keeps, so
     # they take the page — unbounded here, since no limit is passed
-    props, _total = _select_properties(db, **params)
+    props, _total = select_properties(db, **params)
     return props
 
 
@@ -252,7 +252,7 @@ def test_no_geo_params_leaves_set_untouched(db):
 
 def test_radius_takes_precedence_over_polygon(db):
     """Radius and polygon are mutually exclusive; if both arrive, radius wins
-    (matches the `if radius … elif poly` order in `_select_properties`)."""
+    (matches the `if radius … elif poly` order in `select_properties`)."""
     inside = _make(db, "1", 45.4642, 9.1900)
     db.commit()
     # a polygon that would exclude everything, but radius includes the point

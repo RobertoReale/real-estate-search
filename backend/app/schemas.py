@@ -112,7 +112,7 @@ class PropertyOut(BaseModel):
     @field_validator("found_by", mode="before")
     @classmethod
     def _found_by_default(cls, v: object) -> object:
-        # The transient Property.found_by is None until main._annotate_provenance
+        # The transient Property.found_by is None until routers.selection.annotate_provenance
         # runs; from_attributes would then validate None against list[ProfileRef]
         # and fail. Any path that serializes an unannotated property degrades to
         # "no provenance" rather than a 500.
