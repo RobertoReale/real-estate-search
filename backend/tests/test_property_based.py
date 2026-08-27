@@ -13,7 +13,7 @@ import math
 from hypothesis import given
 from hypothesis import strategies as st
 
-from app.scrapers.base import (
+from app.scrapers.parsing import (
     MAX_PRICE,
     MAX_RENT,
     MIN_PRICE,

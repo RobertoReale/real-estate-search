@@ -12,7 +12,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Property
-from app.scrapers.base import RawListing, detect_contract, parse_price
+from app.scrapers.base import RawListing
+from app.scrapers.parsing import detect_contract, parse_price
 from app.services import notifier
 from app.services.deduplicator import upsert_listing
 from app.services.pricing_stats import annotate_market_position, area_comparables

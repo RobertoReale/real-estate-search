@@ -313,7 +313,8 @@ def probe_zone_page(url: str) -> bool | None:
     than it does there — both None and False land on /cerca/, which works — but
     the distinction keeps the caller's log honest about *why* it fell back.
     """
-    from ..scrapers.base import AdProbe, BlockedError  # lazy: scrapers import us
+    from ..scrapers.probe import AdProbe  # lazy: scrapers import us
+    from ..scrapers.transport import BlockedError
 
     probe = AdProbe()
     try:

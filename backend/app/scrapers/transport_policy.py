@@ -36,7 +36,7 @@ class TransportDecision:
 
 
 def _local_label(settings: dict) -> str:
-    from .base import ProxyPool
+    from .transport import ProxyPool
 
     if ProxyPool.configured_proxies(settings):
         return "local (curl_cffi + proxy pool)"

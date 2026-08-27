@@ -257,7 +257,7 @@ def notify_scraper_failure(
 
     try:
         settings = load_settings()
-        from ..scrapers.base import ProxyPool
+        from ..scrapers.transport import ProxyPool
 
         levers = []
         if not ProxyPool.configured_proxies(settings):

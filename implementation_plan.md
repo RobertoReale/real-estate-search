@@ -129,7 +129,12 @@ progetto/
 │   │   │   ├── settings.py       # settings read/write, notification tests, browser installers
 │   │   │   └── system.py         # backend restart, log tail
 │   │   ├── scrapers/
-│   │   │   ├── base.py           # BaseScraper, TLS rotation, price/sqm parser, card boundary
+│   │   │   ├── base.py           # BaseScraper: the 3-strategy scrape pipeline
+│   │   │   ├── transport.py      # TLS impersonation, proxy pool, scrape-API provider calls
+│   │   │   ├── parsing.py        # price/sqm/rooms parsers, contract from URL
+│   │   │   ├── page_text.py      # "ad gone" / "no results" / DataDome-wall predicates
+│   │   │   ├── html_cards.py     # card boundary (no CSS classes) + JSON-LD blocks
+│   │   │   ├── probe.py          # AdProbe: "is this ad still online?", fails open
 │   │   │   ├── immobiliare.py    # 4 strategies, including internal API
 │   │   │   └── idealista.py      # Safari impersonation + heuristic parsing
 │   │   └── services/
