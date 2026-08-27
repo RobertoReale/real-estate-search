@@ -136,7 +136,8 @@ progetto/
 │   │   │   ├── html_cards.py     # card boundary (no CSS classes) + JSON-LD blocks
 │   │   │   ├── probe.py          # AdProbe: "is this ad still online?", fails open
 │   │   │   ├── immobiliare.py    # 4 strategies, including internal API
-│   │   │   └── idealista.py      # Safari impersonation + heuristic parsing
+│   │   │   ├── idealista.py      # Safari impersonation + heuristic parsing
+│   │   │   └── idealista_api.py  # optional: Idealista's official API as a second engine, falls back to the scraper
 │   │   └── services/
 │   │       ├── deduplicator.py   # entity resolution + price history
 │   │       ├── filter_engine.py  # word-boundary keyword filtering
@@ -158,7 +159,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 604 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 636 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -219,12 +220,12 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (604, `pytest`)
+### Automated Tests (636, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
 ```
-Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). `test_offline_sandbox.py` is the one test that substitutes nothing: `tests/mock_portal.py` serves both portals over real HTTP on loopback and captures the notification over real SMTP, so `run_scan` is driven scrape → normalize → deduplicate → notify end to end — the seams every other test has to stub out (the warm-up, the api-next request the scanner actually issues, the card boundary on a real response, the SMTP conversation `notifier` actually holds). Still offline: the servers are bound to `127.0.0.1` and the scrapers' portal URLs are repointed at them. The frontend has its own vitest suite (31 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution), and the settings sections' save payload — the union of what the seven sections contribute, so a field dropped from one of them fails a test instead of silently never persisting.
+Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), Idealista's official API (which searches it declines to serve and why, the OAuth token cache, and every route back to the scraper), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). `test_offline_sandbox.py` is the one test that substitutes nothing: `tests/mock_portal.py` serves both portals over real HTTP on loopback and captures the notification over real SMTP, so `run_scan` is driven scrape → normalize → deduplicate → notify end to end — the seams every other test has to stub out (the warm-up, the api-next request the scanner actually issues, the card boundary on a real response, the SMTP conversation `notifier` actually holds). Still offline: the servers are bound to `127.0.0.1` and the scrapers' portal URLs are repointed at them. The frontend has its own vitest suite (31 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution), and the settings sections' save payload — the union of what the seven sections contribute, so a field dropped from one of them fails a test instead of silently never persisting.
 
 ### Manual Verification
 1. Double click `scripts\windows\start.bat`.
@@ -318,6 +319,15 @@ The original design was absolute: everything local, `query_parser` deterministic
 - **API token.** A single optional bearer token makes a wider bind safe without imposing a login on the loopback default. Empty = unchanged; set = every `/api` request needs it. Relaxes invariant 14 to "bind address **or** token".
 
 The through-line: each is the *option* the original absolutes ruled out, added without making the local/free/offline path anything other than the default.
+
+### 8.15 "An official API replaces the scraper it duplicates" — **False: it complements it**
+Idealista publishes a Search API, and swapping a scraped portal for its own API reads like pure subtraction: no DataDome, no TLS ladder, no cookie, no browser. Two things turn that replacement into a complement.
+
+**A monitored search is a URL, and the URL's filters are the search.** The API takes structured parameters, so serving a search means translating its filters — and the project's standing rule is that a portal's filter tokens are *measured against real result totals, never inferred* (§8.12 is what happens when one is inferred). The rule cannot be followed here at all: keys are issued by hand after a human reviews a project description, so nothing can be measured without one. The sharpest case is rooms. This codebase counts Italian **locali** throughout — `IDEALISTA_ROOMS` maps 3 to `trilocali-3`, and the assistant's own prompt states that a 2-bedroom flat is 3 locali — while the API filters on `bedrooms`. "locali − 1" is arithmetic, not a measurement, and getting it wrong returns a plausible page of the wrong flats: exactly §8.12's failure shape, silent and in the direction that drops listings. So the engine declines any search carrying a filter it cannot express (a zone, a room count, a feature, a floor band, a condition) and the scraper takes it. Declining is visible in the log; guessing is not.
+
+**Its own location grammar widens the search.** Without Idealista's internal `locationId` — not derivable offline — the location travels as `center` + `distance`, which is a circle: a Milano search reaches into Sesto San Giovanni, which the equivalent portal page never does. The API's own `municipality` field narrows it back, and the bundled comuni gazetteer supplies both the centre and the radius, so the area searched and the area a map pin is believed in are one definition rather than two.
+
+The remaining unknown is deliberate and documented rather than assumed away: **the request ceiling is agreed per key and published nowhere**, which is why the engine spends one request per profile scan by default instead of inheriting `max_pages_per_search`'s ten, and why the OAuth token is cached process-wide. An engine that cannot know its budget spends as little as it can.
 
 ---
 

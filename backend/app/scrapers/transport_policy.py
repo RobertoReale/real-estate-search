@@ -68,6 +68,12 @@ def decide(consecutive_failures: int, settings: dict) -> TransportDecision:
 def transport_used(scraper, settings: dict) -> str:
     """Label of the transport a scraper actually ended up on, for the health
     snapshot ("started local, finished on the API" must be visible)."""
+    # Checked first because it is the one path that met no anti-bot at all: a
+    # scan Idealista answered itself never touched curl_cffi, a proxy or a
+    # provider, and labelling it "local" would credit the block-rate trend to a
+    # transport that did no work (scrapers/idealista_api.py).
+    if getattr(scraper, "used_official_api", False):
+        return "idealista official API"
     key = (settings.get("scrape_api_key") or "").strip()
     if key and getattr(scraper, "use_scrape_api", True):
         return "managed scrape API"

@@ -167,9 +167,12 @@ blocks a scan instead of returning listings — expected, not a bug: a blocked
 profile is retried on the next scan, and you're alerted only after several
 failures in a row. The most effective fix is handing the scraper a real
 browser's `datadome` cookie, which the app can grab for you automatically; a
-proxy pool or a paid scraping API are further options for a stubborn block. See
-[Keeping Scans Unblocked](docs/datadome.md) for all the levers, from most to
-least automatic.
+proxy pool or a paid scraping API are further options for a stubborn block. For
+Idealista there is also an **official API** — if you are granted a key, searches
+on that portal ask the portal for its own data instead of reading its pages, so
+there is nothing left to block (searches it cannot express exactly keep using
+the scraper). See [Keeping Scans Unblocked](docs/datadome.md) for all the
+levers, from most to least automatic.
 
 ## Technical Architecture
 

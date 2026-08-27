@@ -460,6 +460,16 @@ export const en = {
   "settings.proxyPool": "Proxy pool (optional, one URL per line)",
   "settings.proxyPoolNote":
     "With more than one proxy, a blocked exit IP is rested for a while and the next attempt leaves through a different one — one burned address no longer takes every scan down with it.",
+  "settings.idealistaApiTitle": "🔑 Idealista official API",
+  "settings.idealistaApiNote":
+    "Optional, and the only option here that is not a workaround: with a key and secret, Idealista searches ask the portal for its own data instead of reading its pages, so nothing can block them. Keys are issued by hand after you describe your project at",
+  "settings.idealistaKeySaved": "Key already saved (leave empty to keep)",
+  "settings.idealistaKeyPlaceholder": "API key",
+  "settings.idealistaSecretSaved": "Secret already saved (leave empty to keep)",
+  "settings.idealistaSecretPlaceholder": "API secret",
+  "settings.idealistaMaxPages": "Requests per search, per scan",
+  "settings.idealistaMaxPagesNote":
+    "Each one returns up to 50 listings and counts against the monthly quota agreed for your key — so the default is a single request. Raise it once you know your own limit. Searches the API cannot express exactly (a neighbourhood, a room count, a feature filter) keep using the normal scraper, and so does anything the API refuses.",
   "settings.scrapeApiTitle": "🌐 Scraping API (solves DataDome for you)",
   "settings.scrapeApiNote":
     "Optional. With a provider key set, scans route each portal page through the provider — which returns the already-solved HTML — so blocks stop hitting your home IP. Free tiers (~1,000 calls/month) can cover a small personal scanner. Leave empty to keep the local (free, offline) path.",

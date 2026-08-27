@@ -199,6 +199,16 @@ export interface Settings {
   // "always" = a set key routes every fetch through the provider
   scrape_api_mode?: string;
   transport_escalate_after_failures?: number;
+  // Idealista's official Search API: both halves set = a second engine that
+  // asks the portal for its own data, falling back to the scraper for any
+  // search it cannot express faithfully
+  idealista_api_key?: string;
+  idealista_api_key_set?: boolean;
+  idealista_api_secret?: string;
+  idealista_api_secret_set?: boolean;
+  // search requests one profile scan may spend on it; the per-key ceiling is
+  // agreed when the key is issued and published nowhere, hence a default of 1
+  idealista_api_max_pages?: number;
   repair_agency_prefixes?: string[];
   datadome_cookie: string;
   datadome_cookie_set?: boolean;
