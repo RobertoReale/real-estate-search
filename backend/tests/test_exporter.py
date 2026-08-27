@@ -116,7 +116,7 @@ def db():
 
 
 def test_export_endpoint_sets_attachment_headers(db):
-    from app.main import export_properties
+    from app.routers.properties import export_properties
 
     p = Property(
         fingerprint="f",

@@ -14,11 +14,31 @@ from fastapi.routing import Mount
 from app import main as app_main
 
 
+def _registration_order() -> list[tuple[int, object]]:
+    """The app's routes in the order Starlette will try to match them, paired
+    with their position in the top-level table.
+
+    `include_router` does not flatten its routes into `app.router.routes`: the
+    app holds one opaque entry per included router and matching descends into
+    it. Walking only the top level therefore finds *no* `/api` path at all —
+    which would quietly turn the assertion below into a tautology over an empty
+    list, exactly the silent pass this file exists to prevent. `original_router`
+    is the way back in; a route that has none is already a leaf (the openapi
+    routes, the mount), and older FastAPI layouts that did flatten still work.
+    """
+    ordered: list[tuple[int, object]] = []
+    for i, route in enumerate(app_main.app.router.routes):
+        included = getattr(route, "original_router", None)
+        if included is None:
+            ordered.append((i, route))
+        else:
+            ordered.extend((i, sub) for sub in included.routes)
+    return ordered
+
+
 def _mount_indexes() -> list[int]:
     return [
-        i
-        for i, route in enumerate(app_main.app.router.routes)
-        if isinstance(route, Mount) and route.path == ""
+        i for i, route in _registration_order() if isinstance(route, Mount) and route.path == ""
     ]
     # Starlette normalises a mount at "/" to an empty path prefix.
 
@@ -34,14 +54,12 @@ def test_static_mount_never_shadows_the_api():
         return
 
     api_indexes = [
-        i
-        for i, route in enumerate(app_main.app.router.routes)
-        if getattr(route, "path", "").startswith("/api")
+        i for i, route in _registration_order() if getattr(route, "path", "").startswith("/api")
     ]
     assert api_indexes, "no /api routes found: the app layout changed"
     assert max(api_indexes) < min(mounts), (
         "the static frontend mount precedes an /api route and will shadow it; "
-        "the mount must stay the last statement in main.py"
+        "the mount must stay the last `include_router`/statement in main.py"
     )
 
 
@@ -56,7 +74,7 @@ def test_literal_get_routes_precede_their_dynamic_sibling():
     never advanced, and the check looked stuck even while it worked."""
     get_paths = [
         path
-        for route in app_main.app.router.routes
+        for _i, route in _registration_order()
         if "GET" in getattr(route, "methods", ())
         and (path := getattr(route, "path", "")).startswith("/api/properties")
     ]

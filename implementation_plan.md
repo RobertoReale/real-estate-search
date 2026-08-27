@@ -113,11 +113,21 @@ DataDome inspects the TLS handshake, not just the `User-Agent`. **Measured on bo
 progetto/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py               # FastAPI: REST routes + static frontend mount
+│   │   ├── main.py               # FastAPI app: middleware, router registration order, static frontend mount
 │   │   ├── config.py             # settings.json (Telegram/SMTP, keywords, intervals)
 │   │   ├── database.py           # SQLAlchemy + SQLite (case.db), additive migrations + Alembic
 │   │   ├── models.py             # Property, Listing, PriceHistory, SearchProfile, PricingSnapshot, Tag
 │   │   ├── schemas.py            # Pydantic v2
+│   │   ├── routers/              # the REST surface, one module per group of routes
+│   │   │   ├── properties.py     # grid, one card, curation, tags, export, availability check
+│   │   │   ├── selection.py      # the shared property query behind grid, map and export
+│   │   │   ├── profiles.py       # monitored searches (CRUD + bulk, incl. delete-with-results)
+│   │   │   ├── searches.py       # search URL builder, its reverse parser, NL assistant
+│   │   │   ├── analytics.py      # market velocity + €/sqm trends and their comparables
+│   │   │   ├── scans.py          # manual trigger, dashboard poll, scraper health
+│   │   │   ├── maintenance.py    # opt-in geocoding batch, scoped data resets
+│   │   │   ├── settings.py       # settings read/write, notification tests, browser installers
+│   │   │   └── system.py         # backend restart, log tail
 │   │   ├── scrapers/
 │   │   │   ├── base.py           # BaseScraper, TLS rotation, price/sqm parser, card boundary
 │   │   │   ├── immobiliare.py    # 4 strategies, including internal API

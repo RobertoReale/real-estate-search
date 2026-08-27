@@ -93,11 +93,11 @@ def test_sale_and_rent_of_same_house_are_not_merged(db):
 
 def test_provenance_annotates_the_searches_that_found_a_property(db):
     """The card must show which monitored searches found a property. The links
-    live in ListingProfile (invariant 20); _annotate_provenance reads them, and
+    live in ListingProfile (invariant 20); annotate_provenance reads them, and
     an ad found by two overlapping searches must list both — once each."""
     from app import schemas
-    from app.main import _annotate_provenance
     from app.models import SearchProfile
+    from app.routers.selection import annotate_provenance
 
     prof1 = SearchProfile(
         name="Milano trilocali",
@@ -118,7 +118,7 @@ def test_provenance_annotates_the_searches_that_found_a_property(db):
     upsert_listing(db, _raw(), profile_id=prof2.id)
     db.refresh(prop)
 
-    _annotate_provenance(db, [prop])
+    annotate_provenance(db, [prop])
     assert prop.found_by is not None
     assert {s["name"] for s in prop.found_by} == {"Milano trilocali", "Milano Navigli"}
 
@@ -131,13 +131,13 @@ def test_provenance_empty_and_unannotated_property_serializes(db):
     unannotated property (transient found_by still None) must serialize to [],
     not raise — the validator guards every PropertyOut path."""
     from app import schemas
-    from app.main import _annotate_provenance
+    from app.routers.selection import annotate_provenance
 
     prop, _, _ = upsert_listing(db, _raw(), source="email")
     # unannotated: PropertyOut.found_by validator must coerce None -> []
     assert schemas.PropertyOut.model_validate(prop).found_by == []
     # annotated with no links: still []
-    _annotate_provenance(db, [prop])
+    annotate_provenance(db, [prop])
     assert prop.found_by == []
     assert schemas.PropertyOut.model_validate(prop).found_by == []
 
@@ -461,7 +461,7 @@ def test_missing_columns_are_added_to_existing_db(tmp_path, monkeypatch):
 
 def test_search_builder_parse_endpoint():
     from app import schemas
-    from app.main import search_builder_parse
+    from app.routers.searches import search_builder_parse
 
     url = build_immobiliare_url(city="Milano", max_price=400_000, min_rooms=2)
     out = search_builder_parse(schemas.UrlIn(url=url))
@@ -473,7 +473,7 @@ def test_search_builder_parse_endpoint():
 
 def test_profile_out_includes_computed_params(db):
     from app import schemas
-    from app.main import create_profile
+    from app.routers.profiles import create_profile
 
     url = build_idealista_url(city="Milano", province="Milano", min_rooms=3, max_price=350_000)
     in_data = schemas.SearchProfileIn(name="Milan 3 rooms", search_url=url)
@@ -492,7 +492,7 @@ def test_patch_property_updates_favorite_and_notes(db):
     # the endpoint function is called directly: spinning up TestClient would
     # also start the real scheduler via the app lifespan
     from app import schemas
-    from app.main import patch_property
+    from app.routers.properties import patch_property
 
     prop = _prop()
     db.add(prop)
@@ -794,7 +794,7 @@ def test_search_builder_endpoint_forwards_verify_to_the_probe():
     TestClient, which would start the real scheduler via the app lifespan.
     """
     from app import schemas
-    from app.main import search_builder as endpoint
+    from app.routers.searches import search_builder as endpoint
     from app.services import search_builder as sb
 
     asked: list[str] = []
@@ -970,14 +970,16 @@ def test_properties_status_param_rejects_typos():
     empty list — indistinguishable from "no matches", the same silent-failure
     shape as invariant 7. The route is inspected instead of spun up: TestClient
     would need httpx and would start the real scheduler via the app lifespan.
+    Read off the router that declares it rather than off the app, which keeps
+    its included routers opaque rather than flattened.
     """
     from fastapi.routing import APIRoute
 
-    from app.main import app
+    from app.routers.properties import router
 
     route = next(
         r
-        for r in app.router.routes
+        for r in router.routes
         if isinstance(r, APIRoute) and r.path == "/api/properties" and "GET" in (r.methods or set())
     )
     status_param = next(p for p in route.dependant.query_params if p.name == "status")
@@ -1022,8 +1024,8 @@ def test_updating_a_profile_url_rearms_the_baseline(db):
     from datetime import datetime
 
     from app import schemas
-    from app.main import update_profile
     from app.models import SearchProfile
+    from app.routers.profiles import update_profile
 
     profile = SearchProfile(
         name="Test",

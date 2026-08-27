@@ -130,7 +130,7 @@ class Property(Base):
     target_price_high: float | None = None
     # Which monitored searches have found this property (via its listings'
     # ListingProfile links): a list of {"id", "name"} dicts, set request-scoped
-    # by main._annotate_provenance and read by PropertyOut.found_by. Transient
+    # by routers.selection.annotate_provenance and read by PropertyOut.found_by. Transient
     # like the annotations above — provenance lives in ListingProfile, this is
     # just the per-request read of it for the card/modal. None = not annotated.
     found_by: list[dict] | None = None

@@ -178,7 +178,7 @@ def test_concurrent_run_raises_geocoder_error(db):
 
 
 def test_geocode_endpoints_directly(db, monkeypatch):
-    from app.main import (
+    from app.routers.maintenance import (
         geocode_cancel_endpoint,
         geocode_missing_endpoint,
         geocode_progress_endpoint,
@@ -266,7 +266,7 @@ def test_clear_geocode_cache_drops_only_misses_by_default(db):
 
 
 def test_geocode_clear_cache_endpoint(db):
-    from app.main import geocode_clear_cache_endpoint
+    from app.routers.maintenance import geocode_clear_cache_endpoint
 
     db.add(GeocodeCache(query="via bad, milano, italia", latitude=None, longitude=None))
     db.commit()
@@ -291,7 +291,7 @@ def test_geocode_property_stops_and_fails_open_on_a_block(db, monkeypatch):
 
 
 def test_geocode_single_property_endpoint(db, monkeypatch):
-    from app.main import geocode_single_property
+    from app.routers.properties import geocode_single_property
 
     prop = _prop(address="Via Dante 5")
     db.add(prop)
@@ -303,7 +303,7 @@ def test_geocode_single_property_endpoint(db, monkeypatch):
 
 
 def test_geocode_single_property_endpoint_already_located_skips_network(db, monkeypatch):
-    from app.main import geocode_single_property
+    from app.routers.properties import geocode_single_property
 
     prop = _prop(address="Via Dante 5", latitude=45.46, longitude=9.19)
     db.add(prop)

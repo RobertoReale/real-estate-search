@@ -5,8 +5,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app import schemas
 from app.database import Base
-from app.main import create_profile, update_profile
 from app.models import SearchProfile
+from app.routers.profiles import create_profile, update_profile
 from app.services.search_validator import (
     check_duplicate_profile,
     deduplicate_search_profiles,

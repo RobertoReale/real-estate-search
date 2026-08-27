@@ -6,7 +6,7 @@ restart body."""
 import pytest
 from fastapi import HTTPException
 
-from app import main
+from app.routers import system
 
 
 class _FakeThread:
@@ -26,28 +26,28 @@ class _FakeThread:
 @pytest.fixture(autouse=True)
 def _stub_thread(monkeypatch):
     _FakeThread.instances = []
-    monkeypatch.setattr(main.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(system.threading, "Thread", _FakeThread)
 
 
 def test_refused_while_a_scan_is_running(monkeypatch):
-    monkeypatch.setitem(main.scan_state, "running", True)
+    monkeypatch.setitem(system.scan_state, "running", True)
     with pytest.raises(HTTPException) as e:
-        main.system_restart()
+        system.system_restart()
     assert e.value.status_code == 409
     assert not _FakeThread.instances  # nothing scheduled
 
 
 def test_reload_mode_touches_instead_of_reexec(monkeypatch):
-    monkeypatch.setitem(main.scan_state, "running", False)
+    monkeypatch.setitem(system.scan_state, "running", False)
     monkeypatch.setenv("APP_RELOAD", "1")
-    res = main.system_restart()
+    res = system.system_restart()
     assert res == {"ok": True, "reload": True}
     assert _FakeThread.instances[0].started is True
 
 
 def test_no_reload_mode_reports_reexec_path(monkeypatch):
-    monkeypatch.setitem(main.scan_state, "running", False)
+    monkeypatch.setitem(system.scan_state, "running", False)
     monkeypatch.delenv("APP_RELOAD", raising=False)
-    res = main.system_restart()
+    res = system.system_restart()
     assert res == {"ok": True, "reload": False}
     assert _FakeThread.instances[0].started is True

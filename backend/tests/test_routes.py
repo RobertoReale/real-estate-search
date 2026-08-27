@@ -259,7 +259,7 @@ def test_pagination_does_not_disturb_ordering_or_filters(client):
 
 def test_export_ignores_pagination(client):
     """A dossier holds the whole filtered shortlist, never the page the grid
-    happens to be showing — `_select_properties` is shared, the limit is not."""
+    happens to be showing — `select_properties` is shared, the limit is not."""
     api = client
     dossier = api.get("/api/properties/export", params={"fmt": "csv", "status": "all"}).text
     assert "Trilocale Isola" in dossier
@@ -320,7 +320,7 @@ def test_export_formats_render(client, fmt, marker):
 
 def test_export_applies_the_same_filters_as_the_grid(client):
     """The dossier "mirrors the screen" convention: both go through
-    `_select_properties`, so a filter must reach the file too."""
+    `select_properties`, so a filter must reach the file too."""
     api = client
     shown = grid(api, city="milano")
     dossier = api.get("/api/properties/export", params={"fmt": "csv", "city": "milano"}).text
