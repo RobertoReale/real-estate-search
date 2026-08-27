@@ -47,6 +47,11 @@ AD_PATH_RE = re.compile(r"/annunci/(\d+)")
 
 API_LISTINGS = "https://www.immobiliare.it/api-next/search-list/listings/"
 API_GEO = "https://www.immobiliare.it/api-next/geography/autocomplete/"
+# The page the session warms up on, and the Referer the api-next calls carry.
+# Named alongside the two endpoints because it is the same kind of fact — a
+# portal URL this scraper actually *requests*, as opposed to the listing URLs
+# it merely builds for the user to click.
+HOMEPAGE = "https://www.immobiliare.it/"
 
 # types returned by geographical autocomplete
 GEO_NAZIONE, GEO_REGIONE, GEO_PROVINCIA, GEO_COMUNE, GEO_MACROZONA = -1, 0, 1, 2, 3
@@ -75,7 +80,7 @@ class ImmobiliareScraper(BaseScraper):
         if self._warmed:
             return
         try:
-            self.session.get("https://www.immobiliare.it/", allow_redirects=True)
+            self.session.get(HOMEPAGE, allow_redirects=True)
             self._warmed = True
         except Exception:
             logger.warning("immobiliare: unable to warm up session")
@@ -273,7 +278,7 @@ class ImmobiliareScraper(BaseScraper):
         resp = self.session.get(
             API_GEO,
             params={"query": query},
-            headers={"Referer": "https://www.immobiliare.it/"},
+            headers={"Referer": HOMEPAGE},
         )
         if resp.status_code != 200:
             return {}

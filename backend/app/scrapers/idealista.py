@@ -26,6 +26,10 @@ AD_URL_RE = re.compile(r"idealista\.it/immobile/(\d+)")
 # hrefs in search result pages are relative: "/immobile/123/"
 AD_PATH_RE = re.compile(r"/immobile/(\d+)")
 LISTA_RE = re.compile(r"/lista-\d+(?:\.htm)?")
+# The page the session warms up on, named for the same reason as Immobiliare's:
+# it is a portal URL this scraper requests, so it belongs beside the other URL
+# facts rather than buried inside warm_session.
+HOMEPAGE = "https://www.idealista.it/"
 
 
 class IdealistaScraper(BaseScraper):
@@ -44,7 +48,7 @@ class IdealistaScraper(BaseScraper):
         if self._warmed:
             return
         try:
-            self.session.get("https://www.idealista.it/", allow_redirects=True)
+            self.session.get(HOMEPAGE, allow_redirects=True)
             self._warmed = True
         except Exception:
             logger.warning("idealista: unable to warm up session")
