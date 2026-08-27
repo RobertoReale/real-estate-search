@@ -62,6 +62,20 @@
   it. Only the wishes you fill in count, numbers you leave at 0 are ignored, and
   the scoring is entirely local. Sort the grid by **🎯 Best match** to bring your
   closest fits to the top.
+* **Commute times**: a price only answers half the question — "how far is it from
+  work?" is the other half, and no portal filter asks it. Under **Settings → 🚏
+  Commute times**, save the places you actually travel to (work, the university,
+  the nearest metro stop), each with an address and how you would get there (car,
+  on foot, bike). Press **Compute commute times now** and every card gains a line
+  like *🚗 Work 18 min*, with the distance alongside it in the property's detail
+  view. Three things are worth knowing. It only covers listings that already have
+  map coordinates, so run **📍 Find coordinates** first if the map looks sparse.
+  Times are computed once and remembered, so opening the dashboard never waits on
+  the routing server — which also means a newly-found listing shows no commute
+  until you press the button again (it tells you how many are left). And by
+  default the routing goes to OpenStreetMap's free demo server, which only knows
+  the **road** network: "on foot" and "bike" are routed there as if driving, so
+  set your own OSRM server in the same panel if you need true walking times.
 * **Price trends**: a chart of how the median €/sqm has moved over time in each
   area you track. The app records one median per area per day, so the line starts
   after a couple of days of scans and grows more useful the longer it runs. It

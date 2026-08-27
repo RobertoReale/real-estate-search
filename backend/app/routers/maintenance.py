@@ -1,9 +1,9 @@
 """Operations the user runs deliberately from Settings → Data management: the
-opt-in geocoding batch and the scoped data resets.
+opt-in geocoding batch, the opt-in commute batch, and the scoped data resets.
 
-`geocoder` is imported inside each handler, not at module scope, to keep the
-import graph of a normal request free of it — the same lazy pattern the optional
-browser stack uses.
+`geocoder` and `commute` are imported inside each handler, not at module scope,
+to keep the import graph of a normal request free of them — the same lazy
+pattern the optional browser stack uses.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -54,6 +54,51 @@ def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
     from ..services import geocoder
 
     cleared = geocoder.clear_geocode_cache(db, misses_only=True)
+    return {"cleared": cleared}
+
+
+@router.post("/api/maintenance/commutes")
+def compute_commutes_endpoint(db: Session = Depends(get_db)):
+    """Routes every property/saved-place pair that is not cached yet, via OSRM
+    (opt-in, batched, paced, cached). Fails open: a leg that cannot be routed
+    leaves that card with no commute rather than a made-up number.
+
+    Sync `def` like the availability check, and for the same reason (invariant
+    15's surviving rule): a batch over hundreds of pins is minutes of blocking
+    work, so it belongs on the threadpool where `/commute-progress` stays
+    answerable instead of owning the event loop and freezing the progress bar.
+    """
+    from ..services import commute
+
+    try:
+        return commute.compute_missing_commutes(db, max_calls=None)
+    except commute.CommuteError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/api/maintenance/commute-progress")
+def commute_progress_endpoint():
+    from ..services import commute
+
+    return commute.get_commute_progress()
+
+
+@router.post("/api/maintenance/commute-cancel")
+def commute_cancel_endpoint():
+    from ..services import commute
+
+    commute.request_cancel()
+    return {"ok": True}
+
+
+@router.post("/api/maintenance/commute-clear-cache")
+def commute_clear_cache_endpoint(db: Session = Depends(get_db)):
+    """Forget every routed leg so the next run recomputes them — what the user
+    presses after moving a saved place, since the cached answer to the old pin
+    is otherwise the one thing that keeps looking right."""
+    from ..services import commute
+
+    cleared = commute.clear_commute_cache(db)
     return {"cleared": cleared}
 
 

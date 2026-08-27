@@ -152,6 +152,7 @@ progetto/
 │   │       ├── llm_parser.py     # optional LLM backend for the assistant (OpenAI-compatible, falls back to query_parser)
 │   │       ├── geocoder.py       # opt-in Nominatim geocoding for missing map coordinates (cached, fail-open)
 │   │       ├── geo_filter.py     # pure geometry for the map's zone filter (haversine, point-in-polygon)
+│   │       ├── commute.py        # opt-in OSRM travel times to the user's saved places (cached, fail-open)
 │   │       ├── timeutils.py      # the one place that reattaches UTC to a datetime read back from SQLite
 │   │       ├── search_builder.py # structured params -> portal search URLs
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
@@ -160,7 +161,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 652 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 675 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -221,12 +222,12 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (652, `pytest`)
+### Automated Tests (675, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
 ```
-Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), Idealista's official API (which searches it declines to serve and why, the OAuth token cache, and every route back to the scraper), the geocoder (cache hits, negative caching, fail-open), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). `test_offline_sandbox.py` is the one test that substitutes nothing: `tests/mock_portal.py` serves both portals over real HTTP on loopback and captures the notification over real SMTP, so `run_scan` is driven scrape → normalize → deduplicate → notify end to end — the seams every other test has to stub out (the warm-up, the api-next request the scanner actually issues, the card boundary on a real response, the SMTP conversation `notifier` actually holds). Still offline: the servers are bound to `127.0.0.1` and the scrapers' portal URLs are repointed at them. The frontend has its own vitest suite (31 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution), and the settings sections' save payload — the union of what the seven sections contribute, so a field dropped from one of them fails a test instead of silently never persisting.
+Cover: parsing strategies (JSON-LD, `__NEXT_DATA__`, heuristics, API parameter building), card boundaries, price parsers across both portal formats, the deduplication engine (correct merges **and** false merges encountered with real data), keyword filtering, first-scan notification suppression, scraper health alerting, pricing and market-velocity statistics, the natural-language query parser and search-URL builder, the startup catch-up-scan decision, and the automatic DB backup (freshness gate, rotation, fail-safety). The optional cloud/opt-in paths (§8.14) are tested with the outbound HTTP call mocked: the scraping-API adapter (request rewrite + response unwrap), the LLM parser (prompt/validate/convert + deterministic fallback), Idealista's official API (which searches it declines to serve and why, the OAuth token cache, and every route back to the scraper), the geocoder (cache hits, negative caching, fail-open), the commute router (cache-only annotation, one `/table` request per travel mode, and the difference between a routed "no way through" and a transport failure), and the API-token middleware. `test_property_based.py` adds `hypothesis` property tests for the pure helpers (dedup tolerance, haversine, price/sqm/floor parsers), and `test_routes.py` drives the HTTP layer itself through `TestClient` — query validation, status codes, route registration order, and that every grid filter actually narrows the result (a filter dropped from a route signature still answers 200 with the unfiltered grid). `test_offline_sandbox.py` is the one test that substitutes nothing: `tests/mock_portal.py` serves both portals over real HTTP on loopback and captures the notification over real SMTP, so `run_scan` is driven scrape → normalize → deduplicate → notify end to end — the seams every other test has to stub out (the warm-up, the api-next request the scanner actually issues, the card boundary on a real response, the SMTP conversation `notifier` actually holds). Still offline: the servers are bound to `127.0.0.1` and the scrapers' portal URLs are repointed at them. The frontend has its own vitest suite (32 tests, `cd frontend && npm test`): the `propertyParams` querystring codec, the floor-label humanizer, the i18n core (English/Italian key parity, per-key placeholder parity, interpolation, startup language resolution), and the settings sections' save payload — the union of what the eight sections contribute, so a field dropped from one of them fails a test instead of silently never persisting.
 
 ### Manual Verification
 1. Double click `scripts\windows\start.bat`.
@@ -329,6 +330,15 @@ Idealista publishes a Search API, and swapping a scraped portal for its own API 
 **Its own location grammar widens the search.** Without Idealista's internal `locationId` — not derivable offline — the location travels as `center` + `distance`, which is a circle: a Milano search reaches into Sesto San Giovanni, which the equivalent portal page never does. The API's own `municipality` field narrows it back, and the bundled comuni gazetteer supplies both the centre and the radius, so the area searched and the area a map pin is believed in are one definition rather than two.
 
 The remaining unknown is deliberate and documented rather than assumed away: **the request ceiling is agreed per key and published nowhere**, which is why the engine spends one request per profile scan by default instead of inheriting `max_pages_per_search`'s ten, and why the OAuth token is cached process-wide. An engine that cannot know its budget spends as little as it can.
+
+### 8.16 "A travel time can be computed while the page renders" — **False, in two different ways**
+Commute times look like the Smart Match Score: a number per card, derived from data already held. The match score genuinely is that — pure arithmetic over columns, so it is annotated per request. A commute is not, and treating it the same way fails twice.
+
+**It needs a router, and a router is a network call.** Annotating a 50-card grid page against three saved places is 150 requests to somebody else's server, on every scroll, with the page held open until they answer. So the annotation reads a cache and *only* a cache (`CommuteCache`), and filling that cache is a separate user-triggered batch — the same split `geocoder.py` already makes, and for the same reason. The visible consequence is stated in the UI rather than hidden: a listing found since the last run shows no commute until the button is pressed again.
+
+**And the free router is not the router the settings appear to promise.** OSRM's public demo instance accepts `/walking/` and `/cycling/` profiles and answers 200 for both — it is built on the **driving** network alone, so it returns car routing under a walking label. Nothing in the response says so. "Metro stop, on foot" is the obvious use for this feature and is exactly the case that would have been silently wrong, so the mode is offered anyway (a self-hosted OSRM answers it correctly, and `osrm_url` exists for that) with the limitation written next to the field instead of discovered later. The same shape as §8.13: a server that answers is not a server that answered your question.
+
+One cost was avoidable and was avoided: OSRM's `/table` service returns a whole one-to-many matrix in a single call, so three saved places cost one request per property, not three. The cache is keyed by *coordinates* rather than property id, so two flats in one building share the answer.
 
 ---
 

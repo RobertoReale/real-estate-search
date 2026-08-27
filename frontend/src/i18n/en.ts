@@ -76,6 +76,14 @@ export const en = {
   "card.notOnMap": "🗺️✗ not on map",
   "card.notOnMapTitle":
     "No map coordinates yet — this listing won't appear on the map or inside a drawn zone until located (open it and use 'View on map', or run 'Find coordinates').",
+  "card.commuteTitle": "Travel time to {name}",
+
+  // ── commute units (shared by the card and the modal) ─────────────────────
+  "commute.minutes": "{count} min",
+  "commute.hours": "{count} h",
+  "commute.hoursMinutes": "{hours} h {minutes} min",
+  "commute.metres": "{count} m",
+  "commute.kilometres": "{count} km",
 
   // ── property modal ──────────────────────────────────────────────────────
   "modal.locateFailed":
@@ -95,6 +103,7 @@ export const en = {
   "modal.foundListings": "Found listings ({count})",
   "modal.open": "Open ↗",
   "modal.priceHistory": "Price history",
+  "modal.commute": "🚏 Commute",
   "modal.foundBySearch": "🔍 Found by search",
   "modal.foundBySearches": "🔍 Found by {count} searches",
   "modal.notLinked": "🔍 Not linked to any monitored search — imported from your inbox.",
@@ -429,6 +438,31 @@ export const en = {
   "settings.dreamFeatures":
     "Desired features (comma-separated, e.g. balcone, ascensore, terrazzo)",
   "settings.dreamZones": "Preferred zones or cities (comma-separated)",
+
+  // ── settings: commute times ─────────────────────────────────────────────
+  "settings.commuteTitle": "🚏 Commute times",
+  "settings.commuteEnable": "Show travel time from each property to the places below",
+  "settings.commuteNote":
+    "Work, the university, the nearest metro stop — routed offline-friendly through OpenStreetMap. Times appear on a card only after you press Compute below, and only for listings that already have map coordinates.",
+  "settings.commutePointName": "Label",
+  "settings.commutePointNamePlaceholder": "Work",
+  "settings.commutePointAddress": "Address",
+  "settings.commutePointAddressPlaceholder": "Via Dante 5, Milano",
+  "settings.commutePointMode": "By",
+  "settings.commuteMode.car": "Car",
+  "settings.commuteMode.foot": "On foot",
+  "settings.commuteMode.bike": "Bike",
+  "settings.commuteAddPoint": "Add a place",
+  "settings.commuteRemovePoint": "Remove this place",
+  "settings.commuteOsrmUrl": "Routing server (OSRM)",
+  "settings.commuteOsrmNote":
+    "Leave blank for the public demo server. It is built on the driving network alone, so “on foot” and “bike” are routed as a car there — point this at your own OSRM for true walking and cycling times.",
+  "settings.commuteCompute": "Compute commute times now",
+  "settings.commuteComputing": "Computing…",
+  "settings.commuteComputeNote":
+    "One request per property to {url}, paced at one per second and cached, so a second run only covers what is new.",
+  "settings.commuteComputed": "Routed {routed} legs across {scanned} properties",
+  "settings.commuteRemaining": " · {count} left, run it again to continue",
 
   // ── settings: assistant backend ─────────────────────────────────────────
   "settings.assistantTitle": "🧠 Search assistant backend",

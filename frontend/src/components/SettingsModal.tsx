@@ -3,6 +3,7 @@ import { useT } from "../i18n";
 import { api, authToken } from "../services/api";
 import type { Settings } from "../types";
 import { AssistantSection, useAssistantSection } from "./settings/AssistantSection";
+import { CommuteSection, useCommuteSection } from "./settings/CommuteSection";
 import { EmailSection, useEmailSection } from "./settings/EmailSection";
 import { MatchSection, useMatchSection } from "./settings/MatchSection";
 import { ScanningSection, useScanningSection } from "./settings/ScanningSection";
@@ -32,6 +33,7 @@ export default function SettingsModal({ onClose }: Props) {
   const email = useEmailSection();
   const scanning = useScanningSection();
   const match = useMatchSection();
+  const commute = useCommuteSection();
   const assistant = useAssistantSection();
   const scraping = useScrapingSection();
   const system = useSystemSection();
@@ -39,7 +41,7 @@ export default function SettingsModal({ onClose }: Props) {
   // Only the two halves of the contract the shell actually uses: re-seed
   // yourself from the server, and hand over your part of the save.
   const sections: { reset: (s: Settings) => void; payload: () => Partial<Settings> }[] =
-    [telegram, email, scanning, match, assistant, scraping, system];
+    [telegram, email, scanning, match, commute, assistant, scraping, system];
 
   useEffect(() => {
     api.getSettings().then(hydrate);
@@ -134,6 +136,7 @@ export default function SettingsModal({ onClose }: Props) {
         <EmailSection section={email} settings={settings} shell={shell} />
         <ScanningSection section={scanning} />
         <MatchSection section={match} />
+        <CommuteSection section={commute} settings={settings} shell={shell} />
         <AssistantSection section={assistant} settings={settings} />
         <ScrapingSection section={scraping} settings={settings} shell={shell} />
         <SystemSection section={system} settings={settings} shell={shell} />

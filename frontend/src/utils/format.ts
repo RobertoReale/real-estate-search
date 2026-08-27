@@ -1,4 +1,32 @@
 import { translateCurrent } from "../i18n";
+import type { CommuteMode } from "../types";
+
+/** The backend sends OSRM's raw metres and seconds, so the rounding lives here
+ *  — one place, shared by the card and the modal, rather than two `toFixed`
+ *  calls that would drift the moment one of them gained an hours case. */
+export function formatDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return translateCurrent("commute.minutes", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0
+    ? translateCurrent("commute.hours", { count: hours })
+    : translateCurrent("commute.hoursMinutes", { hours, minutes: rest });
+}
+
+export function formatDistance(metres: number): string {
+  return metres < 1000
+    ? translateCurrent("commute.metres", { count: Math.round(metres) })
+    : translateCurrent("commute.kilometres", { count: (metres / 1000).toFixed(1) });
+}
+
+/** How the leg is travelled, at a glance. Kept out of the dictionary on
+ *  purpose: an emoji is the same in every language. */
+export const COMMUTE_ICONS: Record<CommuteMode, string> = {
+  car: "🚗",
+  foot: "🚶",
+  bike: "🚲",
+};
 
 /** Turn a portal's raw floor code into a label a mixed audience can read.
  *

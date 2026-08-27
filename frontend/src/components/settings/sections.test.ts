@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Settings } from "../../types";
 import { useAssistantSection } from "./AssistantSection";
+import { useCommuteSection } from "./CommuteSection";
 import { useEmailSection } from "./EmailSection";
 import { useMatchSection } from "./MatchSection";
 import { useScanningSection } from "./ScanningSection";
@@ -10,7 +11,7 @@ import { useSystemSection } from "./SystemSection";
 import { useTelegramSection } from "./TelegramSection";
 
 /**
- * The settings form is split across seven sections, and the save is the union
+ * The settings form is split across eight sections, and the save is the union
  * of what each one contributes. That union is the thing worth pinning: a field
  * dropped from a section's `write` stops being saved with nothing failing —
  * the form still renders it, the request still succeeds, and the value just
@@ -18,7 +19,7 @@ import { useTelegramSection } from "./TelegramSection";
  * `propertyParams` codec, and the same reason for a test.
  */
 
-/** Only what the modal itself asks of a section, so the seven differing value
+/** Only what the modal itself asks of a section, so the eight differing value
  *  types can sit in one list. */
 interface FormSection {
   reset: (s: Settings) => void;
@@ -30,6 +31,7 @@ const SECTION_HOOKS: (() => FormSection)[] = [
   useEmailSection,
   useScanningSection,
   useMatchSection,
+  useCommuteSection,
   useAssistantSection,
   useScrapingSection,
   useSystemSection,
@@ -44,6 +46,7 @@ const SAVED_KEYS = [
   "excluded_keywords",
   "match_score_enabled", "dream_max_price", "dream_min_rooms", "dream_min_sqm",
   "dream_min_floor", "dream_keywords", "dream_zones",
+  "commute_enabled", "commute_points", "osrm_url",
   "nl_parser_backend", "llm_base_url", "llm_model",
   "proxy_url", "proxy_urls", "scrape_api_provider", "scrape_api_mode",
   "idealista_api_max_pages",
@@ -63,6 +66,11 @@ const STORED: Settings = {
   dream_min_sqm: 80, dream_min_floor: 2,
   dream_keywords: ["terrazzo", "ascensore"], dream_zones: ["Navigli"],
   excluded_keywords: ["asta", "nuda proprietà"],
+  commute_enabled: true, osrm_url: "http://localhost:5000",
+  commute_points: [
+    { name: "Work", address: "Via Dante 5, Milano", mode: "car" },
+    { name: "Metro", address: "Cadorna, Milano", mode: "foot" },
+  ],
   nl_parser_backend: "llm", llm_base_url: "http://localhost:11434/v1",
   llm_api_key: "", llm_api_key_set: true, llm_model: "llama3.1",
   request_delay_seconds: 3, max_pages_per_search: 5,
@@ -155,6 +163,18 @@ describe("settings sections", () => {
     // Also untrimmed: a pasted app password keeps the spaces the provider
     // displays it with, and the backend's save_settings is what strips them.
     expect(email.current.payload().smtp_password).toBe(" abcd efgh ");
+  });
+
+  it("drops the blank commute rows 'Add a place' leaves behind", () => {
+    const commute = renderHook(() => useCommuteSection()).result;
+    act(() => commute.current.reset(STORED));
+    // what the button adds, and what the user gets for pressing it twice
+    act(() => commute.current.set("points", [
+      ...STORED.commute_points!,
+      { name: "", address: "", mode: "car" },
+      { name: "Gym", address: "", mode: "bike" },  // labelled but nowhere to go
+    ]));
+    expect(commute.current.payload().commute_points).toEqual(STORED.commute_points);
   });
 
   it("re-seeding clears the secret fields but keeps the visible ones", () => {

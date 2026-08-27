@@ -4,7 +4,7 @@ import { api, formatPrice, safeHref } from "../services/api";
 import type { Property, Tag } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
-import { DealBadge, MarketBadge } from "./PropertyCard";
+import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
 
 interface Props {
@@ -231,6 +231,17 @@ export default function PropertyModal({
                   );
                 })}
               </ul>
+            </>
+          )}
+
+          {/* Travel time to the user's saved places. Nothing renders until the
+              commute batch has routed this pin (the annotation is cache-only). */}
+          {p.commutes.length > 0 && (
+            <>
+              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                {t("modal.commute")}
+              </h3>
+              <CommuteChips property={p} detailed />
             </>
           )}
 
