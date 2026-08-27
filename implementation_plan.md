@@ -172,10 +172,15 @@ progetto/
 │       │                         # PropertyCard, PropertyModal, SettingsModal, TagPicker,
 │       │                         # MapView, MarketVelocity, Calculators,
 │       │                         # ErrorBoundary
-│       │   └── settings/         # one file per settings section (Telegram, Email,
-│       │                         # Scanning, Match, Assistant, Scraping, System),
-│       │                         # each owning its own fields; SettingsModal is
-│       │                         # the shell that loads, saves and composes them
+│       │   ├── settings/         # one file per settings section (Telegram, Email,
+│       │   │                     # Scanning, Match, Assistant, Scraping, System),
+│       │   │                     # each owning its own fields; SettingsModal is
+│       │   │                     # the shell that loads, saves and composes them
+│       │   └── searchProfiles/   # one file per mode/section of the search panel
+│       │                         # (AssistantPanel, MultiPanel, UrlForm,
+│       │                         # BuilderForm, BulkToolbar, ProfileList,
+│       │                         # DeleteDialog) + its constants and helpers
+│       ├── hooks/useSearchProfiles.ts  # the search panel's state machine and mutations
 │       ├── services/api.ts
 │       └── types/index.ts
 ├── packaging/                    # tray_app.py (frozen entry point), the PyInstaller
