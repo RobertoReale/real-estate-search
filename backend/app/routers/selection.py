@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..config import load_settings
 from ..models import Listing, ListingProfile, Property, SearchProfile, Tag
+from ..services.commute import annotate_commutes
 from ..services.deal_score import annotate_deal_scores
 from ..services.geo_filter import haversine_m, parse_polygon, point_in_polygon
 from ..services.match_score import _parse_floor, annotate_match_scores
@@ -57,10 +58,12 @@ def annotate(db: Session, props: list[Property]) -> None:
     """The full transient annotation set for one or few properties (market
     position first: the deal score reads it). One helper instead of the same
     three calls repeated per endpoint."""
+    settings = load_settings()
     annotate_market_position(db, props)
-    annotate_match_scores(props, load_settings())
+    annotate_match_scores(props, settings)
     annotate_deal_scores(db, props)
     annotate_provenance(db, props)
+    annotate_commutes(db, props, settings)
 
 
 # Floor bands offered by the dashboard filter. The free-text floor label is
@@ -326,7 +329,8 @@ def select_properties(
             and p.longitude is not None
             and point_in_polygon(p.latitude, p.longitude, poly_vertices)
         ]
-    annotate_match_scores(props, load_settings())
+    settings = load_settings()
+    annotate_match_scores(props, settings)
     if sort == "newest":
         # as_utc, not the raw column: SQLite returns naive datetimes while a row
         # created earlier in this same session still carries the aware value it
@@ -367,6 +371,9 @@ def select_properties(
         annotate_market_position(db, page)
         annotate_deal_scores(db, page)
     annotate_provenance(db, page)
+    # Cache-only, so the window is the right scope: reading the routed legs of
+    # the fifty cards on screen costs nothing the whole set would not.
+    annotate_commutes(db, page, settings)
     return page, total
 
 

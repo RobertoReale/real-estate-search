@@ -225,6 +225,19 @@ DEFAULT_SETTINGS = {
     # (1 request/second, cached so a batch stays inside it); point it at a
     # self-hosted instance for unlimited, fully-offline use.
     "nominatim_url": "https://nominatim.openstreetmap.org",
+    # Commute times to the places the user actually goes (services/commute.py).
+    # Off by default: with no saved place there is nothing to route to, so no
+    # badge appears — the same stance as the Smart Match Score above. Each point
+    # is {"name", "address" or "lat"/"lng", "mode"}; an address is resolved once
+    # through the ordinary geocoder and remembered in its cache. `mode` is
+    # car | foot | bike.
+    "commute_enabled": False,
+    "commute_points": [],
+    # OSRM routing endpoint. The public demo server is a courtesy instance built
+    # on the DRIVING network alone: it accepts the walking and cycling profiles
+    # and answers with car routing, so "on foot" is only truly on foot against a
+    # self-hosted OSRM — which is what this setting is for.
+    "osrm_url": "https://router.project-osrm.org",
     "nl_parser_backend": "deterministic",  # deterministic | llm
     "llm_base_url": "",  # OpenAI-compatible base, e.g. http://localhost:11434/v1
     "llm_api_key": "",  # blank for a local Ollama server

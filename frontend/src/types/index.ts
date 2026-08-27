@@ -77,6 +77,30 @@ export interface Property {
   // monitored searches that have found this property (provenance); empty for an
   // email import never re-found by a scan
   found_by: ProfileRef[];
+  // travel time to the user's saved places; empty when the feature is off, when
+  // the property has no pin, or when the leg has not been routed yet
+  commutes: Commute[];
+}
+
+/** One routed leg from a property to a saved place. Raw metres and seconds:
+ *  the formatting ("12 min", "3.2 km") is this layer's job. */
+export interface Commute {
+  name: string;
+  mode: CommuteMode;
+  distance_m: number;
+  duration_s: number;
+}
+
+export type CommuteMode = "car" | "foot" | "bike";
+
+/** A place the user commutes to, as stored in the settings. Either an address
+ *  (geocoded once, then remembered) or an explicit pin. */
+export interface CommutePoint {
+  name: string;
+  address?: string;
+  lat?: number | null;
+  lng?: number | null;
+  mode: CommuteMode;
 }
 
 /** A monitored search that found a property, shown on its card. */
@@ -181,6 +205,11 @@ export interface Settings {
   dream_keywords?: string[];
   dream_zones?: string[];
   excluded_keywords: string[];
+  // commute times to the user's saved places (off by default; osrm_url points
+  // at the public demo router unless self-hosted)
+  commute_enabled?: boolean;
+  commute_points?: CommutePoint[];
+  osrm_url?: string;
   nl_parser_backend?: string;
   llm_base_url?: string;
   llm_api_key?: string;
@@ -496,6 +525,27 @@ export interface GeocodeSummary {
   cached: number;
   not_found: number;
   remaining: number;
+  cancelled?: boolean;
+}
+
+export interface CommuteProgress {
+  active: boolean;
+  done: number;
+  total: number;
+  routed: number;
+  cached: number;
+  unreachable: number;
+  remaining: number;
+  last_error?: string | null;
+}
+
+export interface CommuteSummary {
+  scanned: number;
+  routed: number;
+  cached: number;
+  unreachable: number;
+  remaining: number;
+  points: number;
   cancelled?: boolean;
 }
 

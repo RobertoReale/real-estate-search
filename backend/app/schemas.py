@@ -59,6 +59,19 @@ class ProfileRef(BaseModel):
     name: str
 
 
+class CommuteOut(BaseModel):
+    """One routed leg from a property to one of the user's saved places, as
+    shown on its card. Distance and duration are OSRM's raw metres and seconds:
+    the UI does the rounding, so a future "42 min" and "0.7 km" are one
+    formatting decision rather than a wire format that has already lost the
+    precision."""
+
+    name: str
+    mode: str  # car | foot | bike
+    distance_m: float
+    duration_s: float
+
+
 class PropertyOut(BaseModel):
     """Comprehensive API response model for a deduplicated physical property,
     including its associated listings, price changes, and transient market statistics."""
@@ -108,14 +121,20 @@ class PropertyOut(BaseModel):
     # ListingProfile links). Empty when unannotated or for a property with no
     # links (e.g. an email import never yet re-found by a scan). See invariant 20.
     found_by: list[ProfileRef] = []
+    # Travel time to the user's saved places (services/commute.py). Empty when
+    # the feature is off, when the property has no pin, or when the leg has not
+    # been routed yet — the annotation is cache-only, so an unrouted card simply
+    # shows no commute rather than blocking the page on a routing request.
+    commutes: list[CommuteOut] = []
 
-    @field_validator("found_by", mode="before")
+    @field_validator("found_by", "commutes", mode="before")
     @classmethod
-    def _found_by_default(cls, v: object) -> object:
-        # The transient Property.found_by is None until routers.selection.annotate_provenance
-        # runs; from_attributes would then validate None against list[ProfileRef]
-        # and fail. Any path that serializes an unannotated property degrades to
-        # "no provenance" rather than a 500.
+    def _empty_when_unannotated(cls, v: object) -> object:
+        # The transient Property.found_by / .commutes are None until
+        # routers.selection.annotate_provenance and services.commute.annotate_commutes
+        # run; from_attributes would then validate None against a list type and
+        # fail. Any path that serializes an unannotated property degrades to
+        # "nothing to show" rather than a 500.
         return v or []
 
 
@@ -320,6 +339,9 @@ class SettingsIn(BaseModel):
     idealista_api_secret: str | None = None
     idealista_api_max_pages: int | None = None
     nominatim_url: str | None = None
+    commute_enabled: bool | None = None
+    commute_points: list[dict] | None = None
+    osrm_url: str | None = None
     nl_parser_backend: str | None = None
     llm_base_url: str | None = None
     llm_api_key: str | None = None

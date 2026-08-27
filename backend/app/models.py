@@ -134,6 +134,12 @@ class Property(Base):
     # like the annotations above — provenance lives in ListingProfile, this is
     # just the per-request read of it for the card/modal. None = not annotated.
     found_by: list[dict] | None = None
+    # Travel time and distance to the user's saved places (work, university,
+    # metro), a list of {"name", "mode", "distance_m", "duration_s"} dicts set
+    # request-scoped by services/commute.annotate_commutes and read by
+    # PropertyOut.commutes. Transient like the annotations above; the routed
+    # legs themselves live in CommuteCache. None = not annotated.
+    commutes: list[dict] | None = None
 
 
 class Listing(Base):
@@ -284,6 +290,28 @@ class GeocodeCache(Base):
     query: Mapped[str] = mapped_column(String, unique=True, index=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CommuteCache(Base):
+    """One routed leg — a property's pin to one of the user's saved places, on
+    one travel mode — keyed by `leg` (see `services/commute.py` `cache_key`).
+
+    The same memory trick as `GeocodeCache`, for the same reason: the public
+    OSRM server is a courtesy, and re-routing every card to every saved place on
+    every grid render would abuse it (and stall the page while doing so). A row
+    exists once a leg has been routed, and a NULL distance/duration is a
+    *negative* answer cached on purpose — OSRM looked and found no way through,
+    so there is nothing to gain by asking again. A leg that failed in transport
+    (a timeout, a 5xx) is deliberately NOT stored, so the next batch retries it.
+    """
+
+    __tablename__ = "commute_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    leg: Mapped[str] = mapped_column(String, unique=True, index=True)
+    distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

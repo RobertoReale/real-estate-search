@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatNumber, useT } from "../i18n";
 import { formatPrice } from "../services/api";
-import { humanizeFloor } from "../utils/format";
+import { COMMUTE_ICONS, formatDistance, formatDuration, humanizeFloor } from "../utils/format";
 import { PortalBadge } from "./PortalBadge";
 import TagPicker from "./TagPicker";
 import type { Property, Tag } from "../types";
@@ -17,6 +17,31 @@ interface Props {
   allTags: Tag[];
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
+}
+
+/** Travel time from this property to each of the user's saved places.
+ *
+ *  Absent rather than empty when nothing has been routed yet: the annotation is
+ *  cache-only (the grid must never spend a routing request), so a card shows a
+ *  commute once the batch in Settings has covered it, and simply says nothing
+ *  until then. `detailed` adds the distance, which the modal has room for and
+ *  the card does not.
+ */
+export function CommuteChips(
+  { property: p, detailed }: { property: Property; detailed?: boolean },
+) {
+  const t = useT();
+  if (!p.commutes?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
+      {p.commutes.map((c) => (
+        <span key={`${c.name}-${c.mode}`} title={t("card.commuteTitle", { name: c.name })}>
+          {COMMUTE_ICONS[c.mode]} {c.name} {formatDuration(c.duration_s)}
+          {detailed && ` · ${formatDistance(c.distance_m)}`}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** Badge comparing this property's €/sqm to the local median.
@@ -262,6 +287,7 @@ export default function PropertyCard({
             </span>
           )}
         </div>
+        <CommuteChips property={p} />
       </div>
     </article>
   );

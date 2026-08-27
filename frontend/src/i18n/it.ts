@@ -75,6 +75,15 @@ export const it: Dict = {
   "card.locationUnknown": "Posizione N/D",
   "card.notes": "📝 note",
   "card.notOnMap": "🗺️✗ non sulla mappa",
+  "card.commuteTitle": "Tempo di viaggio verso {name}",
+
+  // ── unità dei tempi di percorrenza (scheda e dettaglio) ──────────────────
+  "commute.minutes": "{count} min",
+  "commute.hours": "{count} h",
+  "commute.hoursMinutes": "{hours} h {minutes} min",
+  "commute.metres": "{count} m",
+  "commute.kilometres": "{count} km",
+
   "card.notOnMapTitle":
     "Nessuna coordinata sulla mappa — questo annuncio non comparirà sulla mappa né dentro una zona disegnata finché non viene localizzato (aprilo e usa \"Mostra sulla mappa\", oppure lancia \"Trova le coordinate\").",
 
@@ -96,6 +105,7 @@ export const it: Dict = {
   "modal.foundListings": "Annunci trovati ({count})",
   "modal.open": "Apri ↗",
   "modal.priceHistory": "Storico dei prezzi",
+  "modal.commute": "🚏 Percorrenza",
   "modal.foundBySearch": "🔍 Trovato da una ricerca",
   "modal.foundBySearches": "🔍 Trovato da {count} ricerche",
   "modal.notLinked":
@@ -435,6 +445,31 @@ export const it: Dict = {
   "settings.dreamFeatures":
     "Caratteristiche desiderate (separate da virgola, es. balcone, ascensore, terrazzo)",
   "settings.dreamZones": "Zone o città preferite (separate da virgola)",
+
+  // ── impostazioni: tempi di percorrenza ──────────────────────────────────
+  "settings.commuteTitle": "🚏 Tempi di percorrenza",
+  "settings.commuteEnable": "Mostra il tempo di viaggio da ogni immobile ai luoghi qui sotto",
+  "settings.commuteNote":
+    "Il lavoro, l'università, la fermata della metro — calcolati con OpenStreetMap. I tempi compaiono su una scheda solo dopo aver premuto Calcola qui sotto, e solo per gli annunci che hanno già le coordinate sulla mappa.",
+  "settings.commutePointName": "Etichetta",
+  "settings.commutePointNamePlaceholder": "Lavoro",
+  "settings.commutePointAddress": "Indirizzo",
+  "settings.commutePointAddressPlaceholder": "Via Dante 5, Milano",
+  "settings.commutePointMode": "Con",
+  "settings.commuteMode.car": "Auto",
+  "settings.commuteMode.foot": "A piedi",
+  "settings.commuteMode.bike": "Bici",
+  "settings.commuteAddPoint": "Aggiungi un luogo",
+  "settings.commuteRemovePoint": "Rimuovi questo luogo",
+  "settings.commuteOsrmUrl": "Server di routing (OSRM)",
+  "settings.commuteOsrmNote":
+    "Lascia vuoto per il server dimostrativo pubblico. È costruito solo sulla rete stradale, quindi lì «a piedi» e «bici» vengono calcolati come in auto — indica il tuo OSRM per avere tempi reali a piedi e in bici.",
+  "settings.commuteCompute": "Calcola ora i tempi di percorrenza",
+  "settings.commuteComputing": "Calcolo in corso…",
+  "settings.commuteComputeNote":
+    "Una richiesta per immobile verso {url}, al ritmo di una al secondo e con cache, così una seconda esecuzione copre solo le novità.",
+  "settings.commuteComputed": "Calcolate {routed} tratte su {scanned} immobili",
+  "settings.commuteRemaining": " · ne restano {count}, rilancia per continuare",
 
   // ── impostazioni: motore dell'assistente ────────────────────────────────
   "settings.assistantTitle": "🧠 Motore dell'assistente di ricerca",

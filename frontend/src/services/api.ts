@@ -4,6 +4,7 @@
 import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
+  CommuteProgress, CommuteSummary,
   GeocodeProgress, GeocodeSummary, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, PropertyPage, ScanStatus, ScraperHealth,
   SearchBuilderParams,
@@ -314,6 +315,26 @@ export const api = {
    *  transient Nominatim failure froze as permanently "not found". */
   clearGeocodeCache(): Promise<{ cleared: number }> {
     return request("/maintenance/geocode-clear-cache", { method: "POST" });
+  },
+
+  /** Route every property/saved-place pair that is not cached yet, via OSRM
+   *  (opt-in, batched, paced, cached). The grid only ever *reads* those cached
+   *  legs, so this is what makes commute times appear at all. */
+  computeCommutes(): Promise<CommuteSummary> {
+    return request("/maintenance/commutes", { method: "POST" });
+  },
+  /** Poll live progress of an ongoing commute batch. */
+  commuteProgress(): Promise<CommuteProgress> {
+    return request("/maintenance/commute-progress");
+  },
+  /** Stops the running commute batch cleanly. */
+  cancelCommutes(): Promise<{ ok: boolean }> {
+    return request("/maintenance/commute-cancel", { method: "POST" });
+  },
+  /** Forget every routed leg, so moving a saved place cannot leave the old
+   *  (still plausible-looking) travel times behind. */
+  clearCommuteCache(): Promise<{ cleared: number }> {
+    return request("/maintenance/commute-clear-cache", { method: "POST" });
   },
 
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
