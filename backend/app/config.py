@@ -177,6 +177,14 @@ DEFAULT_SETTINGS = {
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "telegram_enabled": False,
+    # Inline buttons (favourite / seen / hide / map) on every property
+    # notification, and the long poll that collects the presses
+    # (services/telegram_bot.py). On by default, because buttons that arrive
+    # without a poller behind them would do nothing when tapped — the two are
+    # one feature. Turning it off restores plain notifications and closes the
+    # poll, which is the switch for anyone who would rather the backend held no
+    # standing connection to api.telegram.org.
+    "telegram_actions_enabled": True,
     # email channel (SMTP): works with any provider; for Gmail use an
     # app-specific password on port 587
     "email_enabled": False,

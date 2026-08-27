@@ -161,6 +161,7 @@ export interface Settings {
   telegram_bot_token: string;
   telegram_chat_id: string;
   telegram_enabled: boolean;
+  telegram_actions_enabled?: boolean;
   telegram_token_set?: boolean;
   email_enabled: boolean;
   smtp_host: string;

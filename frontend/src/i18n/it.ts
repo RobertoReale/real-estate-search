@@ -366,6 +366,9 @@ export const it: Dict = {
   "settings.tokenPlaceholder": "Token del bot (da @BotFather)",
   "settings.chatIdPlaceholder": "Chat ID (es. 123456789)",
   "settings.enableTelegram": "Attiva le notifiche Telegram",
+  "settings.telegramActions": "Pulsanti di azione sulle notifiche",
+  "settings.telegramActionsHelp":
+    "Aggiunge i pulsanti Preferito, Visto, Nascondi e Mappa sotto ogni notifica di immobile, così puoi smistare un annuncio dal telefono. Preferito e Nascondi modificano la dashboard e si annullano premendoli di nuovo; Visto archivia solo il messaggio.",
   "settings.sending": "Invio…",
   "settings.saveAndTest": "Salva e invia test",
   "settings.telegramTestSent": "Messaggio di test inviato — controlla la chat Telegram.",

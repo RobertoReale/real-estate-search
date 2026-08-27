@@ -8,22 +8,25 @@ interface Values {
   token: string;
   chatId: string;
   enabled: boolean;
+  actions: boolean;
 }
 
 export function useTelegramSection(): Section<Values> {
   return useSectionState<Values>(
-    { token: "", chatId: "", enabled: false },
+    { token: "", chatId: "", enabled: false, actions: true },
     (s) => ({
       // Write-only: the server never returns the token, so the field goes back
       // to its "already saved" placeholder rather than showing stale dots.
       token: "",
       chatId: s.telegram_chat_id,
       enabled: s.telegram_enabled,
+      actions: s.telegram_actions_enabled ?? true,
     }),
     (v) => {
       const p: Partial<Settings> = {
         telegram_chat_id: v.chatId,
         telegram_enabled: v.enabled,
+        telegram_actions_enabled: v.actions,
       };
       // An empty secret field means "keep the stored one", never "erase it".
       if (v.token.trim()) p.telegram_bot_token = v.token.trim();
@@ -63,6 +66,12 @@ export function TelegramSection(
         </div>
         <input className="input w-full" placeholder={t("settings.chatIdPlaceholder")}
           value={values.chatId} onChange={(e) => set("chatId", e.target.value)} />
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={values.actions}
+            onChange={(e) => set("actions", e.target.checked)} />
+          {t("settings.telegramActions")}
+        </label>
+        <p className="text-xs opacity-70 -mt-2">{t("settings.telegramActionsHelp")}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={values.enabled}

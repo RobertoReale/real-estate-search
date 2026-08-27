@@ -29,7 +29,7 @@ from .routers import (
     settings,
     system,
 )
-from .services import scheduler
+from .services import scheduler, telegram_bot
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -56,7 +56,12 @@ logging.getLogger("alembic").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI):
     init_db()
     scheduler.start_scheduler()
+    # Started unconditionally: the thread idles while Telegram is off, which is
+    # what lets the notification buttons start working the moment the user
+    # enables them, without a backend restart (services/telegram_bot.py).
+    telegram_bot.start_polling()
     yield
+    telegram_bot.stop_polling()
     scheduler.shutdown()
 
 
