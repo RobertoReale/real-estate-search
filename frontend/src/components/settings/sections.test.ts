@@ -38,7 +38,7 @@ const SECTION_HOOKS: (() => FormSection)[] = [
 /** Every key the dialog is responsible for saving. Secrets are absent on
  *  purpose — they are conditional, and covered separately below. */
 const SAVED_KEYS = [
-  "telegram_chat_id", "telegram_enabled",
+  "telegram_chat_id", "telegram_enabled", "telegram_actions_enabled",
   "email_enabled", "smtp_host", "smtp_port", "smtp_user", "email_from", "email_to",
   "scan_interval_minutes", "scanning_paused", "health_alert_after_failures",
   "excluded_keywords",
@@ -54,7 +54,7 @@ const SAVED_KEYS = [
 
 const STORED: Settings = {
   telegram_bot_token: "", telegram_chat_id: "12345", telegram_enabled: true,
-  telegram_token_set: true,
+  telegram_actions_enabled: false, telegram_token_set: true,
   email_enabled: true, smtp_host: "smtp.gmail.com", smtp_port: 465,
   smtp_user: "me@gmail.com", smtp_password: "", smtp_password_set: true,
   email_from: "me@gmail.com", email_to: "you@gmail.com",

@@ -149,8 +149,15 @@ a shortlist against the portals on demand.
 
 Telegram and Email are both configured in **Settings**, with a step-by-step
 guide next to each, and each search profile can route its own alerts to either
-channel, both, or neither. See [Notifications](docs/notifications.md) for the
-setup details, using Gmail's app password, and scraper-health alerts.
+channel, both, or neither.
+
+Telegram alerts about a property also carry **⭐ Favourite · 👁️ Seen · 🚫 Hide ·
+🗺️ Map** buttons, so you can triage a listing from the phone and see the change
+in the dashboard. They need no open port and no public address — the backend
+collects the taps over its own outgoing connection.
+
+See [Notifications](docs/notifications.md) for the setup details, the buttons,
+using Gmail's app password, and scraper-health alerts.
 
 ---
 

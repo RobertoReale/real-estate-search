@@ -361,6 +361,9 @@ export const en = {
   "settings.tokenPlaceholder": "Bot token (from @BotFather)",
   "settings.chatIdPlaceholder": "Chat ID (e.g. 123456789)",
   "settings.enableTelegram": "Enable Telegram notifications",
+  "settings.telegramActions": "Action buttons on notifications",
+  "settings.telegramActionsHelp":
+    "Adds Favourite, Seen, Hide and Map buttons under each property notification, so you can triage a listing from your phone. Favourite and Hide change the dashboard and can be tapped again to undo; Seen only dismisses the message.",
   "settings.sending": "Sending…",
   "settings.saveAndTest": "Save & send test",
   "settings.telegramTestSent": "Test message sent — check your Telegram chat.",

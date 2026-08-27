@@ -8,6 +8,13 @@ MUTED sentinel means "no notification at all for this search".
 
 Telegram uses the raw Bot API (no external library); email uses stdlib
 smtplib so no new dependencies are required.
+
+A property notification also carries the inline keyboard built here
+(`property_keyboard`): composing the buttons is part of composing the message.
+Collecting the *presses* is the other half and lives in `telegram_bot.py`,
+which imports this module — the dependency runs one way only, so the builder
+that draws a keyboard and the handler that redraws it after an action stay the
+same function.
 """
 
 import html
@@ -30,30 +37,47 @@ CHANNELS = ("telegram", "email")
 MUTED = "none"
 
 
-def send_telegram_message(text: str) -> bool:
-    settings = load_settings()
-    token = settings.get("telegram_bot_token")
-    chat_id = settings.get("telegram_chat_id")
-    if not settings.get("telegram_enabled") or not token or not chat_id:
-        return False
+def telegram_api(method: str, payload: dict, timeout: int = 15) -> dict | list | None:
+    """Calls one Bot API method and returns its `result`, or None on any failure.
+
+    The single place that knows the endpoint shape, so sending a message and
+    polling for button presses cannot drift apart. Fail-open like the rest of
+    the optional paths: a network error, a refused token or an `ok: false` body
+    is logged and answered with None — a notification that cannot be delivered
+    must never take a scan down with it.
+    """
+    token = (load_settings().get("telegram_bot_token") or "").strip()
+    if not token:
+        return None
     try:
         resp = curl_requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False,
-            },
-            timeout=15,
+            f"https://api.telegram.org/bot{token}/{method}",
+            json=payload,
+            timeout=timeout,
         )
-        ok = resp.status_code == 200 and resp.json().get("ok", False)
-        if not ok:
-            logger.warning("Telegram: send failed: %s", resp.text[:300])
-        return ok
+        body = resp.json() if resp.status_code == 200 else {}
+        if not body.get("ok"):
+            logger.warning("Telegram: %s failed: %s", method, resp.text[:300])
+            return None
+        return body.get("result")
     except Exception:
-        logger.exception("Telegram: network error during send")
+        logger.exception("Telegram: network error during %s", method)
+        return None
+
+
+def send_telegram_message(text: str, reply_markup: dict | None = None) -> bool:
+    settings = load_settings()
+    if not settings.get("telegram_enabled") or not settings.get("telegram_chat_id"):
         return False
+    payload = {
+        "chat_id": settings["telegram_chat_id"],
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    return telegram_api("sendMessage", payload) is not None
 
 
 def send_email_message(text: str, subject: str | None = None) -> bool:
@@ -130,22 +154,80 @@ def profile_channels(csv: str) -> list[str] | None:
     return parse_channels_csv(csv) or None
 
 
-def broadcast(text: str, channels: list[str] | None = None, subject: str | None = None) -> bool:
+def broadcast(
+    text: str,
+    channels: list[str] | None = None,
+    subject: str | None = None,
+    reply_markup: dict | None = None,
+) -> bool:
     """Sends to every requested channel; None = all channels, [] = none.
 
     Whether a channel actually fires still depends on its own "enabled"
     setting, so a profile requesting "email" while email is off sends nothing.
-    Returns True if at least one channel delivered.
+    Returns True if at least one channel delivered. `reply_markup` is Telegram's
+    alone — email has no buttons, and the same message body reads correctly in
+    both, which is why the actions are attached rather than written into it.
     """
     # an empty list is a muted profile, not "unspecified": `channels or CHANNELS`
     # would silently turn the mute into a broadcast to everything
     targets = list(CHANNELS) if channels is None else channels
     sent = False
     if "telegram" in targets:
-        sent = send_telegram_message(text) or sent
+        sent = send_telegram_message(text, reply_markup=reply_markup) or sent
     if "email" in targets:
         sent = send_email_message(text, subject=subject) or sent
     return sent
+
+
+# Telegram caps callback_data at 64 bytes, so it carries the action and the id
+# and nothing else; everything the handler needs beyond that it reads from the
+# database. The separator cannot occur in either half (actions are literals,
+# ids are digits), so `partition` is an unambiguous parse.
+CALLBACK_SEPARATOR = ":"
+CALLBACK_ACTIONS = ("fav", "seen", "hide")
+
+
+def map_url(prop: Property) -> str:
+    """An OpenStreetMap pin for the property, or "" when it has no coordinates.
+
+    Deliberately not a link into this app's own map view: the dashboard answers
+    on the loopback bind (invariant 14), so a `http://127.0.0.1:8000` button
+    would be dead on the phone that is showing the notification. OSM is
+    reachable from wherever Telegram is, and it is the same map background
+    `MapView` draws.
+    """
+    if prop.latitude is None or prop.longitude is None:
+        return ""
+    lat, lng = prop.latitude, prop.longitude
+    return f"https://www.openstreetmap.org/?mlat={lat}&mlon={lng}#map=17/{lat}/{lng}"
+
+
+def property_keyboard(prop: Property) -> dict | None:
+    """The inline keyboard a property notification carries, or None for no
+    buttons at all (`telegram_actions_enabled` off, or an unsaved property —
+    a button whose callback names no row could only ever answer "not found").
+
+    Favourite and Hide render the state they would *leave*, so the message keeps
+    telling the truth after a press: `telegram_bot` rebuilds this keyboard from
+    the updated row and edits it back onto the message.
+    """
+    if not load_settings().get("telegram_actions_enabled", True) or not prop.id:
+        return None
+    sep = CALLBACK_SEPARATOR
+    actions = [
+        {
+            "text": "⭐ Favourited" if prop.is_favorite else "⭐ Favourite",
+            "callback_data": f"fav{sep}{prop.id}",
+        },
+        {"text": "👁️ Seen", "callback_data": f"seen{sep}{prop.id}"},
+        {
+            "text": "↩️ Restore" if prop.status == "hidden" else "🚫 Hide",
+            "callback_data": f"hide{sep}{prop.id}",
+        },
+    ]
+    url = map_url(prop)
+    link_row = [{"text": "🗺️ Map", "url": url}] if url else []
+    return {"inline_keyboard": [actions] + ([link_row] if link_row else [])}
 
 
 def _fmt_price(value: float | None, contract: str = "sale") -> str:
@@ -194,7 +276,7 @@ def notify_new_property(prop: Property, channels: list[str] | None = None) -> bo
         f'<a href="{html.escape(url)}">Open listing</a>'
     )
     subject = f"🏠 {label}: {prop.title or prop.city or 'listing'}"
-    return broadcast(text, channels, subject=subject)
+    return broadcast(text, channels, subject=subject, reply_markup=property_keyboard(prop))
 
 
 def notify_price_drop(
@@ -211,7 +293,7 @@ def notify_price_drop(
         f'<a href="{html.escape(url)}">Open listing</a>'
     )
     subject = f"📉 Price change ({pct:+.1f}%): {prop.title or prop.city or 'listing'}"
-    return broadcast(text, channels, subject=subject)
+    return broadcast(text, channels, subject=subject, reply_markup=property_keyboard(prop))
 
 
 def notify_property_reactivated(
@@ -233,7 +315,7 @@ def notify_property_reactivated(
         f'<a href="{html.escape(url)}">Open listing</a>'
     )
     subject = f"🔄 Back on the market: {prop.title or prop.city or 'listing'}"
-    return broadcast(text, channels, subject=subject)
+    return broadcast(text, channels, subject=subject, reply_markup=property_keyboard(prop))
 
 
 def notify_scraper_failure(

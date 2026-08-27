@@ -380,7 +380,9 @@ def test_parse_search_url_roundtrip_idealista():
 def test_broadcast_respects_channel_selection(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        notifier, "send_telegram_message", lambda text: calls.append("telegram") or True
+        notifier,
+        "send_telegram_message",
+        lambda text, reply_markup=None: calls.append("telegram") or True,
     )
     monkeypatch.setattr(
         notifier, "send_email_message", lambda text, subject=None: calls.append("email") or True
@@ -412,7 +414,9 @@ def test_profile_channels_tells_muted_apart_from_unspecified():
 def test_a_muted_selection_broadcasts_nowhere(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(
-        notifier, "send_telegram_message", lambda text: calls.append("telegram") or True
+        notifier,
+        "send_telegram_message",
+        lambda text, reply_markup=None: calls.append("telegram") or True,
     )
     monkeypatch.setattr(
         notifier, "send_email_message", lambda text, subject=None: calls.append("email") or True

@@ -289,6 +289,7 @@ class SettingsIn(BaseModel):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_enabled: bool | None = None
+    telegram_actions_enabled: bool | None = None
     email_enabled: bool | None = None
     smtp_host: str | None = None
     smtp_port: int | None = None

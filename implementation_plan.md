@@ -144,7 +144,8 @@ progetto/
 │   │       ├── scanner.py        # orchestration + notifications + scraper health
 │   │       ├── scheduler.py      # APScheduler + catch-up scan on startup
 │   │       ├── backup.py         # automatic case.db copies with rotation
-│   │       ├── notifier.py       # Telegram Bot API + SMTP email
+│   │       ├── notifier.py       # Telegram Bot API + SMTP email + inline keyboard
+│   │       ├── telegram_bot.py   # long poll (no webhook) collecting button presses
 │   │       ├── pricing_stats.py  # €/sqm medians, market position per property
 │   │       ├── market_velocity.py# days-on-market and agency statistics
 │   │       ├── query_parser.py   # offline natural-language search assistant (deterministic default)
@@ -159,7 +160,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 636 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 652 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -220,7 +221,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (636, `pytest`)
+### Automated Tests (652, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
