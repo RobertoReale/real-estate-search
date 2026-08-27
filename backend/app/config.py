@@ -256,6 +256,19 @@ DEFAULT_SETTINGS = {
     # the provider unconditionally.
     "scrape_api_mode": "fallback",  # fallback | always
     "transport_escalate_after_failures": 2,
+    # Idealista's official Search API (developers.idealista.com), the one
+    # transport that asks the portal for its own data instead of working around
+    # its anti-bot. Both halves empty (the default) = the HTML scraper alone,
+    # exactly today's behavior; a key issued to you plus its secret turns on the
+    # second engine described in scrapers/idealista_api.py, which still falls
+    # back to the scraper for any search it cannot express faithfully.
+    "idealista_api_key": "",
+    "idealista_api_secret": "",
+    # Search requests one profile scan may spend on that API. Deliberately NOT
+    # max_pages_per_search: keys are issued by hand with a per-key ceiling that
+    # is published nowhere, so the default spends one request (50 listings) per
+    # profile scan and the user raises it once they know their own budget.
+    "idealista_api_max_pages": 1,
     # TLS impersonation override (advanced). Empty = use each scraper's built-in,
     # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
     # profile names (e.g. ["safari260", "safari184"]) replaces it for every
@@ -344,6 +357,8 @@ _SPACELESS_SECRETS = (
     "datadome_cookie",
     "scrape_api_key",
     "llm_api_key",
+    "idealista_api_key",
+    "idealista_api_secret",
 )
 
 

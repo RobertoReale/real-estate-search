@@ -469,6 +469,16 @@ export const it: Dict = {
   "settings.proxyPool": "Pool di proxy (facoltativo, un URL per riga)",
   "settings.proxyPoolNote":
     "Con più di un proxy, un IP di uscita bloccato riposa per un po' e il tentativo successivo esce da un altro — un indirizzo bruciato non manda più giù tutte le scansioni.",
+  "settings.idealistaApiTitle": "🔑 API ufficiale di Idealista",
+  "settings.idealistaApiNote":
+    "Facoltativa, ed è l'unica opzione qui che non sia un aggiramento: con una chiave e un segreto, le ricerche su Idealista chiedono al portale i suoi stessi dati invece di leggerne le pagine, quindi nulla può bloccarle. Le chiavi vengono rilasciate a mano dopo aver descritto il proprio progetto su",
+  "settings.idealistaKeySaved": "Chiave già salvata (lascia vuoto per mantenerla)",
+  "settings.idealistaKeyPlaceholder": "Chiave API",
+  "settings.idealistaSecretSaved": "Segreto già salvato (lascia vuoto per mantenerlo)",
+  "settings.idealistaSecretPlaceholder": "Segreto API",
+  "settings.idealistaMaxPages": "Richieste per ricerca, a ogni scansione",
+  "settings.idealistaMaxPagesNote":
+    "Ognuna restituisce fino a 50 annunci e consuma la quota mensile concordata per la tua chiave — perciò il valore predefinito è una sola richiesta. Alzalo quando conosci il tuo limite. Le ricerche che l'API non sa esprimere con esattezza (un quartiere, un numero di locali, un filtro sulle caratteristiche) continuano a usare il normale scraper, e così anche tutto ciò che l'API rifiuta.",
   "settings.scrapeApiTitle": "🌐 API di scraping (risolve DataDome per te)",
   "settings.scrapeApiNote":
     "Facoltativa. Con una chiave del provider impostata, le scansioni instradano ogni pagina del portale attraverso il provider — che restituisce l'HTML già risolto — così i blocchi smettono di colpire il tuo IP di casa. I piani gratuiti (~1.000 chiamate al mese) bastano per uno scanner personale. Lascia vuoto per mantenere il percorso locale (gratuito, offline).",

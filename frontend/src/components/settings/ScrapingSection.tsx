@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useT } from "../../i18n";
 import { api } from "../../services/api";
 import type { Settings } from "../../types";
-import { HelpSteps, SecretStatus, SectionHeading } from "./controls";
+import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
 import { errorText, useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -11,6 +11,9 @@ interface Values {
   apiProvider: string;
   apiKey: string;
   apiMode: string;
+  idealistaKey: string;
+  idealistaSecret: string;
+  idealistaMaxPages: number;
   cookie: string;
   autoRefresh: boolean;
   browserFirst: boolean;
@@ -23,7 +26,8 @@ export function useScrapingSection(): Section<Values> {
   return useSectionState<Values>(
     {
       proxyUrl: "", proxyUrls: "", apiProvider: "scrapfly", apiKey: "",
-      apiMode: "fallback", cookie: "", autoRefresh: false, browserFirst: false,
+      apiMode: "fallback", idealistaKey: "", idealistaSecret: "", idealistaMaxPages: 1,
+      cookie: "", autoRefresh: false, browserFirst: false,
       browserHeadful: false, engine: "auto", humanize: true,
     },
     (s) => ({
@@ -32,6 +36,9 @@ export function useScrapingSection(): Section<Values> {
       apiProvider: s.scrape_api_provider || "scrapfly",
       apiKey: "", // write-only
       apiMode: s.scrape_api_mode || "fallback",
+      idealistaKey: "", // write-only
+      idealistaSecret: "", // write-only
+      idealistaMaxPages: s.idealista_api_max_pages ?? 1,
       cookie: "", // write-only
       autoRefresh: s.datadome_auto_refresh ?? false,
       browserFirst: s.availability_browser_first ?? false,
@@ -47,6 +54,9 @@ export function useScrapingSection(): Section<Values> {
         proxy_urls: v.proxyUrls.split("\n").map((u) => u.trim()).filter(Boolean),
         scrape_api_provider: v.apiProvider,
         scrape_api_mode: v.apiMode,
+        // Each page is one metered request, and the backend refuses 0 — so a
+        // cleared field means the conservative default, never "unlimited".
+        idealista_api_max_pages: Math.max(1, v.idealistaMaxPages || 1),
         datadome_auto_refresh: v.autoRefresh,
         availability_browser_first: v.browserFirst,
         availability_browser_headful: v.browserHeadful,
@@ -54,6 +64,8 @@ export function useScrapingSection(): Section<Values> {
         browser_humanize: v.humanize,
       };
       if (v.apiKey.trim()) p.scrape_api_key = v.apiKey.trim();
+      if (v.idealistaKey.trim()) p.idealista_api_key = v.idealistaKey.trim();
+      if (v.idealistaSecret.trim()) p.idealista_api_secret = v.idealistaSecret.trim();
       if (v.cookie.trim()) p.datadome_cookie = v.cookie;
       return p;
     },
@@ -151,6 +163,46 @@ export function ScrapingSection(
             placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
             value={values.proxyUrls} onChange={(e) => set("proxyUrls", e.target.value)} />
           <p className="text-xs t-dim mt-1">{t("settings.proxyPoolNote")}</p>
+        </div>
+        {/* Idealista's own API: the only option here that is not a workaround,
+            so it sits above the ones that are. */}
+        <div className="rounded-xl panel p-3 space-y-2">
+          <p className="text-xs font-medium t-body">{t("settings.idealistaApiTitle")}</p>
+          <p className="text-xs t-dim">
+            {t("settings.idealistaApiNote")}{" "}
+            <Link href="https://developers.idealista.com/">developers.idealista.com</Link>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <input className="input w-full" type="password"
+                placeholder={t(settings.idealista_api_key_set
+                  ? "settings.idealistaKeySaved" : "settings.idealistaKeyPlaceholder")}
+                value={values.idealistaKey}
+                onChange={(e) => set("idealistaKey", e.target.value)} />
+              <div className="mt-1">
+                <SecretStatus set={settings.idealista_api_key_set}
+                  dirty={!!values.idealistaKey.trim()} />
+              </div>
+            </div>
+            <div>
+              <input className="input w-full" type="password"
+                placeholder={t(settings.idealista_api_secret_set
+                  ? "settings.idealistaSecretSaved" : "settings.idealistaSecretPlaceholder")}
+                value={values.idealistaSecret}
+                onChange={(e) => set("idealistaSecret", e.target.value)} />
+              <div className="mt-1">
+                <SecretStatus set={settings.idealista_api_secret_set}
+                  dirty={!!values.idealistaSecret.trim()} />
+              </div>
+            </div>
+          </div>
+          <label className="text-xs t-muted block">
+            {t("settings.idealistaMaxPages")}
+            <input className="input w-full sm:w-24 mt-1 block" type="number" min={1}
+              value={values.idealistaMaxPages}
+              onChange={(e) => set("idealistaMaxPages", Number(e.target.value))} />
+          </label>
+          <p className="text-xs t-dim">{t("settings.idealistaMaxPagesNote")}</p>
         </div>
         <div className="rounded-xl panel p-3 space-y-2">
           <p className="text-xs font-medium t-body">{t("settings.scrapeApiTitle")}</p>

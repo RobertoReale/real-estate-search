@@ -315,6 +315,9 @@ class SettingsIn(BaseModel):
     scrape_api_key: str | None = None
     scrape_api_mode: str | None = None
     transport_escalate_after_failures: int | None = None
+    idealista_api_key: str | None = None
+    idealista_api_secret: str | None = None
+    idealista_api_max_pages: int | None = None
     nominatim_url: str | None = None
     nl_parser_backend: str | None = None
     llm_base_url: str | None = None
@@ -336,6 +339,15 @@ class SettingsIn(BaseModel):
     def failures_not_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
             raise ValueError("must be >= 0 (0 disables health alerting)")
+        return v
+
+    @field_validator("idealista_api_max_pages")
+    @classmethod
+    def api_pages_at_least_one(cls, v: int | None) -> int | None:
+        # Every page is a metered request against a ceiling nobody publishes, so
+        # the floor is 1 rather than a 0 meaning "unlimited".
+        if v is not None and v < 1:
+            raise ValueError("must be >= 1 (each page is one API request)")
         return v
 
     @field_validator("scrape_api_provider")

@@ -46,6 +46,7 @@ const SAVED_KEYS = [
   "dream_min_floor", "dream_keywords", "dream_zones",
   "nl_parser_backend", "llm_base_url", "llm_model",
   "proxy_url", "proxy_urls", "scrape_api_provider", "scrape_api_mode",
+  "idealista_api_max_pages",
   "datadome_auto_refresh", "availability_browser_first",
   "availability_browser_headful", "browser_engine", "browser_humanize",
   "api_auth_token",
@@ -69,6 +70,9 @@ const STORED: Settings = {
   proxy_url: "http://one:8000", proxy_urls: ["http://a:8000", "http://b:8000"],
   scrape_api_provider: "zyte", scrape_api_key: "", scrape_api_key_set: true,
   scrape_api_mode: "always",
+  idealista_api_key: "", idealista_api_key_set: true,
+  idealista_api_secret: "", idealista_api_secret_set: true,
+  idealista_api_max_pages: 3,
   datadome_cookie: "", datadome_cookie_set: true, datadome_auto_refresh: true,
   availability_browser_first: true, availability_browser_headful: true,
   browser_engine: "camoufox", browser_humanize: false,
@@ -115,6 +119,10 @@ describe("settings sections", () => {
     expect(payload).not.toHaveProperty("datadome_cookie");
     expect(payload).not.toHaveProperty("scrape_api_key");
     expect(payload).not.toHaveProperty("llm_api_key");
+    // Both halves of the Idealista credential, and both matter: saving one
+    // without the other leaves the API configured with a key it cannot use.
+    expect(payload).not.toHaveProperty("idealista_api_key");
+    expect(payload).not.toHaveProperty("idealista_api_secret");
   });
 
   it("trims a typed secret — except the two that must keep their spaces", () => {
@@ -131,8 +139,12 @@ describe("settings sections", () => {
     const scraping = renderHook(() => useScrapingSection()).result;
     act(() => scraping.current.reset(STORED));
     act(() => scraping.current.set("apiKey", " zk-2 "));
+    act(() => scraping.current.set("idealistaKey", " ik-3 "));
+    act(() => scraping.current.set("idealistaSecret", " is-4 "));
     act(() => scraping.current.set("cookie", " dd=xyz "));
     expect(scraping.current.payload().scrape_api_key).toBe("zk-2");
+    expect(scraping.current.payload().idealista_api_key).toBe("ik-3");
+    expect(scraping.current.payload().idealista_api_secret).toBe("is-4");
     // Untrimmed on purpose: the cookie is copied out of devtools and a stray
     // space is the user's problem to see, not ours to silently alter.
     expect(scraping.current.payload().datadome_cookie).toBe(" dd=xyz ");

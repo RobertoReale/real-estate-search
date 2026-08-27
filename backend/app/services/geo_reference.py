@@ -213,6 +213,22 @@ def city_centroid(city: str) -> tuple[float, float] | None:
     return (found[0], found[1]) if found else None
 
 
+def city_search_area(city: str) -> tuple[float, float, float] | None:
+    """(lat, lng, radius_m) covering the comune, or None when unknown/ambiguous.
+
+    The same centroid and size-scaled radius `is_plausible_coordinate` measures
+    a pin against, read the other way round: as the circle to search *inside*.
+    One definition of how big a comune is, so the area an API is asked for and
+    the area a pin is believed in cannot drift apart.
+    """
+    return _centroid_and_radius(city)
+
+
+def same_comune(a: str, b: str) -> bool:
+    """Do two spellings name the same comune? Accent- and case-insensitive."""
+    return _normalize_place(a) == _normalize_place(b)
+
+
 def is_plausible_coordinate(lat: float | None, lng: float | None, city: str) -> bool:
     """Is (lat, lng) a believable pin for `city`?
 

@@ -72,5 +72,27 @@ You can provide that cookie in three ways, from most to least automatic:
   provider instead. The **Scraper health** panel on the dashboard shows which
   transport carried each day's scans.
 
+* **Idealista's official API** — the only option on this page that is not a
+  workaround, and the only one that removes the block rather than getting past
+  it. Idealista runs a developer programme covering Italy: with a key and secret
+  pasted into **Settings → Advanced Scraping → *Idealista official API***,
+  searches on that portal ask Idealista for its own data instead of reading its
+  pages. Nothing to block, no cookie, no browser. Keys are **not** self-service
+  — you describe your project at
+  [developers.idealista.com](https://developers.idealista.com/) and one is
+  issued by hand, with a monthly request allowance agreed at the same time.
+  That allowance is why the app spends **one request per search per scan** by
+  default (it returns up to 50 listings); raise *Requests per search, per scan*
+  once you know your own limit.
+
+  It is a **complement to the scraper, never a replacement**, and it says so out
+  loud: a search the API cannot express *exactly* — one narrowed to a
+  neighbourhood, or to a room count, or to a feature like "with a lift" — keeps
+  using the normal scraper, and so does any search the API refuses, runs out of
+  quota on, or answers with nothing. The reason is that a room count means
+  *locali* on the Italian site and *bedrooms* in the API, and quietly assuming
+  they are the same number would return a plausible page of the wrong flats. The
+  **Scraper health** panel names which engine served each day's scans.
+
 Nothing here is required for the app to work — a home connection is trusted by
 DataDome most of the time on its own. These are the levers for when it isn't.

@@ -37,6 +37,12 @@ def get_settings():
     settings["scrape_api_key"] = "***" if settings.get("scrape_api_key") else ""
     settings["llm_api_key_set"] = bool(settings.get("llm_api_key"))
     settings["llm_api_key"] = "***" if settings.get("llm_api_key") else ""
+    # Both halves are secret, and both are reported: an API key saved without
+    # its secret is not configured, and the UI has to be able to say so.
+    settings["idealista_api_key_set"] = bool(settings.get("idealista_api_key"))
+    settings["idealista_api_key"] = "***" if settings.get("idealista_api_key") else ""
+    settings["idealista_api_secret_set"] = bool(settings.get("idealista_api_secret"))
+    settings["idealista_api_secret"] = "***" if settings.get("idealista_api_secret") else ""
     # whether the optional browser automation is installed, so the UI can show
     # the "grab it for me" button instead of a paste-only field
     from ..services import cookie_harvester
@@ -60,6 +66,10 @@ def update_settings(data: schemas.SettingsIn):
         values.pop("scrape_api_key")
     if values.get("llm_api_key") == "***":
         values.pop("llm_api_key")
+    if values.get("idealista_api_key") == "***":
+        values.pop("idealista_api_key")
+    if values.get("idealista_api_secret") == "***":
+        values.pop("idealista_api_secret")
     save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
