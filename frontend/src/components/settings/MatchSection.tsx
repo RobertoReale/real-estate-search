@@ -78,17 +78,17 @@ export function MatchSection({ section }: { section: Section<Values> }) {
             </label>
           </div>
           <div>
-            <label className="text-xs t-muted block mb-1">
+            <label className="text-xs t-muted block mb-1" htmlFor="match-features">
               {t("settings.dreamFeatures")}
             </label>
-            <input className="input w-full" value={values.keywords}
+            <input id="match-features" className="input w-full" value={values.keywords}
               onChange={(e) => set("keywords", e.target.value)} />
           </div>
           <div>
-            <label className="text-xs t-muted block mb-1">
+            <label className="text-xs t-muted block mb-1" htmlFor="match-zones">
               {t("settings.dreamZones")}
             </label>
-            <input className="input w-full" value={values.zones}
+            <input id="match-zones" className="input w-full" value={values.zones}
               onChange={(e) => set("zones", e.target.value)} />
           </div>
         </div>

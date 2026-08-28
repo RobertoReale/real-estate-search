@@ -107,6 +107,11 @@ export default function MapView({
   const drawModeRef = useRef<DrawMode>("");
   drawModeRef.current = drawMode;
   const polyVertsRef = useRef<L.LatLng[]>([]);
+  // The vertex count is mirrored in state, not read off the ref during render:
+  // a click only mutates the ref and repaints Leaflet's scratch layer, so
+  // nothing re-rendered React and the "N points added" hint sat at 0 for the
+  // whole drawing — the one feedback saying the clicks were registering.
+  const [polyCount, setPolyCount] = useState(0);
   const radiusCenterRef = useRef<L.LatLng | null>(null);
 
   const activeGeo = geo ?? EMPTY_GEO;
@@ -206,6 +211,7 @@ export default function MapView({
 
   function handlePolyClick(latlng: L.LatLng) {
     polyVertsRef.current = [...polyVertsRef.current, latlng];
+    setPolyCount(polyVertsRef.current.length);
     redrawPolyScratch();
   }
 
@@ -215,6 +221,7 @@ export default function MapView({
     const poly = verts.map((v) => `${v.lat.toFixed(6)},${v.lng.toFixed(6)}`).join(";");
     commit({ geo_mode: "polygon", center_lat: "", center_lng: "", radius_m: "", poly });
     polyVertsRef.current = [];
+    setPolyCount(0);
     drawLayerRef.current?.clearLayers();
     setDrawMode("");
   }
@@ -229,6 +236,7 @@ export default function MapView({
   }
   function cancelDrawing() {
     polyVertsRef.current = [];
+    setPolyCount(0);
     radiusCenterRef.current = null;
     drawLayerRef.current?.clearLayers();
     setDrawMode("");
@@ -380,7 +388,7 @@ export default function MapView({
         </button>
         {drawMode === "polygon" && (
           <span className="text-xs t-dim">
-            {t("map.polyHint", { count: polyVertsRef.current.length })}
+            {t("map.polyHint", { count: polyCount })}
           </span>
         )}
         {(hasZone || drawMode) && (

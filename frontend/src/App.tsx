@@ -23,6 +23,62 @@ import type {
   ScanStatus, SearchProfile, Settings, Tag, ViewMode,
 } from "./types";
 
+/** "New" badge threshold: properties first seen after this instant are flagged
+ *  as new for the rest of this browser session, even if a scan completes while
+ *  the dashboard stays open. The stored timestamp is advanced immediately so a
+ *  reload (the next time the user "sees" the dashboard, per-device like the
+ *  theme and the token in localStorage) stops flagging today's properties as
+ *  new. No stored value at all means first-ever run: nothing is flagged, so the
+ *  whole existing dashboard doesn't light up as "new".
+ *
+ *  Memoised at module scope, and that is the load-bearing part: this is read
+ *  from a `useState` initializer, which StrictMode deliberately invokes twice.
+ *  Reading and writing localStorage in there directly meant the second
+ *  invocation read back the timestamp the first had just written — so in
+ *  development the threshold was always "now" and no card was ever badged,
+ *  while the production build (no double invocation) behaved correctly. A
+ *  feature that only misbehaves where it is developed is a feature nobody can
+ *  verify.
+ */
+const SEEN_KEY = "propertiesSeenBefore";
+let seenBefore: string | null | undefined;
+
+export function readSeenThreshold(): string | null {
+  if (seenBefore === undefined) {
+    seenBefore = localStorage.getItem(SEEN_KEY);
+    localStorage.setItem(SEEN_KEY, new Date().toISOString());
+  }
+  return seenBefore;
+}
+
+/** Drop from the selection the properties that have left the filtered set — but
+ *  only when this fetch actually saw all of it.
+ *
+ *  "Select all" means the whole filtered set and asks the backend for it
+ *  (`limit: 0`), while the grid keeps holding one window. Intersecting the
+ *  selection against that window on the next refresh — which any scan triggers,
+ *  and the poll every 30s — silently turned "hide all 300 results" into "hide
+ *  the first 60": the bar still said 300 until the moment it repainted, and the
+ *  action underneath quietly shrank to a fifth of what its label promised.
+ *
+ *  When the window is the whole set, the intersection is exactly right and is
+ *  what keeps a hidden or filtered-out card from staying selected.
+ */
+export function pruneSelection(
+  selected: Set<number>,
+  loaded: { id: number }[],
+  total: number,
+): Set<number> {
+  if (selected.size === 0) return selected;
+  if (loaded.length < total) return selected; // a window, not the whole set
+  const present = new Set(loaded.map((p) => p.id));
+  const kept = new Set<number>();
+  for (const id of selected) {
+    if (present.has(id)) kept.add(id);
+  }
+  return kept;
+}
+
 const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
   profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
@@ -84,21 +140,10 @@ export default function App() {
   // grid only when it differs. null = never read one yet.
   const dataVersion = useRef<string | null>(null);
 
-  // "New" badge threshold: properties first seen after this instant are
-  // flagged as new for the rest of this browser session, even if a scan
-  // completes while the dashboard stays open. Captured once via a lazy
-  // initializer (not an effect) so the very first render already has it —
-  // an effect would flash the grid without badges for one frame. The stored
-  // timestamp is advanced immediately so a reload (the next time the user
-  // "sees" the dashboard, per-device like the theme/token in localStorage)
-  // stops flagging today's properties as new. No stored value at all means
-  // first-ever run: nothing is flagged, so the whole existing dashboard
-  // doesn't light up as "new".
-  const [newSinceThreshold] = useState<string | null>(() => {
-    const stored = localStorage.getItem("propertiesSeenBefore");
-    localStorage.setItem("propertiesSeenBefore", new Date().toISOString());
-    return stored;
-  });
+  // Captured through a lazy initializer (not an effect) so the very first
+  // render already has it — an effect would flash the grid without badges for
+  // one frame. See `readSeenThreshold` for why the read is memoised.
+  const [newSinceThreshold] = useState<string | null>(readSeenThreshold);
 
   // Only the property list depends on the filters, so it is the one thing the
   // per-keystroke path must refetch. Kept separate from the reference data
@@ -117,14 +162,7 @@ export default function App() {
       loadedCount.current = props.length;
       setProperties(props);
       setTotal(page.total);
-      setSelectedIds((prev) => {
-        if (prev.size === 0) return prev;
-        const validIds = new Set<number>();
-        for (const id of prev) {
-          if (props.some((p) => p.id === id)) validIds.add(id);
-        }
-        return validIds;
-      });
+      setSelectedIds((prev) => pruneSelection(prev, props, page.total));
       setLoadFailed(false);
       // keep the open modal in sync with fresh data (e.g. after saving
       // notes or toggling favorite); if the property left the current

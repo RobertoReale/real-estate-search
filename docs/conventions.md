@@ -89,24 +89,42 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (32 in four files: vitest + `@testing-library/react`,
-  run `cd frontend && npm test`). They cover the pure logic that used to be invisible — the
-  `propertyParams` codec in `services/api.ts` first, since a filter silently dropped from
-  the querystring vanishes from both the grid and the export with nothing failing; then
-  `humanizeFloor`, and the i18n core (`i18n/i18n.test.ts`): key parity between `en`/`it`,
-  **matching `{placeholder}` sets per key** (a dropped `{count}` leaves a hole in one
-  language only), no empty translation, interpolation, and the startup language resolution.
-  `components/settings/sections.test.ts` is the same hazard one level up: the settings save
-  is the **union of eight sections' payloads**, so a field dropped from one section's
-  `write` stops persisting while the form still renders it and the request still returns
-  200 — the test pins the whole key set, the round-trip, and the "an empty secret field
-  means keep the stored one" rule. The harness (jsdom + jest-dom) is set up for component
-  tests too, but the point is the pure logic, not pixels.
+- **The frontend has unit tests too** (63 in thirteen files: vitest +
+  `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
+  used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
+  filter silently dropped from the querystring vanishes from both the grid and the export
+  with nothing failing; then `humanizeFloor`, and the i18n core (`i18n/i18n.test.ts`): key
+  parity between `en`/`it`, **matching `{placeholder}` sets per key** (a dropped `{count}`
+  leaves a hole in one language only), no empty translation, interpolation, and the startup
+  language resolution. `components/settings/sections.test.ts` is the same hazard one level
+  up: the settings save is the **union of eight sections' payloads**, so a field dropped
+  from one section's `write` stops persisting while the form still renders it and the
+  request still returns 200 — the test pins the whole key set, the round-trip, and the "an
+  empty secret field means keep the stored one" rule. `services/export.test.ts` pins the
+  authenticated dossier path onto the *same* `exportUrl`, since a second querystring builder
+  is how a dossier would stop mirroring the screen. `i18n/render.test.tsx` closes the gap
+  `i18n.test.ts` cannot reach: it renders real components in **both** languages, because the
+  dictionaries being correct as *data* says nothing about the module-level locale
+  `I18nProvider` assigns during render — and that is the half `formatPrice`, `humanizeFloor`
+  and MapView's tooltips depend on. Freeze it and the words still switch while the prices,
+  dates and floor labels keep formatting the old way; nothing else in the suite notices.
+
+- **Component tests exist where the defect is only visible in a rendered tree.** Not for
+  pixels — for four things a pure test cannot reach, each written after the bug it now
+  guards: that a label actually names its control (`FiltersBar.test.tsx` uses
+  `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
+  takes focus and answers Enter (`PropertyCard.test.tsx`), that a dialog whose data fails to
+  load still renders something dismissable (`SettingsModal.test.tsx`), and that an effect's
+  abandoned request cannot repaint the screen (`LogViewer.test.tsx`). `App.test.tsx` mounts
+  under `StrictMode` on purpose: its double invocation of `useState` initializers is the
+  bug, so nothing weaker reproduces it.
 
 - **Tests DO NOT cover:** the real network fetch (DataDome cannot be simulated), the
   APScheduler wiring itself (its decision helpers — catch-up, backup freshness — are
-  tested), and the React components' rendered UI (still manual verification via
-  `start.bat`).
+  tested), how the UI *looks* (layout and the responsive breakpoints are still manual
+  verification via `start.bat`), and anything that needs a real layout engine — which in
+  practice means **Leaflet**: `L.map` on jsdom's zero-sized container measures nothing, so
+  `MapView`'s drawing tools and pin fitting are verified by hand.
 
 - **The offline sandbox (`tests/mock_portal.py`) is where a whole-flow test goes.** The
   suite has always been offline, but offline *by substitution* — a fake session handed to a

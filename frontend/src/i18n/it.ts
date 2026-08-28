@@ -331,6 +331,7 @@ export const it: Dict = {
   "filters.exportFavorites": "Preferiti",
   "filters.exportRentals": "Affitti",
   "filters.exportProperties": "Immobili",
+  "filters.exportFailed": "Impossibile creare il dossier: {error}",
   "filters.exportIn": "{what} a {city}",
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
@@ -382,6 +383,7 @@ export const it: Dict = {
   "settings.secretNotSet": "○ Non impostato",
   "settings.saved": "Impostazioni salvate.",
   "settings.saveFailed": "Impossibile salvare le impostazioni: {error}",
+  "settings.loadFailed": "Impossibile caricare le impostazioni: {error}",
   "settings.save": "Salva le impostazioni",
   "settings.errCredentials":
     "{error} — le credenziali sono state rifiutate. Con Gmail devi usare una password per app di 16 caratteri, non la tua password normale.",
@@ -703,6 +705,8 @@ export const it: Dict = {
   "profiles.assistantReading": "Lettura…",
   "profiles.assistantSubmit": "Interpretala →",
   "profiles.assistantTry": "Prova:",
+  "profiles.assistantNothing":
+    "Non c'era nulla da leggere. Descrivi che cosa cerchi — almeno una città.",
   "profiles.multiIntro":
     "Ho letto {count} ricerche alternative nella tua frase. Controllale una per una (apri i link per verificare i risultati), poi crea tutti i profili in un colpo solo.",
   "profiles.reword": "✏️ Riformula",

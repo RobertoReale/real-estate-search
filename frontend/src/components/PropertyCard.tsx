@@ -138,7 +138,22 @@ export default function PropertyCard({
   return (
     <article
       onClick={onClick}
-      className={`glass rounded-2xl overflow-hidden cursor-pointer group hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-200 hover:-translate-y-0.5 ${
+      // The whole card is the button that opens a property — the primary flow
+      // of the dashboard — so it must be reachable without a mouse. As a bare
+      // `<article onClick>` it took no focus and answered no key, which left
+      // "open this listing" available to pointer users only.
+      role="button"
+      tabIndex={0}
+      aria-label={p.title || t("card.untitled")}
+      onKeyDown={(e) => {
+        // Space would otherwise scroll the page under the card
+        if (e.key === "Enter" || e.key === " ") {
+          if (e.target !== e.currentTarget) return; // a nested control owns it
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`glass rounded-2xl overflow-hidden cursor-pointer group hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-200 hover:-translate-y-0.5 btn-focus ${
         selected ? "ring-2 ring-blue-500 border-blue-500" : ""
       }`}>
       <div className="relative h-44 bg-slate-200 dark:bg-slate-800 overflow-hidden">

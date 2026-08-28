@@ -55,53 +55,53 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           `col-span-2` below is inert once the container turns into a flex */}
       <div className="grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap">
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("common.contract")}</label>
-          <select className="input w-full sm:w-28" value={params.contract}
+          <label className="text-xs t-muted" htmlFor="builder-contract">{t("common.contract")}</label>
+          <select id="builder-contract" className="input w-full sm:w-28" value={params.contract}
             onChange={(e) => setParam({ contract: e.target.value as "sale" | "rent" })}>
             <option value="sale">{t("filters.buy")}</option>
             <option value="rent">{t("filters.rent")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("profiles.cityRequired")}</label>
-          <input className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
+          <label className="text-xs t-muted" htmlFor="builder-city">{t("profiles.cityRequired")}</label>
+          <input id="builder-city" className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
             value={params.city} onChange={(e) => setParam({ city: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" title={t("profiles.provinceTitle")}>
+          <label className="text-xs t-muted" htmlFor="builder-province" title={t("profiles.provinceTitle")}>
             {t("profiles.province")}
           </label>
-          <input className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+          <input id="builder-province" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
             value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" title={t("profiles.zoneTitle")}>
+          <label className="text-xs t-muted" htmlFor="builder-zone" title={t("profiles.zoneTitle")}>
             {t("filters.zone")}
           </label>
-          <input className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+          <input id="builder-zone" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
             value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.minPrice")}</label>
-          <input className="input w-full sm:w-24" type="number" value={params.min_price}
+          <label className="text-xs t-muted" htmlFor="builder-min-price">{t("filters.minPrice")}</label>
+          <input id="builder-min-price" className="input w-full sm:w-24" type="number" value={params.min_price}
             onChange={(e) => setParam({ min_price: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.maxPrice")}</label>
-          <input className="input w-full sm:w-24" type="number" value={params.max_price}
+          <label className="text-xs t-muted" htmlFor="builder-max-price">{t("filters.maxPrice")}</label>
+          <input id="builder-max-price" className="input w-full sm:w-24" type="number" value={params.max_price}
             onChange={(e) => setParam({ max_price: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("profiles.minRooms")}</label>
-          <select className="input w-full sm:w-24" value={params.min_rooms}
+          <label className="text-xs t-muted" htmlFor="builder-min-rooms">{t("profiles.minRooms")}</label>
+          <select id="builder-min-rooms" className="input w-full sm:w-24" value={params.min_rooms}
             onChange={(e) => setParam({ min_rooms: e.target.value })}>
             <option value="">{t("common.any")}</option>
             {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.minSqm")}</label>
-          <input className="input w-full sm:w-20" type="number" value={params.min_sqm}
+          <label className="text-xs t-muted" htmlFor="builder-min-sqm">{t("filters.minSqm")}</label>
+          <input id="builder-min-sqm" className="input w-full sm:w-20" type="number" value={params.min_sqm}
             onChange={(e) => setParam({ min_sqm: e.target.value })} />
         </div>
       </div>
@@ -115,8 +115,8 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       </p>
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.floor")}</label>
-          <select className="input w-full sm:w-36" value={params.floor}
+          <label className="text-xs t-muted" htmlFor="builder-floor">{t("filters.floor")}</label>
+          <select id="builder-floor" className="input w-full sm:w-36" value={params.floor}
             onChange={(e) => setParam({
               floor: e.target.value as SearchBuilderParams["floor"],
             })}>
@@ -124,8 +124,8 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("profiles.condition")}</label>
-          <select className="input w-full sm:w-44" value={params.condition}
+          <label className="text-xs t-muted" htmlFor="builder-condition">{t("profiles.condition")}</label>
+          <select id="builder-condition" className="input w-full sm:w-44" value={params.condition}
             onChange={(e) => setParam({
               condition: e.target.value as SearchBuilderParams["condition"],
             })}>

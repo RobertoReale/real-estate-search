@@ -327,6 +327,7 @@ export const en = {
   "filters.exportFavorites": "Favorites",
   "filters.exportRentals": "Rentals",
   "filters.exportProperties": "Properties",
+  "filters.exportFailed": "Could not build the dossier: {error}",
   "filters.exportIn": "{what} in {city}",
 
   // ── maintenance actions ─────────────────────────────────────────────────
@@ -378,6 +379,7 @@ export const en = {
   "settings.secretNotSet": "○ Not set",
   "settings.saved": "Settings saved.",
   "settings.saveFailed": "Could not save settings: {error}",
+  "settings.loadFailed": "Could not load the settings: {error}",
   "settings.save": "Save settings",
   "settings.errCredentials":
     "{error} — the credentials were refused. With Gmail you must use a 16-character App password, not your normal password.",
@@ -688,6 +690,8 @@ export const en = {
   "profiles.assistantReading": "Reading…",
   "profiles.assistantSubmit": "Understand it →",
   "profiles.assistantTry": "Try:",
+  "profiles.assistantNothing":
+    "There was nothing to read in that. Describe what you are looking for — a city at least.",
   "profiles.multiIntro":
     "I read {count} alternative searches in your sentence. Check each one (open the links to verify the results), then create all the profiles at once.",
   "profiles.reword": "✏️ Reword",
