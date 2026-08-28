@@ -176,6 +176,7 @@ Write a fact once, in the file that owns it:
 | [`architecture.md`](architecture.md) | how the program is put together: the "Where to Act" map, the data schema, the property lifecycle, the migration strategy, the known fragilities | a file moves, a module is added, a schema concept changes |
 | [`invariants.md`](invariants.md) | the rules that must not break, and the regression each one prevents | an invariant is added, retired, or its guard moves |
 | [`conventions.md`](conventions.md) | how code is written and tested here | a convention is decided, or the test counts change |
+| [`development-cycle.md`](development-cycle.md) | the procedure a change follows: the unit of work, the gates before the commit, when behaviour earns an invariant, and how a release is cut | the branch/commit convention, the gate timing, the automation that runs unasked, or the release procedure changes |
 | [`audit.md`](audit.md) | the procedure for a full-project audit: the green baseline, the module-by-module checklist, the invariant→test cross-check | the audit steps change, a module/invariant is added, or a new class of weak point is worth checking for |
 | [`../implementation_plan.md`](../implementation_plan.md) | the historical record: why the design is what it is | a "reasonable" assumption is disproven by a real portal (add to §8) |
 
