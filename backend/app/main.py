@@ -93,8 +93,12 @@ async def require_api_token(request: Request, call_next):
     if token and request.method != "OPTIONS" and request.url.path.startswith("/api/"):
         provided = request.headers.get("Authorization", "")
         # constant-time compare so a wrong token cannot be timed out character
-        # by character
-        if not hmac.compare_digest(provided, f"Bearer {token}"):
+        # by character — on the ENCODED bytes, because compare_digest refuses
+        # str arguments that are not pure ASCII. An accented token ("segretò"
+        # is an entirely natural choice here) therefore raised TypeError out of
+        # the middleware and turned every single /api request into a 500,
+        # including the settings call the user would need to undo it.
+        if not hmac.compare_digest(provided.encode("utf-8"), f"Bearer {token}".encode()):
             return JSONResponse(
                 {"detail": "Authentication required: provide the API token."},
                 status_code=401,

@@ -250,12 +250,23 @@ class BaseScraper:
 
     def fetch(self, url: str) -> str:
         last_error: BlockedError | None = None
+        # "The ladder is exhausted" cannot be read off _rotate_session alone:
+        # for the ad-probe it deliberately WRAPS AROUND and so answers True
+        # forever (the batch reuses one probe across ads, and the next ad must
+        # not inherit a permanently refused rotation). Without a bound of its
+        # own this loop therefore retried a persistently blocked portal for
+        # ever — the caller's `except BlockedError` fail-open never ran, and
+        # neither did the scrape-API escalation below. One full pass of the
+        # ladder is the answer; past that the portal has said no.
+        rotations_left = len(self.impersonations)
         while True:
             try:
                 return self._fetch_once(url)
             except BlockedError as e:
                 last_error = e
-                if not self.rotate_on_block or not self._rotate_session():
+                if rotations_left > 0 and self.rotate_on_block and self._rotate_session():
+                    rotations_left -= 1
+                else:
                     # top of the ladder (plan B.3): with the whole local
                     # rotation exhausted, a configured scrape API is the last
                     # rung before giving up — but only once (use_scrape_api

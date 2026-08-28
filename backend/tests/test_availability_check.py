@@ -276,3 +276,83 @@ def test_browser_first_setting_activates_browser_primary_on_probe(db, monkeypatc
     assert len(probe_instances) == 1
     assert probe_instances[0].started_browser is True
     assert probe_instances[0]._browser_primary is True
+
+
+# --- invariant 15's surviving rule ------------------------------------------
+#
+# The inbox import took its subject away, but the shape it encoded still binds
+# the availability check, which is now the last long-running blocking endpoint:
+# a sync `def` on the threadpool, a module-level progress dict cleared in a
+# `finally`, and a non-blocking module lock that refuses a second run out loud.
+# The tests that covered the lock went with `test_email_import.py`; these are
+# the replacements, aimed at the check that actually still has the rule.
+
+
+def test_a_second_concurrent_run_is_refused_with_a_readable_error(db, monkeypatch):
+    """Threadpool execution means two of these genuinely can arrive at once —
+    the dashboard is routinely open on phone and desktop together. A second
+    batch would double the request rate to the portal and break every
+    assumption the pacing, the block-streak abort and the once-per-host warm-up
+    make about a single probe talking to it. The lock is non-blocking on
+    purpose: the loser is told, not queued behind a run lasting minutes."""
+    prop = _property(db, "700")
+    monkeypatch.setattr(availability_check, "AdProbe", _FakeProbe)
+
+    assert availability_check._check_run_lock.acquire(blocking=False)
+    try:
+        with pytest.raises(availability_check.AvailabilityCheckError) as excinfo:
+            check_properties_availability(db, [prop], skip_recent_hours=0)
+        assert "already running" in str(excinfo.value)
+    finally:
+        availability_check._check_run_lock.release()
+
+    # and the lock is genuinely free again afterwards, so the refusal cannot
+    # strand the feature for the rest of the process's life
+    assert check_properties_availability(db, [prop], skip_recent_hours=0)["checked"] == 1
+
+
+def test_a_crashing_batch_still_releases_the_lock_and_stops_the_progress_bar(db, monkeypatch):
+    """Both cleanups are `finally` clauses guarding the same failure: a batch
+    that dies mid-run must not leave `active: True` behind — the UI polls
+    /check-progress and would show a progress bar advancing towards nothing for
+    ever — nor hold the lock, which would refuse every later run."""
+
+    class ExplodingProbe(_FakeProbe):
+        def check(self, url) -> bool | None:
+            raise RuntimeError("portal connection died mid-batch")
+
+    prop = _property(db, "701")
+    monkeypatch.setattr(availability_check, "AdProbe", ExplodingProbe)
+
+    with pytest.raises(RuntimeError):
+        check_properties_availability(db, [prop], skip_recent_hours=0)
+
+    assert availability_check.get_prop_check_progress()["active"] is False
+    assert availability_check._check_run_lock.acquire(blocking=False)
+    availability_check._check_run_lock.release()
+
+
+def test_the_check_endpoints_stay_sync_defs_on_the_threadpool():
+    """An `async def` here would own the event loop for the whole minutes-long
+    batch, so `/api/properties/check-progress` could not answer and the bar
+    would sit frozen at 0% — exactly the "is it hung?" the bar exists to
+    answer. The progress poller must stay a sync `def` for the same reason its
+    writer is: it is read off a module-level dict, not awaited.
+
+    Inspected off the router rather than spun up, like
+    `test_properties_status_param_rejects_typos`: a TestClient would start the
+    real scheduler through the app lifespan."""
+    import inspect
+
+    from app.routers import properties as properties_router
+
+    for fn in (
+        properties_router.properties_check,
+        properties_router.check_single_property,
+        properties_router.properties_check_progress,
+        properties_router.cancel_properties_check,
+    ):
+        assert not inspect.iscoroutinefunction(fn), (
+            f"{fn.__name__} must stay a sync def: an async one owns the event "
+            "loop for the whole batch and freezes the progress endpoint"
+        )

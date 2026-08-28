@@ -134,6 +134,9 @@ progetto/
 │   │   │   ├── parsing.py        # price/sqm/rooms parsers, contract from URL
 │   │   │   ├── page_text.py      # "ad gone" / "no results" / DataDome-wall predicates
 │   │   │   ├── html_cards.py     # card boundary (no CSS classes) + JSON-LD blocks
+│   │   │   ├── transport_policy.py # which transport rung a scan starts on, from the health streak
+│   │   │   ├── browser_engine.py # the BrowserEngine seam + today's Playwright adapter
+│   │   │   ├── humanize.py       # Bézier pointer paths / scroll / dwell on the browser rung
 │   │   │   ├── probe.py          # AdProbe: "is this ad still online?", fails open
 │   │   │   ├── immobiliare.py    # 4 strategies, including internal API
 │   │   │   ├── idealista.py      # Safari impersonation + heuristic parsing
@@ -146,8 +149,14 @@ progetto/
 │   │       ├── backup.py         # automatic case.db copies with rotation
 │   │       ├── notifier.py       # Telegram Bot API + SMTP email + inline keyboard
 │   │       ├── telegram_bot.py   # long poll (no webhook) collecting button presses
+│   │       ├── search_validator.py # duplicate-search detection + the startup merge
+│   │       ├── scraper_health.py # persisted per-portal block-rate, scan by scan
 │   │       ├── pricing_stats.py  # €/sqm medians, market position per property
 │   │       ├── market_velocity.py# days-on-market and agency statistics
+│   │       ├── deal_score.py     # congruity vs fair value + a proposal range (transient)
+│   │       ├── match_score.py    # compatibility % against the "dream home" preferences
+│   │       ├── exporter.py       # the shortlist dossier: CSV, Markdown, HTML, printable PDF
+│   │       ├── geo_reference.py  # offline gazetteer of Italian comuni
 │   │       ├── query_parser.py   # offline natural-language search assistant (deterministic default)
 │   │       ├── llm_parser.py     # optional LLM backend for the assistant (OpenAI-compatible, falls back to query_parser)
 │   │       ├── listing_auditor.py # opt-in reading of one ad's text by that same model, on demand (cached, bounded)
@@ -162,7 +171,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 704 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 717 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -223,7 +232,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (704, `pytest`)
+### Automated Tests (717, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

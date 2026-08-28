@@ -370,3 +370,63 @@ def test_street_and_civic():
     # without house number, it is not location proof
     assert street_and_civic("Via Ornato") is None
     assert street_and_civic("") is None
+
+
+# --- invariant 10: user-curated fields survive every scan -------------------
+
+
+def test_a_rescan_never_touches_favorite_and_notes(db):
+    """Invariant 10's other half. Every existing test covers how curation is
+    *written* (the PATCH route, the bulk actions); nothing covered the promise
+    that matters more — that the thing running unattended every hour leaves it
+    alone. `upsert_listing` writes a dozen Property fields on a re-sighting, and
+    a star or a viewing note is the one thing in the dashboard that exists
+    nowhere else and no re-scan could rebuild."""
+    prop, is_new, _ = upsert_listing(db, _raw())
+    assert is_new is True
+    prop.is_favorite = True
+    prop.notes = "viewing Friday 18:00, ask about the boiler"
+    db.commit()
+
+    # the same ad again, re-priced and re-titled, exactly as a scan re-finds it
+    same, is_new, price_changed = upsert_listing(
+        db, _raw(price=285_000.0, title="Trilocale via Roma — ribassato")
+    )
+    db.commit()
+    db.refresh(same)
+
+    assert is_new is False and price_changed is True  # the scan really did work
+    assert same.id == prop.id
+    assert same.is_favorite is True
+    assert same.notes == "viewing Friday 18:00, ask about the boiler"
+
+
+def test_merging_a_second_portal_never_touches_favorite_and_notes(db):
+    """The merge path writes the Property too (it enriches missing fields), and
+    it is a different branch of upsert_listing from the re-sighting above — so
+    it needs its own guard, or a fix to one could quietly regress the other."""
+    prop, _, _ = upsert_listing(db, _raw())
+    prop.is_favorite = True
+    prop.notes = "offer sent"
+    db.commit()
+
+    merged, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+            price=310_000.0,
+            sqm=92.0,
+            latitude=None,
+            longitude=None,
+            address="via roma, 12",
+        ),
+    )
+    db.commit()
+    db.refresh(merged)
+
+    assert is_new is False and merged.id == prop.id
+    assert len(merged.listings) == 2  # the merge really happened
+    assert merged.is_favorite is True
+    assert merged.notes == "offer sent"
