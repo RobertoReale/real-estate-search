@@ -173,6 +173,28 @@ DEFAULT_EXCLUDED_KEYWORDS = [
     "piano terra",
 ]
 
+# TLS handshakes the scraper rotation presents, in preference order — not
+# random: portals only accept certain ones (Safari passes on both, Chrome
+# desktop does not). Every entry was measured against a live portal rather than
+# reasoned about (invariant 8), and the list changes faster than any code around
+# it, which is why it is data: reordering it or dropping a burnt profile is an
+# edit to settings.json, not a release.
+DEFAULT_TLS_IMPERSONATIONS = [
+    "safari184",
+    "chrome131_android",
+    "safari180",
+    # Appended July 2026 after the ad-probe measured all three profiles above
+    # blocked by DataDome on Immobiliare: iOS Safari and Firefox handshakes are
+    # scored on different fingerprint pools than desktop Safari/Chrome, so they
+    # extend the rotation rather than replace it.
+    "safari18_4_ios",
+    "firefox147",
+    # Current-generation Safari (26.x), added to keep the rotation abreast of
+    # real browser evolution. It trails the measured-good profiles: an untested
+    # handshake only gets tried once those ahead of it are blocked.
+    "safari260",
+]
+
 DEFAULT_SETTINGS = {
     "telegram_bot_token": "",
     "telegram_chat_id": "",
@@ -298,12 +320,14 @@ DEFAULT_SETTINGS = {
     # is published nowhere, so the default spends one request (50 listings) per
     # profile scan and the user raises it once they know their own budget.
     "idealista_api_max_pages": 1,
-    # TLS impersonation override (advanced). Empty = use each scraper's built-in,
-    # empirically-ordered list (invariant 8). A non-empty list of curl_cffi
-    # profile names (e.g. ["safari260", "safari184"]) replaces it for every
-    # scraper; unsupported names are silently filtered at runtime, so this is the
-    # zero-code way to rotate handshakes when a new DataDome wave lands.
-    "tls_impersonations": [],
+    # The rotation itself (advanced), defaulting to the measured list above so an
+    # upgrade changes nothing. Editing it is the zero-code way to react to a new
+    # DataDome wave: a name the installed curl_cffi does not know is dropped with
+    # a logged reason instead of raising on the next live fetch, and a list left
+    # empty — or one where nothing survives that filter — falls back to
+    # DEFAULT_TLS_IMPERSONATIONS rather than leaving a scraper with no handshake
+    # to present (invariant 8).
+    "tls_impersonations": list(DEFAULT_TLS_IMPERSONATIONS),
     "datadome_cookie": "",
     # Automatic DataDome cookie refresh via a local browser (optional, needs
     # Playwright — see services/cookie_harvester.py). Opt-in: a scan must not

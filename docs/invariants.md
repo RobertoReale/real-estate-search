@@ -60,12 +60,18 @@ each invariant to its code home and its test file. See also
 8. **TLS Impersonation: ordered list, Safari first.** DataDome rejects Chrome desktop on
    both portals (measured); rotation occurs only on block. If someday everything is
    blocked, updating `curl_cffi` and profile names (`safari184`, …) is the first thing to
-   try. The list is **self-healing**: `resolve_impersonations` (`transport.py`) filters the
-   configured names against what the installed `curl_cffi` actually supports, so a
-   `pip install -U curl_cffi` that retires a name degrades gracefully instead of crashing
-   the next live fetch (it never returns empty — worst case the generic `"safari"` alias).
-   The `tls_impersonations` setting (empty by default) overrides the per-scraper code list
-   for every scraper — the zero-code way to rotate handshakes when a new wave lands. The
+   try. **The list is data, not code**: `tls_impersonations` in the settings holds it and
+   defaults to `config.DEFAULT_TLS_IMPERSONATIONS` — the same sequence that used to be
+   hardcoded in `base.py`, which now carries it only as the built-in fallback — so a new
+   block wave is answered by editing settings rather than shipping a release. It is also
+   **self-healing**: `resolve_impersonations` (`transport.py`) filters the configured names
+   against what the installed `curl_cffi` actually supports, **logging every name it drops
+   and why**, so a `pip install -U curl_cffi` that retires a name (or a typo in the
+   setting) degrades gracefully instead of crashing the next live fetch or silently
+   shortening the rotation. It never returns empty: a list where nothing survives the
+   filter — or one emptied outright, which is what every settings.json written before this
+   setting had a default contains — falls back to the built-in list, and worst case to the
+   generic `"safari"` alias. The
    block-driven rotation also burns the session's **proxy** (`proxy_pool`, in
    `transport.py`): DataDome scores the exit IP as much as the handshake, so the rebuilt
    session changes both. With a configured scrape-API key the very top of the ladder is one
