@@ -273,6 +273,14 @@ the same Node major as the development machine: npm 10 and npm 11 disagree about
 what a valid lock is, and one written by the other fails `npm ci` on a checkout
 that is otherwise perfectly fine.
 
+Neither lock has to be watched by hand: `.github/dependabot.yml` opens one
+grouped pull request per ecosystem per month. The frontend one is ordinary — it
+carries the `package-lock.json` rewrite with it, so merge it once CI is green.
+The backend one is a **notice, not a diff**: it edits a generated lock without
+touching the `.in` file the lock is compiled from. Take the version it names,
+move the pin in the `.in`, recompile all three as above, and push that over the
+branch.
+
 ### Optional developer tooling
 
 Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,

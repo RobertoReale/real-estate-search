@@ -1,0 +1,86 @@
+# Dependency updates arrive as pull requests instead of being noticed the next
+# time something is installed. CI's weekly run answers "does the code still
+# pass?"; this answers the other half — "is the code you would install today
+# still the code the gates ran against?" — which nothing else here asks.
+#
+# Monthly and grouped, both on purpose. One pull request per ecosystem per month
+# is a review somebody actually does; a dozen single-package ones is a
+# notification stream that gets muted, and a muted stream is worth exactly as
+# much as no automation at all. Grouping is the part that matters: the frequency
+# only decides how big each review is.
+version: 2
+
+updates:
+  # The backend, which is the awkward one. `requirements.txt`,
+  # `requirements-dev.txt` and `requirements-package.txt` are not hand-written:
+  # they are compiled from the `.in` files beside them with
+  # `uv pip compile --generate-hashes` (README.md -> Dependency locking), and CI
+  # installs them with `pip install --require-hashes`.
+  #
+  # So a pull request here is a *notice that an update exists*, not a diff to
+  # merge. Two things go wrong if it is merged as it arrives: the `.in` file
+  # still names the old version, and the three locks are recompiled together on
+  # purpose — the dev and package `.in` files both start with `-r
+  # requirements.in`, so a runtime pin that moves in one lock and not the others
+  # leaves the packaged Windows build installing something the gates never ran.
+  # Move the pin in the `.in`, recompile all three, and push that over the
+  # branch.
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: monthly
+      # Off the hour, for the same reason ci.yml's cron is: the top of the hour
+      # is when everyone else's automation fires.
+      time: "06:30"
+      timezone: Etc/UTC
+    groups:
+      backend:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore(deps)
+    ignore:
+      # curl_cffi is not really a version number, it is a behaviour: a release
+      # can retire the TLS impersonation profile names the scrapers ride on
+      # (invariant 8). The suite is offline by construction, so a bump that
+      # retires one is green in every gate and only fails on the first real
+      # scan against a portal. It moves in a change that ends with a live fetch,
+      # never carried along by a routine refresh.
+      #
+      # Both spellings, because the two files disagree: `requirements.in` says
+      # `curl_cffi` and the compiled lock says `curl-cffi`, and an ignore that
+      # matches neither would be a silent no-op.
+      - dependency-name: curl_cffi
+      - dependency-name: curl-cffi
+
+  # The frontend, which is the ordinary case: the bot updates package.json and
+  # package-lock.json together, and the lock it writes is the one `npm ci`
+  # expects, so a green pull request here is a pull request to merge.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+      time: "06:30"
+      timezone: Etc/UTC
+    groups:
+      frontend:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore(deps)
+
+  # The workflows themselves. An action that stops resolving breaks CI on a
+  # commit that changed nothing, and the pin is invisible until it does — this
+  # is the ecosystem where nobody would ever check by hand.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "06:30"
+      timezone: Etc/UTC
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore(deps)
