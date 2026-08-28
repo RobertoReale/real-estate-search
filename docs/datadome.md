@@ -96,3 +96,119 @@ You can provide that cookie in three ways, from most to least automatic:
 
 Nothing here is required for the app to work — a home connection is trusted by
 DataDome most of the time on its own. These are the levers for when it isn't.
+
+---
+
+## What DataDome actually measures
+
+Everything above is a lever. This part is the map that tells you *which* lever a
+given block calls for. It is written down because the detection changed in 2026
+while nothing here was failing, and because the reasoning behind these levers is
+not visible from looking at them.
+
+### The handshake is fingerprinted with JA4+, not JA3
+
+Before a page is even requested, a secure connection has to be opened, and the
+first message the client sends — the *ClientHello* — announces which TLS version,
+cipher suites and protocol extensions it supports. Every browser sends a slightly
+different one. None of it is secret; the point is that it is hard to fake
+*consistently*.
+
+The old fingerprint, **JA3**, boiled that message down to a single hash. It
+stopped working for an unglamorous reason: Chrome began shuffling the order of
+its TLS extensions on every connection, so real Chrome produced a different JA3
+each time and the hash identified nothing.
+
+Its replacement, **JA4+**, is what fingerprints the scraper today. It is a family
+rather than one hash — the handshake, the HTTP request that follows it, the
+certificate and even the round-trip timing each get a component — and the TLS
+part is built to survive shuffling: it sorts the lists before hashing, writes the
+**number** of cipher suites and the **number** of extensions into the readable
+front of the fingerprint, and keeps a raw variant that preserves the original
+order.
+
+The consequence is the only part worth remembering: **a handshake is either
+exactly some real browser's, or it is nobody's.** Under JA3 an approximate
+imitation produced an unknown hash that could pass as an unremarkable client.
+Under JA4+ one extension too many lands the connection in a bucket no real
+browser has ever occupied — which is a louder signal than merely being
+unrecognised. That is why every profile in the rotation was *measured* against
+the live portals rather than reasoned about ([invariant 8](invariants.md)):
+"close enough" is not a category that exists here.
+
+### A profile is changed as a unit, never piecemeal
+
+The `safari184` in the rotation is not a User-Agent string. It is the entire
+costume: the ClientHello, the HTTP/2 settings, the header names *and the order
+they are sent in*, and the User-Agent last of all. `curl_cffi` supplies all of it
+together — which is why the scraper sets a few `Accept-*` and `Sec-Fetch-*`
+headers and deliberately **never sets a User-Agent** of its own. The profile owns
+that line.
+
+This avoids the mistake that is easiest to walk into. A User-Agent claiming
+Safari 26 arriving over a Safari 18.4 handshake is a combination no real browser
+can produce, and spotting it is a table lookup — caught on the first request,
+not inferred slowly over many. So when the profiles start to look old, the fix is
+to change the profile *name* to a newer one and measure it. Editing a header to
+look newer while the handshake stays where it was is not a smaller version of
+that fix; it is strictly worse than doing nothing.
+
+The browser rungs work for the same reason in reverse: a cookie earned by a real
+local browser comes from a session where every layer already agrees with itself.
+
+### About a quarter of the verdict is the address you come from
+
+The handshake is not the whole score. Where the request originates is estimated
+to carry roughly a quarter of it, and it is judged separately: the address's
+reputation, whether it belongs to a home internet provider or to a datacenter,
+and what else has lately been seen coming from it.
+
+This is the largest single reason the app is built to run **on your own
+connection**. A residential address earns a reasonable score for free, with
+nothing to buy or maintain. A datacenter address — every cheap VPS, every cheap
+proxy, and the runners of any CI service — starts with a handicap that no
+handshake, however perfect, cancels out. That is the whole story behind the
+warning under *Proxy* above, and behind the rule that automated builds never
+reach a portal.
+
+Note which way the asymmetry runs: a good address will not rescue a bad
+handshake, but a bad address will undo a good one.
+
+### Telling a stale profile from a burnt address
+
+When the free rung starts getting blocked, these are the same symptom and
+opposite fixes, so establish which one you have before changing anything.
+
+**First, rule out the boring cause.** The `datadome` cookie lasts about an hour.
+Press **"Grab a fresh cookie now"** and scan again; most of the time that is the
+end of it.
+
+**Then run the one test that separates them:** open the same portal page in your
+own browser, on the same connection, with no proxy.
+
+* **The page loads normally** → your address is fine, and the scraper's disguise
+  is what is being rejected. *The profile went stale.* Expect blocks on every
+  profile in the rotation rather than one, on both portals at once, or appearing
+  right after a `curl_cffi` upgrade. Check the log for `TLS impersonation:
+  dropping …`: that is the self-healing filter reporting that an upgrade retired
+  a profile name, leaving the rotation shorter than you configured it.
+  **Fix:** update `curl_cffi`, then edit `tls_impersonations` in `settings.json`
+  (in the data directory) — move a working profile to the front, drop a burnt
+  one, add a current-generation name. It is a setting precisely so this needs no
+  new release. Measure the result against a live page before trusting it.
+
+* **Your own browser gets a CAPTCHA or a wall too** → the disguise is innocent.
+  *The address went bad.* Expect this to have begun when a proxy was switched on
+  or the network changed, or to affect one proxy in the pool and not the others,
+  or to happen on a machine in a datacenter while the same code works from the
+  laptop.
+  **Fix:** stop routing through that proxy — no proxy beats a datacenter one —
+  and give a residential address time, since its reputation recovers on its own.
+  If the machine is permanently in a datacenter, the local rungs are the wrong
+  tool for it: go up to the scraping API or Idealista's official API, both above.
+
+**Where to look while diagnosing:** the **Scraper health** panel on the dashboard
+names the transport that carried each day's scans — a day labelled
+`local (curl_cffi)` with no blocks is the cheap rung doing its job. The **📜** log
+viewer in the top bar carries the rotation lines (`switching impersonation ->`)
+and the filter warnings above.

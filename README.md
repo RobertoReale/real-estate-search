@@ -182,7 +182,8 @@ Idealista there is also an **official API** — if you are granted a key, search
 on that portal ask the portal for its own data instead of reading its pages, so
 there is nothing left to block (searches it cannot express exactly keep using
 the scraper). See [Keeping Scans Unblocked](docs/datadome.md) for all the
-levers, from most to least automatic.
+levers, from most to least automatic, for what the portals actually fingerprint,
+and for how to tell a stale TLS profile from an address that has gone bad.
 
 ## Technical Architecture
 
