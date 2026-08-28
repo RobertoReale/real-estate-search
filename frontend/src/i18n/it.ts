@@ -326,6 +326,8 @@ export const it: Dict = {
   "filters.viewMap": "🗺 Mappa",
   "filters.export": "Esporta",
   "filters.exportTitle": "Scarica i {count} immobili filtrati in {format}",
+  "filters.exportPdfTitle":
+    "Apri un report stampabile dei {count} immobili filtrati — salvalo in PDF dalla finestra di stampa",
   "filters.exportFavorites": "Preferiti",
   "filters.exportRentals": "Affitti",
   "filters.exportProperties": "Immobili",

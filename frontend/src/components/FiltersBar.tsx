@@ -77,17 +77,26 @@ export default function FiltersBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchEnabled, filters.sort]);
 
-  function exportAs(fmt: "html" | "markdown" | "csv") {
+  function exportAs(fmt: "html" | "markdown" | "csv" | "pdf") {
     const what = filters.only_favorites
       ? t("filters.exportFavorites")
       : isRent
         ? t("filters.exportRentals")
         : t("filters.exportProperties");
     const title = filters.city ? t("filters.exportIn", { what, city: filters.city }) : what;
+    const url = api.exportUrl(filters, fmt, title);
+    // PDF is the one format that is opened rather than saved: the backend
+    // serves a print-ready report that raises the print dialog on load, and
+    // the PDF is what the user saves from there. Downloaded, it would print
+    // nothing.
+    if (fmt === "pdf") {
+      window.open(url, "_blank", "noreferrer");
+      return;
+    }
     // A file download (Content-Disposition attachment): navigating to it starts
     // the download without leaving the page, so a transient anchor is enough.
     const a = document.createElement("a");
-    a.href = api.exportUrl(filters, fmt, title);
+    a.href = url;
     a.rel = "noreferrer";
     document.body.appendChild(a);
     a.click();
@@ -450,7 +459,7 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</label>
           <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
-            {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"]] as const).map(
+            {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"], ["pdf", "PDF"]] as const).map(
               ([fmt, label]) => (
                 <button key={fmt}
                   className="px-3 py-2 text-sm font-medium transition bg-white
@@ -458,7 +467,11 @@ export default function FiltersBar({
                     dark:text-slate-400 dark:hover:text-slate-200
                     disabled:opacity-40 disabled:cursor-not-allowed"
                   disabled={count === 0}
-                  title={t("filters.exportTitle", { count, format: label })}
+                  title={
+                    fmt === "pdf"
+                      ? t("filters.exportPdfTitle", { count })
+                      : t("filters.exportTitle", { count, format: label })
+                  }
                   onClick={() => exportAs(fmt)}>
                   {label}
                 </button>

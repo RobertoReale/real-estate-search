@@ -111,7 +111,7 @@ def list_properties(
 @router.get("/api/properties/export")
 def export_properties(
     db: Session = Depends(get_db),
-    fmt: str = Query("html", pattern="^(html|markdown|csv)$"),
+    fmt: str = Query("html", pattern="^(html|markdown|csv|pdf)$"),
     title: str = "Property shortlist",
     status: str = Query("active", pattern="^(active|filtered|gone|hidden|sold|all)$"),
     contract: str | None = Query(None, pattern="^(sale|rent)$"),
@@ -145,7 +145,8 @@ def export_properties(
 
     Same selection as the grid, so the file mirrors what the user sees. Returned
     as an attachment (no server, no DB) that can be shared over chat or email —
-    the reason the export exists rather than sharing the live dashboard.
+    the reason the export exists rather than sharing the live dashboard. `pdf`
+    is the exception: a print-ready report the browser saves as a PDF itself.
 
     No `limit`: a dossier holds the whole filtered shortlist, not the page the
     grid happens to be showing."""
@@ -180,12 +181,20 @@ def export_properties(
         tag=tag,
     )
     clean_title = (title or "Property shortlist").strip()[:120] or "Property shortlist"
+    # `pdf` is the only format served inline: it is a print-ready document that
+    # raises the print dialog on load, so it has to be *opened*, not saved. A
+    # downloaded copy would sit in the Downloads folder having printed nothing,
+    # and the PDF the user is after is what the print dialog writes.
+    disposition = "inline" if fmt == "pdf" else "attachment"
     if fmt == "csv":
         body = exporter.properties_to_csv(props)
         media, ext = "text/csv; charset=utf-8", "csv"
     elif fmt == "markdown":
         body = exporter.properties_to_markdown(props, clean_title)
         media, ext = "text/markdown; charset=utf-8", "md"
+    elif fmt == "pdf":
+        body = exporter.properties_to_print_html(props, clean_title)
+        media, ext = "text/html; charset=utf-8", "print.html"
     else:
         body = exporter.properties_to_html(props, clean_title)
         media, ext = "text/html; charset=utf-8", "html"
@@ -193,7 +202,7 @@ def export_properties(
     return Response(
         content=body,
         media_type=media,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )
 
 

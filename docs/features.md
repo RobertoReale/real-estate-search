@@ -137,6 +137,20 @@
   or agent over chat or email, without giving anyone access to your dashboard or
   database. (The HTML dossier's thumbnails load from the portals, so those need
   a connection; everything else works fully offline.)
+* **A printable report for the bank or the viewing**: the fourth Export button,
+  **PDF**, opens a paginated report — one property per page — and raises your
+  browser's print dialog straight away. Choose *Save as PDF* as the destination
+  (tick *Background graphics* to keep the coloured badges) and you have a file
+  to email to a broker or print for a visit. Each page carries a photo gallery,
+  the key facts, the full asking-price history with the drop percentages, the
+  area median and Deal/Match scores when they are known, your own notes, the ad
+  links, and a **viewing checklist** with tick boxes and blank lines to fill in
+  on site — building fees, heating, damp, noise, what the land registry plan
+  says. A merged property shows one photo per agency ad, so a listing published
+  three times gives you three pictures rather than one. There is no PDF engine
+  on the backend and none is needed: your browser already renders the page and
+  writes the PDF, which also means the photos come from the portals exactly as
+  they do in the HTML dossier, so that step needs a connection.
 * **Is this ad still online?**: see [Is This Ad Still Online?](availability-check.md)
   for the full walkthrough — checking a selection against the portals on demand,
   why it is paced the way it is, and dealing with DataDome blocks during a check.

@@ -322,6 +322,8 @@ export const en = {
   "filters.viewMap": "🗺 Map",
   "filters.export": "Export",
   "filters.exportTitle": "Download the {count} filtered properties as {format}",
+  "filters.exportPdfTitle":
+    "Open a printable report of the {count} filtered properties — save it as PDF from the print dialog",
   "filters.exportFavorites": "Favorites",
   "filters.exportRentals": "Rentals",
   "filters.exportProperties": "Properties",
