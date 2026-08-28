@@ -12,6 +12,7 @@ Two entry points share this file:
 so Alembic emits the copy-table-and-swap dance for any non-additive change —
 exactly the operations that motivated adopting Alembic in the first place.
 """
+
 from logging.config import fileConfig
 
 from alembic import context
@@ -22,7 +23,15 @@ from app import models  # noqa: F401 - registers the tables on Base.metadata
 
 config = context.config
 
-if config.config_file_name is not None:
+# Only the CLI may configure logging from alembic.ini. `fileConfig` REPLACES the
+# root logger's handlers and level, so when the app drives the migration it wiped
+# the handlers `main.py` had just installed: the rotating app.log handler was
+# dropped and the root level went INFO -> WARNING, permanently. The file existed
+# so an overnight scan could be diagnosed the next morning and `/api/logs/tail`
+# could show it, and it stayed 0 bytes for the life of the process — no test saw
+# it because none of them run the lifespan and a migration in one process.
+# The app hands us its own connection, so that attribute is the signal.
+if config.config_file_name is not None and config.attributes.get("connection") is None:
     try:
         fileConfig(config.config_file_name)
     except Exception:

@@ -8,6 +8,9 @@ and blow up. These tests pin the adoption path (stamp-then-upgrade) and its
 idempotence so a future migration author can trust the harness.
 """
 
+import io
+import logging
+
 from sqlalchemy import create_engine, inspect, text
 
 from app import database
@@ -118,3 +121,34 @@ def test_missing_alembic_degrades_to_additive(tmp_path, monkeypatch):
     # schema is intact even though Alembic never ran
     assert inspect(engine).has_table("properties")
     assert _version(engine) is None  # no alembic_version table created
+
+
+def test_migrating_leaves_the_application_log_handlers_alone(tmp_path, monkeypatch):
+    """Running migrations must not reconfigure the app's logging.
+
+    `alembic/env.py` calls `fileConfig(alembic.ini)`, which REPLACES the root
+    logger's handlers and level. Under the real startup order — `main.py` calls
+    `basicConfig` at import, then the lifespan calls `init_db()` — that dropped
+    the RotatingFileHandler writing `app.log` and reset the level from INFO to
+    alembic.ini's WARNING. The file the scheduler's overnight failures were
+    supposed to be diagnosed from, and that `/api/logs/tail` shows in the UI,
+    then stayed empty for the life of the process.
+
+    Only the `alembic` CLI may configure logging from the ini; when the app
+    drives the migration it passes its own connection, and owns logging itself.
+    """
+    root = logging.getLogger()
+    sentinel = logging.StreamHandler(io.StringIO())
+    saved_handlers, saved_level = root.handlers[:], root.level
+    root.handlers = [sentinel]
+    root.setLevel(logging.INFO)
+    try:
+        engine = create_engine(f"sqlite:///{tmp_path / 'logging.db'}")
+        monkeypatch.setattr(database, "engine", engine)
+
+        database.init_db()
+
+        assert root.handlers == [sentinel], "the migration replaced the app's log handlers"
+        assert root.level == logging.INFO, "the migration reset the app's log level"
+    finally:
+        root.handlers, root.level = saved_handlers, saved_level
