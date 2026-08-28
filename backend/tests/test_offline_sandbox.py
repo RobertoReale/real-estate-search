@@ -234,7 +234,7 @@ def test_scrape_normalize_deduplicate_notify_with_no_network(portal, mailbox, sa
 def test_the_sandbox_serves_the_portals_over_real_http(portal, sandbox):
     """A portal page is fetched with `AdProbe`, never a hand-rolled client.
 
-    `CLAUDE.md` makes that the rule for a live check, because AdProbe carries
+    `docs/conventions.md` makes that the rule for a live check, because AdProbe carries
     the tuned impersonation and the user's real cookie. It is the rule here for
     the cheaper reason: one HTTP path in the project means the sandbox is
     exercising the transport the scrapers use, not a second one that happens to

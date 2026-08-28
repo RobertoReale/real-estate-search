@@ -1,6 +1,6 @@
 # Runtime dependencies — the product. This is the file humans edit; the pinned,
 # hashed `requirements.txt` beside it is generated from it and is what actually
-# gets installed (see CLAUDE.md -> Commands for the regeneration command).
+# gets installed (see README.md -> Dependency locking for the regeneration command).
 #
 # The floors below say "the oldest release known to work"; the lock says "the
 # exact release this was developed and tested against". Both matter: the floor

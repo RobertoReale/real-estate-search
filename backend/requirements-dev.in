@@ -1,7 +1,7 @@
 # Dev-only tooling — the workbench. NEVER installed on the Raspberry Pi runtime:
 # the product ships from requirements.txt alone. This is the file humans edit;
-# `requirements-dev.txt` beside it is generated and hashed (see CLAUDE.md ->
-# Commands). Install locally with:
+# `requirements-dev.txt` beside it is generated and hashed (see README.md ->
+# Dependency locking). Install locally with:
 #   .venv\Scripts\python -m pip install -r requirements-dev.txt
 
 # The runtime set is pulled in so both locks are resolved together: a shared

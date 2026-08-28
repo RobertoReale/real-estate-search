@@ -2,7 +2,7 @@
  *
  * The filter set is deliberately small: every token in it is measured against
  * both portals' own result totals, and a guessed one 404s silently (see
- * CLAUDE.md on portal filter tokens). Anything finer is the "paste a URL" path,
+ * docs/architecture.md on portal filter tokens). Anything finer is the "paste a URL" path,
  * which the form links to from right beside the filters. */
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";

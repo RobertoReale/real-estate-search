@@ -194,6 +194,21 @@ levers, from most to least automatic.
   Italian) through a small dependency-free dictionary — no i18n library, and a
   key present in one language but missing in the other fails the build.
 
+### Documentation for contributors
+
+If you are changing the code rather than using the app, four documents carry
+everything that is not obvious from reading it:
+
+* **[Architecture](docs/architecture.md)** — where to act for each kind of change,
+  the data schema, the property lifecycle, the migration strategy, and the known
+  fragilities with the symptom each one produces.
+* **[Invariants](docs/invariants.md)** — twenty-one rules that must not break, each
+  with the regression that put it there. Read the relevant one *before* editing,
+  not after.
+* **[Conventions](docs/conventions.md)** — how code is written and tested here.
+* **[Audit playbook](docs/audit.md)** — the repeatable full-project health check:
+  the green baseline, the module review order, the invariant→test cross-check.
+
 ---
 
 ## Testing & Verification
