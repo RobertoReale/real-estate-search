@@ -102,6 +102,24 @@ def commute_clear_cache_endpoint(db: Session = Depends(get_db)):
     return {"cleared": cleared}
 
 
+@router.post("/api/maintenance/omi-import")
+def omi_import_endpoint(path: str = "", db: Session = Depends(get_db)):
+    """Imports one semester of OMI quotations from the file the owner downloaded
+    (services/omi_import.py). `path` overrides the configured `omi_input_dir`
+    for a one-off import; empty uses the setting.
+
+    Always answers with both numbers — how many quotations landed and how many
+    source rows were skipped — because a partial import that reports only its
+    successes is indistinguishable from a complete one.
+    """
+    from ..services import omi_import
+
+    try:
+        return omi_import.import_quotations(db, path or None)
+    except omi_import.OmiImportError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 # Scoped, irreversible data resets (Settings → Data management). Each is a
 # distinct deliberate choice, so they are separate scopes rather than flags on
 # one call. `factory` and `dashboard` delete rows a running scan is writing, so

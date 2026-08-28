@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -352,6 +353,59 @@ class CommuteCache(Base):
     distance_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class OmiQuotation(Base):
+    """One OMI price band: min/max €/m² for a single (zone, property type,
+    conservation state, contract) in one semester.
+
+    The reason this table exists is that every other price judgement in this app
+    is circular. The "area median" a listing is compared against is the median of
+    the asking prices this app itself scraped, so a uniformly overpriced zone
+    reads as fair and the app says nothing. These figures come from the Agenzia
+    delle Entrate's Osservatorio del Mercato Immobiliare and are derived from
+    **recorded transactions**, which makes them the one reference here that does
+    not depend on what sellers are asking. They are not interchangeable with the
+    listing median for exactly that reason, and must never be averaged with it.
+
+    Imported from a file the owner downloads once a semester
+    (`services/omi_import.py`); the app never fetches them, because the supply
+    sits behind an authenticated SPID session. Two semesters coexist and the
+    newest wins at lookup — `latest_semester` orders them numerically, since
+    "2025/2" and "2025/10" would not sort as text if the format ever grew.
+
+    Indexed on (municipality_code, zone_code) because that is the pair a lookup
+    starts from: `municipality_code` is the national comune code (`F205` for
+    Milan), which is also what the zone perimeters are keyed by.
+    """
+
+    __tablename__ = "omi_quotations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # "YYYY/N" (N = 1 or 2), read from the file's title line — the data rows
+    # carry no semester of their own.
+    semester: Mapped[str] = mapped_column(String, index=True)
+    # National comune code (Comune_amm), NOT the ISTAT one: it is what the KML
+    # perimeters use, so it is the half of the join key that has to match.
+    municipality_code: Mapped[str] = mapped_column(String, index=True)
+    municipality: Mapped[str] = mapped_column(String, default="")
+    zone_code: Mapped[str] = mapped_column(String, index=True)
+    # Only the zone file carries the description ("CENTRO STORICO - BRERA"); an
+    # import given the prices alone leaves this empty rather than refusing.
+    zone_description: Mapped[str] = mapped_column(String, default="")
+    property_type_code: Mapped[str] = mapped_column(String, default="")
+    property_type: Mapped[str] = mapped_column(String, default="")
+    conservation_state: Mapped[str] = mapped_column(String, default="")
+    # "sale" | "rent" — deliberately the vocabulary Property.contract already
+    # uses, so a lookup can match a property without a translation table. One
+    # source row carries both (Compr_* and Loc_*) and becomes up to two rows.
+    contract: Mapped[str] = mapped_column(String, default="sale")
+    min_sqm_price: Mapped[float] = mapped_column(Float)
+    max_sqm_price: Mapped[float] = mapped_column(Float)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+Index("ix_omi_quotations_zone", OmiQuotation.municipality_code, OmiQuotation.zone_code)
 
 
 class SearchProfile(Base):
