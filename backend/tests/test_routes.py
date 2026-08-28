@@ -468,6 +468,35 @@ def test_pricing_trends_requires_a_city(client):
     assert api.get("/api/pricing-trends").status_code == 422
 
 
+# --- the natural-language assistant -----------------------------------------
+
+
+def test_assistant_returns_the_urls_it_built_for_a_recognised_city(client):
+    """A query naming a city is the assistant's whole purpose, and it is the
+    only branch that fills `urls` — so it is the only one that serializes the
+    builder's payload. That payload carries a bool and a list beside the two
+    URL strings, which a `dict[str, str]` annotation rejected: every query that
+    resolved a city answered 500, while the city-less ones (urls=None) passed.
+    """
+    api = client
+    r = api.post("/api/search-assistant", json={"query": "trilocale a Roma sotto 300 mila euro"})
+    assert r.status_code == 200
+    urls = r.json()["searches"][0]["urls"]
+    assert "immobiliare.it" in urls["immobiliare"]
+    assert "idealista.it" in urls["idealista"]
+    # the two non-string fields the form reads back
+    assert urls["idealista_zone_page"] is False
+    assert urls["idealista_unsupported"] == []
+
+
+def test_assistant_omits_urls_when_no_city_was_understood(client):
+    """No city, no URLs: a city-less portal URL would search all of Italy."""
+    api = client
+    r = api.post("/api/search-assistant", json={"query": "asdfgh qwerty zxcvb"})
+    assert r.status_code == 200
+    assert r.json()["searches"][0]["urls"] is None
+
+
 # --- optional auth token (invariant 14) -------------------------------------
 
 
