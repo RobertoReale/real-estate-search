@@ -67,6 +67,13 @@ jobs:
         # the API to answer, then leave it alone: a release must never be cut
         # from a bundle nobody launched.
         run: |
+          # Stop it on the way out, whatever happened. Windows locks a directory
+          # while anything inside it is running, so an app left up here makes the
+          # *next* step fail on `mv: Permission denied` — a message that says
+          # nothing about the step that actually caused it. The trap covers the
+          # success path too, which returns early from inside the loop.
+          trap 'taskkill //F //T //IM RealEstateSearch.exe >/dev/null 2>&1 || true; sleep 2' EXIT
+
           export APP_DATA_DIR="$RUNNER_TEMP/smoke-data"
           export APP_PORT=8123
           ./dist/RealEstateSearch/RealEstateSearch.exe &
