@@ -14,8 +14,8 @@ alembic>=1.13
 # neighbours: a release can retire the impersonation profile names the scrapers
 # ride on ("safari184", …), so this one is bumped deliberately and verified
 # against a live portal fetch, never carried along by a routine lock refresh.
-# 0.16.1 is the version the suite is green against.
-curl_cffi==0.16.1
+# 0.16.2 is the version the suite is green against.
+curl_cffi==0.16.2
 beautifulsoup4>=4.12
 apscheduler>=3.10
 pydantic>=2.7
