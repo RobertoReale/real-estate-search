@@ -89,7 +89,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (58 in twelve files: vitest +
+- **The frontend has unit tests too** (63 in thirteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -102,7 +102,12 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   request still returns 200 — the test pins the whole key set, the round-trip, and the "an
   empty secret field means keep the stored one" rule. `services/export.test.ts` pins the
   authenticated dossier path onto the *same* `exportUrl`, since a second querystring builder
-  is how a dossier would stop mirroring the screen.
+  is how a dossier would stop mirroring the screen. `i18n/render.test.tsx` closes the gap
+  `i18n.test.ts` cannot reach: it renders real components in **both** languages, because the
+  dictionaries being correct as *data* says nothing about the module-level locale
+  `I18nProvider` assigns during render — and that is the half `formatPrice`, `humanizeFloor`
+  and MapView's tooltips depend on. Freeze it and the words still switch while the prices,
+  dates and floor labels keep formatting the old way; nothing else in the suite notices.
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
   pixels — for four things a pure test cannot reach, each written after the bug it now
