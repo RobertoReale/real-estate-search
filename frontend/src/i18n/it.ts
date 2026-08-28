@@ -704,6 +704,8 @@ export const it: Dict = {
   "profiles.assistantReading": "Lettura…",
   "profiles.assistantSubmit": "Interpretala →",
   "profiles.assistantTry": "Prova:",
+  "profiles.assistantNothing":
+    "Non c'era nulla da leggere. Descrivi che cosa cerchi — almeno una città.",
   "profiles.multiIntro":
     "Ho letto {count} ricerche alternative nella tua frase. Controllale una per una (apri i link per verificare i risultati), poi crea tutti i profili in un colpo solo.",
   "profiles.reword": "✏️ Riformula",

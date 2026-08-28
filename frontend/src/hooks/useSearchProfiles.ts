@@ -339,11 +339,19 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     setError("");
     try {
       const result = await api.askAssistant(query);
-      if (result.searches.length > 1) {
+      // The backend answers `{"searches": []}` for a query that splits into
+      // nothing but separators (";", "x o", …): `parse_query` skips every blank
+      // segment and has nothing left to describe. `searches[0]` was then
+      // `undefined` and `editInBuilder` threw, so the box replied with a raw
+      // "Cannot read properties of undefined" where a plain "say more" belongs.
+      const [first] = result.searches;
+      if (!first) {
+        setError(t("profiles.assistantNothing"));
+      } else if (result.searches.length > 1) {
         setMulti(result.searches);
         setMode("multi");
       } else {
-        editInBuilder(result.searches[0]);
+        editInBuilder(first);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.unknownError"));

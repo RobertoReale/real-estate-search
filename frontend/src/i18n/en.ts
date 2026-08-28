@@ -689,6 +689,8 @@ export const en = {
   "profiles.assistantReading": "Reading…",
   "profiles.assistantSubmit": "Understand it →",
   "profiles.assistantTry": "Try:",
+  "profiles.assistantNothing":
+    "There was nothing to read in that. Describe what you are looking for — a city at least.",
   "profiles.multiIntro":
     "I read {count} alternative searches in your sentence. Check each one (open the links to verify the results), then create all the profiles at once.",
   "profiles.reword": "✏️ Reword",
