@@ -153,13 +153,13 @@ export function ScrapingSection(
       />
       <div className="space-y-3">
         <div>
-          <label className="text-xs t-muted block mb-1">{t("settings.proxyUrl")}</label>
-          <input className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
+          <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-url">{t("settings.proxyUrl")}</label>
+          <input id="scraping-proxy-url" className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
             value={values.proxyUrl} onChange={(e) => set("proxyUrl", e.target.value)} />
         </div>
         <div>
-          <label className="text-xs t-muted block mb-1">{t("settings.proxyPool")}</label>
-          <textarea className="input w-full font-mono text-xs" rows={3}
+          <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-pool">{t("settings.proxyPool")}</label>
+          <textarea id="scraping-proxy-pool" className="input w-full font-mono text-xs" rows={3}
             placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
             value={values.proxyUrls} onChange={(e) => set("proxyUrls", e.target.value)} />
           <p className="text-xs t-dim mt-1">{t("settings.proxyPoolNote")}</p>
@@ -224,8 +224,8 @@ export function ScrapingSection(
             </div>
           </div>
           <div>
-            <label className="text-xs t-muted block mb-1">{t("settings.whenToUse")}</label>
-            <select className="input w-full sm:w-auto" value={values.apiMode}
+            <label className="text-xs t-muted block mb-1" htmlFor="scraping-api-mode">{t("settings.whenToUse")}</label>
+            <select id="scraping-api-mode" className="input w-full sm:w-auto" value={values.apiMode}
               onChange={(e) => set("apiMode", e.target.value)}>
               <option value="fallback">{t("settings.modeFallback")}</option>
               <option value="always">{t("settings.modeAlways")}</option>
@@ -234,8 +234,8 @@ export function ScrapingSection(
           </div>
         </div>
         <div>
-          <label className="text-xs t-muted block mb-1">{t("settings.cookieLabel")}</label>
-          <input className="input w-full" type="password"
+          <label className="text-xs t-muted block mb-1" htmlFor="scraping-cookie">{t("settings.cookieLabel")}</label>
+          <input id="scraping-cookie" className="input w-full" type="password"
             placeholder={t(settings.datadome_cookie_set ? "settings.cookieSaved" : "settings.cookiePlaceholder")}
             value={values.cookie} onChange={(e) => set("cookie", e.target.value)} />
           <div className="mt-1">

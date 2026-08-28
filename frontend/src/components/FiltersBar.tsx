@@ -113,9 +113,10 @@ export default function FiltersBar({
           fastest way to prune a cluttered dashboard ("San Siro", "nuova
           costruzione") and searches title, zone, address and the ad text. */}
       <div className="col-span-2 w-full flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.search")}</label>
+        <label className="text-xs t-muted" htmlFor="filter-q">{t("filters.search")}</label>
         <div className="relative">
           <input
+            id="filter-q"
             className={`input w-full ${filters.q ? "pr-9" : ""}`}
             placeholder={t("filters.searchPlaceholder")}
             value={filters.q}
@@ -135,8 +136,12 @@ export default function FiltersBar({
       {/* Buy/Rent are separate worlds (different price scales, different
           goals), so the toggle is the most prominent control */}
       <div className="col-span-2 flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.market")}</label>
-        <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+        {/* A <label> names a form control; these three are button groups, so
+            the name goes on a role="group" instead — a <label> with no `for`
+            is announced as nothing at all. */}
+        <span className="text-xs t-muted">{t("filters.market")}</span>
+        <div role="group" aria-label={t("filters.market")}
+          className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
           <button
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
               !isRent
@@ -158,42 +163,42 @@ export default function FiltersBar({
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.city")}</label>
-        <input className="input w-full sm:w-32" placeholder={t("filters.cityPlaceholder")}
+        <label className="text-xs t-muted" htmlFor="filter-city">{t("filters.city")}</label>
+        <input id="filter-city" className="input w-full sm:w-32" placeholder={t("filters.cityPlaceholder")}
           value={filters.city} onChange={(e) => set({ city: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.zone")}</label>
-        <input className="input w-full sm:w-32" placeholder={t("filters.zonePlaceholder")}
+        <label className="text-xs t-muted" htmlFor="filter-zone">{t("filters.zone")}</label>
+        <input id="filter-zone" className="input w-full sm:w-32" placeholder={t("filters.zonePlaceholder")}
           value={filters.zone} onChange={(e) => set({ zone: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">
+        <label className="text-xs t-muted" htmlFor="filter-min-price">
           {t("filters.minPrice")} {isRent && t("filters.perMonth")}
         </label>
-        <input className="input w-full sm:w-28" type="number" placeholder="0"
+        <input id="filter-min-price" className="input w-full sm:w-28" type="number" placeholder="0"
           value={filters.min_price} onChange={(e) => set({ min_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">
+        <label className="text-xs t-muted" htmlFor="filter-max-price">
           {t("filters.maxPrice")} {isRent && t("filters.perMonth")}
         </label>
-        <input className="input w-full sm:w-28" type="number" placeholder="∞"
+        <input id="filter-max-price" className="input w-full sm:w-28" type="number" placeholder="∞"
           value={filters.max_price} onChange={(e) => set({ max_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.minSqm")}</label>
-        <input className="input w-full sm:w-20" type="number" placeholder="0"
+        <label className="text-xs t-muted" htmlFor="filter-min-sqm">{t("filters.minSqm")}</label>
+        <input id="filter-min-sqm" className="input w-full sm:w-20" type="number" placeholder="0"
           value={filters.min_sqm} onChange={(e) => set({ min_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.maxSqm")}</label>
-        <input className="input w-full sm:w-20" type="number" placeholder="∞"
+        <label className="text-xs t-muted" htmlFor="filter-max-sqm">{t("filters.maxSqm")}</label>
+        <input id="filter-max-sqm" className="input w-full sm:w-20" type="number" placeholder="∞"
           value={filters.max_sqm} onChange={(e) => set({ max_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.rooms")}</label>
-        <select className="input w-full sm:w-24" value={filters.rooms}
+        <label className="text-xs t-muted" htmlFor="filter-rooms">{t("filters.rooms")}</label>
+        <select id="filter-rooms" className="input w-full sm:w-24" value={filters.rooms}
           onChange={(e) => set({ rooms: e.target.value })}>
           <option value="">{t("common.all")}</option>
           {[1, 2, 3, 4, 5].map((n) => (
@@ -205,8 +210,8 @@ export default function FiltersBar({
           ("piano terra", "3", "attico"): a listing whose floor can't be read
           matches no band and drops out while this is set. */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.floor")}</label>
-        <select className="input w-full sm:w-36" value={filters.floor_band}
+        <label className="text-xs t-muted" htmlFor="filter-floor">{t("filters.floor")}</label>
+        <select id="filter-floor" className="input w-full sm:w-36" value={filters.floor_band}
           onChange={(e) => set({
             floor_band: e.target.value as PropertyFilters["floor_band"],
           })}>
@@ -219,8 +224,8 @@ export default function FiltersBar({
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.sortBy")}</label>
-        <select className="input w-full sm:w-40" value={filters.sort}
+        <label className="text-xs t-muted" htmlFor="filter-sort">{t("filters.sortBy")}</label>
+        <select id="filter-sort" className="input w-full sm:w-40" value={filters.sort}
           onChange={(e) => set({ sort: e.target.value })}>
           <option value="newest">{t("filters.sortNewest")}</option>
           <option value="price_asc">{t("filters.sortPriceAsc")}</option>
@@ -230,11 +235,11 @@ export default function FiltersBar({
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.status")}</label>
+        <label className="text-xs t-muted" htmlFor="filter-status">{t("filters.status")}</label>
         {/* "gone" = no longer seen by scans for days (inferred exit);
             "sold" = user confirmed the sale; manually hidden/sold properties
             never appear in "All" but each has its own filter here */}
-        <select className="input w-full sm:w-36" value={filters.status}
+        <select id="filter-status" className="input w-full sm:w-36" value={filters.status}
           onChange={(e) => set({ status: e.target.value })}>
           <option value="active">
             {isRent ? t("filters.statusForRent") : t("filters.statusForSale")}
@@ -251,8 +256,8 @@ export default function FiltersBar({
       {/* Origin: tell inbox imports apart from monitored-search finds — the
           two are otherwise indistinguishable once accepted (source column). */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs t-muted">{t("filters.origin")}</label>
-        <select className="input w-full sm:w-36" value={filters.source}
+        <label className="text-xs t-muted" htmlFor="filter-origin">{t("filters.origin")}</label>
+        <select id="filter-origin" className="input w-full sm:w-36" value={filters.source}
           onChange={(e) => set({ source: e.target.value as PropertyFilters["source"] })}>
           <option value="">{t("filters.originAll")}</option>
           <option value="scan">{t("filters.originScan")}</option>
@@ -261,8 +266,8 @@ export default function FiltersBar({
       </div>
       {tags.length > 0 && (
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.tag")}</label>
-          <select className="input w-full sm:w-36" value={filters.tag}
+          <label className="text-xs t-muted" htmlFor="filter-tag">{t("filters.tag")}</label>
+          <select id="filter-tag" className="input w-full sm:w-36" value={filters.tag}
             onChange={(e) => set({ tag: e.target.value })}>
             <option value="">{t("filters.allTags")}</option>
             {tags.map((tag) => (
@@ -281,8 +286,8 @@ export default function FiltersBar({
               provenance), not everything that merely matches its city and
               contract. The label used to read "Match a search", which was
               mistaken for a "best match" ranking. */}
-          <label className="text-xs t-muted">{t("filters.limitToSearch")}</label>
-          <select className="input w-full sm:w-44" value={filters.profile_id}
+          <label className="text-xs t-muted" htmlFor="filter-profile">{t("filters.limitToSearch")}</label>
+          <select id="filter-profile" className="input w-full sm:w-44" value={filters.profile_id}
             title={t("filters.limitToSearchTitle")}
             onChange={(e) => set({ profile_id: e.target.value })}>
             <option value="">{t("filters.allSearches")}</option>
@@ -332,8 +337,8 @@ export default function FiltersBar({
           {/* Portal: a card can group ads from several portals, so this keeps
               the ones present on the chosen portal (see main.py `portal=`). */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">{t("filters.portal")}</label>
-            <select className="input w-full sm:w-40" value={filters.portal}
+            <label className="text-xs t-muted" htmlFor="filter-portal">{t("filters.portal")}</label>
+            <select id="filter-portal" className="input w-full sm:w-40" value={filters.portal}
               onChange={(e) => set({
                 portal: e.target.value as PropertyFilters["portal"],
               })}>
@@ -343,16 +348,16 @@ export default function FiltersBar({
             </select>
           </div>
           <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
-            <label className="text-xs t-muted">{t("filters.agency")}</label>
-            <input className="input w-full sm:w-48" placeholder={t("filters.agencyPlaceholder")}
+            <label className="text-xs t-muted" htmlFor="filter-agency">{t("filters.agency")}</label>
+            <input id="filter-agency" className="input w-full sm:w-48" placeholder={t("filters.agencyPlaceholder")}
               value={filters.agency} onChange={(e) => set({ agency: e.target.value })} />
           </div>
           {/* Deal quality reads the Deal Score (€/sqm gap vs the local median).
               "Fair or better" drops the overpriced; both need a local median,
               so unscored cards fall out when set. */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">{t("filters.deal")}</label>
-            <select className="input w-full sm:w-44" value={filters.deal}
+            <label className="text-xs t-muted" htmlFor="filter-deal">{t("filters.deal")}</label>
+            <select id="filter-deal" className="input w-full sm:w-44" value={filters.deal}
               onChange={(e) => set({
                 deal: e.target.value as PropertyFilters["deal"],
               })}>
@@ -362,14 +367,14 @@ export default function FiltersBar({
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">{t("filters.minSqmPrice")}</label>
-            <input className="input w-full sm:w-24" type="number" placeholder="0"
+            <label className="text-xs t-muted" htmlFor="filter-min-sqm-price">{t("filters.minSqmPrice")}</label>
+            <input id="filter-min-sqm-price" className="input w-full sm:w-24" type="number" placeholder="0"
               value={filters.min_sqm_price}
               onChange={(e) => set({ min_sqm_price: e.target.value })} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs t-muted">{t("filters.maxSqmPrice")}</label>
-            <input className="input w-full sm:w-24" type="number" placeholder="∞"
+            <label className="text-xs t-muted" htmlFor="filter-max-sqm-price">{t("filters.maxSqmPrice")}</label>
+            <input id="filter-max-sqm-price" className="input w-full sm:w-24" type="number" placeholder="∞"
               value={filters.max_sqm_price}
               onChange={(e) => set({ max_sqm_price: e.target.value })} />
           </div>
@@ -395,7 +400,7 @@ export default function FiltersBar({
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium t-muted">{t("filters.maintenance")}</label>
+          <span className="text-xs font-medium t-muted">{t("filters.maintenance")}</span>
           <button
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               geocoding
@@ -457,8 +462,9 @@ export default function FiltersBar({
         {/* Export the filtered set as a shareable offline file (no server, no
             DB) — see services/exporter.py */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</label>
-          <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+          <span className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</span>
+          <div role="group" aria-label={t("filters.export")}
+            className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
             {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"], ["pdf", "PDF"]] as const).map(
               ([fmt, label]) => (
                 <button key={fmt}
@@ -482,8 +488,9 @@ export default function FiltersBar({
         {/* view switch: the map only shows geolocated listings, so the grid
             stays the authoritative view (see MapView's "without coordinates") */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted">{t("filters.view")}</label>
-          <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+          <span className="text-xs t-muted">{t("filters.view")}</span>
+          <div role="group" aria-label={t("filters.view")}
+            className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
             {([["grid", t("filters.viewGrid")], ["map", t("filters.viewMap")]] as const).map(
               ([value, label]) => (
                 <button key={value}

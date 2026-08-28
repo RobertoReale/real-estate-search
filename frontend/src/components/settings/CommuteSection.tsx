@@ -92,8 +92,8 @@ export function CommuteSection(
           </button>
 
           <div>
-            <label className="text-xs t-muted block mb-1">{t("settings.commuteOsrmUrl")}</label>
-            <input className="input w-full" value={values.osrmUrl}
+            <label className="text-xs t-muted block mb-1" htmlFor="commute-osrm-url">{t("settings.commuteOsrmUrl")}</label>
+            <input id="commute-osrm-url" className="input w-full" value={values.osrmUrl}
               placeholder="https://router.project-osrm.org"
               onChange={(e) => set("osrmUrl", e.target.value)} />
             <p className="text-xs t-dim mt-1">{t("settings.commuteOsrmNote")}</p>
