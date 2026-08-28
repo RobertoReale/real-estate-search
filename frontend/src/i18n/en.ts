@@ -136,6 +136,32 @@ export const en = {
   "modal.hide": "🙈 Hide property",
   "modal.hideFailed": "Hide failed",
 
+  // ── property modal: the optional listing audit ──────────────────────────
+  "audit.title": "🧠 What the listing says",
+  "audit.button": "🧠 Read the listing",
+  "audit.reading": "Reading…",
+  "audit.again": "Ask again",
+  "audit.buttonTitle":
+    "Reads this ad's own text with your language model: extra costs, a sitting tenant, condition, points to raise when negotiating",
+  "audit.failed": "The listing could not be read",
+  "audit.condition": "Condition",
+  "audit.conditionNew": "new build",
+  "audit.conditionRenovated": "renovated",
+  "audit.conditionGood": "good",
+  "audit.conditionToRenovate": "needs renovation",
+  "audit.conditionUnknown": "not stated",
+  "audit.tenant": "Sitting tenant",
+  "audit.tenantYes": "yes — sold with a tenant in place",
+  "audit.tenantNo": "no",
+  "audit.tenantUnknown": "not stated",
+  "audit.costs": "Beyond the price",
+  "audit.concerns": "Worth checking",
+  "audit.negotiation": "Useful when negotiating",
+  "audit.footer": "Read by {model} on {date}",
+  "audit.stale": "⚠️ The ad has changed since this reading — ask again for the current text.",
+  "audit.disclaimer":
+    "A re-reading of the ad's own words by a language model, not an appraisal or legal advice — check anything that matters with the agency.",
+
   // ── tag picker ──────────────────────────────────────────────────────────
   "tags.removeTag": 'Remove tag "{name}"',
   "tags.addTag": "Add tag",
@@ -478,6 +504,10 @@ export const en = {
   "settings.llmModel": "Model (e.g. llama3.1)",
   "settings.llmKeySaved": "API key saved (leave empty to keep)",
   "settings.llmKeyPlaceholder": "API key (blank for local Ollama)",
+  "settings.auditTitle": "🧠 Read listing texts (optional)",
+  "settings.auditEnable": "Let the model read a listing when I ask",
+  "settings.auditNote":
+    "Adds a “Read the listing” button to a property's detail view: the model reports what the ad's text says about extra costs, a sitting tenant, the condition, and what is usable when negotiating. Nothing is read automatically — one press, one listing, using the same model configured above. Answers are remembered, so opening the card again is free.",
 
   // ── settings: scraping & bypass ─────────────────────────────────────────
   "settings.scrapingTitle": "🛡️ Advanced Scraping & Bypass",

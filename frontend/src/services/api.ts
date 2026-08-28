@@ -5,7 +5,8 @@ import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
   CommuteProgress, CommuteSummary,
-  GeocodeProgress, GeocodeSummary, LogTail, MarketVelocity, PricingTrend, ProfileBulkResult,
+  GeocodeProgress, GeocodeSummary, ListingAudit, LogTail, MarketVelocity, PricingTrend,
+  ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, PropertyPage, ScanStatus, ScraperHealth,
   SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
@@ -162,6 +163,18 @@ export const api = {
    *  error, just an address too vague to place). */
   geocodeProperty(id: number): Promise<{ property: Property; located: boolean }> {
     return request(`/properties/${id}/geocode`, { method: "POST" });
+  },
+
+  /** The stored reading of this listing's text, or null if none was asked for.
+   *  Reads the cache only — never the model — so opening a card is free. */
+  getPropertyAudit(id: number): Promise<ListingAudit | null> {
+    return request(`/properties/${id}/audit`);
+  },
+  /** Read this listing's text with the configured model (opt-in, one card at a
+   *  time). Answers from the stored row when it is about the same text, so a
+   *  second press costs nothing; `force` re-asks anyway. */
+  auditProperty(id: number, force = false): Promise<ListingAudit> {
+    return request(`/properties/${id}/audit${force ? "?force=true" : ""}`, { method: "POST" });
   },
 
   /** All user-defined tags with usage counts (dashboard filter + tag picker autocomplete). */

@@ -754,6 +754,7 @@ export default function App() {
           allTags={tags}
           onAddTag={(name) => addTag(selected, name)}
           onRemoveTag={(tagId) => removeTag(selected, tagId)}
+          auditEnabled={settings?.listing_audit_enabled ?? false}
         />
       )}
       {showSettings && (

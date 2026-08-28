@@ -10,9 +10,15 @@ into the **same** `{"searches": [...]}` structure `parse_query` produces, reusin
 Fail-safe by construction: `parse_with_llm` returns `None` on anything that goes
 wrong (no config, unreachable server, malformed JSON, empty result), and the
 dispatcher (`query_parser.parse_query_auto`) then falls back to the deterministic
-parser. The HTTP call is isolated in `_chat_completion` so tests exercise the
+parser. The HTTP call is isolated in `chat_completion` so tests exercise the
 whole prompt/validate/convert path with a mocked client and never hit a network
 (the same "no network in tests" rule as invariant 17).
+
+`chat_completion` and `extract_json` are public because they have a second
+reader: `listing_auditor.py` talks to the same OpenAI-compatible endpoint, with
+the same settings, and a second copy of "POST a chat completion, tolerate the
+fences a 3B model wraps its JSON in" is exactly the kind of duplicate that gets
+fixed in one place only.
 """
 
 import json
@@ -48,7 +54,7 @@ Rules:
 - Never invent a city that is not implied by the query."""
 
 
-def _chat_completion(base_url: str, api_key: str, model: str, system: str, user: str) -> str:
+def chat_completion(base_url: str, api_key: str, model: str, system: str, user: str) -> str:
     """POST one chat completion and return the assistant message text.
 
     Isolated so tests can monkeypatch it: everything above and below is pure.
@@ -79,7 +85,7 @@ def _chat_completion(base_url: str, api_key: str, model: str, system: str, user:
     return data["choices"][0]["message"]["content"]
 
 
-def _extract_json(text: str) -> dict:
+def extract_json(text: str) -> dict:
     """Parse the model's reply into a dict, tolerating a stray code fence.
 
     A model told to answer JSON usually does, but a local 3B one may wrap it in
@@ -129,8 +135,8 @@ def parse_with_llm(query: str) -> dict | None:
     if not base_url or not model or not (query or "").strip():
         return None
     try:
-        reply = _chat_completion(base_url, api_key, model, _SYSTEM_PROMPT, query)
-        data = _extract_json(reply)
+        reply = chat_completion(base_url, api_key, model, _SYSTEM_PROMPT, query)
+        data = extract_json(reply)
     except Exception as e:
         logger.warning("LLM parser: request/parse failed, falling back (%s)", e)
         return None

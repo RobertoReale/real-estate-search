@@ -125,7 +125,9 @@ listings it found), and silencing a search's notifications — is in
 The dashboard has a full toolbox beyond the grid itself: a bilingual interface,
 a map view with drawable filter zones, price-fairness and Deal Score checks, a
 Smart Match Score against your "dream home", commute times to the places you
-actually travel to, price-trend and market-velocity
+actually travel to, an optional reading of a listing's own text (extra costs, a
+sitting tenant, what is usable in a negotiation — off by default, and it can run
+on a local model), price-trend and market-velocity
 charts, a scraper-health panel, free-form tags, shortlist exports (HTML/MD/CSV),
 and a mortgage calculator. See [Features](docs/features.md) for the full
 rundown, and [Is This Ad Still Online?](docs/availability-check.md) for checking

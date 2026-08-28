@@ -141,6 +141,16 @@ class Property(Base):
     # legs themselves live in CommuteCache. None = not annotated.
     commutes: list[dict] | None = None
 
+    # The optional LLM reading of this property's listing text, once the user
+    # has asked for one (services/listing_auditor.py). Cascades like the
+    # listings and the price history: an audit outliving its property is
+    # garbage no screen can reach.
+    audit: Mapped["PropertyAudit | None"] = relationship(
+        back_populates="property",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
 
 class Listing(Base):
     __tablename__ = "listings"
@@ -205,6 +215,35 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String)
     name_normalized: Mapped[str] = mapped_column(String, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class PropertyAudit(Base):
+    """One LLM reading of a property's listing text (services/listing_auditor.py).
+
+    Kept rather than recomputed because the answer is the expensive half while
+    its input barely moves — the same memory trick as GeocodeCache and
+    CommuteCache. `text_digest` is what makes that safe: it is the sha256 of the
+    exact text that was sent, so an ad rewritten or re-priced since is read
+    again instead of being answered from a row about text nobody can see any
+    more. `model` belongs to that identity too, since a different model is a
+    different answer.
+
+    The findings live in `payload` as the JSON the service already validated,
+    not as a column each: they are lists of free text whose shape belongs to
+    `listing_auditor._clean_audit`, nothing filters or sorts on them, and they
+    are read back whole by the one card that asked for them.
+    """
+
+    __tablename__ = "property_audits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    property_id: Mapped[int] = mapped_column(ForeignKey("properties.id"), unique=True, index=True)
+    text_digest: Mapped[str] = mapped_column(String, default="")
+    model: Mapped[str] = mapped_column(String, default="")
+    payload: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    property: Mapped[Property] = relationship(back_populates="audit")
 
 
 class PriceHistory(Base):

@@ -1,11 +1,41 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDate, formatNumber, useT } from "../i18n";
 import { api, formatPrice, safeHref } from "../services/api";
-import type { Property, Tag } from "../types";
+import type { ListingAudit, Property, Tag } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
 import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
+
+/** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
+ *  so each value has a translation rather than being printed raw. */
+const CONDITION_KEYS = {
+  new: "audit.conditionNew",
+  renovated: "audit.conditionRenovated",
+  good: "audit.conditionGood",
+  to_renovate: "audit.conditionToRenovate",
+  unknown: "audit.conditionUnknown",
+} as const;
+
+const TENANT_KEYS = {
+  yes: "audit.tenantYes",
+  no: "audit.tenantNo",
+  unknown: "audit.tenantUnknown",
+} as const;
+
+/** One group of the audit's findings; absent entirely when the ad said nothing
+ *  about it, since an empty heading reads as a missing answer. */
+function AuditList({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium">{title}</p>
+      <ul className="list-disc list-inside t-body text-xs space-y-0.5">
+        {items.map((item, i) => <li key={i}>{item}</li>)}
+      </ul>
+    </div>
+  );
+}
 
 interface Props {
   property: Property;
@@ -17,11 +47,15 @@ interface Props {
   allTags: Tag[];
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
+  /** Whether the optional listing auditor is switched on in Settings. Off is
+   *  the default, and then nothing here mentions it — a button for a feature
+   *  that would answer "turn it on first" is not a feature. */
+  auditEnabled: boolean;
 }
 
 export default function PropertyModal({
   property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved, onShowOnMap,
-  allTags, onAddTag, onRemoveTag,
+  allTags, onAddTag, onRemoveTag, auditEnabled,
 }: Props) {
   const t = useT();
   const history = [...p.price_history].reverse();
@@ -32,8 +66,35 @@ export default function PropertyModal({
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [imgBroken, setImgBroken] = useState(false);
+  const [audit, setAudit] = useState<ListingAudit | null>(null);
+  const [auditing, setAuditing] = useState(false);
   const notesDirty = notes !== p.notes;
   const hasCoords = p.latitude !== null && p.longitude !== null;
+  const hasDescription = p.listings.some((l) => l.description);
+
+  // A reading already paid for shows up on its own; producing one never does.
+  // The GET reads the stored row and nothing else, so opening a card cannot
+  // spend a model request — same split as the commute annotation.
+  useEffect(() => {
+    if (!auditEnabled) return;
+    let cancelled = false;
+    api.getPropertyAudit(p.id)
+      .then((stored) => { if (!cancelled) setAudit(stored); })
+      .catch(() => { /* nothing stored is the common case, not an error */ });
+    return () => { cancelled = true; };
+  }, [p.id, auditEnabled]);
+
+  async function readListing(force = false) {
+    setAuditing(true);
+    setError("");
+    try {
+      setAudit(await api.auditProperty(p.id, force));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("audit.failed"));
+    } finally {
+      setAuditing(false);
+    }
+  }
 
   async function viewOnMap() {
     // Already placed: jump straight to the pin.
@@ -296,7 +357,7 @@ export default function PropertyModal({
           <Calculators property={p} />
 
           {/* Description */}
-          {p.listings.some((l) => l.description) && (
+          {hasDescription && (
             <>
               <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
                 {t("modal.description")}
@@ -304,6 +365,59 @@ export default function PropertyModal({
               <p className="text-sm t-body whitespace-pre-line max-h-48 overflow-y-auto">
                 {p.listings.find((l) => l.description)?.description}
               </p>
+            </>
+          )}
+
+          {/* What the optional model read in that description. Off by default,
+              and it only ever runs on the press below — never on opening. */}
+          {auditEnabled && hasDescription && (
+            <>
+              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                {t("audit.title")}
+              </h3>
+              {audit && (
+                <div className="rounded-xl panel p-3 text-sm space-y-2">
+                  {audit.stale && (
+                    <p className="text-xs accent-bad">{t("audit.stale")}</p>
+                  )}
+                  {audit.summary && <p className="t-body">{audit.summary}</p>}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span>
+                      <span className="t-dim">{t("audit.condition")}: </span>
+                      {t(CONDITION_KEYS[audit.condition])}
+                    </span>
+                    <span>
+                      <span className="t-dim">{t("audit.tenant")}: </span>
+                      {t(TENANT_KEYS[audit.tenant])}
+                    </span>
+                  </div>
+                  <AuditList title={t("audit.costs")} items={audit.costs} />
+                  <AuditList title={t("audit.concerns")} items={audit.concerns} />
+                  <AuditList title={t("audit.negotiation")} items={audit.negotiation} />
+                  <p className="text-[11px] t-dim">
+                    {t("audit.footer", {
+                      model: audit.model,
+                      date: formatDate(audit.created_at),
+                    })}
+                    {" · "}
+                    {t("audit.disclaimer")}
+                  </p>
+                </div>
+              )}
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg"
+                  disabled={auditing}
+                  onClick={() => readListing(audit !== null)}
+                  title={t("audit.buttonTitle")}>
+                  {auditing
+                    ? t("audit.reading")
+                    : audit
+                      ? t("audit.again")
+                      : t("audit.button")}
+                </button>
+              </div>
             </>
           )}
 
