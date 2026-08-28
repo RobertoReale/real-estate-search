@@ -7,6 +7,7 @@ break every installation that had ever configured it.
 """
 
 import json
+import os
 from pathlib import Path
 
 from app import config
@@ -59,3 +60,54 @@ def test_save_settings_refuses_keys_that_are_not_settings(tmp_path, monkeypatch)
 
     assert saved["scan_interval_minutes"] == 45
     assert "not_a_setting" not in saved
+
+
+# --- corruption is survivable, but never silent -----------------------------
+
+
+def test_an_unreadable_settings_file_is_logged_not_swallowed(tmp_path, monkeypatch, caplog):
+    """Regression: the fallback to defaults was a bare `except: pass`.
+
+    Every secret the app has lives in this file, so running on the defaults
+    means the API auth gate silently switching itself off (invariant 14's
+    sanctioned way to widen the bind stops gating anything), notifications
+    stopping, and scrapes losing their DataDome cookie — all at once, with
+    nothing written anywhere. Worse, the next save then persists those defaults
+    over whatever survived. The app must still start, but it has to say so."""
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(config, "SETTINGS_PATH", path)
+    path.write_text('{"telegram_bot_token": "abc", "api_auth_to', encoding="utf-8")  # truncated
+
+    with caplog.at_level("ERROR"):
+        settings = load_settings()
+
+    assert settings["api_auth_token"] == DEFAULT_SETTINGS["api_auth_token"]  # still starts
+    assert any("settings.json" in r.getMessage() for r in caplog.records), (
+        "an unreadable settings file must be reported, not swallowed"
+    )
+
+
+def test_saving_settings_is_atomic(tmp_path, monkeypatch):
+    """A plain write_text truncates before it writes, so a crash or a full disk
+    mid-save leaves a settings.json that load_settings cannot parse — and the
+    app comes back on the defaults with every secret gone. The write goes to a
+    sibling temp file and is renamed into place, so the real file is either the
+    old contents or the new ones, never half of either."""
+    path = _settings_file(tmp_path, monkeypatch, {"scan_interval_minutes": 15})
+
+    real_replace = os.replace
+    seen: dict = {}
+
+    def spy(src, dst):
+        # at the moment of the rename the original must still be intact and
+        # parseable: that is the whole guarantee
+        seen["before"] = json.loads(Path(dst).read_text(encoding="utf-8"))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(config.os, "replace", spy)
+    save_settings({"scan_interval_minutes": 30})
+
+    assert seen["before"]["scan_interval_minutes"] == 15
+    assert json.loads(path.read_text(encoding="utf-8"))["scan_interval_minutes"] == 30
+    # and the temp file does not survive the save
+    assert not path.with_name(f"{path.name}.tmp").exists()

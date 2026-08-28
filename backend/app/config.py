@@ -367,12 +367,31 @@ DEFAULT_SETTINGS = {
 
 
 def load_settings() -> dict:
+    """The user's settings over the defaults, re-read from disk on every call.
+
+    Uncached on purpose: it is what lets a pasted Telegram token, a new cookie
+    or a changed API token take effect without restarting the backend.
+
+    A file that cannot be read falls back to the defaults so the app still
+    starts — but it must never do so **quietly**. Every secret lives here, so
+    silence meant the API auth gate turning itself off, notifications stopping
+    and scrapes losing their DataDome cookie, with nothing said anywhere. The
+    log line is the only thing that can turn "everything broke at once" into
+    one readable cause.
+    """
     settings = dict(DEFAULT_SETTINGS)
     if SETTINGS_PATH.exists():
         try:
             settings.update(json.loads(SETTINGS_PATH.read_text(encoding="utf-8")))
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error(
+                "settings.json at %s could not be read (%s): running with DEFAULT settings. "
+                "Every configured secret (API token, Telegram, SMTP, DataDome cookie) is "
+                "being ignored until this is fixed, and saving from the UI will overwrite "
+                "the file with those defaults.",
+                SETTINGS_PATH,
+                e,
+            )
     return settings
 
 
@@ -409,5 +428,13 @@ def save_settings(new_values: dict) -> dict:
         value = settings.get(key)
         if isinstance(value, str):
             settings[key] = "".join(value.split())
-    SETTINGS_PATH.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Atomic: write a sibling temp file, then rename over the real one. A plain
+    # write_text truncates first, so a crash, a power cut or a full disk in the
+    # middle of it leaves a half-written settings.json — which load_settings
+    # cannot parse, so the app comes back up on the defaults with every secret
+    # gone. os.replace is atomic on both platforms this ships to, and the temp
+    # file is in the same directory so the rename never crosses a filesystem.
+    tmp = SETTINGS_PATH.with_name(f"{SETTINGS_PATH.name}.tmp")
+    tmp.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, SETTINGS_PATH)
     return settings
