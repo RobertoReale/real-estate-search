@@ -18,6 +18,7 @@ from app.services.exporter import (
     properties_to_csv,
     properties_to_html,
     properties_to_markdown,
+    properties_to_print_html,
 )
 
 
@@ -168,3 +169,123 @@ def test_csv_neutralizes_formula_injection():
     csv_text = properties_to_csv([_prop(title="=HYPERLINK(evil)")])
     row = csv_text.strip().splitlines()[1]
     assert "'=HYPERLINK" in row
+
+
+# --- print dossier (the "save as PDF" path) ----------------------------------
+
+
+def test_print_dossier_paginates_and_prints_itself():
+    """The PDF is produced by the browser's own print-to-PDF, so two things
+    carry the whole feature: one page per property, and the dialog opening
+    without the user hunting for Ctrl+P."""
+    html = properties_to_print_html([_prop(title="A"), _prop(title="B")], "Dossier")
+    assert html.startswith("<!doctype html>")
+    assert html.count('<section class="property">') == 2
+    assert "break-before: page" in html
+    assert "window.print()" in html
+
+
+def test_print_dossier_escapes_scraped_text():
+    """Same untrusted-text rule as the HTML dossier: the title comes from a
+    portal listing, and this document is opened in a browser."""
+    html = properties_to_print_html([_prop(title="<script>alert(1)</script>")], "D")
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html
+    # our own print call is the only script the document may contain
+    assert html.count("<script>") == 1
+
+
+def test_print_dossier_gallery_collects_every_ad_photo():
+    """A merged property is the point: each agency's ad brings its own photo,
+    so the merge is what turns one thumbnail into a gallery. Duplicates across
+    ads must collapse rather than print the same picture twice."""
+    p = _prop(image="http://x/cover.jpg")
+    p.listings = [
+        Listing(portal="immobiliare", portal_id="1", url="u1", image_url="http://x/a.jpg"),
+        Listing(portal="idealista", portal_id="2", url="u2", image_url="http://x/b.jpg"),
+        Listing(portal="idealista", portal_id="3", url="u3", image_url="http://x/cover.jpg"),
+    ]
+    html = properties_to_print_html([p], "D")
+    for url in ("http://x/cover.jpg", "http://x/a.jpg", "http://x/b.jpg"):
+        assert f'src="{url}"' in html
+    assert html.count('src="http://x/cover.jpg"') == 1
+
+
+def test_print_dossier_shows_the_price_timeline():
+    """`first_price` and `price_history` each tell half of it (invariant 6),
+    and the drop percentage is what a negotiation actually leans on."""
+    html = properties_to_print_html([_prop(history=[(340_000, 300_000)])], "D")
+    assert "Price history" in html
+    assert "first seen" in html
+    assert "-11.8%" in html
+
+
+def test_print_dossier_carries_the_viewing_checklist():
+    html = properties_to_print_html([_prop()], "D")
+    assert "Viewing checklist" in html
+    assert "Monthly building fees, and what they cover" in html
+    assert "Notes from the viewing" in html
+
+
+def test_print_dossier_includes_annotations_when_present():
+    """Market position, deal score and commute legs are transient annotations:
+    absent when they were not computed, printed when they were."""
+    p = _prop(deal=16, match=92)
+    p.area_median_sqm_price = 4000.0
+    p.area_median_scope = "zone"
+    p.sqm_price_delta_pct = -25.0
+    p.commutes = [{"name": "Office", "mode": "foot", "distance_m": 1500.0, "duration_s": 1080.0}]
+    html = properties_to_print_html([p], "D")
+    assert "16% below market" in html
+    assert "92% match" in html
+    assert "Area median" in html and "-25.0%" in html
+    assert "18 min on foot" in html and "1.5 km" in html
+
+
+def test_print_dossier_without_annotations_omits_those_sections():
+    html = properties_to_print_html([_prop()], "D")
+    assert "Area median" not in html
+    assert "Commute" not in html
+    assert "Your notes" not in html
+
+
+def test_print_dossier_empty_is_still_valid():
+    html = properties_to_print_html([], "Empty")
+    assert html.startswith("<!doctype html>")
+    assert "0 properties" in html
+
+
+def test_pdf_export_is_served_inline_not_downloaded(db):
+    """A print-ready document must be *opened* to print itself. Downloaded, it
+    would sit in the Downloads folder having produced no PDF at all."""
+    from app.routers.properties import export_properties
+
+    p = Property(
+        fingerprint="f",
+        title="Casa",
+        city="Milano",
+        contract="sale",
+        current_min_price=250_000,
+        sqm=80.0,
+        status="active",
+    )
+    p.listings = [Listing(portal="immobiliare", portal_id="9", url="u")]
+    db.add(p)
+    db.commit()
+
+    resp = export_properties(
+        db=db,
+        fmt="pdf",
+        status="active",
+        contract=None,
+        sort="newest",
+        floor_band=None,
+        portal=None,
+        deal=None,
+        center_lat=None,
+        center_lng=None,
+        radius_m=None,
+    )
+    assert (resp.media_type or "").startswith("text/html")
+    assert resp.headers["content-disposition"].startswith("inline")
+    assert b"Viewing checklist" in resp.body

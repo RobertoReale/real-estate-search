@@ -118,8 +118,10 @@ export const api = {
 
   /** Direct URL to download the filtered shortlist as a dossier. Not fetched
    *  as JSON: it returns a file (Content-Disposition attachment), so the caller
-   *  navigates to it to trigger the browser download. */
-  exportUrl(filters: PropertyFilters, fmt: "html" | "markdown" | "csv",
+   *  navigates to it to trigger the browser download. `pdf` is the exception —
+   *  it is served inline as a print-ready report, so the caller opens it in a
+   *  tab and the browser's own print dialog writes the PDF. */
+  exportUrl(filters: PropertyFilters, fmt: "html" | "markdown" | "csv" | "pdf",
             title: string): string {
     const params = propertyParams(filters);
     params.set("fmt", fmt);
