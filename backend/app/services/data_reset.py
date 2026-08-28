@@ -20,6 +20,7 @@ from ..models import (
     PriceHistory,
     PricingSnapshot,
     Property,
+    PropertyAudit,
     SearchProfile,
     property_tags,
 )
@@ -142,6 +143,8 @@ def clear_dashboard(db: Session) -> dict:
     db.execute(delete(Listing))
     # same reason: property_tags rows would otherwise survive their Property
     db.execute(delete(property_tags))
+    # and so would the listing audits, which are about text that is going away
+    db.execute(delete(PropertyAudit))
     db.execute(delete(Property))
     db.execute(
         update(SearchProfile).values(
@@ -199,6 +202,7 @@ def factory_reset(db: Session) -> dict:
         ListingProfile,
         Listing,
         PricingSnapshot,
+        PropertyAudit,
         Property,
         SearchProfile,
     ):

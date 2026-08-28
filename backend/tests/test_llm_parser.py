@@ -1,6 +1,6 @@
 """Optional LLM backend for the natural-language search assistant.
 
-Every test mocks the HTTP call (`_chat_completion`), so the whole
+Every test mocks the HTTP call (`chat_completion`), so the whole
 prompt/validate/convert path runs with no network — the deterministic default is
 never disturbed and CI never talks to a model (invariant 17's spirit).
 """
@@ -30,7 +30,7 @@ def _enable_llm(monkeypatch, reply):
         captured["user"] = user
         return reply
 
-    monkeypatch.setattr(llm_parser, "_chat_completion", fake)
+    monkeypatch.setattr(llm_parser, "chat_completion", fake)
     return captured
 
 
@@ -107,7 +107,7 @@ def test_request_error_falls_back_to_deterministic(monkeypatch):
     def boom(*a, **k):
         raise ConnectionError("server down")
 
-    monkeypatch.setattr(llm_parser, "_chat_completion", boom)
+    monkeypatch.setattr(llm_parser, "chat_completion", boom)
     result = parse_query_auto("casa a Roma")
     assert result["searches"][0]["params"]["city"] == "Roma"
 
@@ -118,7 +118,7 @@ def test_deterministic_is_the_default_and_never_calls_the_model(monkeypatch):
     def boom(*a, **k):
         raise AssertionError("the model must not be called on the default backend")
 
-    monkeypatch.setattr(llm_parser, "_chat_completion", boom)
+    monkeypatch.setattr(llm_parser, "chat_completion", boom)
     result = parse_query_auto("bilocale a Milano")
     assert result["searches"][0]["params"]["city"] == "Milano"
 

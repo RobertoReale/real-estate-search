@@ -242,6 +242,14 @@ DEFAULT_SETTINGS = {
     "llm_base_url": "",  # OpenAI-compatible base, e.g. http://localhost:11434/v1
     "llm_api_key": "",  # blank for a local Ollama server
     "llm_model": "",  # e.g. "llama3.1" / "qwen2.5" / "gpt-4o-mini"
+    # Opt-in reading of a listing's own text by that same model
+    # (services/listing_auditor.py): the costs the price does not include, a
+    # sitting tenant, the condition, the weak points worth raising in a
+    # negotiation. Off by default and never automatic — only the button on a
+    # property's card spends a request, so a scan is untouched by this. It
+    # reuses llm_base_url/llm_api_key/llm_model above rather than a second
+    # endpoint: there is one model to configure, not two.
+    "listing_audit_enabled": False,
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,
     "max_pages_per_search": 10,

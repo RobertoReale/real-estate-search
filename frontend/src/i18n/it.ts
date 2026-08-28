@@ -139,6 +139,32 @@ export const it: Dict = {
   "modal.hide": "🙈 Nascondi l'immobile",
   "modal.hideFailed": "Impossibile nasconderlo",
 
+  // ── modale immobile: lettura opzionale dell'annuncio ────────────────────
+  "audit.title": "🧠 Cosa dice l'annuncio",
+  "audit.button": "🧠 Leggi l'annuncio",
+  "audit.reading": "Lettura in corso…",
+  "audit.again": "Rileggi",
+  "audit.buttonTitle":
+    "Legge il testo dell'annuncio con il tuo modello linguistico: spese oltre il prezzo, immobile locato, stato, punti da usare in trattativa",
+  "audit.failed": "Non è stato possibile leggere l'annuncio",
+  "audit.condition": "Stato",
+  "audit.conditionNew": "nuova costruzione",
+  "audit.conditionRenovated": "ristrutturato",
+  "audit.conditionGood": "buono",
+  "audit.conditionToRenovate": "da ristrutturare",
+  "audit.conditionUnknown": "non indicato",
+  "audit.tenant": "Immobile locato",
+  "audit.tenantYes": "sì — venduto con inquilino in essere",
+  "audit.tenantNo": "no",
+  "audit.tenantUnknown": "non indicato",
+  "audit.costs": "Oltre al prezzo",
+  "audit.concerns": "Da verificare",
+  "audit.negotiation": "Utile in trattativa",
+  "audit.footer": "Letto da {model} il {date}",
+  "audit.stale": "⚠️ L'annuncio è cambiato dopo questa lettura — rileggilo per il testo attuale.",
+  "audit.disclaimer":
+    "È una rilettura delle parole dell'annuncio fatta da un modello linguistico, non una valutazione né un parere legale — verifica con l'agenzia ciò che conta.",
+
   // ── etichette ───────────────────────────────────────────────────────────
   "tags.removeTag": 'Rimuovi l\'etichetta "{name}"',
   "tags.addTag": "Aggiungi un'etichetta",
@@ -485,6 +511,10 @@ export const it: Dict = {
   "settings.llmModel": "Modello (es. llama3.1)",
   "settings.llmKeySaved": "Chiave API salvata (lascia vuoto per mantenerla)",
   "settings.llmKeyPlaceholder": "Chiave API (vuota per Ollama locale)",
+  "settings.auditTitle": "🧠 Lettura degli annunci (opzionale)",
+  "settings.auditEnable": "Fai leggere un annuncio al modello quando lo chiedo",
+  "settings.auditNote":
+    "Aggiunge il pulsante “Leggi l'annuncio” nella scheda di un immobile: il modello riporta ciò che il testo dice su spese oltre il prezzo, immobile locato, stato e punti utili in trattativa. Nulla viene letto in automatico — un clic, un annuncio, con lo stesso modello configurato qui sopra. Le risposte restano salvate, quindi riaprire la scheda non costa nulla.",
 
   // ── impostazioni: scraping e aggiramento blocchi ────────────────────────
   "settings.scrapingTitle": "🛡️ Scraping avanzato e aggiramento blocchi",

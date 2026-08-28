@@ -426,6 +426,48 @@ def check_single_property(property_id: int, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/api/properties/{property_id}/audit", response_model=schemas.ListingAuditOut | None)
+def get_property_audit(property_id: int, db: Session = Depends(get_db)):
+    """The stored reading of this listing's text, or null if none was asked for.
+
+    Reads the row and nothing else — never the model — so the detail modal can
+    show an audit the user already paid for without spending a request every
+    time a card is opened. Same split as the commute annotation: what is cached
+    is free, what costs something needs a press."""
+    from ..services import listing_auditor
+
+    prop = db.get(Property, property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    return listing_auditor.stored_audit(db, prop)
+
+
+@router.post("/api/properties/{property_id}/audit", response_model=schemas.ListingAuditOut)
+def audit_property_listing(
+    property_id: int,
+    force: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Reads this property's listing text with the configured model (opt-in).
+
+    A sync `def` on purpose, like the availability check: a local model can take
+    a minute to answer, and the threadpool keeps the rest of the API responsive
+    meanwhile instead of the event loop being owned by one card's request.
+
+    Everything that can go wrong — the feature off, no endpoint configured, an
+    ad with no description, a model that does not answer — comes back as a
+    readable 400. Nothing about the property changes either way."""
+    from ..services import listing_auditor
+
+    prop = db.get(Property, property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    try:
+        return listing_auditor.audit_property(db, prop, force=force)
+    except listing_auditor.ListingAuditError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @router.post("/api/properties/{property_id}/geocode")
 def geocode_single_property(property_id: int, db: Session = Depends(get_db)):
     """On-demand geocoding for one property, backing the card's "View on map"

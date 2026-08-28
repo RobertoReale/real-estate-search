@@ -103,6 +103,24 @@ export interface CommutePoint {
   mode: CommuteMode;
 }
 
+/** What the optional model read in one listing's text — mirrors
+ *  `schemas.ListingAuditOut`. Deliberately not part of `Property`: it exists
+ *  only for the properties the user asked about, and the detail modal fetches
+ *  it on its own. `cached` = answered from the stored row rather than the
+ *  model; `stale` = the ad has been rewritten since it was read. */
+export interface ListingAudit {
+  summary: string;
+  condition: "new" | "renovated" | "good" | "to_renovate" | "unknown";
+  tenant: "yes" | "no" | "unknown";
+  costs: string[];
+  concerns: string[];
+  negotiation: string[];
+  model: string;
+  created_at: string;
+  cached: boolean;
+  stale: boolean;
+}
+
 /** A monitored search that found a property, shown on its card. */
 export interface ProfileRef {
   id: number;
@@ -215,6 +233,8 @@ export interface Settings {
   llm_api_key?: string;
   llm_api_key_set?: boolean;
   llm_model?: string;
+  // opt-in reading of a listing's text by that same model, one card at a time
+  listing_audit_enabled?: boolean;
   request_delay_seconds: number;
   max_pages_per_search: number;
   health_alert_after_failures: number;

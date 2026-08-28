@@ -56,6 +56,24 @@
   Telegram or email alerts are on, an undervalued new listing carries the flag
   into the notification. It is a starting point for your judgement, not an
   appraisal, and appears only where there are enough comparables to mean it.
+* **What the listing says** (optional, off by default): an agency description is
+  written to sell, and the things that decide whether a viewing is worth the
+  trip are buried in its prose — building fees the price does not include, a
+  flat sold *locato* with a tenant in place until 2028, a *da ristrutturare*
+  three paragraphs down, the sentence that becomes your first argument on
+  price. Turn it on under **Settings → 🧠 Read listing texts**, and a property's
+  detail view gains a **🧠 Read the listing** button: the model reads that ad's
+  own text and reports the condition, whether a tenant comes with it, what the
+  asking price does not cover, what is worth checking, and what is usable when
+  negotiating. Four things to know. Nothing is ever read automatically — one
+  press reads one listing, so no scan and no scrolling costs you anything. It
+  uses the **same** language model as the search assistant above (a local
+  **Ollama** keeps it free and fully offline; a cloud endpoint works too), set
+  up once in the same panel. Answers are remembered, so re-opening the card is
+  free, and if the ad has been rewritten since, the panel says so and offers to
+  read it again. And it is a re-reading of the ad's own words, not an appraisal:
+  it reports what the text states and stays quiet where the text is silent —
+  anything that matters is still a question for the agency.
 * **Smart Match Score**: define your "dream home" once in **Settings** — a budget,
   minimum rooms, surface or floor, must-have features (e.g. *balcone, ascensore*),
   and preferred zones — and every card shows a **compatibility %** scored against

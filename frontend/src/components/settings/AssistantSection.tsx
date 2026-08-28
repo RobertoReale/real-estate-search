@@ -8,22 +8,25 @@ interface Values {
   baseUrl: string;
   apiKey: string;
   model: string;
+  audit: boolean;
 }
 
 export function useAssistantSection(): Section<Values> {
   return useSectionState<Values>(
-    { backend: "deterministic", baseUrl: "", apiKey: "", model: "" },
+    { backend: "deterministic", baseUrl: "", apiKey: "", model: "", audit: false },
     (s) => ({
       backend: s.nl_parser_backend || "deterministic",
       baseUrl: s.llm_base_url || "",
       apiKey: "", // write-only
       model: s.llm_model || "",
+      audit: s.listing_audit_enabled ?? false,
     }),
     (v) => {
       const p: Partial<Settings> = {
         nl_parser_backend: v.backend,
         llm_base_url: v.baseUrl,
         llm_model: v.model,
+        listing_audit_enabled: v.audit,
       };
       if (v.apiKey.trim()) p.llm_api_key = v.apiKey.trim();
       return p;
@@ -36,6 +39,10 @@ export function AssistantSection(
 ) {
   const t = useT();
   const { values, set } = section;
+  // One endpoint, two optional readers: the assistant backend and the listing
+  // auditor. Whichever is on, the connection fields below are what it uses —
+  // so they are shown for either, never duplicated per feature.
+  const needsLlm = values.backend === "llm" || values.audit;
 
   return (
     <>
@@ -46,7 +53,16 @@ export function AssistantSection(
         <option value="deterministic">{t("settings.backendBuiltin")}</option>
         <option value="llm">{t("settings.backendLlm")}</option>
       </select>
-      {values.backend === "llm" && (
+
+      <SectionHeading>{t("settings.auditTitle")}</SectionHeading>
+      <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
+        <input type="checkbox" checked={values.audit}
+          onChange={(e) => set("audit", e.target.checked)} />
+        {t("settings.auditEnable")}
+      </label>
+      <p className="text-xs t-dim mt-1">{t("settings.auditNote")}</p>
+
+      {needsLlm && (
         <div className="space-y-2 mt-2">
           <p className="text-xs t-dim">
             {t("settings.llmHintA")}

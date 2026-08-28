@@ -138,6 +138,32 @@ class PropertyOut(BaseModel):
         return v or []
 
 
+class ListingAuditOut(BaseModel):
+    """What the optional model read in one listing's text
+    (services/listing_auditor.py).
+
+    Deliberately not part of `PropertyOut`: an audit exists only for the
+    properties the user asked about, so carrying it on every grid row would be
+    a join for a field almost every card leaves empty. The detail modal fetches
+    it on its own.
+
+    `cached` says the answer came from the stored row rather than the model,
+    and `stale` that the ad has been rewritten since it was written — both are
+    printed, because an audit is only as good as the text it read.
+    """
+
+    summary: str = ""
+    condition: str = "unknown"  # new | renovated | good | to_renovate | unknown
+    tenant: str = "unknown"  # yes | no | unknown — sold with a sitting tenant
+    costs: list[str] = []  # what the asking price does not include
+    concerns: list[str] = []  # weak points the text admits to
+    negotiation: list[str] = []  # facts usable when making an offer
+    model: str = ""
+    created_at: datetime
+    cached: bool = False
+    stale: bool = False
+
+
 class PropertyPage(BaseModel):
     """One window of the filtered property set, plus the size of the whole.
 
@@ -346,6 +372,7 @@ class SettingsIn(BaseModel):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    listing_audit_enabled: bool | None = None
     datadome_cookie: str | None = None
     datadome_auto_refresh: bool | None = None
     datadome_cookie_ttl_minutes: int | None = None
