@@ -427,6 +427,39 @@ export const api = {
   },
 };
 
+/** The export URL fetched as a file, for when the API token is on.
+ *
+ *  `exportUrl` is meant to be *navigated* to — an anchor click or `window.open`
+ *  — and a navigation cannot carry an `Authorization` header. So with a token
+ *  set, every export answered 401 and the dossier the user asked for arrived as
+ *  a page of JSON. This is the same URL (one querystring builder, so the
+ *  dossier still mirrors the screen), fetched through the authenticated path
+ *  and handed back as a blob the caller can download or open.
+ *
+ *  The filename comes from the response's own Content-Disposition, so the file
+ *  is named exactly as it is on the unauthenticated path.
+ */
+export async function fetchExport(
+  filters: PropertyFilters,
+  fmt: "html" | "markdown" | "csv" | "pdf",
+  title: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const token = authToken.get();
+  const resp = await fetch(api.exportUrl(filters, fmt, title), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (resp.status === 401) {
+    onAuthRequired?.();
+    throw new AuthError();
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => null);
+    throw new Error(body?.detail ?? `Error ${resp.status}`);
+  }
+  const match = /filename="([^"]+)"/.exec(resp.headers.get("Content-Disposition") ?? "");
+  return { blob: await resp.blob(), filename: match?.[1] ?? "dossier" };
+}
+
 /** Defence in depth for anchors built from scraped URLs: only http(s) may
  *  become a clickable href — a `javascript:` scheme smuggled into a listing
  *  URL must render inert, mirroring how MapView escapes its tooltip HTML. */

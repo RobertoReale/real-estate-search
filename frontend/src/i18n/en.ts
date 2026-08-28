@@ -327,6 +327,7 @@ export const en = {
   "filters.exportFavorites": "Favorites",
   "filters.exportRentals": "Rentals",
   "filters.exportProperties": "Properties",
+  "filters.exportFailed": "Could not build the dossier: {error}",
   "filters.exportIn": "{what} in {city}",
 
   // ── maintenance actions ─────────────────────────────────────────────────

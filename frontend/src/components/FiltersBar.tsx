@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProgressPoll } from "../hooks/useProgressPoll";
 import { useT } from "../i18n";
-import { api } from "../services/api";
+import { api, authToken, AuthError, fetchExport } from "../services/api";
 import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
 import { ProgressBar } from "./ProgressBar";
@@ -36,6 +36,10 @@ export default function FiltersBar({
   const [stoppingGeocode, setStoppingGeocode] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheCleared, setCacheCleared] = useState<number | null>(null);
+  // only used on the authenticated export path, which is a fetch rather than a
+  // navigation and so has a wait and a failure the UI has to show
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   // Advanced filters live behind a toggle so the common controls stay
   // uncluttered. Opened by default when one is already active (e.g. after a
   // reload), so an applied filter is never hidden.
@@ -77,30 +81,60 @@ export default function FiltersBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchEnabled, filters.sort]);
 
-  function exportAs(fmt: "html" | "markdown" | "csv" | "pdf") {
+  /** Hand a URL to the browser: opened in a tab for the print-ready PDF report
+   *  (which raises the print dialog on load — downloaded, it would print
+   *  nothing), saved via a transient anchor for the three file formats. */
+  function handOff(url: string, fmt: string, filename?: string) {
+    if (fmt === "pdf") {
+      window.open(url, "_blank", "noreferrer");
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.rel = "noreferrer";
+    if (filename) a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  async function exportAs(fmt: "html" | "markdown" | "csv" | "pdf") {
     const what = filters.only_favorites
       ? t("filters.exportFavorites")
       : isRent
         ? t("filters.exportRentals")
         : t("filters.exportProperties");
     const title = filters.city ? t("filters.exportIn", { what, city: filters.city }) : what;
-    const url = api.exportUrl(filters, fmt, title);
-    // PDF is the one format that is opened rather than saved: the backend
-    // serves a print-ready report that raises the print dialog on load, and
-    // the PDF is what the user saves from there. Downloaded, it would print
-    // nothing.
-    if (fmt === "pdf") {
-      window.open(url, "_blank", "noreferrer");
+    setExportError(null);
+
+    // The common case (no API token): let the browser fetch it. Content-
+    // Disposition names the file and the PDF prints itself, with no blob in
+    // between — the path this has always taken.
+    if (!authToken.get()) {
+      handOff(api.exportUrl(filters, fmt, title), fmt);
       return;
     }
-    // A file download (Content-Disposition attachment): navigating to it starts
-    // the download without leaving the page, so a transient anchor is enough.
-    const a = document.createElement("a");
-    a.href = url;
-    a.rel = "noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // With the token on, that navigation cannot carry the Authorization header
+    // and every export came back 401 — the dossier arrived as a page of JSON.
+    // Fetch it authenticated instead and hand the browser the result.
+    setExporting(fmt);
+    try {
+      const { blob, filename } = await fetchExport(filters, fmt, title);
+      const url = URL.createObjectURL(blob);
+      handOff(url, fmt, filename);
+      // long enough for the tab/download to have taken it; revoking
+      // immediately cancels the transfer in some browsers
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      // an AuthError has already raised the token prompt; anything else is the
+      // backend's own message, and a button that silently does nothing reads
+      // as broken
+      if (!(e instanceof AuthError)) {
+        setExportError(e instanceof Error ? e.message : String(e));
+      }
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -472,14 +506,14 @@ export default function FiltersBar({
                     text-slate-500 hover:text-slate-800 dark:bg-slate-800/80
                     dark:text-slate-400 dark:hover:text-slate-200
                     disabled:opacity-40 disabled:cursor-not-allowed"
-                  disabled={count === 0}
+                  disabled={count === 0 || exporting !== null}
                   title={
                     fmt === "pdf"
                       ? t("filters.exportPdfTitle", { count })
                       : t("filters.exportTitle", { count, format: label })
                   }
                   onClick={() => exportAs(fmt)}>
-                  {label}
+                  {exporting === fmt ? "…" : label}
                 </button>
               ),
             )}
@@ -551,6 +585,20 @@ export default function FiltersBar({
               </span>
             )}
           </ProgressBar>
+        </div>
+      )}
+
+      {exportError && (
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+          <p role="status" className="text-rose-700 dark:text-rose-300">
+            ❌ {t("filters.exportFailed", { error: exportError })}
+          </p>
+          <button
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            onClick={() => setExportError(null)}
+            title={t("common.close")}>
+            ✕
+          </button>
         </div>
       )}
 

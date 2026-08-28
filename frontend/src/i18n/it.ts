@@ -331,6 +331,7 @@ export const it: Dict = {
   "filters.exportFavorites": "Preferiti",
   "filters.exportRentals": "Affitti",
   "filters.exportProperties": "Immobili",
+  "filters.exportFailed": "Impossibile creare il dossier: {error}",
   "filters.exportIn": "{what} a {city}",
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
