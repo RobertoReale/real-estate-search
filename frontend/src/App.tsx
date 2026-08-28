@@ -23,6 +23,34 @@ import type {
   ScanStatus, SearchProfile, Settings, Tag, ViewMode,
 } from "./types";
 
+/** "New" badge threshold: properties first seen after this instant are flagged
+ *  as new for the rest of this browser session, even if a scan completes while
+ *  the dashboard stays open. The stored timestamp is advanced immediately so a
+ *  reload (the next time the user "sees" the dashboard, per-device like the
+ *  theme and the token in localStorage) stops flagging today's properties as
+ *  new. No stored value at all means first-ever run: nothing is flagged, so the
+ *  whole existing dashboard doesn't light up as "new".
+ *
+ *  Memoised at module scope, and that is the load-bearing part: this is read
+ *  from a `useState` initializer, which StrictMode deliberately invokes twice.
+ *  Reading and writing localStorage in there directly meant the second
+ *  invocation read back the timestamp the first had just written — so in
+ *  development the threshold was always "now" and no card was ever badged,
+ *  while the production build (no double invocation) behaved correctly. A
+ *  feature that only misbehaves where it is developed is a feature nobody can
+ *  verify.
+ */
+const SEEN_KEY = "propertiesSeenBefore";
+let seenBefore: string | null | undefined;
+
+export function readSeenThreshold(): string | null {
+  if (seenBefore === undefined) {
+    seenBefore = localStorage.getItem(SEEN_KEY);
+    localStorage.setItem(SEEN_KEY, new Date().toISOString());
+  }
+  return seenBefore;
+}
+
 const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
   profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
@@ -84,21 +112,10 @@ export default function App() {
   // grid only when it differs. null = never read one yet.
   const dataVersion = useRef<string | null>(null);
 
-  // "New" badge threshold: properties first seen after this instant are
-  // flagged as new for the rest of this browser session, even if a scan
-  // completes while the dashboard stays open. Captured once via a lazy
-  // initializer (not an effect) so the very first render already has it —
-  // an effect would flash the grid without badges for one frame. The stored
-  // timestamp is advanced immediately so a reload (the next time the user
-  // "sees" the dashboard, per-device like the theme/token in localStorage)
-  // stops flagging today's properties as new. No stored value at all means
-  // first-ever run: nothing is flagged, so the whole existing dashboard
-  // doesn't light up as "new".
-  const [newSinceThreshold] = useState<string | null>(() => {
-    const stored = localStorage.getItem("propertiesSeenBefore");
-    localStorage.setItem("propertiesSeenBefore", new Date().toISOString());
-    return stored;
-  });
+  // Captured through a lazy initializer (not an effect) so the very first
+  // render already has it — an effect would flash the grid without badges for
+  // one frame. See `readSeenThreshold` for why the read is memoised.
+  const [newSinceThreshold] = useState<string | null>(readSeenThreshold);
 
   // Only the property list depends on the filters, so it is the one thing the
   // per-keystroke path must refetch. Kept separate from the reference data
