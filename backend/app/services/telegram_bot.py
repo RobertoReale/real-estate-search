@@ -21,8 +21,8 @@ import services lazily: the module graph stays acyclic.
 **"Seen" writes nothing, on purpose.** The dashboard has no server-side notion of
 a seen property — its "New" badge is a per-device `localStorage` threshold
 (`App.tsx`), not a column — so a button that persisted one would be inventing a
-concept no screen can show, which is a backlog item outside `PLAN.md` rather than
-part of this one. It is a dismissal of the *message*: the actions are stripped
+concept no screen can show, which is a feature of its own rather than part of
+this one. It is a dismissal of the *message*: the actions are stripped
 from the keyboard and the notification stops asking to be triaged.
 
 **Only the configured chat may act.** A bot's username is discoverable, so anyone

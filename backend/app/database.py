@@ -204,7 +204,7 @@ def _run_migrations():
     """Apply any authored Alembic migrations, and adopt pre-Alembic databases.
 
     Coexists with create_all + additive migrations on purpose (see the module
-    docstring / CLAUDE.md invariant on migrations): those two keep the schema
+    docstring / docs/architecture.md on migrations): those two keep the schema
     working for every *additive* change and always run first, so by the time we
     get here every current table already exists. Alembic's job starts at the
     first change they cannot express — a rename, a drop, a type change.

@@ -11,13 +11,15 @@ backend/app.log*
 backend/service.log*
 nssm.exe
 
-# Local AI agent instructions & workspace history (NEVER commit to public git)
-CLAUDE.md
-AUDIT.md
-IMPROVEMENTS.md
-PIANO_LANCIO_PRIVATE.md
-.agents/
-.gemini/
+# Private working notes kept beside the checkout, never published. Anchored with
+# a leading slash on purpose: unanchored, these names match at ANY depth, and on
+# a case-insensitive filesystem `AUDIT.md` silently swallowed `docs/audit.md`.
+/CLAUDE.md
+/AUDIT.md
+/IMPROVEMENTS.md
+/PIANO_LANCIO_PRIVATE.md
+/.agents/
+/.gemini/
 
 
 # Environments and dependencies
