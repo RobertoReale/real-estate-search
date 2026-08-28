@@ -46,6 +46,15 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **The frontend talks to the backend ONLY via the Vite proxy** `/api` →
   `127.0.0.1:8000` (`vite.config.ts`): no absolute URLs in `api.ts`.
 
+- **Windows-only code carries a targeted type-check suppression.** `ctypes.windll` and
+  friends do not exist off Windows, and the types are checked on Linux as well — CI runs
+  there, because the Raspberry Pi is a real target — so a Windows-only call site needs a
+  `# pyright: ignore[reportAttributeAccessIssue]` on the line itself. A local `pyright`
+  run on Windows is green and cannot warn you about this. Same shape as the optional
+  imports of `playwright` and `camoufox`: a targeted ignore at the call site, never a
+  blanket rule disable, and never `pythonPlatform` pinned to Windows — that would silence
+  the checker for one of the two platforms the app actually ships to.
+
 - **Responsive UI: phone-first, desktop restored at `sm`.** The dashboard is served to
   phones (see `serve.bat`), so every control row must survive 390 px. Three patterns
   recur, each with a reason:
