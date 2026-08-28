@@ -380,6 +380,14 @@ DEFAULT_SETTINGS = {
         "dhome real estate",
         "cosetta fiori",
     ],
+    # Where the OMI quotations downloaded from the Agenzia delle Entrate were
+    # extracted (services/omi_import.py). Empty by default and empty forever for
+    # anyone who never fetches them: no OMI data means no OMI benchmark, never a
+    # broken scan. A directory rather than a file because a delivery is two
+    # files (the prices and the zone descriptions) and the importer identifies
+    # them by their title line — their *names* carry the codice fiscale of
+    # whoever requested the supply, so nothing here is ever derived from them.
+    "omi_input_dir": "",
     # Optional shared-secret API token. Empty (default) = the API is open and
     # the bind address is the only access control (invariant 14). A non-empty
     # value requires every /api request to carry `Authorization: Bearer <token>`,

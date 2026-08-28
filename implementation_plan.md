@@ -168,10 +168,11 @@ progetto/
 │   │       ├── availability_check.py # on-demand "is it still online?" batch for dashboard properties
 │   │       ├── listing_text.py   # recognizes portal boilerplate in a title or zone
 │   │       ├── data_reset.py      # scoped irreversible data wipes (Settings -> Data management)
+│   │       ├── omi_import.py     # imports the Agenzia delle Entrate OMI quotations from a downloaded file
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 727 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 754 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -232,7 +233,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (727, `pytest`)
+### Automated Tests (754, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
