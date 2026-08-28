@@ -10,6 +10,7 @@ packaged app writes its log somewhere the user can actually reach it.
 """
 
 import logging
+import os
 import threading
 
 from fastapi import APIRouter, HTTPException
@@ -18,6 +19,27 @@ from ..config import BASE_DIR, LOG_PATH
 from ..services.scanner import scan_state
 
 router = APIRouter()
+
+
+def relaunch_argv(executable: str, argv: list[str]) -> list[str]:
+    """The argv to hand `os.execv` so the process comes back.
+
+    Windows has no real `execv`: the CRT joins the list into a single command
+    line with spaces and quotes nothing, so one space anywhere in the path
+    splits that element into two arguments. The replacement interpreter then
+    took "C:\\Users\\Mario Rossi\\...\\python.exe" as "C:\\Users\\Mario" plus a
+    stray script name, failed to open it, and exited — the backend went down and
+    never came back. A space in the path is the ordinary case on Windows
+    (`C:\\Program Files`, most user folders), and this is the one route whose
+    whole purpose is being usable when there is no terminal to recover from.
+
+    Pre-quoting each element is what survives that join. POSIX passes the list
+    through untouched, where quotes would become part of the argument.
+    """
+    parts = [executable, *argv]
+    if os.name != "nt":
+        return parts
+    return [f'"{part}"' for part in parts]
 
 
 @router.post("/api/system/restart")
@@ -42,7 +64,6 @@ def system_restart():
     """
     if scan_state["running"]:
         raise HTTPException(409, "A scan is running: wait for it to finish before restarting")
-    import os
     import sys
     import time
 
@@ -54,7 +75,7 @@ def system_restart():
             if reload_on:
                 (BASE_DIR / "app" / "main.py").touch()
             else:
-                os.execv(sys.executable, [sys.executable, *sys.argv])
+                os.execv(sys.executable, relaunch_argv(sys.executable, sys.argv))
         except Exception:
             logging.getLogger(__name__).exception("restart failed")
 
