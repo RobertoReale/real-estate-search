@@ -44,11 +44,15 @@ export default function LogViewer({ onClose }: Props) {
       }
     };
     load();
-    if (!autoRefresh) return;
-    const timer = setInterval(load, 3000);
+    // The early return used to sit above the cleanup, so with auto-refresh off
+    // the effect registered none at all: closing the viewer (or switching
+    // language, which re-runs this) left the in-flight tail free to land and
+    // write into a component that no longer exists. `cancelled` is the guard
+    // and it only works if the cleanup is always returned.
+    const timer = autoRefresh ? setInterval(load, 3000) : null;
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer !== null) clearInterval(timer);
     };
   }, [autoRefresh, t]);
 
