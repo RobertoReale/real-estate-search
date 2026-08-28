@@ -56,7 +56,11 @@ def search_assistant(data: schemas.AssistantQueryIn):
                 interpretation=search["interpretation"],
                 notes=search.get("notes", []),
                 warnings=search["warnings"],
-                urls=build_search_urls(params.model_dump()) if params.city else None,
+                urls=(
+                    schemas.SearchBuilderUrlsOut(**build_search_urls(params.model_dump()))
+                    if params.city
+                    else None
+                ),
             )
         )
     return schemas.AssistantOut(searches=searches)

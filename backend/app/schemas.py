@@ -495,6 +495,26 @@ class AssistantParams(BaseModel):
     min_sqm: int | None = None
 
 
+class SearchBuilderUrlsOut(BaseModel):
+    """What `search_builder.build_search_urls` actually returns: a URL per
+    portal, plus the two pieces of provenance the form shows next to them.
+
+    Spelled out as a model rather than a `dict[str, str]` because it is not
+    one — `idealista_zone_page` is a bool and `idealista_unsupported` a list,
+    so the looser-looking annotation was in fact the stricter one and rejected
+    every real payload.
+    """
+
+    immobiliare: str
+    idealista: str
+    # whether the Idealista URL is its precise zone page (slug confirmed by the
+    # portal) rather than the broader free-text search
+    idealista_zone_page: bool = False
+    # requested filters Idealista's URL grammar cannot express, so its half of
+    # the pair is the wider search
+    idealista_unsupported: list[str] = []
+
+
 class AssistantSearch(BaseModel):
     """One search alternative the assistant understood. A query with
     disjunctions ("bilocale in zona X o trilocale in zona Y") yields one of
@@ -507,7 +527,7 @@ class AssistantSearch(BaseModel):
     warnings: list[str] = []  # what it could not resolve
     # None when no city was found: a city-less portal URL would silently
     # search all of Italy (see invariant #7)
-    urls: dict[str, str] | None = None
+    urls: SearchBuilderUrlsOut | None = None
 
 
 class AssistantOut(BaseModel):
