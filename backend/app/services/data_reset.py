@@ -22,6 +22,7 @@ from ..models import (
     Property,
     PropertyAudit,
     SearchProfile,
+    Tag,
     property_tags,
 )
 
@@ -172,8 +173,12 @@ def clear_pricing_snapshots(db: Session) -> dict:
 
 
 def factory_reset(db: Session) -> dict:
-    """Empties the whole database — dashboard, profiles, imports, snapshots —
+    """Empties the whole database — dashboard, profiles, tags, snapshots —
     back to a fresh install. `settings.json` (credentials, cookie) is kept.
+
+    Tags go too, unlike `clear_dashboard`: there the vocabulary is worth keeping
+    because the grid it categorises is about to be rebuilt by a scan, while here
+    "a fresh install" is the whole promise the confirmation dialog makes.
 
     A forced backup is taken first, so even this is recoverable from
     backend/backups/. Children are deleted before parents (SQLite does not
@@ -196,7 +201,13 @@ def factory_reset(db: Session) -> dict:
         "properties": _count(db, Property),
         "pricing_snapshots": _count(db, PricingSnapshot),
         "search_profiles": _count(db, SearchProfile),
+        "tags": _count(db, Tag),
     }
+    # `property_tags` before the Property rows, for the reason clear_dashboard
+    # spells out: a Core delete skips the ORM cascade, so the association rows
+    # outlive their Property. SQLite then hands the next inserted Property the
+    # same reused rowid and it silently adopts the dead card's tags.
+    db.execute(delete(property_tags))
     for model in (
         PriceHistory,
         ListingProfile,
@@ -204,6 +215,7 @@ def factory_reset(db: Session) -> dict:
         PricingSnapshot,
         PropertyAudit,
         Property,
+        Tag,
         SearchProfile,
     ):
         db.execute(delete(model))

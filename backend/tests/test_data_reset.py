@@ -19,6 +19,8 @@ from app.models import (
     PricingSnapshot,
     Property,
     SearchProfile,
+    Tag,
+    property_tags,
 )
 from app.services import data_reset
 
@@ -144,6 +146,59 @@ def test_factory_reset_empties_everything(db, monkeypatch, tmp_path):
         assert _count(db, model) == 0
     assert out["deleted"]["search_profiles"] == 1
     assert out["backup"] is None
+
+
+def _tag(db, prop: Property, name: str = "Con giardino") -> Tag:
+    tag = Tag(name=name, name_normalized=name.lower())
+    db.add(tag)
+    db.commit()
+    prop.tags.append(tag)
+    db.commit()
+    return tag
+
+
+def _no_backup(monkeypatch, tmp_path) -> None:
+    """Force the pre-reset backup to the legitimate fresh-install no-op."""
+    from app.services import backup
+
+    monkeypatch.setattr(backup, "maybe_backup", lambda **k: None)
+    monkeypatch.setattr(data_reset, "DB_PATH", tmp_path / "missing.db")
+
+
+def test_factory_reset_takes_the_tag_links_with_the_properties(db, monkeypatch, tmp_path):
+    """Regression: the wipe is a Core delete, which skips the ORM cascade that
+    clears `property_tags` — clear_dashboard deletes those rows explicitly, the
+    factory reset did not. The orphans were not merely untidy: SQLite hands the
+    next inserted Property the same reused rowid, so the first card the next
+    scan created silently wore the tags of the deleted one, and the grid's
+    `tag=` filter returned it."""
+    prop = _seed_dashboard(db)
+    _tag(db, prop)
+    _no_backup(monkeypatch, tmp_path)
+
+    data_reset.factory_reset(db)
+
+    assert db.scalar(select(func.count()).select_from(property_tags)) == 0
+    assert _count(db, Tag) == 0  # "a fresh install" is the dialog's promise
+
+    # the reused rowid, which is what turned orphan rows into wrong data
+    fresh = Property(fingerprint="fp-new", status="active", city="roma")
+    db.add(fresh)
+    db.commit()
+    assert fresh.id == prop.id
+    assert fresh.tags == []
+
+
+def test_clear_dashboard_keeps_the_tag_vocabulary_but_drops_the_links(db):
+    """The other half of the split: a dashboard the next scan will rebuild keeps
+    the tag names worth reusing, but no card may inherit an attachment."""
+    prop = _seed_dashboard(db)
+    _tag(db, prop)
+
+    data_reset.clear_dashboard(db)
+
+    assert db.scalar(select(func.count()).select_from(property_tags)) == 0
+    assert _count(db, Tag) == 1
 
 
 def test_factory_reset_aborts_when_the_backup_fails(db, monkeypatch, tmp_path):
