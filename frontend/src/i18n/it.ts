@@ -382,6 +382,7 @@ export const it: Dict = {
   "settings.secretNotSet": "○ Non impostato",
   "settings.saved": "Impostazioni salvate.",
   "settings.saveFailed": "Impossibile salvare le impostazioni: {error}",
+  "settings.loadFailed": "Impossibile caricare le impostazioni: {error}",
   "settings.save": "Salva le impostazioni",
   "settings.errCredentials":
     "{error} — le credenziali sono state rifiutate. Con Gmail devi usare una password per app di 16 caratteri, non la tua password normale.",

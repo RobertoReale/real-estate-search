@@ -378,6 +378,7 @@ export const en = {
   "settings.secretNotSet": "○ Not set",
   "settings.saved": "Settings saved.",
   "settings.saveFailed": "Could not save settings: {error}",
+  "settings.loadFailed": "Could not load the settings: {error}",
   "settings.save": "Save settings",
   "settings.errCredentials":
     "{error} — the credentials were refused. With Gmail you must use a 16-character App password, not your normal password.",

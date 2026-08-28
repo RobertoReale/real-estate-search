@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
 import { api, authToken } from "../services/api";
 import type { Settings } from "../types";
@@ -16,6 +16,29 @@ interface Props {
   onClose: () => void;
 }
 
+/** The dialog frame — overlay, panel, title and close button — shared by the
+ *  loading, failed and loaded states. Module-level rather than nested in
+ *  `SettingsModal`: a component declared inside another is a new type on every
+ *  render, which would remount the whole form (and drop focus) per keystroke. */
+function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const t = useT();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+      onClick={onClose}>
+      {/* dvh: `vh` on mobile spans behind the address bar, hiding the footer
+          buttons ("Save settings") below the fold with no way to scroll to them */}
+      <div className="glass rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold">{t("settings.title")}</h2>
+          <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The dialog is only the shell: it loads the settings once, hands each section
  * its slice, and owns the three things that genuinely are shared — the busy
@@ -26,6 +49,11 @@ interface Props {
 export default function SettingsModal({ onClose }: Props) {
   const t = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
+  // Why the load needs its own error state: the dialog cannot render a single
+  // field until `getSettings` answers, so a backend that is down or 500s used
+  // to leave `settings` null for ever — the gear button opened nothing at all,
+  // with not even a close button, and the rejection went unhandled.
+  const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<SectionName | null>(null);
 
@@ -43,9 +71,20 @@ export default function SettingsModal({ onClose }: Props) {
   const sections: { reset: (s: Settings) => void; payload: () => Partial<Settings> }[] =
     [telegram, email, scanning, match, commute, assistant, scraping, system];
 
+  // Bumped by the retry button. `hydrate` closes over the eight section hooks
+  // and so has a new identity every render; a counter is what re-runs the load
+  // without making the effect depend on it.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    api.getSettings().then(hydrate);
-  }, []);
+    let cancelled = false;
+    setLoadError("");
+    api.getSettings()
+      .then((s) => { if (!cancelled) hydrate(s); })
+      .catch((e) => { if (!cancelled) setLoadError(errorText(e)); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt]);
 
   function hydrate(s: Settings) {
     setSettings(s);
@@ -106,7 +145,30 @@ export default function SettingsModal({ onClose }: Props) {
     }
   }
 
-  if (!settings) return null;
+  if (loadError) {
+    return (
+      <Shell onClose={onClose}>
+        <p role="status"
+          className="text-sm rounded-lg px-3 py-2 bg-rose-500/10 text-rose-700 dark:text-rose-300">
+          ❌ {t("settings.loadFailed", { error: loadError })}
+        </p>
+        <div className="flex justify-end gap-2 mt-6">
+          <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
+          <button className="btn-primary" onClick={() => setAttempt((n) => n + 1)}>
+            {t("common.retry")}
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <Shell onClose={onClose}>
+        <p className="text-sm t-muted">{t("common.loading")}</p>
+      </Shell>
+    );
+  }
 
   const shell: SettingsShell = {
     busy,
@@ -119,35 +181,24 @@ export default function SettingsModal({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
-      onClick={onClose}>
-      {/* dvh: `vh` on mobile spans behind the address bar, hiding the footer
-          buttons ("Save settings") below the fold with no way to scroll to them */}
-      <div className="glass rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold">{t("settings.title")}</h2>
-          <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
-        </div>
+    <Shell onClose={onClose}>
+      <p className="text-xs t-dim mb-5">{t("settings.testNote")}</p>
 
-        <p className="text-xs t-dim mb-5">{t("settings.testNote")}</p>
+      <TelegramSection section={telegram} settings={settings} shell={shell} />
+      <EmailSection section={email} settings={settings} shell={shell} />
+      <ScanningSection section={scanning} />
+      <MatchSection section={match} />
+      <CommuteSection section={commute} settings={settings} shell={shell} />
+      <AssistantSection section={assistant} settings={settings} />
+      <ScrapingSection section={scraping} settings={settings} shell={shell} />
+      <SystemSection section={system} settings={settings} shell={shell} />
 
-        <TelegramSection section={telegram} settings={settings} shell={shell} />
-        <EmailSection section={email} settings={settings} shell={shell} />
-        <ScanningSection section={scanning} />
-        <MatchSection section={match} />
-        <CommuteSection section={commute} settings={settings} shell={shell} />
-        <AssistantSection section={assistant} settings={settings} />
-        <ScrapingSection section={scraping} settings={settings} shell={shell} />
-        <SystemSection section={system} settings={settings} shell={shell} />
-
-        <div className="flex justify-end gap-2 mt-6">
-          <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-          <button className="btn-primary" onClick={save} disabled={shell.anyBusy}>
-            {busy === "global" ? t("common.saving") : t("settings.save")}
-          </button>
-        </div>
+      <div className="flex justify-end gap-2 mt-6">
+        <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
+        <button className="btn-primary" onClick={save} disabled={shell.anyBusy}>
+          {busy === "global" ? t("common.saving") : t("settings.save")}
+        </button>
       </div>
-    </div>
+    </Shell>
   );
 }
