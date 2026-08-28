@@ -51,6 +51,34 @@ export function readSeenThreshold(): string | null {
   return seenBefore;
 }
 
+/** Drop from the selection the properties that have left the filtered set — but
+ *  only when this fetch actually saw all of it.
+ *
+ *  "Select all" means the whole filtered set and asks the backend for it
+ *  (`limit: 0`), while the grid keeps holding one window. Intersecting the
+ *  selection against that window on the next refresh — which any scan triggers,
+ *  and the poll every 30s — silently turned "hide all 300 results" into "hide
+ *  the first 60": the bar still said 300 until the moment it repainted, and the
+ *  action underneath quietly shrank to a fifth of what its label promised.
+ *
+ *  When the window is the whole set, the intersection is exactly right and is
+ *  what keeps a hidden or filtered-out card from staying selected.
+ */
+export function pruneSelection(
+  selected: Set<number>,
+  loaded: { id: number }[],
+  total: number,
+): Set<number> {
+  if (selected.size === 0) return selected;
+  if (loaded.length < total) return selected; // a window, not the whole set
+  const present = new Set(loaded.map((p) => p.id));
+  const kept = new Set<number>();
+  for (const id of selected) {
+    if (present.has(id)) kept.add(id);
+  }
+  return kept;
+}
+
 const DEFAULT_FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
   profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
@@ -134,14 +162,7 @@ export default function App() {
       loadedCount.current = props.length;
       setProperties(props);
       setTotal(page.total);
-      setSelectedIds((prev) => {
-        if (prev.size === 0) return prev;
-        const validIds = new Set<number>();
-        for (const id of prev) {
-          if (props.some((p) => p.id === id)) validIds.add(id);
-        }
-        return validIds;
-      });
+      setSelectedIds((prev) => pruneSelection(prev, props, page.total));
       setLoadFailed(false);
       // keep the open modal in sync with fresh data (e.g. after saving
       // notes or toggling favorite); if the property left the current
