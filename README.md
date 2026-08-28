@@ -230,17 +230,23 @@ npm test
 
 ### Dependency locking
 
-`backend/requirements.txt` and `requirements-dev.txt` are **generated**
-lockfiles: every package pinned to the exact version, with hashes, so the same
-checkout installs the same application on any machine and at any point in the
-future. Edit the `.in` file beside them and recompile with
+`backend/requirements.txt`, `requirements-dev.txt` and `requirements-package.txt`
+are **generated** lockfiles: every package pinned to the exact version, with
+hashes, so the same checkout installs the same application on any machine and at
+any point in the future. Edit the `.in` file beside them and recompile with
 [uv](https://docs.astral.sh/uv/):
 
 ```bash
 cd backend
 uv pip compile requirements.in --universal --python-version 3.11 --generate-hashes -o requirements.txt
 uv pip compile requirements-dev.in --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
+uv pip compile requirements-package.in --universal --python-version 3.11 --generate-hashes -o requirements-package.txt
 ```
+
+Recompile **all three** after touching `requirements.in`: the other two `.in`
+files start with `-r requirements.in`, so a runtime pin that moves in one and not
+the others leaves the packaged Windows build installing a different version from
+the one the gates ran against.
 
 The frontend is locked the same way by `frontend/package-lock.json`. Install it
 with **`npm ci`, never `npm install`**: `ci` installs exactly what the lock pins
