@@ -255,6 +255,17 @@ cd frontend
 npm ci
 ```
 
+Regenerating that lock is the one step with a trap in it: delete `node_modules`
+**and** `package-lock.json`, then run a plain `npm install`. Never
+`npm install --package-lock-only` — with no materialised tree npm resolves a
+thinner one and writes a lock that `npm ci` afterwards rejects as out of sync,
+and the failure names a transitive package nothing depends on directly
+(`@emnapi/core`, reached through Tailwind's optional wasm fallback), so it reads
+like a registry outage rather than a malformed lock. For the same reason CI pins
+the same Node major as the development machine: npm 10 and npm 11 disagree about
+what a valid lock is, and one written by the other fails `npm ci` on a checkout
+that is otherwise perfectly fine.
+
 ### Optional developer tooling
 
 Beyond the runtime dependencies, an optional dev toolchain (linting, coverage,
