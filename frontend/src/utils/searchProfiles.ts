@@ -1,11 +1,18 @@
+import { translateCurrent } from "../i18n";
 import type { GroupedSearchProfile, SearchProfile } from "../types";
 
 /**
  * Normalizes a profile name to its canonical base name across portals,
  * e.g. "Bicocca / Niguarda - Monolocale (immobiliare)" -> "Bicocca / Niguarda - Monolocale"
+ *
+ * The fallback goes through `translateCurrent`, not a literal: this is not a
+ * component, so it has no `useT()` — the same reason `utils/format.ts` and
+ * MapView's raw-HTML tooltips read the dictionary that way. Its result is a
+ * heading in the searches panel and an option in the grid's "Limit to search"
+ * dropdown, so an English literal here is an English word inside the Italian UI.
  */
 export function getBaseName(name: string): string {
-  if (!name) return "Untitled search";
+  if (!name) return translateCurrent("profiles.untitled");
   let cleaned = name;
   let prev = "";
   while (cleaned !== prev) {
@@ -15,7 +22,7 @@ export function getBaseName(name: string): string {
       .replace(/\s+-\s+(immobiliare|idealista)\s*$/i, "")
       .trim();
   }
-  return cleaned || name.trim() || "Untitled search";
+  return cleaned || name.trim() || translateCurrent("profiles.untitled");
 }
 
 /**
