@@ -43,17 +43,48 @@ def resolve_impersonations(
     (itself resolved), and finally to the generic "safari" alias curl_cffi
     always ships — a blocked default beats a crash. This is the runtime half of
     the TLS-rotation maintenance loop: the user (or a curl_cffi upgrade) can
-    change the profile list and anything stale is quietly filtered out.
+    change the profile list and anything stale is filtered out.
+
+    Every drop is logged with its reason. Now that the list is a setting anyone
+    can edit, a silent filter is how a typo becomes "the rotation is shorter
+    than I configured it to be" with nothing anywhere to say so.
     """
     supported = supported_impersonations()
     seen: set[str] = set()
     out: list[str] = []
+    dropped: list[str] = []
     for name in desired or []:
-        if name in supported and name not in seen:
+        if name in seen or name in dropped:
+            continue
+        if name in supported:
             seen.add(name)
             out.append(name)
+        else:
+            dropped.append(name)
+    if dropped:
+        logger.warning(
+            "TLS impersonation: dropping %s — unknown to the installed curl_cffi "
+            "(a retired profile name, or a typo)",
+            ", ".join(dropped),
+        )
     if not out:
-        return resolve_impersonations(fallback) if fallback else ["safari"]
+        if fallback:
+            if desired:
+                logger.warning(
+                    "TLS impersonation: nothing in the configured list survived, "
+                    "falling back to the built-in default"
+                )
+            else:
+                # Every settings.json written before the list became a setting
+                # holds an empty one, and it means "use the default" rather than
+                # a misconfiguration — warning on it would fire on every session
+                # a normal upgrade builds.
+                logger.debug("TLS impersonation: no list configured, using the built-in default")
+            return resolve_impersonations(fallback)
+        logger.warning(
+            'TLS impersonation: nothing usable and no fallback left, using the generic "safari"'
+        )
+        return ["safari"]
     # Names are validated members of BrowserTypeLiteral; the cast documents that
     # for the type checker without a per-element narrowing dance.
     return typing.cast(list[BrowserTypeLiteral], out)

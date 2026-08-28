@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
 
+from ..config import DEFAULT_TLS_IMPERSONATIONS
 from .page_text import text_says_no_results
 from .parsing import detect_contract
 from .transport import (
@@ -82,23 +83,14 @@ class ScrapeResult:
 
 class BaseScraper:
     portal: str = ""
-    # ORDERED list by preference, not random: portals only accept certain
-    # TLS handshakes (Safari passes on both portals, Chrome does not).
-    impersonations: list[BrowserTypeLiteral] = [
-        "safari184",
-        "chrome131_android",
-        "safari180",
-        # Appended July 2026 after the ad-probe measured all three profiles
-        # above blocked by DataDome on Immobiliare: iOS Safari and Firefox
-        # handshakes are scored on different fingerprint pools than desktop
-        # Safari/Chrome, so they extend the rotation rather than replace it.
-        "safari18_4_ios",
-        "firefox147",
-        # Current-generation Safari (26.x), added to keep the rotation abreast
-        # of real browser evolution. It trails the measured-good profiles: an
-        # untested handshake only gets tried once those ahead of it are blocked.
-        "safari260",
-    ]
+    # The rotation, ordered by preference. The names themselves are data
+    # (`config.DEFAULT_TLS_IMPERSONATIONS`, which is also what the
+    # `tls_impersonations` setting defaults to, with the measured history behind
+    # each one); they appear here as the built-in fallback for the case where
+    # that setting resolves to nothing usable.
+    impersonations: list[BrowserTypeLiteral] = typing.cast(
+        list[BrowserTypeLiteral], list(DEFAULT_TLS_IMPERSONATIONS)
+    )
     # if blocked, retry with the next impersonation profile
     rotate_on_block = True
     _warmed = False
@@ -119,10 +111,11 @@ class BaseScraper:
         # set from the search URL at scrape() time; heuristic price parsing
         # needs it because rent and sale amounts live in disjoint ranges
         self.contract = "sale"
-        # Effective, self-healing profile list. A non-empty `tls_impersonations`
-        # setting overrides the code default portal-by-portal (the user's escape
-        # hatch to react to a new block wave without a code change); either way
-        # anything the installed curl_cffi no longer supports is filtered out.
+        # Effective, self-healing profile list. `tls_impersonations` is what the
+        # rotation actually uses (the user's escape hatch to react to a new block
+        # wave without a code change); either way anything the installed
+        # curl_cffi no longer supports is filtered out with a logged reason, and
+        # a list nothing survives from falls back to the built-in default.
         from ..config import load_settings
 
         configured = load_settings().get("tls_impersonations") or []

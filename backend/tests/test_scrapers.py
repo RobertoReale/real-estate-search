@@ -2,6 +2,7 @@
 the parser must dynamically choose JSON-LD -> embedded -> heuristic."""
 
 import json
+import logging
 
 from app.scrapers.base import BaseScraper
 from app.scrapers.idealista import IdealistaScraper
@@ -569,6 +570,50 @@ def test_settings_override_replaces_the_scraper_profile_list(monkeypatch):
     )
     scraper = IdealistaScraper()
     assert scraper.impersonations == ["safari180", "firefox147"]
+
+
+def test_default_settings_rotate_exactly_the_measured_profiles(monkeypatch):
+    """Moving the list out of the code and into settings must be invisible: on
+    default settings the rotation is the same sequence, in the same order, that
+    was hardcoded in `base.py` before it became data. These six names are each a
+    measurement against a live portal (invariant 8) — changing one is a decision,
+    never a side effect of an edit elsewhere."""
+    from app import config
+
+    monkeypatch.setattr(config, "load_settings", lambda: dict(config.DEFAULT_SETTINGS))
+    for scraper in (ImmobiliareScraper(), IdealistaScraper()):
+        assert scraper.impersonations == [
+            "safari184",
+            "chrome131_android",
+            "safari180",
+            "safari18_4_ios",
+            "firefox147",
+            "safari260",
+        ]
+        assert scraper.impersonations == list(BaseScraper.impersonations)
+
+
+def test_a_bogus_profile_is_filtered_and_says_why(caplog):
+    """The list is a setting now, so a typo in it is a user error rather than a
+    code one — and a silent filter turns it into a rotation quietly shorter than
+    the one configured, with nothing anywhere to explain it."""
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.transport"):
+        assert resolve_impersonations(["safari184", "safari_from_2011"]) == ["safari184"]
+    assert "safari_from_2011" in caplog.text
+
+
+def test_an_empty_configured_list_still_scans(monkeypatch):
+    """Fail open: emptying the setting (or upgrading from a settings.json
+    written before it had a default) must degrade to the built-in rotation, never
+    to a scraper with no handshake to present."""
+    from app import config
+
+    monkeypatch.setattr(
+        config,
+        "load_settings",
+        lambda: {**config.DEFAULT_SETTINGS, "tls_impersonations": []},
+    )
+    assert IdealistaScraper().impersonations == list(BaseScraper.impersonations)
 
 
 # --- AdProbe: "is this ad still online?" ---------------------------------------
