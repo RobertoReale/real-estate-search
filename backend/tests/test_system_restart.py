@@ -3,8 +3,8 @@ run would touch a source file or (with reload off) os.execv the pytest process
 itself, so every test asserts the endpoint's decision without ever executing the
 restart body."""
 
-import os
 import re
+import sys
 
 import pytest
 from fastapi import HTTPException
@@ -90,8 +90,15 @@ def _win_parse(command_line: str) -> list[str]:
     Uses the real CommandLineToArgvW when running on Windows, so the assertion
     is against the actual parser rather than an imitation of it; elsewhere a
     minimal stand-in covers the only quoting form this helper emits.
+
+    Asks sys.platform, not os.name: the callers patch os.name to "nt" to make
+    the code under test take the Windows branch, and that patch lands on the os
+    module itself, so it is visible here too. On Linux that sent this helper
+    into the ctypes branch, where importing ctypes with os.name == "nt" makes
+    CPython's own ctypes/__init__ look for a Windows-only symbol and fail. The
+    question here is which machine we are on, and only sys.platform answers it.
     """
-    if os.name == "nt":  # pragma: no branch - platform-dependent
+    if sys.platform == "win32":  # pragma: no branch - platform-dependent
         import ctypes
         from ctypes import wintypes
 
@@ -106,7 +113,22 @@ def _win_parse(command_line: str) -> list[str]:
             return [argv_ptr[i] for i in range(count.value)]
         finally:
             ctypes.windll.kernel32.LocalFree(argv_ptr)
+    return _naive_parse(command_line)
+
+
+def _naive_parse(command_line: str) -> list[str]:
+    """The stand-in for CommandLineToArgvW used off Windows."""
     return [token.strip('"') for token in re.findall(r'"[^"]*"|\S+', command_line)]
+
+
+def test_the_stand_in_parser_agrees_with_windows_on_what_this_helper_emits():
+    """Each machine only runs half of _win_parse: Windows takes the real parser,
+    CI takes the stand-in. Test the stand-in everywhere, or the branch that CI
+    actually depends on is only ever exercised where nobody looks at it."""
+    assert _naive_parse(r'"C:\Program Files\x\python.exe" "run.py"') == [
+        r"C:\Program Files\x\python.exe",
+        "run.py",
+    ]
 
 
 def test_relaunch_leaves_the_list_alone_on_posix(monkeypatch):
