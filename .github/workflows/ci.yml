@@ -5,16 +5,36 @@
 # the locks are installable — which is the whole point of Phase 0. The test
 # suite is offline by construction (simulated HTML, fake IMAP client, in-memory
 # SQLite), so no step here ever reaches a portal: CI must never become a source
-# of DataDome blocks against the addresses the real scans depend on.
+# of DataDome blocks against the addresses the real scans depend on. That holds
+# for the weekly run below, which repeats these same jobs and adds no step of
+# its own — a schedule is the one trigger that could quietly turn CI into
+# recurring traffic against a portal, and this one does not.
 name: CI
 
 on:
   push:
   pull_request:
+  # Weekly, because the failures worth catching here produce no push: a yanked
+  # dependency, a rebuilt runner image, an action version that stopped
+  # resolving. Without this they surface the next time someone needs the project
+  # to work; with it they surface on a dated red mark instead.
+  #
+  # Off the hour on purpose — the top of the hour is when everyone else's cron
+  # fires, and a run queued behind that backlog starts late enough to stop
+  # reading as weekly.
+  #
+  # GitHub disables a scheduled workflow after 60 days of no repository activity
+  # and mails the owner when it does. That is exactly the silence this trigger
+  # exists to break, so the mail is the signal, not noise: re-enable it.
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
 
-# A second push to the same branch makes the first run irrelevant.
+# A second push to the same branch makes the first run irrelevant. The event
+# name is part of the group so the weekly run and a push to the default branch,
+# which share a ref, cannot cancel each other: the push's verdict is the one
+# attached to a commit somebody is waiting on.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
