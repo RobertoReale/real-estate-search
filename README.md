@@ -197,7 +197,7 @@ and for how to tell a stale TLS profile from an address that has gone bad.
 
 ### Documentation for contributors
 
-If you are changing the code rather than using the app, four documents carry
+If you are changing the code rather than using the app, five documents carry
 everything that is not obvious from reading it:
 
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
@@ -207,6 +207,9 @@ everything that is not obvious from reading it:
   with the regression that put it there. Read the relevant one *before* editing,
   not after.
 * **[Conventions](docs/conventions.md)** — how code is written and tested here.
+* **[Development cycle](docs/development-cycle.md)** — how a change gets made: the
+  unit of work, the gates that run before every commit, when new behaviour earns
+  an invariant, and how a release is cut from a tag.
 * **[Audit playbook](docs/audit.md)** — the repeatable full-project health check:
   the green baseline, the module review order, the invariant→test cross-check.
 
