@@ -14,6 +14,7 @@ sellers ask; a score that quietly averaged the two would be meaningless and look
 authoritative (invariant 22).
 """
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -28,9 +29,13 @@ from app.models import Listing, OmiQuotation, Property
 from app.services import exporter, omi_import
 from app.services.deal_score import _score_property, annotate_deal_scores
 from app.services.omi_benchmark import (
+    ATTRIBUTION,
+    STALE_AFTER_MONTHS,
     annotate_omi_benchmark,
     benchmark_reason,
     format_semester,
+    is_stale,
+    semester_end,
 )
 from app.services.pricing_stats import annotate_market_position
 
@@ -66,6 +71,29 @@ def _supply(tmp_path: Path) -> Path:
 
 def _imported(db, tmp_path: Path) -> None:
     omi_import.import_quotations(db, _supply(tmp_path))
+
+
+def _semester(years_back: int = 0) -> str:
+    """A semester label relative to today's.
+
+    The fixture's own `2025/2` is a fixed point that drifts further into the past
+    every day, and would cross the staleness threshold on its own in mid-2027 —
+    turning a green suite red with no change behind it. A test that means
+    "current" or "three years old" says so relative to the calendar instead."""
+    today = date.today()
+    return f"{today.year - years_back}/{1 if today.month <= 6 else 2}"
+
+
+def _imported_as(db, tmp_path: Path, semester: str) -> None:
+    """The same real supply, relabelled to another semester."""
+    directory = tmp_path / f"supply-{semester.replace('/', '-')}"
+    directory.mkdir(exist_ok=True)
+    (directory / "prices.csv").write_text(
+        VALORI.read_text(encoding="utf-8").replace(f"Semestre {SEMESTER}", f"Semestre {semester}"),
+        encoding="utf-8",
+    )
+    (directory / "zones.csv").write_text(ZONE.read_text(encoding="utf-8"), encoding="utf-8")
+    omi_import.import_quotations(db, directory)
 
 
 def _property(
@@ -284,12 +312,18 @@ def test_a_property_with_no_median_gets_no_score_even_with_omi_data():
     assert prop.deal_reasons == []
 
 
-def test_the_reason_line_says_what_it_is_and_when(db, tmp_path):
-    _imported(db, tmp_path)
+def test_the_reason_line_says_what_it_is_when_and_whose_it_is(db, tmp_path):
+    """Every element in one string: the measurement, the band, the date it
+    covers, and the credit the licence requires. Asserted whole, because each of
+    the four has been the thing a rendering quietly dropped."""
+    current = _semester()
+    _imported_as(db, tmp_path, current)
     prop = _property(db)
     annotate_omi_benchmark(db, [prop])
-    line = benchmark_reason(prop)
-    assert line == "OMI recorded sales in this zone: 8.700–20.000 €/sqm (2nd half 2025)"
+    assert benchmark_reason(prop) == (
+        f"OMI recorded sales in this zone: 8.700–20.000 €/sqm "
+        f"({format_semester(current)}) · Fonte: Agenzia Entrate – OMI"
+    )
 
 
 def test_the_rent_reason_line_says_per_month(db, tmp_path):
@@ -300,6 +334,125 @@ def test_the_rent_reason_line_says_per_month(db, tmp_path):
     annotate_omi_benchmark(db, [prop])
     line = benchmark_reason(prop) or ""
     assert line.startswith("OMI recorded rents in this zone: 25–57 €/sqm per month")
+
+
+# --- ageing honestly: the date, the staleness, the credit -------------------
+
+
+def test_a_semester_ends_when_its_own_half_ends():
+    """Age is measured from the end of the window the label names, not from the
+    import: a 2023/2 supply loaded this morning still describes 2023."""
+    assert semester_end("2025/1") == date(2025, 6, 30)
+    assert semester_end("2025/2") == date(2025, 12, 31)
+    assert semester_end("later") is None
+
+
+def test_a_band_goes_stale_eighteen_months_after_its_window_closes():
+    """The boundary itself, from both sides. `2025/2` closes on 2025-12-31, so it
+    is still current at eighteen months and stale the day after."""
+    assert not is_stale("2025/2", today=date(2027, 6, 30))
+    assert is_stale("2025/2", today=date(2027, 7, 1))
+
+
+def test_figures_published_this_semester_are_never_stale():
+    assert not is_stale("2026/1", today=date(2026, 8, 29))
+    # ...including one whose window has not closed yet.
+    assert not is_stale("2026/2", today=date(2026, 8, 29))
+
+
+def test_a_label_the_app_cannot_read_is_not_called_stale():
+    """`format_semester` still prints it, so the figure keeps the date the import
+    recorded; inventing an age for a date we cannot parse would be a firmer claim
+    than the data supports."""
+    assert not is_stale("later")
+    assert not is_stale("")
+    assert not is_stale(None)
+
+
+def test_a_three_year_old_supply_is_marked_stale(db, tmp_path):
+    """Acceptance: old data is labelled, not silently trusted — and not withheld
+    either, since the band is still the only recorded evidence there is."""
+    old = _semester(years_back=3)
+    _imported_as(db, tmp_path, old)
+    prop = _property(db)
+    annotate_omi_benchmark(db, [prop])
+    assert prop.omi_stale is True
+    assert (prop.omi_min_sqm_price, prop.omi_max_sqm_price) == B12_SALE
+    line = benchmark_reason(prop) or ""
+    assert f"over {STALE_AFTER_MONTHS} months old" in line
+
+
+def test_a_current_supply_is_not_marked_stale(db, tmp_path):
+    _imported_as(db, tmp_path, _semester())
+    prop = _property(db)
+    annotate_omi_benchmark(db, [prop])
+    assert prop.omi_stale is False
+    assert f"over {STALE_AFTER_MONTHS} months old" not in (benchmark_reason(prop) or "")
+
+
+def test_a_second_pass_clears_a_stale_flag_that_no_longer_applies(db, tmp_path):
+    """The flag is request-scoped like the band it describes; left behind, it
+    would age a property that is no longer in an OMI zone at all."""
+    _imported_as(db, tmp_path, _semester(years_back=3))
+    prop = _property(db)
+    annotate_omi_benchmark(db, [prop])
+    assert prop.omi_stale is True
+    prop.omi_zone_code = ""
+    annotate_omi_benchmark(db, [prop])
+    assert prop.omi_stale is False
+
+
+def test_the_rent_reason_line_is_credited_too(db, tmp_path):
+    """The licence does not care which band it is."""
+    _imported(db, tmp_path)
+    prop = _property(db, contract="rent", price=2000.0)
+    annotate_omi_benchmark(db, [prop])
+    assert (benchmark_reason(prop) or "").endswith(ATTRIBUTION)
+
+
+def test_the_grid_serves_the_staleness_it_computed(api, tmp_path):
+    """Served, not derived on the client: the screen and the print dossier have
+    to age the same band the same way, so the threshold lives in one place."""
+    _imported_as(api.session, tmp_path, _semester(years_back=3))
+    _property(api.session)
+    item = api.get("/api/properties").json()["items"][0]
+    assert item["omi_stale"] is True
+    assert item["omi_semester"] == _semester(years_back=3)
+
+
+def test_a_property_with_no_band_is_not_stale_on_the_wire(api, tmp_path):
+    """Absent data is not old data: a card with no band must not sprout a
+    staleness warning about nothing."""
+    _imported(api.session, tmp_path)
+    _property(api.session, municipality_code="", zone_code="")
+    item = api.get("/api/properties").json()["items"][0]
+    assert item["omi_min_sqm_price"] is None
+    assert item["omi_stale"] is False
+
+
+def test_the_dossier_credits_the_agenzia_when_it_prints_a_band(db, tmp_path):
+    """The printed page leaves the app entirely, so it carries its own credit."""
+    _imported(db, tmp_path)
+    prop = _property(db)
+    annotate_omi_benchmark(db, [prop])
+    assert ATTRIBUTION in exporter.properties_to_print_html([prop], "Shortlist")
+
+
+def test_the_dossier_credits_nobody_when_no_band_reached_the_page(db):
+    """An attribution on a dossier with no OMI figures on it credits a source the
+    document never used."""
+    prop = _property(db)
+    prop.area_median_sqm_price = 9000.0
+    prop.area_median_scope = "zone"
+    assert ATTRIBUTION not in exporter.properties_to_print_html([prop], "Shortlist")
+
+
+def test_the_dossier_says_when_the_band_it_prints_is_out_of_date(db, tmp_path):
+    _imported_as(db, tmp_path, _semester(years_back=3))
+    prop = _property(db)
+    annotate_omi_benchmark(db, [prop])
+    html = exporter.properties_to_print_html([prop], "Shortlist")
+    assert f"over {STALE_AFTER_MONTHS} months old" in html
 
 
 def test_a_semester_reads_as_a_date():

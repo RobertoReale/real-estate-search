@@ -56,6 +56,14 @@
   deliberately never averaged: what sellers ask sits systematically above what
   deeds say, so a single blended number would mean nothing while looking
   official. A property with no OMI data behind it simply shows the median alone.
+  Because the Agenzia publishes twice a year and the file is imported by hand, a
+  band whose semester ended more than 18 months ago is flagged **out of date**
+  rather than left to look current — it is still shown, since recorded prices two
+  years old still beat asking prices alone, but you can see its age before you
+  lean on it. The source is credited wherever the figures appear, on screen and
+  in the printed dossier, as the licence on the data requires.
+  [Refreshing it](using-the-app.md#refreshing-the-omi-benchmark) explains where
+  the file comes from and how to load a new one.
 * **Deal Score**: builds on the fairness check to flag genuine opportunities. It
   combines the €/sqm gap to the local median with condition cues read from the
   listing text (*da ristrutturare* lowers it, *ristrutturato / classe A* raises

@@ -179,13 +179,18 @@ the active grid (and "All") like `hidden`, has its own status filter, and
   per card. Empty means not placed — no coordinates, or a pin in no imported zone — and
   both are ordinary. A property with no coordinates is left untouched rather than cleared:
   geometry never placed it, so nothing here can honestly revise it.
-- **`Property.omi_min_sqm_price` / `omi_max_sqm_price` / `omi_semester`** = the OMI band of
-  the zone the property was placed in, and the semester it was recorded in. **Transient**,
-  set per request by `omi_benchmark.annotate_omi_benchmark` like the area median beside it:
-  the figures live in `OmiQuotation`, so a persisted copy would be a second home for one
-  fact and would go stale on the next import. The expensive half — placing the property —
-  is the persisted pair above. Shown next to the median and never merged with it
-  (invariant 22).
+- **`Property.omi_min_sqm_price` / `omi_max_sqm_price` / `omi_semester` / `omi_stale`** = the
+  OMI band of the zone the property was placed in, the semester it was recorded in, and
+  whether that semester is old enough to stop being current. **Transient**, set per request
+  by `omi_benchmark.annotate_omi_benchmark` like the area median beside it: the figures live
+  in `OmiQuotation`, so a persisted copy would be a second home for one fact and would go
+  stale on the next import. The expensive half — placing the property — is the persisted
+  pair above. Shown next to the median and never merged with it (invariant 22).
+  `omi_stale` is *derived* from the semester (`omi_benchmark.is_stale`, threshold
+  `STALE_AFTER_MONTHS`) rather than stored beside it, and served to the client rather than
+  recomputed there, so the dashboard and the print dossier age the same band identically.
+  Age is counted in whole months from the **end of the semester's own window**, never from
+  the import: a 2023/2 supply loaded this morning still describes 2023.
 - **PricingSnapshot** = one median €/sqm reading per (day, city, zone, contract);
   `zone=""` is the whole-city aggregate. Written at most once per day (scan completion or
   the daily scheduler job) so the trend charts have history the instantaneous medians

@@ -174,7 +174,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 803 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 816 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -235,7 +235,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (803, `pytest`)
+### Automated Tests (816, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

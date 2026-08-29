@@ -74,7 +74,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 
 ## Testing
 
-- **803 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
+- **816 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
   SQLite): no network, so always reproducible. `test_property_based.py` adds `hypothesis`
   property tests for the pure helpers (the dedup ±tolerance gate, haversine, the
   price/sqm/floor parsers): the laws they must obey for *any* input, complementing the
@@ -89,7 +89,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (63 in thirteen files: vitest +
+- **The frontend has unit tests too** (68 in fourteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -110,14 +110,17 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   dates and floor labels keep formatting the old way; nothing else in the suite notices.
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
-  pixels — for four things a pure test cannot reach, each written after the bug it now
+  pixels — for five things a pure test cannot reach, each written after the bug it now
   guards: that a label actually names its control (`FiltersBar.test.tsx` uses
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
   takes focus and answers Enter (`PropertyCard.test.tsx`), that a dialog whose data fails to
-  load still renders something dismissable (`SettingsModal.test.tsx`), and that an effect's
-  abandoned request cannot repaint the screen (`LogViewer.test.tsx`). `App.test.tsx` mounts
-  under `StrictMode` on purpose: its double invocation of `useState` initializers is the
-  bug, so nothing weaker reproduces it.
+  load still renders something dismissable (`SettingsModal.test.tsx`), that an effect's
+  abandoned request cannot repaint the screen (`LogViewer.test.tsx`), and that the OMI band
+  never reaches the screen undated, unmarked when out of date, or uncredited
+  (`PropertyModal.test.tsx` — the attribution is a licence obligation, so a refactor that
+  drops the line is a legal defect and not a cosmetic one, and the figures around it would
+  still be right). `App.test.tsx` mounts under `StrictMode` on purpose: its double
+  invocation of `useState` initializers is the bug, so nothing weaker reproduces it.
 
 - **Tests DO NOT cover:** the real network fetch (DataDome cannot be simulated), the
   APScheduler wiring itself (its decision helpers — catch-up, backup freshness — are

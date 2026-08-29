@@ -29,18 +29,37 @@ the format documentation (see `docs/architecture.md`), and a type code the app
 has never seen is excluded rather than folded in: an unknown tipologia silently
 widening a residential band is the failure this whole module exists to avoid.
 
+**And every figure says how old it is, and whose it is.** A band is a
+measurement of a six-month window that ends: the semester travels with it
+everywhere (an undated figure is a claim with no expiry), a band whose window
+closed more than `STALE_AFTER_MONTHS` ago is *marked* stale rather than quietly
+trusted, and the attribution the OMI licence requires is repeated wherever the
+numbers go. Stale data is labelled, never withheld — recorded prices two years
+old still beat asking prices alone, as long as the reader can see the date.
+
 Fail open throughout, like everything else on this path: no quotations, no
 placement, or a zone with only non-residential rows means **no OMI benchmark and
 no error**.
 """
 
 import re
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import OmiQuotation, Property
 from .omi_import import latest_semester
+
+# The wording the OMI licence requires next to the data. One constant so a new
+# rendering cannot quietly ship without it, and Italian in both UI languages
+# because it is the attribution the licence asks for, not a caption to translate.
+ATTRIBUTION = "Fonte: Agenzia Entrate – OMI"
+
+# How long after its own window closes a semester stops counting as current. The
+# Agenzia publishes twice a year, so eighteen months is three missed releases —
+# past "the refresh is overdue", short of "this is history".
+STALE_AFTER_MONTHS = 18
 
 # `Cod_Tip` values that are somewhere a person lives, measured against the real
 # 2025/2 supply: 1 = Ville e Villini, 19 = Abitazioni signorili, 20 = Abitazioni
@@ -63,6 +82,56 @@ def format_semester(semester: str) -> str:
         return semester or ""
     year, half = match.group(1), match.group(2)
     return f"{'1st' if half == '1' else '2nd' if half == '2' else half} half {year}"
+
+
+def semester_end(semester: str | None) -> date | None:
+    """The last day of the window a semester label covers, or None if unreadable."""
+    match = _SEMESTER.fullmatch(semester or "")
+    if not match:
+        return None
+    year, half = int(match.group(1)), match.group(2)
+    if half == "1":
+        return date(year, 6, 30)
+    if half == "2":
+        return date(year, 12, 31)
+    return None
+
+
+def is_stale(semester: str | None, today: date | None = None) -> bool:
+    """Has this semester's window been closed for more than `STALE_AFTER_MONTHS`?
+
+    Measured from the end of the window the label names, never from the import:
+    a 2023/2 supply loaded this morning still describes 2023, and it is the age
+    of the *measurement* the reader has to weigh.
+
+    A label the app cannot parse is not called stale. `format_semester` keeps
+    showing it verbatim, so the figure is still dated with whatever the import
+    recorded — but inventing an age for a date we cannot read would be a firmer
+    claim than the data supports, and this module never makes one of those.
+
+    Counted in whole months, with no day arithmetic: a semester always ends on
+    the last day of its month, so "months since that month" is already the exact
+    age. Comparing days too would make 31 December age more slowly than 30 June,
+    because no June has a 31st to reach."""
+    end = semester_end(semester)
+    if end is None:
+        return False
+    today = today or date.today()
+    months = (today.year - end.year) * 12 + (today.month - end.month)
+    return months > STALE_AFTER_MONTHS
+
+
+def has_band(prop: Property) -> bool:
+    """Does this property carry a complete, dated OMI band?
+
+    The single condition every renderer asks. The modal, the print dossier and
+    the reason line have to agree on when there is something to show — and
+    therefore on when the attribution has to appear beside it."""
+    return bool(
+        getattr(prop, "omi_min_sqm_price", None)
+        and getattr(prop, "omi_max_sqm_price", None)
+        and getattr(prop, "omi_semester", None)
+    )
 
 
 def _fmt(value: float) -> str:
@@ -128,6 +197,7 @@ def annotate_omi_benchmark(db: Session, props: list[Property]) -> None:
         prop.omi_min_sqm_price = None
         prop.omi_max_sqm_price = None
         prop.omi_semester = None
+        prop.omi_stale = False
     if not props:
         return
     pairs = {
@@ -147,26 +217,29 @@ def annotate_omi_benchmark(db: Session, props: list[Property]) -> None:
         prop.omi_min_sqm_price = round(band[0], 2)
         prop.omi_max_sqm_price = round(band[1], 2)
         prop.omi_semester = semester
+        prop.omi_stale = is_stale(semester)
 
 
 def benchmark_reason(prop: Property) -> str | None:
     """The OMI figures as one reason line, or None when there are none.
 
-    Says what the numbers are and when they were recorded, both times. A band
-    presented as "3.100–4.200 €/sqm" next to a listing median is exactly the
-    confusion this feature has to avoid — and an undated one is a claim with no
-    expiry."""
-    low = getattr(prop, "omi_min_sqm_price", None)
-    high = getattr(prop, "omi_max_sqm_price", None)
-    semester = getattr(prop, "omi_semester", None)
-    if not low or not high or not semester:
+    Says what the numbers are, when they were recorded, whether that is still
+    recent, and whose they are — every time. A band presented as
+    "3.100–4.200 €/sqm" next to a listing median is exactly the confusion this
+    feature has to avoid, and an undated one is a claim with no expiry.
+
+    It carries its own attribution rather than leaning on a neighbour's: this
+    line also travels alone into the card's deal-score tooltip, far from the
+    benchmark panel that labels the figures on the detail view."""
+    low, high, semester = prop.omi_min_sqm_price, prop.omi_max_sqm_price, prop.omi_semester
+    if not low or not high or not semester:  # `has_band`, spelled so it narrows
         return None
-    if prop.contract == "rent":
-        return (
-            f"OMI recorded rents in this zone: {_fmt(low)}–{_fmt(high)} €/sqm per month "
-            f"({format_semester(semester)})"
-        )
+    dated = format_semester(semester)
+    if is_stale(semester):
+        dated += f", over {STALE_AFTER_MONTHS} months old"
+    what = "rents" if prop.contract == "rent" else "sales"
+    unit = "€/sqm per month" if prop.contract == "rent" else "€/sqm"
     return (
-        f"OMI recorded sales in this zone: {_fmt(low)}–{_fmt(high)} €/sqm "
-        f"({format_semester(semester)})"
+        f"OMI recorded {what} in this zone: {_fmt(low)}–{_fmt(high)} {unit} "
+        f"({dated}) · {ATTRIBUTION}"
     )

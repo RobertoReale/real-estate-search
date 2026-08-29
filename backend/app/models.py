@@ -141,6 +141,10 @@ class Property(Base):
     omi_min_sqm_price: float | None = None
     omi_max_sqm_price: float | None = None
     omi_semester: str | None = None
+    # Whether that semester's period ended long enough ago to stop being current
+    # (omi_benchmark.is_stale). Derived from omi_semester rather than stored with
+    # it, so the rule lives in one place and every renderer marks the same bands.
+    omi_stale: bool = False
     # Smart Match Score: compatibility % vs the user's "dream home" (None = off)
     match_score: int | None = None
     # Deal Score: congruity vs fair value (~[-50, +50]; positive = below market),

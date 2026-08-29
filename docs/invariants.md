@@ -400,12 +400,22 @@ each invariant to its code home and its test file. See also
     listing only against its neighbours' asking prices, so a uniformly overpriced zone read
     as "fair" and the app said so with confidence; a merged figure would restore that defect
     with a government source's name attached to it. Concretely: `omi_benchmark.py` writes
-    only `omi_min_sqm_price`/`omi_max_sqm_price`/`omi_semester` and never touches
+    only `omi_min_sqm_price`/`omi_max_sqm_price`/`omi_semester`/`omi_stale` and never touches
     `sqm_price_delta_pct`, `area_median_*`, `deal_score`, `deal_label` or the proposal range
     — the deal score's inputs are what they were before OMI existed, and the band is one
     extra reason line beside them. Every rendering (the modal's benchmark panel, the print
     dossier's key facts, the reason line itself) labels each figure with **whose** it is and
     dates the OMI one with its semester: an undated band is a claim with no expiry, and an
-    unlabelled one is two different measurements wearing one name. Regression tests in
-    `test_omi_benchmark.py` — the load-bearing one asserts that a property scores
-    identically with and without OMI figures.
+    unlabelled one is two different measurements wearing one name. The same rule carries two
+    obligations that live or die with it. A band whose semester ended more than
+    `STALE_AFTER_MONTHS` (18) ago is **marked out of date wherever it appears** — labelled,
+    never withheld, since recorded prices two years old still beat asking prices alone, but a
+    figure that ages silently is back to being trusted for a currency it no longer has. And
+    the attribution the OMI licence requires (`omi_benchmark.ATTRIBUTION`, *Fonte: Agenzia
+    Entrate – OMI*) travels with the figures: it is one constant read by every renderer, and
+    it appears **only** where a band actually printed, since crediting the Agenzia on a
+    dossier carrying none of its data names a source that document never used. The reason
+    line repeats it rather than leaning on the panel above, because that line also travels
+    alone into the card's deal-score tooltip. Regression tests in `test_omi_benchmark.py`
+    (and `frontend/src/components/PropertyModal.test.tsx` for the rendered panel) — the
+    load-bearing one asserts that a property scores identically with and without OMI figures.
