@@ -1,4 +1,5 @@
-"""Pure geometry for the map's geographic filter (radius + polygon).
+"""Pure geometry: the map's geographic filter (radius + polygon), and placing a
+point inside a published perimeter.
 
 The dashboard can keep only the properties inside a drawn area: a point + a
 maximum radius, or a free polygon. That is all decided here, offline and
@@ -8,6 +9,17 @@ network.
 
 `geocoder.py` turns an address into coordinates; this turns coordinates into an
 "inside/outside" answer. Two different responsibilities, two different homes.
+
+The same ray casting answers the OMI micro-zone question (`omi_zones.py`), which
+is why that module adds no geometry of its own: a second implementation of
+point-in-polygon is a second set of edge conventions to keep in step. What the
+zones do need on top is holes — `point_in_rings` — since a published perimeter
+can enclose an area that is not part of it.
+
+**Dependency-free is a release constraint, not a preference.** `shapely` would
+answer all of this, and it carries GEOS: a compiled library, in an app that is
+frozen into a PyInstaller bundle where every native dependency is a fresh way
+for the release to break on a machine that is not this one.
 """
 
 import math
@@ -57,6 +69,31 @@ def point_in_polygon(lat: float, lng: float, vertices: list[tuple[float, float]]
                 inside = not inside
         j = i
     return inside
+
+
+def point_in_rings(
+    lat: float,
+    lng: float,
+    outer: list[tuple[float, float]],
+    holes: list[list[tuple[float, float]]] | None = None,
+) -> bool:
+    """Is (lat, lng) inside `outer` but outside every ring in `holes`?
+
+    A drawn filter polygon is a single ring; a *published* perimeter is not. An
+    OMI zone routinely encloses a block that belongs to a different zone, and the
+    KML says so with an inner boundary — so a point that passes the outer test
+    and lands in one of those is outside the zone, not inside it.
+
+    A point lying exactly on a hole's edge is reported as being in the hole, and
+    so outside: `point_in_polygon` treats on-edge as inside and this reuses it
+    rather than keeping a second convention. The disagreement is confined to the
+    boundary line itself (an epsilon of 1e-9 degrees, well under a millimetre),
+    and the coordinates that reach this are geocoder output, which is accurate to
+    metres — so the case is unreachable in practice rather than merely unlikely.
+    """
+    if not point_in_polygon(lat, lng, outer):
+        return False
+    return not any(point_in_polygon(lat, lng, hole) for hole in holes or [])
 
 
 def _on_segment(py: float, px: float, ay: float, ax: float, by: float, bx: float) -> bool:

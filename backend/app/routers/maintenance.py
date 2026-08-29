@@ -120,6 +120,46 @@ def omi_import_endpoint(path: str = "", db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.post("/api/maintenance/omi-zones-import")
+def omi_zones_import_endpoint(path: str = "", db: Session = Depends(get_db)):
+    """Imports the OMI zone perimeters (KML) from the same delivery
+    (services/omi_zones.py). `path` overrides `omi_input_dir` for a one-off.
+
+    **Runs after the quotations, not before**: it keeps perimeters only for the
+    comuni those cover, because the national supply is ~28 000 zones and a
+    perimeter with no price behind it can produce no benchmark. With nothing
+    imported yet this answers 400 saying so, rather than storing 340 MB of
+    geometry nobody can look anything up in.
+
+    Sync `def` like the batches above: reading thousands of files is seconds of
+    blocking work that belongs on the threadpool, not on the event loop.
+    """
+    from ..services import omi_zones
+
+    try:
+        return omi_zones.import_zones(db, path or None)
+    except omi_zones.OmiImportError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/api/maintenance/omi-zones-resolve")
+def omi_zones_resolve_endpoint(db: Session = Depends(get_db)):
+    """Places every property with coordinates inside its OMI micro-zone.
+
+    The user-triggered half of the same split the geocoder and the commute batch
+    make: the answer is stored on the property, so a grid page reads a column
+    instead of ray-casting hundreds of vertices per card. Offline and
+    arithmetic-only — nothing to pace, so no progress or cancel endpoint.
+
+    Fails open: a property with no coordinates, or a pin that falls in no
+    imported zone, is reported in the counts and gets no OMI benchmark. Never an
+    error.
+    """
+    from ..services import omi_zones
+
+    return omi_zones.resolve_property_zones(db)
+
+
 # Scoped, irreversible data resets (Settings → Data management). Each is a
 # distinct deliberate choice, so they are separate scopes rather than flags on
 # one call. `factory` and `dashboard` delete rows a running scan is writing, so

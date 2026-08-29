@@ -96,6 +96,19 @@ class Property(Base):
     # window and, unlike gone_at, a *confirmed* sale date. Nullable (only set
     # once the user marks it). Additive column, auto-migrates.
     sold_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Which OMI micro-zone this property's coordinates fall in — the pair, not
+    # just the zone, because `B12` is only unique inside one comune (the same
+    # join `OmiQuotation` is keyed by). Empty means "not placed": no coordinates
+    # yet, or a pin that falls in no imported zone. Both are ordinary and
+    # neither is an error — no zone simply means no OMI benchmark.
+    #
+    # **Persisted, and filled only by the user-triggered batch**
+    # (`services/omi_zones.resolve_property_zones`). Storing the answer is what
+    # lets a grid page read it as a plain column; resolving it on read would put
+    # ray casting over hundreds of vertices inside every render, which is the
+    # same rule that keeps `annotate_commutes` cache-only.
+    omi_municipality_code: Mapped[str] = mapped_column(String, default="")
+    omi_zone_code: Mapped[str] = mapped_column(String, default="")
 
     # ordered by id like price_history: the notifier and the exports read
     # listings[0].url as "the primary listing", which without order_by is
@@ -406,6 +419,53 @@ class OmiQuotation(Base):
 
 
 Index("ix_omi_quotations_zone", OmiQuotation.municipality_code, OmiQuotation.zone_code)
+
+
+class OmiZone(Base):
+    """The perimeter of one OMI micro-zone: what turns a property's coordinates
+    into the `zone_code` the quotations above are keyed by.
+
+    Imported from the zone perimeters (KML) of the same Agenzia delle Entrate
+    delivery, by `services/omi_zones.py`. Only the **national** supply carries
+    them; a municipal one holds the prices and no geometry at all.
+
+    `rings` is the geometry as JSON — a list of polygons, each `{"outer": [...],
+    "holes": [...]}` with `[lat, lng]` vertices. A zone is genuinely several
+    polygons (an exclave across a river) and genuinely has holes (a block that
+    belongs to another zone), and both have to survive the round trip or the
+    answer is wrong at exactly the addresses that are hardest to notice.
+
+    The four `min_/max_` columns are the bounding box of those rings, stored so
+    a lookup can discard almost every zone with an indexed comparison before any
+    ray casting happens: a zone perimeter runs to hundreds of vertices, and the
+    box is what keeps placing a property cheap enough to do in a loop.
+
+    Keyed like `OmiQuotation` and for the same reason: `municipality_code` is the
+    national comune code (`F205`), and a zone code is unique only *within* a
+    comune — `B12` exists in most of Italy.
+    """
+
+    __tablename__ = "omi_zones"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # "YYYY/N", read from the KML's document title. Two semesters coexist and
+    # the newest wins at lookup, exactly as the quotations do.
+    semester: Mapped[str] = mapped_column(String, index=True)
+    municipality_code: Mapped[str] = mapped_column(String, index=True)
+    municipality: Mapped[str] = mapped_column(String, default="")
+    zone_code: Mapped[str] = mapped_column(String, index=True)
+    min_lat: Mapped[float] = mapped_column(Float)
+    max_lat: Mapped[float] = mapped_column(Float)
+    min_lng: Mapped[float] = mapped_column(Float)
+    max_lng: Mapped[float] = mapped_column(Float)
+    rings: Mapped[str] = mapped_column(Text)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+Index("ix_omi_zones_zone", OmiZone.municipality_code, OmiZone.zone_code)
+# The bounding-box pre-filter's own index. Latitude first because it is the
+# narrower of the two over Italy's shape, so it discards more rows per probe.
+Index("ix_omi_zones_bbox", OmiZone.min_lat, OmiZone.max_lat, OmiZone.min_lng, OmiZone.max_lng)
 
 
 class SearchProfile(Base):
