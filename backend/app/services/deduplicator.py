@@ -144,13 +144,23 @@ def _matches_property(raw: RawListing, prop: Property) -> bool:
     return _same_coordinates(raw, prop) or _same_address(raw, prop)
 
 
-def _fingerprint(raw: RawListing) -> str:
+def fingerprint_for(city: str, rooms: int | None, sqm: float | None) -> str:
+    """The `Property.fingerprint` value, from the three fields that compose it.
+
+    Public because a property can be created without a scrape behind it — the
+    demo corpus does exactly that — and such a row has to carry the same
+    fingerprint a scan would have stamped on it, not a second spelling of it.
+    """
     parts = [
-        (raw.city or "?").lower(),
-        str(raw.rooms or "?"),
-        str(int(raw.sqm)) if raw.sqm else "?",
+        (city or "?").lower(),
+        str(rooms or "?"),
+        str(int(sqm)) if sqm else "?",
     ]
     return "|".join(parts)
+
+
+def _fingerprint(raw: RawListing) -> str:
+    return fingerprint_for(raw.city, raw.rooms, raw.sqm)
 
 
 def _refresh_min_price(db: Session, prop: Property) -> bool:

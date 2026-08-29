@@ -39,7 +39,7 @@ cd frontend && npm run build
 cd frontend && npm test
 ```
 
-Expected today: **815 passed + 1 skipped** (816 collected; the skip needs the optional
+Expected today: **833 passed + 1 skipped** (834 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **68 frontend tests**.
 If a test number changed, that is not a failure — it is a documentation trigger (see §4).
 

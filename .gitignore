@@ -63,6 +63,11 @@ packaging/data/
 # case.db, same never-commit rule as the DB itself
 backend/backups/
 
+# Throwaway data directory the demo corpus is seeded into
+# (scripts/seed_demo.py --data-dir .demo-data): a database, so it follows the
+# same never-commit rule even though nothing in it is real.
+/.demo-data/
+
 # Playwright's persistent browser profile for automatic DataDome cookie
 # harvesting (services/cookie_harvester.py): local browser state, same
 # never-commit rule as case.db and settings.json.
