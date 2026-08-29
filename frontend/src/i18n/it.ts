@@ -77,6 +77,20 @@ export const it: Dict = {
   "card.notOnMap": "🗺️✗ non sulla mappa",
   "card.commuteTitle": "Tempo di viaggio verso {name}",
 
+  // ── riferimenti di prezzo (i due valori affiancati, mai fusi) ────────────
+  "benchmark.title": "Riferimenti di prezzo",
+  "benchmark.askingLabel": "Quanto chiedono annunci simili",
+  "benchmark.askingScope": "mediana in questa {scope}",
+  "benchmark.omiSaleLabel": "A quanto il fisco registra le compravendite",
+  "benchmark.omiRentLabel": "A quanto il fisco registra le locazioni",
+  "benchmark.range": "{min}–{max} €/mq",
+  "benchmark.rangeMonthly": "{min}–{max} €/mq al mese",
+  "benchmark.omiSource": "Zona OMI {zone} · {semester}",
+  "benchmark.note":
+    "I prezzi richiesti stanno sistematicamente sopra quelli registrati: i due si leggono affiancati, mai mediati.",
+  "benchmark.semesterFirst": "1° semestre {year}",
+  "benchmark.semesterSecond": "2° semestre {year}",
+
   // ── unità dei tempi di percorrenza (scheda e dettaglio) ──────────────────
   "commute.minutes": "{count} min",
   "commute.hours": "{count} h",

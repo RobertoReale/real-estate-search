@@ -23,6 +23,7 @@ from ..services.commute import annotate_commutes
 from ..services.deal_score import annotate_deal_scores
 from ..services.geo_filter import haversine_m, parse_polygon, point_in_polygon
 from ..services.match_score import _parse_floor, annotate_match_scores
+from ..services.omi_benchmark import annotate_omi_benchmark
 from ..services.pricing_stats import annotate_market_position
 from ..services.timeutils import as_utc
 
@@ -56,10 +57,11 @@ def annotate_provenance(db: Session, props: list[Property]) -> None:
 
 def annotate(db: Session, props: list[Property]) -> None:
     """The full transient annotation set for one or few properties (market
-    position first: the deal score reads it). One helper instead of the same
-    three calls repeated per endpoint."""
+    position and OMI band first: the deal score reads both). One helper instead
+    of the same calls repeated per endpoint."""
     settings = load_settings()
     annotate_market_position(db, props)
+    annotate_omi_benchmark(db, props)
     annotate_match_scores(props, settings)
     annotate_deal_scores(db, props)
     annotate_provenance(db, props)
@@ -353,6 +355,7 @@ def select_properties(
         # candidate before the window is cut — annotating the page only would
         # filter one page and report a total for a different population.
         annotate_market_position(db, props)
+        annotate_omi_benchmark(db, props)
         annotate_deal_scores(db, props)
         if deal == "undervalued":
             props = [p for p in props if p.deal_label == "undervalued"]
@@ -369,6 +372,7 @@ def select_properties(
         # properties are in the list, so computing them for the window alone is
         # identical to computing them for all and throwing most away.
         annotate_market_position(db, page)
+        annotate_omi_benchmark(db, page)
         annotate_deal_scores(db, page)
     annotate_provenance(db, page)
     # Cache-only, so the window is the right scope: reading the routed legs of

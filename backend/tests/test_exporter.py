@@ -238,13 +238,15 @@ def test_print_dossier_includes_annotations_when_present():
     html = properties_to_print_html([p], "D")
     assert "16% below market" in html
     assert "92% match" in html
-    assert "Area median" in html and "-25.0%" in html
+    # The median row says whose figure it is: the OMI band prints beside it and
+    # the two must never read as one measurement (invariant 22).
+    assert "Similar listings ask" in html and "-25.0%" in html
     assert "18 min on foot" in html and "1.5 km" in html
 
 
 def test_print_dossier_without_annotations_omits_those_sections():
     html = properties_to_print_html([_prop()], "D")
-    assert "Area median" not in html
+    assert "Similar listings ask" not in html
     assert "Commute" not in html
     assert "Your notes" not in html
 

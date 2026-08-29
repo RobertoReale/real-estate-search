@@ -8,7 +8,7 @@ Local PC/Raspberry Pi platform that aggregates real estate listings (sale and re
 
 Real estate portals erase history and hide metrics to protect listing agencies. This platform stores everything in a local **SQLite database (`case.db`)**, acting as your personal **buyer decision engine and negotiation assistant**:
 
-1. **Deal Radar & Congruity Engine (`Deal Score`):** Automatically compares every new listing against the localized €/sqm median of its specific micro-zone (`pricing_stats.py`). Combined with agency historical discounting behavior (`market_velocity.py`), it reveals undervalued opportunities within minutes of publication.
+1. **Deal Radar & Congruity Engine (`Deal Score`):** Automatically compares every new listing against the localized €/sqm median of its specific micro-zone (`pricing_stats.py`). Combined with agency historical discounting behavior (`market_velocity.py`), it reveals undervalued opportunities within minutes of publication. Import the Agenzia delle Entrate's OMI quotations and each property also shows what the tax authority records **sales** at in its micro-zone — shown beside the listing median, never blended into it, because asking prices sit systematically above transacted ones.
 2. **Ghost Price & Re-listing Memory (`Recycled Ad Tracker`):** When a house sits unsold for months at €420k, agencies often delete the ad and re-publish it weeks later as "New" at €389k with different photos. Our cross-portal deduplicator matches coordinates and sqm across old `gone` listings to alert you: `[RECYCLED PROPERTY] previously listed for 160 days at higher price (-9.5%)`.
 3. **Red Flags Audit & Real TCO Calculator:** Extracts structural and legal red flags directly from ad text (e.g., active tenant lease, bare ownership, high condo fees > €250/mo, no elevator) and calculates your realistic monthly Total Cost of Ownership (Mortgage + Condo Fees + Renovation buffer).
 4. **Zero Cloud, 100% Local Privacy:** Runs locally on your own PC or Raspberry Pi. No paid APIs, no subscriptions, no tracking.
@@ -203,7 +203,7 @@ everything that is not obvious from reading it:
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
   the data schema, the property lifecycle, the migration strategy, and the known
   fragilities with the symptom each one produces.
-* **[Invariants](docs/invariants.md)** — twenty-one rules that must not break, each
+* **[Invariants](docs/invariants.md)** — twenty-two rules that must not break, each
   with the regression that put it there. Read the relevant one *before* editing,
   not after.
 * **[Conventions](docs/conventions.md)** — how code is written and tested here.

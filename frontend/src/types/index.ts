@@ -61,6 +61,14 @@ export interface Property {
   area_median_sqm_price: number | null;
   area_median_scope: "zone" | "city" | null;
   sqm_price_delta_pct: number | null;
+  // the OMI band for the same micro-zone: min/max €/sqm the tax authority
+  // records *transactions* at, and the semester it recorded them in. Shown
+  // beside the median above, never merged into it — one is what sellers ask,
+  // the other what deeds say. All null when no OMI data covers this property.
+  omi_min_sqm_price: number | null;
+  omi_max_sqm_price: number | null;
+  omi_semester: string | null;
+  omi_zone_code: string;
   match_score: number | null;
   deal_score: number | null;
   deal_label: "undervalued" | "fair" | "overpriced" | null;

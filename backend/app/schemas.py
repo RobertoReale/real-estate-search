@@ -102,6 +102,16 @@ class PropertyOut(BaseModel):
     area_median_sqm_price: float | None = None
     area_median_scope: str | None = None  # "zone" | "city"
     sqm_price_delta_pct: float | None = None
+    # The OMI band for the same zone (services/omi_benchmark.py): min/max €/sqm
+    # from *recorded transactions*, and the semester they were recorded in. A
+    # separate pair of fields on purpose — the client shows the two benchmarks
+    # side by side, each labelled with what it is, and never merges them
+    # (invariant 22). All null when nothing is imported or the property was
+    # never placed in a zone.
+    omi_min_sqm_price: float | None = None
+    omi_max_sqm_price: float | None = None
+    omi_semester: str | None = None
+    omi_zone_code: str = ""  # persisted; the micro-zone the band belongs to
     # Smart Match Score: 0–100 compatibility vs "dream home" (None when off)
     match_score: int | None = None
     # Deal Score: congruity vs fair value (positive = below market; None = no data)

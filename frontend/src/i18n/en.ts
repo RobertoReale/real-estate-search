@@ -78,6 +78,20 @@ export const en = {
     "No map coordinates yet — this listing won't appear on the map or inside a drawn zone until located (open it and use 'View on map', or run 'Find coordinates').",
   "card.commuteTitle": "Travel time to {name}",
 
+  // ── price benchmarks (the two references, side by side, never merged) ────
+  "benchmark.title": "Price benchmarks",
+  "benchmark.askingLabel": "What similar listings ask",
+  "benchmark.askingScope": "median in this {scope}",
+  "benchmark.omiSaleLabel": "What the tax authority records sales at",
+  "benchmark.omiRentLabel": "What the tax authority records rents at",
+  "benchmark.range": "{min}–{max} €/sqm",
+  "benchmark.rangeMonthly": "{min}–{max} €/sqm per month",
+  "benchmark.omiSource": "OMI zone {zone} · {semester}",
+  "benchmark.note":
+    "Asking prices sit systematically above recorded ones: read the two side by side, never averaged.",
+  "benchmark.semesterFirst": "1st half {year}",
+  "benchmark.semesterSecond": "2nd half {year}",
+
   // ── commute units (shared by the card and the modal) ─────────────────────
   "commute.minutes": "{count} min",
   "commute.hours": "{count} h",

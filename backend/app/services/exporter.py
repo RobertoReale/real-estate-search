@@ -18,6 +18,7 @@ import io
 from datetime import UTC, datetime
 
 from ..models import Property
+from . import omi_benchmark
 
 
 def _fmt_price(value: float | None, contract: str = "sale") -> str:
@@ -416,14 +417,33 @@ def _print_facts(p: Property) -> str:
         ("Address", esc(p.address) or "—"),
         ("First seen", _fmt_date(p.first_seen_at)),
     ]
+    # The two benchmarks, adjacent and each labelled with what it measures. They
+    # are never merged and never stand in for one another (invariant 22): the
+    # median is what comparable ads *ask*, the OMI band what the tax authority
+    # records sales at, and asking sits systematically above transacted.
     median = getattr(p, "area_median_sqm_price", None)
     if median:
         scope = getattr(p, "area_median_scope", None) or "area"
         delta = getattr(p, "sqm_price_delta_pct", None)
-        value = f"{median:,.0f} €/sqm".replace(",", ".") + f" ({scope})"
+        value = f"{median:,.0f} €/sqm".replace(",", ".") + f" ({scope} median)"
         if delta is not None:
             value += f" · this one is {delta:+.1f}%"
-        rows.append(("Area median", value))
+        rows.append(("Similar listings ask", value))
+    omi_low = getattr(p, "omi_min_sqm_price", None)
+    omi_high = getattr(p, "omi_max_sqm_price", None)
+    omi_semester = getattr(p, "omi_semester", None)
+    if omi_low and omi_high and omi_semester:
+        band = f"{omi_low:,.0f}–{omi_high:,.0f} €/sqm".replace(",", ".")
+        rent = p.contract == "rent"
+        if rent:
+            band += " per month"
+        rows.append(
+            (
+                "Recorded rents (OMI)" if rent else "Recorded sales (OMI)",
+                f"{band} · zone {esc(p.omi_zone_code)} · "
+                f"{omi_benchmark.format_semester(omi_semester)}",
+            )
+        )
     low = getattr(p, "target_price_low", None)
     high = getattr(p, "target_price_high", None)
     if low and high:

@@ -132,6 +132,15 @@ class Property(Base):
     area_median_sqm_price: float | None = None
     area_median_scope: str | None = None
     sqm_price_delta_pct: float | None = None
+    # The OMI band of the zone above, set by omi_benchmark.annotate_omi_benchmark:
+    # min/max €/sqm the Agenzia delle Entrate records *transactions* at, and the
+    # semester it recorded them in. Transient like the median beside it — the
+    # figures live in OmiQuotation, and a copy here would go stale on the next
+    # import. **Never mixed with the median and never substituted for it**
+    # (invariant 22): one is what sellers ask, the other what deeds say.
+    omi_min_sqm_price: float | None = None
+    omi_max_sqm_price: float | None = None
+    omi_semester: str | None = None
     # Smart Match Score: compatibility % vs the user's "dream home" (None = off)
     match_score: int | None = None
     # Deal Score: congruity vs fair value (~[-50, +50]; positive = below market),
