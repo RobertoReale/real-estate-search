@@ -298,3 +298,12 @@ cd backend
 & .venv/Scripts/ruff.exe format app tests     # format
 & .venv/Scripts/python.exe -m pip_audit -r requirements.txt   # CVE scan
 ```
+
+## License
+
+[MIT](LICENSE). Use it, change it, ship it — keep the copyright notice.
+
+The listings this app collects are not covered by that licence: they belong to
+the portals they came from, and the OMI quotations belong to the Agenzia delle
+Entrate, whose supply is free but not open data. Neither is redistributed here,
+which is why the benchmark ships empty and you import your own download.
