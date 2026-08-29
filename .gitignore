@@ -20,6 +20,12 @@ nssm.exe
 /PIANO_LANCIO_PRIVATE.md
 /.agents/
 /.gemini/
+/.phasekit/
+
+# The OMI supply from the Agenzia delle Entrate: free to obtain, not open data,
+# and the extracted folder names carry the requester's codice fiscale. It stays
+# beside the checkout so the app can be pointed at it, and never inside it.
+/omi-input/
 
 
 # Environments and dependencies
