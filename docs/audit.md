@@ -39,7 +39,7 @@ cd frontend && npm run build
 cd frontend && npm test
 ```
 
-Expected today: **781 passed + 1 skipped** (782 collected; the skip needs the optional
+Expected today: **802 passed + 1 skipped** (803 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **63 frontend tests**.
 If a test number changed, that is not a failure — it is a documentation trigger (see §4).
 
@@ -55,8 +55,9 @@ a cold browser — it injects the real `datadome_cookie`. See
 
 ## 1. Invariant audit (are they *true*, are they *necessary*?)
 
-The 21 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
-past regression), a code home, and at least one regression test. To audit an invariant:
+The 22 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
+past regression, or for 22 the shipped defect it keeps from returning), a code home, and at
+least one regression test. To audit an invariant:
 
 1. **Necessary?** Read its paragraph. Every invariant records a bug that actually
    happened — if you cannot find the regression it prevents, that is the finding. None are
@@ -89,6 +90,7 @@ past regression), a code home, and at least one regression test. To audit an inv
 | 19 | `Property.source` upgrade-only ("email" now historical) | `services/deduplicator.py` | `test_dashboard_management.py` |
 | 20 | Delete-a-search removes only provably-its-own | `services/data_reset.py` `profile_results` | `test_data_reset.py` |
 | 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py`, `test_features.py` |
+| 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/components/PropertyModal.tsx` `PriceBenchmarks` | `test_omi_benchmark.py` |
 
 ---
 

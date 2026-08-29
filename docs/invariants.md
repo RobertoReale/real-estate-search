@@ -1,8 +1,9 @@
 # Invariants Not to Break
 
-Twenty-one rules, each with a history: every one records a regression that actually
-happened on a real portal or in a real database. They are not style preferences — a
-change that breaks one of these breaks something a user will notice, usually silently.
+Twenty-two rules, each with a history: a regression that actually happened on a real
+portal or in a real database — or, for 22, the shipped defect the rule exists to stop
+coming back in a new shape. They are not style preferences — a change that breaks one of
+these breaks something a user will notice, usually silently.
 
 Two of them (12 and 15) have been retired with the feature they protected. Their numbers
 are **kept rather than renumbered**, because comments, tests and the audit checklist cite
@@ -387,3 +388,24 @@ each invariant to its code home and its test file. See also
     before the deal-score pass, since that work only feeds a notification nobody will get.
     Pausing (`is_active=False`) is the other thing entirely — it stops the scan itself, so
     the listings stop arriving too.
+
+22. **The OMI band is never substituted for the listing median, and neither is ever shown
+    without saying which it is.** They answer the same question from opposite sides: the
+    median (`pricing_stats.py`) is the middle of what comparable ads **ask**, computed from
+    prices this app scraped; the OMI band (`omi_import.py`) is min/max €/m² the Agenzia
+    delle Entrate derives from **recorded transactions**. Asking sits systematically above
+    transacted, so averaging them, or letting one fill in where the other is missing,
+    produces a number that means nothing and looks authoritative — which is precisely the
+    failure the OMI import was added to end. v1.0.0 shipped a benchmark that compared a
+    listing only against its neighbours' asking prices, so a uniformly overpriced zone read
+    as "fair" and the app said so with confidence; a merged figure would restore that defect
+    with a government source's name attached to it. Concretely: `omi_benchmark.py` writes
+    only `omi_min_sqm_price`/`omi_max_sqm_price`/`omi_semester` and never touches
+    `sqm_price_delta_pct`, `area_median_*`, `deal_score`, `deal_label` or the proposal range
+    — the deal score's inputs are what they were before OMI existed, and the band is one
+    extra reason line beside them. Every rendering (the modal's benchmark panel, the print
+    dossier's key facts, the reason line itself) labels each figure with **whose** it is and
+    dates the OMI one with its semester: an undated band is a claim with no expiry, and an
+    unlabelled one is two different measurements wearing one name. Regression tests in
+    `test_omi_benchmark.py` — the load-bearing one asserts that a property scores
+    identically with and without OMI figures.

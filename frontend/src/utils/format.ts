@@ -20,6 +20,21 @@ export function formatDistance(metres: number): string {
     : translateCurrent("commute.kilometres", { count: (metres / 1000).toFixed(1) });
 }
 
+/** "2025/2" → "2nd half 2025". The backend stores an OMI semester the way the
+ *  Agenzia writes it, which is not a date anyone reads at a glance.
+ *
+ *  A string that is not a semester is returned as it stands: it is still the
+ *  label the import recorded, and dropping it would leave the figure undated —
+ *  the one thing these numbers must never be. */
+export function formatSemester(semester: string): string {
+  const match = /^\s*(\d{4})\s*\/\s*(\d+)\s*$/.exec(semester || "");
+  if (!match) return semester || "";
+  const [, year, half] = match;
+  if (half === "1") return translateCurrent("benchmark.semesterFirst", { year });
+  if (half === "2") return translateCurrent("benchmark.semesterSecond", { year });
+  return semester;
+}
+
 /** How the leg is travelled, at a glance. Kept out of the dictionary on
  *  purpose: an emoji is the same in every language. */
 export const COMMUTE_ICONS: Record<CommuteMode, string> = {

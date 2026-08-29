@@ -21,12 +21,21 @@ which the app computes elsewhere:
 Like the market-position and match annotations it is transient (never persisted)
 and needs the market position computed first (it reads `sqm_price_delta_pct`).
 With no median available the score is None — the badge simply does not appear.
+
+**The OMI band is not a fourth signal.** When the property has one
+(`omi_benchmark.py`), it is appended to the reasons as its own labelled, dated
+line and changes nothing else: the score, the label and the proposal range are
+computed from the listing median exactly as they were before it existed. OMI
+records what deeds say, the median what sellers ask, and a score that quietly
+averaged the two would be a number with no meaning wearing an authoritative face
+(invariant 22).
 """
 
 from datetime import UTC
 
 from ..models import Property
 from .filter_engine import find_excluded_keyword
+from .omi_benchmark import benchmark_reason
 
 # Italian, verbatim like DEFAULT_EXCLUDED_KEYWORDS: they must match the portals'
 # own wording. "Needs work" cues justify a low price (the discount is not a
@@ -123,6 +132,13 @@ def _score_property(prop: Property, signatures: dict[str, dict]) -> None:
             reasons.append(f"{abs(prop.sqm_price_delta_pct):.0f}% below {scope} median")
         elif prop.sqm_price_delta_pct >= 1:
             reasons.append(f"{prop.sqm_price_delta_pct:.0f}% above {scope} median")
+
+    # Straight after the median line, because the two are the same question
+    # answered by different evidence — and never in place of it: this one is
+    # read-only here, it moves no number below.
+    omi = benchmark_reason(prop)
+    if omi:
+        reasons.append(omi)
 
     cond_adj, cond_reasons = _condition_adjustment(prop)
     reasons += cond_reasons

@@ -6,6 +6,7 @@ import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
 import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
+import { formatSemester } from "../utils/format";
 
 /** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
  *  so each value has a translation rather than being printed raw. */
@@ -33,6 +34,66 @@ function AuditList({ title, items }: { title: string; items: string[] }) {
       <ul className="list-disc list-inside t-body text-xs space-y-0.5">
         {items.map((item, i) => <li key={i}>{item}</li>)}
       </ul>
+    </div>
+  );
+}
+
+/** The two price references, side by side and each labelled with what it is.
+ *
+ *  They are not the same measurement and must never be shown as if they were:
+ *  the median is the middle of what comparable **ads ask**, the OMI band is
+ *  min/max €/sqm the Agenzia delle Entrate derives from **recorded
+ *  transactions**, and asking prices sit systematically above transacted ones.
+ *  Averaging them, or letting one stand in for the other, would produce a
+ *  number that means nothing and looks authoritative (invariant 22) — so each
+ *  column says whose figure it is, the OMI one carries the semester it was
+ *  recorded in, and neither is ever rendered bare.
+ *
+ *  A property with no OMI data shows the median alone, in a single column: an
+ *  empty second box would read as a figure that failed to load. With neither,
+ *  the panel is absent entirely. */
+function PriceBenchmarks({ property: p }: { property: Property }) {
+  const t = useT();
+  const median = p.area_median_sqm_price;
+  const omi = p.omi_min_sqm_price && p.omi_max_sqm_price && p.omi_semester
+    ? { min: p.omi_min_sqm_price, max: p.omi_max_sqm_price, semester: p.omi_semester }
+    : null;
+  if (!median && !omi) return null;
+  const scope = t(p.area_median_scope === "zone" ? "card.scopeZone" : "card.scopeCity");
+  return (
+    <div className="mt-4 rounded-xl panel p-3 text-sm">
+      <p className="font-medium mb-2">{t("benchmark.title")}</p>
+      <div className={`grid gap-3 ${median && omi ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+        {median && (
+          <div>
+            <p className="text-xs t-muted">{t("benchmark.askingLabel")}</p>
+            <p className="font-semibold">
+              {t("common.sqmPrice", { value: formatNumber(Math.round(median)) })}
+            </p>
+            <p className="text-[11px] t-dim">{t("benchmark.askingScope", { scope })}</p>
+          </div>
+        )}
+        {omi && (
+          <div>
+            <p className="text-xs t-muted">
+              {t(p.contract === "rent" ? "benchmark.omiRentLabel" : "benchmark.omiSaleLabel")}
+            </p>
+            <p className="font-semibold">
+              {t(p.contract === "rent" ? "benchmark.rangeMonthly" : "benchmark.range", {
+                min: formatNumber(Math.round(omi.min)),
+                max: formatNumber(Math.round(omi.max)),
+              })}
+            </p>
+            <p className="text-[11px] t-dim">
+              {t("benchmark.omiSource", {
+                zone: p.omi_zone_code,
+                semester: formatSemester(omi.semester),
+              })}
+            </p>
+          </div>
+        )}
+      </div>
+      {median && omi && <p className="mt-2 text-[11px] t-dim">{t("benchmark.note")}</p>}
     </div>
   );
 }
@@ -212,6 +273,8 @@ export default function PropertyModal({
             <DealBadge property={p} />
             <MarketBadge property={p} />
           </div>
+
+          <PriceBenchmarks property={p} />
 
           {/* Deal Score breakdown */}
           {p.deal_score !== null && p.deal_label !== "fair" && (

@@ -47,6 +47,15 @@
   and sale and rental prices are never mixed — until your database has enough
   history, cards simply show nothing rather than a number invented from two
   samples.
+* **What the tax authority records** (only once you have imported the OMI data):
+  the fairness check above compares asking prices with asking prices, so a zone
+  where everyone asks too much reads as normal. The Agenzia delle Entrate
+  publishes min/max €/mq per micro-zone taken from **recorded sales**, and a
+  property's detail view shows that band next to the listing median, each
+  labelled with what it is and the OMI one dated with its semester. They are
+  deliberately never averaged: what sellers ask sits systematically above what
+  deeds say, so a single blended number would mean nothing while looking
+  official. A property with no OMI data behind it simply shows the median alone.
 * **Deal Score**: builds on the fairness check to flag genuine opportunities. It
   combines the €/sqm gap to the local median with condition cues read from the
   listing text (*da ristrutturare* lowers it, *ristrutturato / classe A* raises

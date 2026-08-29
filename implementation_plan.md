@@ -170,10 +170,11 @@ progetto/
 │   │       ├── data_reset.py      # scoped irreversible data wipes (Settings -> Data management)
 │   │       ├── omi_import.py     # imports the Agenzia delle Entrate OMI quotations from a downloaded file
 │   │       ├── omi_zones.py      # places a property inside its OMI micro-zone (KML perimeters)
+│   │       ├── omi_benchmark.py  # the OMI band shown beside the listing median, never merged with it
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 782 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 803 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -234,7 +235,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (782, `pytest`)
+### Automated Tests (803, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests
