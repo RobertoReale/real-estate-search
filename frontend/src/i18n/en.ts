@@ -91,6 +91,12 @@ export const en = {
     "Asking prices sit systematically above recorded ones: read the two side by side, never averaged.",
   "benchmark.semesterFirst": "1st half {year}",
   "benchmark.semesterSecond": "2nd half {year}",
+  "benchmark.stale": "out of date",
+  "benchmark.staleNote":
+    "This band is more than 18 months old — the Agenzia publishes twice a year, so a newer supply is available.",
+  // The wording the OMI licence asks for, so it stays in Italian in both
+  // dictionaries: an attribution is a credit to reproduce, not a caption.
+  "benchmark.attribution": "Fonte: Agenzia Entrate – OMI",
 
   // ── commute units (shared by the card and the modal) ─────────────────────
   "commute.minutes": "{count} min",

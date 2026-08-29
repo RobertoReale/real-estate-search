@@ -56,7 +56,12 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
   const t = useT();
   const median = p.area_median_sqm_price;
   const omi = p.omi_min_sqm_price && p.omi_max_sqm_price && p.omi_semester
-    ? { min: p.omi_min_sqm_price, max: p.omi_max_sqm_price, semester: p.omi_semester }
+    ? {
+        min: p.omi_min_sqm_price,
+        max: p.omi_max_sqm_price,
+        semester: p.omi_semester,
+        stale: p.omi_stale,
+      }
     : null;
   if (!median && !omi) return null;
   const scope = t(p.area_median_scope === "zone" ? "card.scopeZone" : "card.scopeCity");
@@ -90,10 +95,23 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
                 semester: formatSemester(omi.semester),
               })}
             </p>
+            {omi.stale && (
+              <p className="mt-1">
+                <span
+                  className="text-[11px] font-semibold px-2 py-0.5 rounded-lg chip-amber"
+                  title={t("benchmark.staleNote")}>
+                  {t("benchmark.stale")}
+                </span>
+              </p>
+            )}
           </div>
         )}
       </div>
       {median && omi && <p className="mt-2 text-[11px] t-dim">{t("benchmark.note")}</p>}
+      {/* Required by the licence on the OMI supply, so it is tied to the figures
+          being on screen rather than to the panel: with the median alone there is
+          nothing here of the Agenzia's to credit. */}
+      {omi && <p className="mt-2 text-[11px] t-dim">{t("benchmark.attribution")}</p>}
     </div>
   );
 }

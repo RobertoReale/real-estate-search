@@ -68,6 +68,9 @@ export interface Property {
   omi_min_sqm_price: number | null;
   omi_max_sqm_price: number | null;
   omi_semester: string | null;
+  // whether that semester is old enough to stop being current (the backend
+  // owns the threshold, so screen and print dossier age the band together)
+  omi_stale: boolean;
   omi_zone_code: string;
   match_score: number | null;
   deal_score: number | null;

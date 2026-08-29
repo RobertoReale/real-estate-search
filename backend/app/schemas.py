@@ -111,6 +111,10 @@ class PropertyOut(BaseModel):
     omi_min_sqm_price: float | None = None
     omi_max_sqm_price: float | None = None
     omi_semester: str | None = None
+    # True once that semester's window has been closed longer than
+    # `omi_benchmark.STALE_AFTER_MONTHS`. Served rather than derived on the
+    # client so the dashboard and the print dossier age the data by one rule.
+    omi_stale: bool = False
     omi_zone_code: str = ""  # persisted; the micro-zone the band belongs to
     # Smart Match Score: 0–100 compatibility vs "dream home" (None when off)
     match_score: int | None = None

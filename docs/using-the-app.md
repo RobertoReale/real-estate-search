@@ -146,3 +146,74 @@ arriving in the dashboard — but you are never pinged for it: no new-listing
 message, no price-drop message, not even the scraper-health alert. It is the
 answer to "I want to watch this search, just not in real time"; *Pause*, by
 contrast, stops scanning it altogether.
+
+## Refreshing the OMI benchmark
+
+The detail view of a property can show a second price reference beside the
+listing median: min/max €/m² the Agenzia delle Entrate records **actual sales**
+at, for that property's micro-zone. The app never fetches this itself — the data
+sits behind an authenticated SPID session — so you download it and import it,
+about once every six months. Until you do, nothing here applies and cards simply
+show the listing median alone.
+
+The figures on screen are always labelled with the semester they cover, and a
+band whose semester ended more than **18 months** ago is flagged *out of date*
+rather than quietly trusted. That flag is your cue to repeat this procedure.
+
+### Getting the file
+
+The supply comes from the Agenzia delle Entrate's OMI service, reached with
+SPID/CIE through Fisconline/Entratel. Three things about that site are worth
+knowing in advance, because each one costs a week when it is discovered by
+accident:
+
+* **You issue a *request*, not a download.** The request appears as *Inserita*
+  and stays that way until the Agenzia processes it, at which point it becomes
+  *Disponibile*. There is nothing to do in between but wait and check back.
+* **Each processed request may be downloaded once.** A download that is
+  interrupted, or a file saved somewhere you then lose it, means issuing the
+  request again and waiting again. Save it somewhere permanent on the first try.
+* **A processed request expires after 7 days.** Past that it is gone and has to
+  be requested afresh.
+
+**Ask for the national supply, not a single comune.** Only the national one ships
+the *zone perimeters*; a municipal extract carries the prices and no geometry at
+all, and without perimeters the app has no way to work out which micro-zone a
+property falls in — so every listing would end up with no benchmark. It is a
+larger download for the same amount of work afterwards.
+
+### Importing it
+
+Unzip the delivery into a folder of its own and point the `omi_input_dir`
+setting at that folder. A folder rather than a file: a delivery is two documents
+(the quotations and the zone descriptions), and the app identifies which is
+which by reading their first line — never by their filenames, which contain the
+codice fiscale of whoever requested the supply.
+
+Then call the three maintenance endpoints, **in this order**:
+
+```bash
+curl -X POST http://localhost:8000/api/maintenance/omi-import
+curl -X POST http://localhost:8000/api/maintenance/omi-zones-import
+curl -X POST http://localhost:8000/api/maintenance/omi-zones-resolve
+```
+
+1. `omi-import` loads the quotations. It answers with how many landed **and** how
+   many source rows it skipped — a partial import that reported only its
+   successes would look exactly like a complete one.
+2. `omi-zones-import` loads the perimeters. It runs second on purpose: it keeps
+   only the zones the quotations actually cover, because the national supply
+   holds around 28 000 of them and a perimeter with no price behind it can
+   produce no benchmark.
+3. `omi-zones-resolve` places your existing properties inside their zones. Like
+   *Find coordinates*, this is a batch you trigger rather than something a page
+   does while you scroll. Run it again after a scan brings in new listings.
+
+Re-importing the same semester replaces it rather than adding to it, so running
+these twice is harmless. A newer semester simply wins: the app reads the most
+recent one it holds and never blends two together, since a band mixed from two
+dates carries no date at all.
+
+Anything that cannot be placed is left alone rather than guessed at — a property
+with no coordinates, or one whose pin falls outside every zone, keeps the
+listing median and shows no OMI figures. That is not an error condition.

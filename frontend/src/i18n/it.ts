@@ -90,6 +90,12 @@ export const it: Dict = {
     "I prezzi richiesti stanno sistematicamente sopra quelli registrati: i due si leggono affiancati, mai mediati.",
   "benchmark.semesterFirst": "1° semestre {year}",
   "benchmark.semesterSecond": "2° semestre {year}",
+  "benchmark.stale": "non aggiornato",
+  "benchmark.staleNote":
+    "Questa fascia ha più di 18 mesi: l'Agenzia pubblica due volte l'anno, quindi esiste una fornitura più recente.",
+  // La dicitura richiesta dalla licenza OMI: resta in italiano in entrambi i
+  // dizionari, perché è un credito da riprodurre, non una didascalia.
+  "benchmark.attribution": "Fonte: Agenzia Entrate – OMI",
 
   // ── unità dei tempi di percorrenza (scheda e dettaglio) ──────────────────
   "commute.minutes": "{count} min",

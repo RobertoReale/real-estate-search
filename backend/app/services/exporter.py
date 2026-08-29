@@ -437,11 +437,15 @@ def _print_facts(p: Property) -> str:
         rent = p.contract == "rent"
         if rent:
             band += " per month"
+        # A printed page outlives the screen it was exported from, so the date
+        # carries its own verdict: a band nobody has refreshed says so on paper.
+        dated = omi_benchmark.format_semester(omi_semester)
+        if omi_benchmark.is_stale(omi_semester):
+            dated += f" · over {omi_benchmark.STALE_AFTER_MONTHS} months old"
         rows.append(
             (
                 "Recorded rents (OMI)" if rent else "Recorded sales (OMI)",
-                f"{band} · zone {esc(p.omi_zone_code)} · "
-                f"{omi_benchmark.format_semester(omi_semester)}",
+                f"{band} · zone {esc(p.omi_zone_code)} · {dated}",
             )
         )
     low = getattr(p, "target_price_low", None)
@@ -551,6 +555,12 @@ def properties_to_print_html(props: list[Property], title: str) -> str:
     total = len(props)
     pages = "\n".join(_print_property_html(p, i, total) for i, p in enumerate(props, start=1))
     generated = f"{datetime.now(UTC):%Y-%m-%d %H:%M UTC}"
+    # The OMI licence wants its source named wherever the figures are, and this
+    # document leaves the app entirely. Only when a band actually printed: an
+    # attribution on a dossier carrying no OMI data credits a source it never used.
+    credit = (
+        f" {omi_benchmark.ATTRIBUTION}." if any(omi_benchmark.has_band(p) for p in props) else ""
+    )
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -563,7 +573,7 @@ def properties_to_print_html(props: list[Property], title: str) -> str:
         f'<div class="meta">{total} properties · generated {generated}</div></div>'
         f"{pages}"
         '<div class="foot">Asking prices as advertised on the portals, not '
-        "valuations.</div>"
+        f"valuations.{credit}</div>"
         "</div>"
         "<script>window.addEventListener('load', function () { window.print(); });</script>"
         "</body></html>"
