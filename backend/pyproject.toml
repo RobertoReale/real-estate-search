@@ -15,7 +15,7 @@ name = "real-estate-search-backend"
 # Kept in step with frontend/package.json and with the release tags: the two
 # halves ship as one thing, so two different numbers would only ever be a
 # question nobody can answer.
-version = "1.0.0"
+version = "1.1.0"
 requires-python = ">=3.11,<3.15"
 
 # Pyright resolves the interpreter from PATH unless told otherwise, and on a
