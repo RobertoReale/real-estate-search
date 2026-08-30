@@ -229,6 +229,37 @@ def test_a_failed_snapshot_does_not_stop_the_migration(tmp_path, monkeypatch, ca
     ), "a missing pre-upgrade copy must be logged at error level"
 
 
+def test_a_database_from_a_newer_build_is_explained_not_traced_back(tmp_path, monkeypatch, caplog):
+    """The downgrade: an older program opening a database a newer one migrated.
+
+    `upgrade head` cannot resolve a revision that is not in this build's script
+    directory, so it raises and the fail-open handler prints an Alembic
+    traceback — telling the user everything except the fact that mattered, which
+    is that the schema on disk is ahead of the code reading it. Startup still
+    has to continue (extra columns are harmless, and refusing to boot would be
+    worse than the mismatch), but it says so in one line that names the revision
+    and where the copy that undoes it lives.
+    """
+    engine = create_engine(f"sqlite:///{tmp_path / 'case.db'}")
+    monkeypatch.setattr(database, "engine", engine)
+    database.init_db()
+    _stamp(engine, "9999_from_the_future")
+
+    with caplog.at_level(logging.ERROR):
+        database.init_db()  # must not raise
+
+    said = [r for r in caplog.records if "9999_from_the_future" in r.getMessage()]
+    assert len(said) == 1, f"expected exactly one line about the mismatch, got {len(said)}"
+    assert "backups" in said[0].getMessage(), "the message must point at the copies"
+    assert not any(r.exc_info for r in caplog.records), "a traceback was logged, not a message"
+    assert _version(engine) == "9999_from_the_future", (
+        "the recorded revision was rewritten by a build that cannot honour it"
+    )
+    assert not list((tmp_path / "backups").glob("case-pre-*.db")), (
+        "nothing is migrating, so there is no pre-upgrade state to snapshot"
+    )
+
+
 def test_migrating_leaves_the_application_log_handlers_alone(tmp_path, monkeypatch):
     """Running migrations must not reconfigure the app's logging.
 

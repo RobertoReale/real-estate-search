@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from .config import BASE_DIR, DB_PATH
+from .config import BACKUP_DIR, BASE_DIR, DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +230,57 @@ def _current_revision() -> str | None:
         return conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
 
 
+def _backups_dir() -> Path:
+    """Where the copies of the live database are kept.
+
+    Beside the database, not `config.BACKUP_DIR`, for the same reason
+    `_engine_db_path` exists: the engine is what decides which database is live.
+    The constant is the fallback for an engine with no file behind it.
+    """
+    db_path = _engine_db_path()
+    return db_path.parent / "backups" if db_path is not None else BACKUP_DIR
+
+
+def _is_from_a_newer_build(script_dir) -> bool:
+    """True when the database records a revision this build has never heard of.
+
+    That is a downgrade: an older program opening a database a newer one has
+    already migrated. `upgrade head` cannot resolve the recorded revision, so it
+    raises, and the fail-open handler below would print an Alembic traceback and
+    carry on — which tells the user everything except the one fact that matters,
+    that the schema on disk is ahead of the code reading it.
+
+    It very likely works anyway: the models ignore columns they do not know
+    about, and every migration so far has been additive from a reader's point of
+    view. "Very likely" is not something to leave to a stack trace, so say it in
+    one line, name the revision, and point at the copy that undoes it.
+
+    Migrating is skipped when this returns True — there is nothing this build can
+    apply to a history it does not have — and so is the pre-upgrade snapshot,
+    which would otherwise be named for a revision nothing is leaving.
+    """
+    try:
+        current = _current_revision()
+        if current is None:
+            return False
+        if current in {script.revision for script in script_dir.walk_revisions()}:
+            return False
+    except Exception:
+        logger.error("could not compare the database's schema revision with this build's")
+        return False
+
+    logger.error(
+        "this database was last opened by a newer version of the app: it records schema "
+        "revision %s, which this build does not have. Downgrading is not supported — "
+        "startup continues against the newer schema, which normally works, but the way "
+        "back is to reinstall the newer version or restore the copy taken before the "
+        "upgrade from %s",
+        current,
+        _backups_dir(),
+    )
+    return True
+
+
 def _snapshot_before_upgrade(script_dir) -> None:
     """Copy the database aside when this startup is about to change its schema.
 
@@ -267,7 +318,7 @@ def _snapshot_before_upgrade(script_dir) -> None:
 
     # beside the database it protects: that is config.BACKUP_DIR in production,
     # and it follows the engine anywhere the engine has been redirected
-    snapshot_before_migration(current, db_path, db_path.parent / "backups")
+    snapshot_before_migration(current, db_path, _backups_dir())
 
 
 def _run_migrations(protect_data: bool = False):
@@ -289,7 +340,9 @@ def _run_migrations(protect_data: bool = False):
     Fail-open like the rest of the app: the schema is already guaranteed by the
     steps above, so a migration harness problem is logged, not fatal. A genuine
     post-baseline migration failure surfaces loudly (error + traceback) without
-    taking startup down with it.
+    taking startup down with it. The one failure that is *not* a harness problem
+    is a database from a newer build, which `_is_from_a_newer_build` recognises
+    and reports as itself rather than as an unresolvable revision.
 
     `protect_data` says the database existed before this startup, and is what
     makes the pre-upgrade snapshot conditional — see `init_db`.
@@ -306,14 +359,23 @@ def _run_migrations(protect_data: bool = False):
         )
         return
 
-    cfg = Config(str(ALEMBIC_INI))
-    cfg.set_main_option("script_location", str(ALEMBIC_DIR))
-    if protect_data:
-        _snapshot_before_upgrade(ScriptDirectory.from_config(cfg))
-    inspector = inspect(engine)
-    has_version = inspector.has_table("alembic_version")
-    has_schema = inspector.has_table("properties")
+    # Everything from here is inside the fail-open handler, reading the script
+    # directory included: `ALEMBIC_DIR` is a packaged asset, and a bundle that
+    # shipped without it must degrade to the schema create_all already built
+    # rather than take startup down.
     try:
+        cfg = Config(str(ALEMBIC_INI))
+        cfg.set_main_option("script_location", str(ALEMBIC_DIR))
+        script_dir = ScriptDirectory.from_config(cfg)
+        if _is_from_a_newer_build(script_dir):
+            # a downgrade: `upgrade head` would raise on a revision that is not
+            # in this build's history, and the line above already said so plainly
+            return
+        if protect_data:
+            _snapshot_before_upgrade(script_dir)
+        inspector = inspect(engine)
+        has_version = inspector.has_table("alembic_version")
+        has_schema = inspector.has_table("properties")
         # A plain connect(), not begin(): Alembic opens and commits its own
         # transaction per command via context.begin_transaction().
         with engine.connect() as connection:

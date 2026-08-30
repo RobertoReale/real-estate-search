@@ -262,6 +262,18 @@ the first thing pruned. The daily copy cannot do this job at all — it is sched
 Fail-open like the rest of the path, but logged at **error** level: startup continues,
 and the line says the migration is running with nothing to fall back on.
 
+**Downgrading is not supported, and it says so.** The reverse of an upgrade — an older
+build opening a database a newer one has already migrated — arrives as an
+`alembic_version` naming a revision that build's script directory does not contain, so
+`upgrade head` cannot resolve it and raises. `_is_from_a_newer_build()` catches that case
+first (the recorded revision is not among `walk_revisions()`), skips both the migration and
+the pre-upgrade snapshot (nothing is being left, so naming a copy after it would be a lie),
+and logs **one error line** naming the revision and the backups folder instead of an
+Alembic traceback. Startup then continues against the newer schema, which normally works —
+the models ignore columns they do not know about — but "normally works" is stated, not
+assumed. The way back is to reinstall the newer version, or to restore the
+`case-pre-<revision>.db` the newer version wrote before it migrated.
+
 **The upgrade is proved against a database an older release wrote.**
 `backend/tests/fixtures/legacy_v1.db` is the schema release 1.0.0 shipped, holding the demo
 corpus plus the fields only a user produces (notes, favourites, tags, a property marked
