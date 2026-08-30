@@ -10,10 +10,12 @@ idempotence so a future migration author can trust the harness.
 
 import io
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, inspect, text
 
 from app import database
+from app.services import backup
 
 
 def _head() -> str:
@@ -36,6 +38,34 @@ def _version(engine) -> str | None:
         return None
     with engine.connect() as conn:
         return conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+
+
+def _stamp(engine, revision: str) -> None:
+    """Rewrite the recorded revision, so the next init_db has something to
+    migrate. Cheaper and more direct than keeping an old database around."""
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM alembic_version"))
+        conn.execute(text("INSERT INTO alembic_version (version_num) VALUES (:r)"), {"r": revision})
+
+
+class _AdvancingClock:
+    """Stands in for `datetime` inside `backup.py`, one day per round.
+
+    `maybe_backup` names each copy after the wall clock and gates on the newest
+    mtime, so twenty daily rounds inside one real second would be twenty writes
+    to a single filename and the rotation under test would never run. Only the
+    two members `maybe_backup` reads are provided.
+    """
+
+    offset = timedelta()
+
+    @classmethod
+    def now(cls, tz=None):
+        return datetime.now(tz) + cls.offset
+
+    @staticmethod
+    def fromtimestamp(ts, tz=None):
+        return datetime.fromtimestamp(ts, tz)
 
 
 def test_fresh_db_is_stamped_at_baseline_then_upgraded(tmp_path, monkeypatch):
@@ -121,6 +151,82 @@ def test_missing_alembic_degrades_to_additive(tmp_path, monkeypatch):
     # schema is intact even though Alembic never ran
     assert inspect(engine).has_table("properties")
     assert _version(engine) is None  # no alembic_version table created
+
+
+def test_a_pending_migration_is_snapshotted_before_it_runs(tmp_path, monkeypatch):
+    """The copy that protects against a botched migration must predate it.
+
+    `backup.py` exists for exactly this, but its copy is scheduled by the
+    scheduler, which starts after `init_db()` has already migrated — so the one
+    snapshot that mattered was taken after the event. Here the database is put
+    back at an older revision and started up: the copy must be on disk, named
+    for the revision being left, and it must still be there twenty daily
+    backups later, because a pre-upgrade copy is the last thing the rotation
+    should reclaim and (being the oldest file in the folder) the first thing it
+    would take.
+    """
+    db_file = tmp_path / "case.db"
+    backups = tmp_path / "backups"
+    engine = create_engine(f"sqlite:///{db_file}")
+    monkeypatch.setattr(database, "engine", engine)
+
+    database.init_db()
+    assert not backups.exists(), "a fresh install has nothing to snapshot"
+
+    _stamp(engine, "0001_baseline")
+    database.init_db()
+
+    snapshot = backups / "case-pre-0001_baseline.db"
+    assert snapshot.exists(), "the migration ran without a copy taken first"
+    assert _version(engine) == _head(), "the migration itself must still have run"
+
+    monkeypatch.setattr(backup, "datetime", _AdvancingClock)
+    for day in range(20):
+        _AdvancingClock.offset = timedelta(days=day)
+        assert backup.maybe_backup(db_file, backups) is not None
+
+    assert snapshot.exists(), "the rotation pruned the pre-upgrade copy"
+    dailies = [p for p in backups.glob("case-*.db") if p != snapshot]
+    assert len(dailies) == backup.BACKUP_KEEP
+
+
+def test_an_unmigrated_startup_snapshots_nothing(tmp_path, monkeypatch):
+    """The snapshot is conditional on a migration actually being pending.
+
+    Every ordinary startup runs `init_db()` against a database already at the
+    head. Copying it each time would fill the backups folder with files the
+    rotation is deliberately forbidden to reclaim.
+    """
+    engine = create_engine(f"sqlite:///{tmp_path / 'case.db'}")
+    monkeypatch.setattr(database, "engine", engine)
+    database.init_db()
+
+    database.init_db()
+
+    assert not list((tmp_path / "backups").glob("case-pre-*.db"))
+
+
+def test_a_failed_snapshot_does_not_stop_the_migration(tmp_path, monkeypatch, caplog):
+    """Fail-open, like every other step on this path — a copy that cannot be
+    written must not keep the app from starting. But at error level, not
+    warning: the migration is about to run with nothing to fall back on, and
+    that is the one line the user would want to have seen afterwards."""
+    db_file = tmp_path / "case.db"
+    engine = create_engine(f"sqlite:///{db_file}")
+    monkeypatch.setattr(database, "engine", engine)
+    database.init_db()
+    _stamp(engine, "0001_baseline")
+    # a plain file where the backups folder wants to be: mkdir cannot succeed
+    (tmp_path / "backups").write_text("not a directory")
+
+    with caplog.at_level(logging.ERROR):
+        database.init_db()  # must not raise
+
+    assert _version(engine) == _head()
+    assert any(
+        record.levelno == logging.ERROR and "snapshot" in record.getMessage()
+        for record in caplog.records
+    ), "a missing pre-upgrade copy must be logged at error level"
 
 
 def test_migrating_leaves_the_application_log_handlers_alone(tmp_path, monkeypatch):

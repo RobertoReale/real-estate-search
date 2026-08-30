@@ -74,7 +74,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 
 ## Testing
 
-- **834 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
+- **840 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
   SQLite): no network, so always reproducible. `test_property_based.py` adds `hypothesis`
   property tests for the pure helpers (the dedup ±tolerance gate, haversine, the
   price/sqm/floor parsers): the laws they must obey for *any* input, complementing the

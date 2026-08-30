@@ -99,6 +99,63 @@ def test_stale_backup_is_replaced_and_rotation_prunes_oldest(db_file, tmp_path, 
     assert survivors == {"case-b.db", "case-c.db", target.name}
 
 
+def test_a_pre_upgrade_snapshot_is_outside_the_rotation(db_file, tmp_path, monkeypatch):
+    """The pre-upgrade copy shares the folder and the `case-` prefix with the
+    daily ones, but it is not one of them.
+
+    It must not be pruned: it is the only image of the schema the user is
+    leaving, and being the oldest file there it is precisely what rotation
+    would reach for first. It must not satisfy the freshness gate either, or a
+    snapshot taken minutes ago at startup would suppress that day's ordinary
+    backup.
+    """
+    backups = tmp_path / "backups"
+    snapshot = backup.snapshot_before_migration("0001_baseline", db_file, backups)
+    assert snapshot is not None and snapshot.name == "case-pre-0001_baseline.db"
+    # two stale daily copies, both older than BACKUP_EVERY (mtime drives both
+    # the freshness gate and the pruning order) — the snapshot is the newest
+    # file in the folder, so counting it would suppress the backup below
+    for i, name in enumerate(["case-a.db", "case-b.db"]):
+        old = backups / name
+        old.write_bytes(b"old")
+        stale = time.time() - 3 * 24 * 3600 + i
+        os.utime(old, (stale, stale))
+    monkeypatch.setattr(backup, "BACKUP_KEEP", 2)
+
+    target = backup.maybe_backup(db_file, backups)
+
+    assert target is not None, "the snapshot satisfied the freshness gate"
+    assert {p.name for p in backups.glob("case-*.db")} == {
+        snapshot.name,
+        "case-b.db",
+        target.name,
+    }
+
+
+def test_a_retried_migration_keeps_the_first_snapshot(db_file, tmp_path):
+    """One copy per revision, and it is the first one.
+
+    A migration that failed is retried on the next startup, from the same
+    revision. Re-copying would overwrite the pre-upgrade state with whatever
+    the failed attempt left behind — the copy is worth having precisely
+    because it predates all of that.
+    """
+    backups = tmp_path / "backups"
+    first = backup.snapshot_before_migration("0001_baseline", db_file, backups)
+    assert first is not None
+    first.write_bytes(b"the original copy")
+
+    again = backup.snapshot_before_migration("0001_baseline", db_file, backups)
+
+    assert again == first
+    assert first.read_bytes() == b"the original copy"
+
+
+def test_a_snapshot_of_a_missing_db_is_not_an_error(tmp_path):
+    """Same fresh-install reasoning as the daily copy: nothing to protect."""
+    assert backup.snapshot_before_migration("0001_baseline", tmp_path / "case.db", tmp_path) is None
+
+
 def test_backup_failure_never_raises(tmp_path, monkeypatch):
     """The scheduler calls this at startup: an unwritable folder (locked
     drive, permissions) must log, not crash the app."""
