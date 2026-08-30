@@ -3,13 +3,30 @@ the parser must dynamically choose JSON-LD -> embedded -> heuristic."""
 
 import json
 import logging
+from urllib.parse import parse_qs, urlparse
 
-from app.scrapers.base import BaseScraper
+import pytest
+
+from app.scrapers import immobiliare
+from app.scrapers.base import BaseScraper, ScrapeResult
 from app.scrapers.idealista import IdealistaScraper
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.scrapers.parsing import parse_price, parse_rooms, parse_sqm
 from app.scrapers.probe import AdProbe
 from app.scrapers.transport import resolve_impersonations, supported_impersonations
+
+from . import mock_portal
+from .mock_portal import MockPortalServer
+
+
+@pytest.fixture
+def portal():
+    """The portals on loopback HTTP. Same sandbox `test_offline_sandbox` drives
+    end to end, used here for the one question a fake session cannot answer:
+    what the request the scraper issues actually looks like on the wire."""
+    with MockPortalServer() as server:
+        yield server
+
 
 # --- Simulated Pages ---
 
@@ -349,7 +366,10 @@ def test_immobiliare_builds_api_params_from_url(monkeypatch):
     assert params is not None
     assert params["idContratto"] == "1"  # sale
     assert params["idComune"] == "8042"
-    assert params["idMZona[]"] == "10070"  # zone respected
+    # a zone selection is always a list, whatever its arity and whichever
+    # spelling it arrived in: one canonical repeated param, encoded on the wire
+    # exactly as the single string used to be
+    assert params["idMZona[]"] == ["10070"]  # zone respected
     assert params["prezzoMassimo"] == "400000"  # user filter passed to API
     assert params["path"] == "/vendita-case/milano/citta-studi/"
 
@@ -373,6 +393,117 @@ def test_immobiliare_api_params_search_list():
     assert params["prezzoMassimo"] == "380000"
     assert params["superficieMinima"] == "60"
     assert params["path"] == "/search-list/"
+
+
+# --- A search with many zones ----------------------------------------------
+#
+# The URL Immobiliare's own map produces when districts are clicked: the path
+# stays at the bare municipality and every district rides along as its own
+# `idMZona[]`. Twenty of them, because the question this section answers is
+# whether a *large* selection survives the trip to the portal intact.
+_MANY_ZONE_IDS = [str(10040 + n) for n in range(20)]
+_MANY_ZONE_URL = "https://www.immobiliare.it/vendita-case/milano/?" + "&".join(
+    f"idMZona[]={z}" for z in _MANY_ZONE_IDS
+)
+
+
+def _milano_geography(monkeypatch, scraper):
+    """Autocomplete resolving the municipality and nothing narrower — which is
+    what the portal answers for the bare "milano" a multi-zone URL carries."""
+    monkeypatch.setattr(
+        scraper,
+        "_resolve_geography",
+        lambda q: {"idNazione": "IT", "idProvincia": "MI", "idComune": "8042"},
+    )
+
+
+def test_immobiliare_api_params_keeps_every_zone_of_a_many_zone_url(monkeypatch):
+    """Twenty zones in, twenty zones out — beside the municipality, not instead
+    of it. The geography is the area api-next needs to answer at all
+    (invariant 7); the ids are the filter inside it, so losing either one scans
+    for something the user did not ask for."""
+    s = ImmobiliareScraper()
+    _milano_geography(monkeypatch, s)
+    params = s._api_params(_MANY_ZONE_URL)
+    assert params is not None
+    assert params["idComune"] == "8042"
+    assert params["idMZona[]"] == _MANY_ZONE_IDS
+
+
+def test_immobiliare_api_params_reads_every_zone_id_spelling(monkeypatch):
+    """`idMZona[]` and `idMZona[0]` are one selection written two ways (the
+    portal emits both, as it does for `fasciaPiano`). Passed through as they
+    arrive they were two different parameters, and nothing said which one the
+    portal was meant to read."""
+    s = ImmobiliareScraper()
+    _milano_geography(monkeypatch, s)
+    params = s._api_params(
+        "https://www.immobiliare.it/vendita-case/milano/?idMZona[0]=10046&idMZona[1]=10047"
+    )
+    assert params is not None
+    assert params["idMZona[]"] == ["10046", "10047"]
+    assert "idMZona[0]" not in params and "idMZona[1]" not in params
+
+
+def test_immobiliare_url_zone_ids_beat_the_zone_in_the_path(monkeypatch):
+    """A path zone and a query id list describe the same thing at different
+    precisions. The ids are the portal's own keys and the slug is a best-effort
+    name, so the ids are the selection — while the municipality the geography
+    resolved stays, because it is the area they are read inside."""
+    s = ImmobiliareScraper()
+    monkeypatch.setattr(
+        s,
+        "_resolve_geography",
+        lambda q: {"idComune": "8042", "idMZona[]": "10070"},
+    )
+    params = s._api_params(
+        "https://www.immobiliare.it/vendita-case/milano/citta-studi/?idMZona[]=10046&idMZona[]=10047"
+    )
+    assert params is not None
+    assert params["idComune"] == "8042"
+    assert params["idMZona[]"] == ["10046", "10047"]
+
+
+def test_immobiliare_sends_every_zone_to_the_portal(portal, monkeypatch):
+    """The acceptance, measured on the wire rather than on the params dict: the
+    api-next request the scraper really issues carries all twenty ids and the
+    municipality together. `requested` is also the proof it never left
+    loopback."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    portal.serve_json("/api-next/search-list/listings/", mock_portal.immobiliare_api_page([]))
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=1)
+    result = ScrapeResult()
+    s._api_search(_MANY_ZONE_URL, result)
+
+    listings = [p for p in portal.requested if p.startswith("/api-next/search-list/listings/")]
+    assert listings, "the api-next page was never requested"
+    sent = parse_qs(urlparse(listings[0]).query)
+    assert sent["idMZona[]"] == _MANY_ZONE_IDS
+    assert sent["idComune"] == ["8042"]
+
+
+def test_immobiliare_refuses_a_selection_larger_than_one_request(portal, monkeypatch):
+    """Over the request-line budget the portal truncates the query and answers
+    200 for a wider search — a wrong answer wearing a right one's clothes. So
+    the scrape refuses before spending the request, and names the limit."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    portal.serve_json("/api-next/search-list/listings/", mock_portal.immobiliare_api_page([]))
+
+    too_many = [str(20000 + n) for n in range(immobiliare.MAX_ZONE_IDS + 1)]
+    url = "https://www.immobiliare.it/vendita-case/milano/?" + "&".join(
+        f"idMZona[]={z}" for z in too_many
+    )
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=1)
+    result = ScrapeResult()
+    s._api_search(url, result)
+
+    assert str(immobiliare.MAX_ZONE_IDS) in result.error
+    assert str(len(too_many)) in result.error
+    assert not result.listings
+    assert not [p for p in portal.requested if p.startswith("/api-next/search-list/listings/")]
 
 
 class _FakeApiResp:

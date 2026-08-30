@@ -444,7 +444,14 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
     `verify` costs one live request to Idealista, so it is opt-in: the UI sets
     it when the user presses Generate, and leaves it off when it is merely
     re-deriving a URL to prefill an edit form.
+
+    `zone_warnings` is the same kind of provenance as `idealista_unsupported`,
+    for the other portal: what the selection asked for and the URL about to be
+    saved cannot carry. This is the last moment it can be said cheaply — after
+    the save, the only evidence is listings from the wrong part of the city.
     """
+    from .search_validator import zone_coverage_warnings
+
     idealista, zone_page = (
         resolve_idealista_url(params) if verify else (build_idealista_url(**params), False)
     )
@@ -453,6 +460,7 @@ def build_search_urls(params: dict, verify: bool = False) -> dict[str, Any]:
         "idealista": idealista,
         "idealista_zone_page": zone_page,
         "idealista_unsupported": idealista_unsupported(params),
+        "zone_warnings": zone_coverage_warnings(params),
     }
 
 

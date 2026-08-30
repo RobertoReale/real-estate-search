@@ -56,6 +56,35 @@ HOMEPAGE = "https://www.immobiliare.it/"
 # types returned by geographical autocomplete
 GEO_NAZIONE, GEO_REGIONE, GEO_PROVINCIA, GEO_COMUNE, GEO_MACROZONA = -1, 0, 1, 2, 3
 
+# The one spelling of the zone-id parameter this scraper sends. A URL can carry
+# it bare (`idMZona[]`) or indexed (`idMZona[0]`, `idMZona[1]`) — the portal's
+# own map emits both, as `fasciaPiano` does — and the geography autocomplete
+# resolves a path zone into a third copy of the same key. Left as they arrive,
+# one selection travelled as up to three different parameters and nothing in
+# the code said which of them the portal was expected to read.
+API_ZONE_ID_PARAM = "idMZona[]"
+
+# Neither the geography nor the zone ids "win": they are the area and the
+# filter inside it, and dropping either scans for the wrong thing. The resolved
+# geography is what stops api-next answering with the whole of Italy
+# (invariant 7); the ids narrow the search within the municipality it names.
+# That is the portal's own grammar — clicking districts on its map keeps the
+# path at the bare comune and appends one `idMZona[]` per district — so the two
+# are always sent together, exactly as the URL the user pasted carried them.
+#
+# Nothing caps the list except the request itself. A conservative HTTP
+# request-line ceiling is 8192 bytes (the common server default); the endpoint,
+# the resolved geography and the user's own filters fit inside a 1 KB budget of
+# it, and every further id costs `idMZona%5B%5D=NNNNN&` — 20 bytes. That leaves
+# (8192 - 1024) / 20 ≈ 358, rounded down to a round number below it. A real
+# selection cannot reach it: Milano, the largest, has fewer than a hundred
+# macrozones in total. The limit is named rather than assumed so a selection
+# that somehow did exceed it is refused with the number stated, instead of
+# spending a whole scan on a request the portal silently truncated. Splitting
+# such a selection across several requests is deliberately not done here — one
+# search must stay one request.
+MAX_ZONE_IDS = 300
+
 
 class ImmobiliareScraper(BaseScraper):
     portal = "immobiliare"
@@ -306,19 +335,53 @@ class ImmobiliareScraper(BaseScraper):
             params["idMZona[]"] = by_type[GEO_MACROZONA]
         return params
 
+    def _absorb_query(
+        self, params: dict[str, str | list[str]], query: str
+    ) -> dict[str, str | list[str]]:
+        """Copies the URL's own filters into the API params, with every zone-id
+        spelling collapsed into the single repeated `API_ZONE_ID_PARAM` list.
+
+        The filters (prezzoMassimo, superficieMinima, sorting, …) already use
+        the names the API expects, so they pass through untouched. The zone ids
+        do not: a bare list, an indexed list and the macrozone the geography
+        resolved out of the path are three spellings of one selection, and
+        merging them here is what makes "which parameter the portal is sent"
+        a thing the code states rather than a consequence of dict ordering.
+
+        The URL's ids beat the path-resolved one because they are exact — they
+        are the portal's own keys, and a path slug is a best-effort name. A URL
+        that names a zone in its path *and* lists ids in its query is therefore
+        searched on the ids alone; the geography's municipality stays, since it
+        is the area the ids are read inside (invariant 7).
+        """
+        from ..services.search_builder import IMMOBILIARE_ZONE_ID_RE, zone_id_list
+
+        path_ids = params.pop(API_ZONE_ID_PARAM, [])
+        url_ids: list[str] = []
+        for key, values in parse_qs(query).items():
+            if key in ("pag", "path"):
+                continue
+            if IMMOBILIARE_ZONE_ID_RE.match(key):
+                url_ids.extend(values)
+                continue
+            params[key] = values[0] if len(values) == 1 else values
+
+        ids = zone_id_list(url_ids or ([path_ids] if isinstance(path_ids, str) else path_ids))
+        if ids:
+            params[API_ZONE_ID_PARAM] = ids
+        return params
+
     def _api_params(self, search_url: str) -> dict[str, str | list[str]] | None:
         """Constructs API parameters starting from the user-pasted search URL."""
         parsed = urlparse(search_url)
         segments = [s for s in parsed.path.split("/") if s]
         if not segments:
             return None
+        params: dict[str, str | list[str]] = {}
 
         # Custom search list / polygon URLs (e.g. /search-list/)
         if segments[0] == "search-list":
-            params = {}
-            for key, values in parse_qs(parsed.query).items():
-                if key not in ("pag", "path"):
-                    params[key] = values[0] if len(values) == 1 else values
+            self._absorb_query(params, parsed.query)
             if "idContratto" not in params:
                 params["idContratto"] = "1"
             if "idCategoria" not in params:
@@ -340,18 +403,11 @@ class ImmobiliareScraper(BaseScraper):
         if not geo:
             return None
 
-        params: dict[str, str | list[str]] = {
-            **geo,
-            "idContratto": contract,
-            "idCategoria": "1",
-            "path": parsed.path,
-        }
-        # user filters (prezzoMassimo, superficieMinima, sorting, etc.)
-        # already use names expected by the API: pass them through unchanged
-        for key, values in parse_qs(parsed.query).items():
-            if key not in ("pag", "path"):
-                params[key] = values[0] if len(values) == 1 else values
-        return params
+        params.update(geo)
+        params["idContratto"] = contract
+        params["idCategoria"] = "1"
+        params["path"] = parsed.path
+        return self._absorb_query(params, parsed.query)
 
     def _api_get(self, params, referer: str, page: int):
         """Single api-next page request. Reads `self.session` at call time so a
@@ -396,6 +452,19 @@ class ImmobiliareScraper(BaseScraper):
         params = self._api_params(search_url)
         if params is None:
             result.error = "immobiliare: unable to parse search URL (unrecognized location)"
+            return
+        zone_ids = params.get(API_ZONE_ID_PARAM) or []
+        if len(zone_ids) > MAX_ZONE_IDS:
+            # Refuse rather than send it: over the request-line budget the
+            # portal truncates the query and answers 200 for a *different*,
+            # wider search, which is indistinguishable from the one that was
+            # asked for. search_validator says the same thing before the
+            # profile is ever saved; this is the backstop for a URL that
+            # reached a scan anyway.
+            result.error = (
+                f"immobiliare: {len(zone_ids)} zones selected, more than the {MAX_ZONE_IDS} "
+                "a single search URL can carry — split it into several searches"
+            )
             return
 
         referer = urlunparse(urlparse(search_url)._replace(query=""))
