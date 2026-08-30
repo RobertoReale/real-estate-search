@@ -22,13 +22,24 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BACKEND_ORIGIN, BACKEND_PORT, PREVIEW_ORIGIN, PREVIEW_PORT } from "./e2e/harness/ports";
+import {
+  BACKEND_ORIGIN,
+  BACKEND_PORT,
+  EMPTY_BACKEND_ORIGIN,
+  EMPTY_BACKEND_PORT,
+  PREVIEW_ORIGIN,
+  PREVIEW_PORT,
+} from "./e2e/harness/ports";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** Wiped and re-seeded on every run, so the suite starts from known rows.
- *  Nothing in it is real and nothing in it is kept; it is gitignored. */
-const DATA_DIR = path.join(HERE, ".e2e-data");
+ *  Nothing in either is real and nothing in either is kept; both are gitignored.
+ *  `empty` is never seeded: a first run is a state the app cannot be returned to
+ *  once a search exists, so the onboarding journey gets its own database rather
+ *  than a stubbed answer. */
+const DATA_DIR = path.join(HERE, ".e2e-data", "seeded");
+const EMPTY_DATA_DIR = path.join(HERE, ".e2e-data", "empty");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -39,6 +50,11 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // Well above what a journey needs: the per-screen invariants re-measure and
+  // re-scan the page at three widths (e2e/harness/invariants.ts), and an axe
+  // pass over a full grid is seconds rather than milliseconds. The default 30s
+  // would fail a slow machine as if the app were broken.
+  timeout: 180_000,
   reporter: [["list"], ["html", { open: "never" }]],
 
   use: {
@@ -68,6 +84,22 @@ export default defineConfig({
       // Never reuse: a server already on this port is not one this file
       // configured, and adopting it would put the suite against an unknown
       // database.
+      reuseExistingServer: false,
+      timeout: 120_000,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+    {
+      // The same script with the seeding step switched off. It answers on its
+      // own port and its own data directory, so the seeded corpus is never at
+      // risk from the journey that asserts there is nothing to show.
+      command: "node e2e/harness/serve-backend.mjs",
+      url: `${EMPTY_BACKEND_ORIGIN}/api/scrapers/status`,
+      env: {
+        E2E_BACKEND_PORT: String(EMPTY_BACKEND_PORT),
+        E2E_DATA_DIR: EMPTY_DATA_DIR,
+        E2E_SEED: "0",
+      },
       reuseExistingServer: false,
       timeout: 120_000,
       stdout: "pipe",

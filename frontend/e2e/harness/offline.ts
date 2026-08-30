@@ -27,11 +27,26 @@ const ALLOWED = new Set(
 export interface OfflineGuard {
   /** Every off-harness URL the page asked for, in order, blocked before it left. */
   readonly attempted: string[];
+  /**
+   * Declares that a screen this journey visits asks for an address the guard
+   * will block, and that this is the tested behaviour rather than a defect.
+   *
+   * There is exactly one of these today: the map's OpenStreetMap tiles. A map
+   * without a tile server is the offline case, not a special case — the pins,
+   * the zone drawing and the switch back to the grid all have to work with the
+   * backdrop missing, which is also what a user on a dead connection sees. The
+   * request is still aborted, so the promise that nothing reaches the network
+   * is unchanged; what changes is only whether the block ends the test.
+   */
+  expectBlocked(pattern: RegExp): void;
+  /** What was blocked and *not* declared — the failure, if there is one. */
+  readonly unexpected: string[];
 }
 
 /** Arms the guard on a context. Returns the (live) record of what it blocked. */
 export async function installOfflineGuard(context: BrowserContext): Promise<OfflineGuard> {
   const attempted: string[] = [];
+  const declared: RegExp[] = [];
 
   await context.route("**/*", async (route) => {
     const url = route.request().url();
@@ -54,7 +69,13 @@ export async function installOfflineGuard(context: BrowserContext): Promise<Offl
     await route.abort("blockedbyclient");
   });
 
-  return { attempted };
+  return {
+    attempted,
+    expectBlocked: (pattern: RegExp) => declared.push(pattern),
+    get unexpected() {
+      return attempted.filter((url) => !declared.some((pattern) => pattern.test(url)));
+    },
+  };
 }
 
 /** The message a blocked request produces, phrased as the fix rather than the symptom. */
