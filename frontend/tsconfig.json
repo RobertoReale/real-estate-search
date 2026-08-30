@@ -12,5 +12,9 @@
     "esModuleInterop": true,
     "useDefineForClassFields": true
   },
-  "include": ["src"]
+  // The browser suite is checked by the same build gate as the app. Playwright
+  // transpiles its TypeScript without type-checking it, so left out of here a
+  // broken harness would only surface as a confusing runtime failure — and the
+  // harness is what the rest of the frontend work is verified against.
+  "include": ["src", "e2e", "playwright.config.ts", "vite.config.ts"]
 }
