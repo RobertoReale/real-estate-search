@@ -262,6 +262,19 @@ the first thing pruned. The daily copy cannot do this job at all — it is sched
 Fail-open like the rest of the path, but logged at **error** level: startup continues,
 and the line says the migration is running with nothing to fall back on.
 
+**The upgrade is proved against a database an older release wrote.**
+`backend/tests/fixtures/legacy_v1.db` is the schema release 1.0.0 shipped, holding the demo
+corpus plus the fields only a user produces (notes, favourites, tags, a property marked
+sold); `test_upgrade_path.py` puts a copy of it through `init_db()` and compares every row,
+column by column, against what it held before. That is a different question from
+`test_migrations.py`, whose databases are all built by the code under test seconds earlier
+and can therefore only agree with themselves. The fixture is committed rather than
+generated for the same reason — one built from today's models is today's schema wearing an
+old name. It is synthetic (`fixtures/build_legacy_v1.py` rebuilds it from
+`services/demo_data.py` and documents what is in it), and it stays frozen: **an authored
+migration that cannot carry it forward is the migration that would have cost a real user
+their history.**
+
 ---
 
 ## Known Fragilities & How to Recognize Them
