@@ -158,7 +158,10 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   traffic from a test run is spent against the residential IP the real scans need. A spec
   asserts what a user can see and name — a role, a label, visible text — and **never a CSS
   class**: the classes are being rewritten wholesale, and a suite pinned to one goes red on
-  a rename while staying blind to a button that stopped working.
+  a rename while staying blind to a button that stopped working. The single exception is
+  `data-action`, and it is the opposite case rather than a loophole: an identity a control
+  *declares* in order to be named, kept in step with the inventory in `e2e/actions.ts` by a
+  gate that fails the build if the two drift.
 
 - **Every screen a journey reaches is held to two invariants**, applied by `checkScreen`
   at 390, 768 and 1440 px: the page must not scroll sideways, and `axe-core` must report no

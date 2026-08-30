@@ -372,14 +372,14 @@ export default function MapView({
       {/* Drawing toolbar: produces a radius or polygon filter that flows into
           the grid/export like any other filter. */}
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <button data-action="map.drawRadius"
           type="button"
           onClick={drawMode === "radius" ? cancelDrawing : startRadius}
           className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-sky-400" : ""}`}
           title={t("map.drawRadiusTitle")}>
           {t(drawMode === "radius" ? "map.drawingRadius" : "map.drawRadius")}
         </button>
-        <button
+        <button data-action="map.drawArea"
           type="button"
           onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
           className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-sky-400" : ""}`}
@@ -392,7 +392,7 @@ export default function MapView({
           </span>
         )}
         {(hasZone || drawMode) && (
-          <button
+          <button data-action="map.clearZone"
             type="button"
             onClick={clearZone}
             className="btn-ghost min-h-11 sm:min-h-0 text-sm">
@@ -418,7 +418,7 @@ export default function MapView({
             {t(missing === 1 ? "map.zoneWarningOne" : "map.zoneWarning", { count: missing })}
           </span>
           {onFindCoordinates && (
-            <button
+            <button data-action="map.findCoordinates"
               type="button"
               onClick={onFindCoordinates}
               disabled={geocoding}

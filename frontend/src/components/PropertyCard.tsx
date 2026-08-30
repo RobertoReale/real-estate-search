@@ -136,7 +136,7 @@ export default function PropertyCard({
   const [imgBroken, setImgBroken] = useState(false);
 
   return (
-    <article
+    <article data-action="property.card"
       onClick={onClick}
       // The whole card opens the property on a click, but it is not itself the
       // button: it holds the star, the hide and the select controls, and an
@@ -212,10 +212,10 @@ export default function PropertyCard({
         </div>
 
         {/* quick actions: select + star + hide without opening the modal */}
-        <div className="absolute top-2 right-2 flex gap-1.5"
+        <div data-action="property.quickActions" className="absolute top-2 right-2 flex gap-1.5"
           onClick={(e) => e.stopPropagation()}>
           {onToggleSelect && (
-            <button
+            <button data-action="property.select"
               type="button"
               className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center justify-center text-sm transition btn-focus ${
                 selected
@@ -227,7 +227,7 @@ export default function PropertyCard({
               {selected ? "✓" : "☐"}
             </button>
           )}
-          <button
+          <button data-action="property.favorite"
             className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center
               justify-center text-sm transition btn-focus ${
                 p.is_favorite
@@ -240,7 +240,7 @@ export default function PropertyCard({
             {p.is_favorite ? "★" : "☆"}
           </button>
           {p.status !== "hidden" && (
-            <button
+            <button data-action="property.hide"
               className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-white/80 text-slate-600
                 dark:bg-slate-900/60 dark:text-slate-300 backdrop-blur hover:bg-rose-600/80
                 hover:text-white dark:hover:bg-rose-600/80 dark:hover:text-white flex
@@ -300,7 +300,7 @@ export default function PropertyCard({
             it already was — this is the same target the whole card offers a
             pointer, given to Tab as a control a screen reader can name. */}
         <h3 className="font-medium text-sm mt-1">
-          <button type="button"
+          <button data-action="property.open" type="button"
             className="text-left w-full line-clamp-2 min-h-[2.5rem] btn-focus rounded"
             onClick={(e) => {
               e.stopPropagation();

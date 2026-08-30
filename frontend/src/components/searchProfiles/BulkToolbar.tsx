@@ -11,7 +11,7 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-2 px-1">
       <label className="flex items-center gap-2 text-xs t-muted cursor-pointer">
-        <input type="checkbox" checked={allSelected}
+        <input data-action="profiles.bulk.selectAll" type="checkbox" checked={allSelected}
           // "some but not all" deserves its own tick: without it, the box
           // reads as "nothing selected" while a bulk bar is on screen
           ref={(el) => {
@@ -27,17 +27,17 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
           <span className="text-xs chip-blue px-2 py-1 rounded-lg font-medium">
             {t("profiles.selectedCount", { count: selected.size })}
           </span>
-          <button className="btn-ghost !text-xs" disabled={bulkBusy}
+          <button data-action="profiles.bulk.activate" className="btn-ghost !text-xs" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "activate")}>
             {t("profiles.activate")}
           </button>
-          <button className="btn-ghost !text-xs" disabled={bulkBusy}
+          <button data-action="profiles.bulk.pause" className="btn-ghost !text-xs" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "pause")}>
             {t("profiles.pause")}
           </button>
           {/* value stays on the placeholder: this is an action, not a state
               — the selection can hold searches with different channels */}
-          <select className="input !py-1 !px-2 text-xs w-full sm:w-48"
+          <select data-action="profiles.bulk.notify" className="input !py-1 !px-2 text-xs w-full sm:w-48"
             value="" disabled={bulkBusy}
             onChange={(e) =>
               runBulk([...selected], "notify", e.target.value)}>
@@ -46,14 +46,14 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <button
+          <button data-action="profiles.bulk.delete"
             className="btn-ghost !text-xs hover:!text-rose-500"
             disabled={bulkBusy}
             onClick={() => askDelete(selectedProfiles)}>
             {t("profiles.deleteAction")}
           </button>
           {selectedProfiles.length > 1 && (
-            <button
+            <button data-action="profiles.bulk.merge"
               className="btn-ghost !text-xs !text-purple-600 dark:!text-purple-400 font-medium"
               disabled={bulkBusy}
               title={t("profiles.mergeSelectedTitle")}
@@ -61,7 +61,7 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
               {t("profiles.mergeSelected")}
             </button>
           )}
-          <button className="text-xs accent-link"
+          <button data-action="profiles.bulk.clear" className="text-xs accent-link"
             onClick={() => setSelected(new Set())}>
             {t("profiles.clearSelection")}
           </button>

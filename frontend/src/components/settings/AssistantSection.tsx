@@ -48,7 +48,7 @@ export function AssistantSection(
     <>
       <SectionHeading>{t("settings.assistantTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.assistantNote")}</p>
-      <select className="input w-full" value={values.backend}
+      <select data-action="settings.assistant.backend" className="input w-full" value={values.backend}
         aria-label={t("settings.assistantTitle")}
         onChange={(e) => set("backend", e.target.value)}>
         <option value="deterministic">{t("settings.backendBuiltin")}</option>
@@ -57,7 +57,7 @@ export function AssistantSection(
 
       <SectionHeading>{t("settings.auditTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-        <input type="checkbox" checked={values.audit}
+        <input data-action="settings.assistant.audit" type="checkbox" checked={values.audit}
           onChange={(e) => set("audit", e.target.checked)} />
         {t("settings.auditEnable")}
       </label>
@@ -74,13 +74,13 @@ export function AssistantSection(
             <code className="px-1 rounded bg-black/10 dark:bg-white/10">llama3.1</code>
             {t("settings.llmHintD")}
           </p>
-          <input className="input w-full" placeholder={t("settings.llmBaseUrl")}
+          <input data-action="settings.assistant.baseUrl" className="input w-full" placeholder={t("settings.llmBaseUrl")}
             value={values.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <input className="input w-full" placeholder={t("settings.llmModel")}
+            <input data-action="settings.assistant.model" className="input w-full" placeholder={t("settings.llmModel")}
               value={values.model} onChange={(e) => set("model", e.target.value)} />
             <div>
-              <input className="input w-full" type="password"
+              <input data-action="settings.assistant.apiKey" className="input w-full" type="password"
                 placeholder={t(settings.llm_api_key_set ? "settings.llmKeySaved" : "settings.llmKeyPlaceholder")}
                 value={values.apiKey} onChange={(e) => set("apiKey", e.target.value)} />
               <div className="mt-1">

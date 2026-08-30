@@ -154,12 +154,12 @@ export function ScrapingSection(
       <div className="space-y-3">
         <div>
           <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-url">{t("settings.proxyUrl")}</label>
-          <input id="scraping-proxy-url" className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
+          <input data-action="settings.scraping.proxyUrl" id="scraping-proxy-url" className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
             value={values.proxyUrl} onChange={(e) => set("proxyUrl", e.target.value)} />
         </div>
         <div>
           <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-pool">{t("settings.proxyPool")}</label>
-          <textarea id="scraping-proxy-pool" className="input w-full font-mono text-xs" rows={3}
+          <textarea data-action="settings.scraping.proxyPool" id="scraping-proxy-pool" className="input w-full font-mono text-xs" rows={3}
             placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
             value={values.proxyUrls} onChange={(e) => set("proxyUrls", e.target.value)} />
           <p className="text-xs t-dim mt-1">{t("settings.proxyPoolNote")}</p>
@@ -174,7 +174,7 @@ export function ScrapingSection(
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <input className="input w-full" type="password"
+              <input data-action="settings.scraping.idealistaKey" className="input w-full" type="password"
                 placeholder={t(settings.idealista_api_key_set
                   ? "settings.idealistaKeySaved" : "settings.idealistaKeyPlaceholder")}
                 value={values.idealistaKey}
@@ -185,7 +185,7 @@ export function ScrapingSection(
               </div>
             </div>
             <div>
-              <input className="input w-full" type="password"
+              <input data-action="settings.scraping.idealistaSecret" className="input w-full" type="password"
                 placeholder={t(settings.idealista_api_secret_set
                   ? "settings.idealistaSecretSaved" : "settings.idealistaSecretPlaceholder")}
                 value={values.idealistaSecret}
@@ -198,7 +198,7 @@ export function ScrapingSection(
           </div>
           <label className="text-xs t-muted block">
             {t("settings.idealistaMaxPages")}
-            <input className="input w-full sm:w-24 mt-1 block" type="number" min={1}
+            <input data-action="settings.scraping.idealistaMaxPages" className="input w-full sm:w-24 mt-1 block" type="number" min={1}
               value={values.idealistaMaxPages}
               onChange={(e) => set("idealistaMaxPages", Number(e.target.value))} />
           </label>
@@ -208,7 +208,7 @@ export function ScrapingSection(
           <p className="text-xs font-medium t-body">{t("settings.scrapeApiTitle")}</p>
           <p className="text-xs t-dim">{t("settings.scrapeApiNote")}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <select className="input w-full" value={values.apiProvider}
+            <select data-action="settings.scraping.apiProvider" className="input w-full" value={values.apiProvider}
               aria-label={t("settings.scrapeApiTitle")}
               onChange={(e) => set("apiProvider", e.target.value)}>
               <option value="scrapfly">Scrapfly</option>
@@ -216,7 +216,7 @@ export function ScrapingSection(
               <option value="zyte">Zyte</option>
             </select>
             <div className="sm:col-span-2">
-              <input className="input w-full" type="password"
+              <input data-action="settings.scraping.apiKey" className="input w-full" type="password"
                 placeholder={t(settings.scrape_api_key_set ? "settings.scrapeKeySaved" : "settings.scrapeKeyPlaceholder")}
                 value={values.apiKey} onChange={(e) => set("apiKey", e.target.value)} />
               <div className="mt-1">
@@ -226,7 +226,7 @@ export function ScrapingSection(
           </div>
           <div>
             <label className="text-xs t-muted block mb-1" htmlFor="scraping-api-mode">{t("settings.whenToUse")}</label>
-            <select id="scraping-api-mode" className="input w-full sm:w-auto" value={values.apiMode}
+            <select data-action="settings.scraping.apiMode" id="scraping-api-mode" className="input w-full sm:w-auto" value={values.apiMode}
               onChange={(e) => set("apiMode", e.target.value)}>
               <option value="fallback">{t("settings.modeFallback")}</option>
               <option value="always">{t("settings.modeAlways")}</option>
@@ -236,7 +236,7 @@ export function ScrapingSection(
         </div>
         <div>
           <label className="text-xs t-muted block mb-1" htmlFor="scraping-cookie">{t("settings.cookieLabel")}</label>
-          <input id="scraping-cookie" className="input w-full" type="password"
+          <input data-action="settings.scraping.cookie" id="scraping-cookie" className="input w-full" type="password"
             placeholder={t(settings.datadome_cookie_set ? "settings.cookieSaved" : "settings.cookiePlaceholder")}
             value={values.cookie} onChange={(e) => set("cookie", e.target.value)} />
           <div className="mt-1">
@@ -255,35 +255,35 @@ export function ScrapingSection(
             <>
               <p className="text-xs t-dim">{t("settings.harvestNote")}</p>
               <div className="flex items-center gap-2">
-                <button className="btn-ghost" onClick={grabCookie}
+                <button data-action="settings.scraping.grabCookie" className="btn-ghost" onClick={grabCookie}
                   disabled={grabbing || shell.anyBusy}>
                   {grabbing ? t("settings.openingBrowser") : t("settings.grabCookie")}
                 </button>
                 {grabbing && (
-                  <button className="btn-ghost" onClick={stopGrabbingCookie}
+                  <button data-action="settings.scraping.stopGrab" className="btn-ghost" onClick={stopGrabbingCookie}
                     disabled={stoppingGrab}>
                     {stoppingGrab ? t("app.stopping") : t("app.stop")}
                   </button>
                 )}
               </div>
               <label className="flex items-center gap-2 text-xs t-body cursor-pointer pt-1">
-                <input type="checkbox" checked={values.autoRefresh}
+                <input data-action="settings.scraping.autoRefresh" type="checkbox" checked={values.autoRefresh}
                   onChange={(e) => set("autoRefresh", e.target.checked)} />
                 {t("settings.autoRefreshCookie")}
               </label>
               <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input type="checkbox" checked={values.browserFirst} className="mt-0.5"
+                <input data-action="settings.scraping.browserFirst" type="checkbox" checked={values.browserFirst} className="mt-0.5"
                   onChange={(e) => set("browserFirst", e.target.checked)} />
                 <span>{t("settings.browserFirst")}</span>
               </label>
               <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input type="checkbox" checked={values.browserHeadful} className="mt-0.5"
+                <input data-action="settings.scraping.browserHeadful" type="checkbox" checked={values.browserHeadful} className="mt-0.5"
                   onChange={(e) => set("browserHeadful", e.target.checked)} />
                 <span>{t("settings.browserHeadful")}</span>
               </label>
 
               <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input type="checkbox" checked={values.humanize} className="mt-0.5"
+                <input data-action="settings.scraping.humanize" type="checkbox" checked={values.humanize} className="mt-0.5"
                   onChange={(e) => set("humanize", e.target.checked)} />
                 <span>{t("settings.browserHumanize")}</span>
               </label>
@@ -291,7 +291,7 @@ export function ScrapingSection(
               <div className="pt-2 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 space-y-1.5">
                 <label className="flex items-center gap-2 text-xs t-body">
                   <span className="whitespace-nowrap">{t("settings.browserEngine")}</span>
-                  <select className="input py-1 w-full sm:w-auto"
+                  <select data-action="settings.scraping.engine" className="input py-1 w-full sm:w-auto"
                     value={values.engine}
                     onChange={(e) => set("engine", e.target.value)}>
                     <option value="auto">{t("settings.engineAuto")}</option>
@@ -306,7 +306,7 @@ export function ScrapingSection(
                     : "settings.camoufoxMissing")}
                 </p>
                 {!settings.camoufox_available && (
-                  <button className="btn-ghost text-xs w-full sm:w-auto"
+                  <button data-action="settings.scraping.installCamoufox" className="btn-ghost text-xs w-full sm:w-auto"
                     onClick={() => install(api.installCamoufox,
                       t("settings.camoufoxInstalledMsg"), setInstallingCamoufox)}
                     disabled={installingCamoufox || shell.anyBusy}>
@@ -320,7 +320,7 @@ export function ScrapingSection(
           ) : (
             <div className="space-y-2.5 pt-1">
               <p className="text-xs t-dim">{t("settings.harvesterMissing")}</p>
-              <button className="btn-ghost text-xs w-full sm:w-auto"
+              <button data-action="settings.scraping.installHarvester" className="btn-ghost text-xs w-full sm:w-auto"
                 onClick={() => install(api.installHarvester,
                   t("settings.harvesterInstalledMsg"), setInstallingHarvester)}
                 disabled={installingHarvester || shell.anyBusy}>

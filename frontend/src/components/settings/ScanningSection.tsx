@@ -35,7 +35,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
     <>
       <SectionHeading>{t("settings.scanTitle")}</SectionHeading>
       <label className="text-xs t-muted" htmlFor="scan-interval">{t("settings.frequency")}</label>
-      <select id="scan-interval" className="input w-full mt-1" value={values.interval}
+      <select data-action="settings.scanning.interval" id="scan-interval" className="input w-full mt-1" value={values.interval}
         onChange={(e) => set("interval", Number(e.target.value))}>
         <option value={30}>{t("settings.every30m")}</option>
         <option value={60}>{t("settings.everyHour")}</option>
@@ -45,7 +45,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
       </select>
 
       <label className="flex items-start gap-2 mt-3 cursor-pointer">
-        <input type="checkbox" checked={values.paused} className="mt-0.5"
+        <input data-action="settings.scanning.pause" type="checkbox" checked={values.paused} className="mt-0.5"
           onChange={(e) => set("paused", e.target.checked)} />
         <span className="text-sm">
           {t("settings.pauseScans")}
@@ -58,7 +58,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
       <label className="text-xs t-muted" htmlFor="health-after">
         {t("settings.alertAfter")}
       </label>
-      <select id="health-after" className="input w-full mt-1" value={values.healthAfter}
+      <select data-action="settings.scanning.healthAfter" id="health-after" className="input w-full mt-1" value={values.healthAfter}
         onChange={(e) => set("healthAfter", Number(e.target.value))}>
         <option value={0}>{t("settings.neverDisabled")}</option>
         {[2, 3, 5, 10].map((n) => (
@@ -68,7 +68,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
 
       <SectionHeading>{t("settings.keywordsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.keywordsNote")}</p>
-      <textarea className="input w-full h-20 resize-none"
+      <textarea data-action="settings.scanning.keywords" className="input w-full h-20 resize-none"
         aria-label={t("settings.keywordsTitle")}
         value={values.keywords} onChange={(e) => set("keywords", e.target.value)} />
     </>

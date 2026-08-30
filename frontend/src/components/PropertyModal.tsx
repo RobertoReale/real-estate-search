@@ -237,12 +237,12 @@ export default function PropertyModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="modal.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
       onClick={onClose}>
       {/* dvh, not vh: a mobile browser's `vh` ignores the collapsing address
           bar, so the modal would be taller than the visible viewport and its
           last row (Hide/Restore) would sit under the chrome, unreachable. */}
-      <div className="glass rounded-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto"
+      <div data-action="modal.panel" className="glass rounded-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         {p.image_url && !imgBroken && (
           <img src={p.image_url} alt={p.title} className="w-full h-40 sm:h-56 object-cover"
@@ -264,14 +264,14 @@ export default function PropertyModal({
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <button
+              <button data-action="modal.favorite"
                 className={`btn-ghost ${p.is_favorite ? "text-yellow-500 dark:text-yellow-400" : ""}`}
                 title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 onClick={onToggleFavorite}>
                 {p.is_favorite ? "★" : "☆"}
               </button>
-              <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
+              <button data-action="modal.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
             </div>
           </div>
 
@@ -420,7 +420,7 @@ export default function PropertyModal({
           <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
             {t("modal.notes")}
           </h3>
-          <textarea
+          <textarea data-action="modal.notes"
             className="input w-full h-24 resize-none"
             placeholder={t("modal.notesPlaceholder")}
             value={notes}
@@ -428,7 +428,7 @@ export default function PropertyModal({
           />
           {notesDirty && (
             <div className="flex justify-end mt-2">
-              <button className="btn-primary" onClick={saveNotes} disabled={savingNotes}>
+              <button data-action="modal.notes.save" className="btn-primary" onClick={saveNotes} disabled={savingNotes}>
                 {savingNotes ? t("common.saving") : t("modal.saveNotes")}
               </button>
             </div>
@@ -486,7 +486,7 @@ export default function PropertyModal({
                 </div>
               )}
               <div className="mt-2">
-                <button
+                <button data-action="modal.audit.read"
                   type="button"
                   className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg"
                   disabled={auditing}
@@ -508,7 +508,7 @@ export default function PropertyModal({
 
           <div className="flex flex-wrap items-center justify-between gap-3 mt-6">
             <div className="flex items-center gap-2">
-              <button
+              <button data-action="modal.checkOnline"
                 type="button"
                 className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={checkingOnline || !p.listings.length}
@@ -516,7 +516,7 @@ export default function PropertyModal({
                 title={t("modal.checkOnlineTitle")}>
                 {checkingOnline ? t("app.checking") : t("modal.checkOnlineButton")}
               </button>
-              <button
+              <button data-action="modal.viewOnMap"
                 type="button"
                 className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={locating}
@@ -531,7 +531,7 @@ export default function PropertyModal({
               )}
             </div>
             {p.status === "hidden" || p.status === "gone" || p.status === "sold" ? (
-              <button
+              <button data-action="modal.restore"
                 className="accent-good hover:opacity-80 text-sm transition"
                 onClick={async () => {
                   // The availability check fails open (invariant 16), but a
@@ -558,7 +558,7 @@ export default function PropertyModal({
               </button>
             ) : (
               <div className="flex items-center gap-3">
-                <button
+                <button data-action="modal.markSold"
                   className="text-amber-600 dark:text-amber-400 hover:opacity-80 text-sm transition"
                   onClick={async () => {
                     // "sold" is a confirmed market close: it leaves the grid
@@ -579,7 +579,7 @@ export default function PropertyModal({
                   }}>
                   {t(p.contract === "rent" ? "modal.markRented" : "modal.markSold")}
                 </button>
-                <button
+                <button data-action="modal.hide"
                   className="accent-bad hover:opacity-80 text-sm transition"
                   onClick={async () => {
                     // the backend marks as "hidden" rather than physical deletion so

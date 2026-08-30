@@ -30,7 +30,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
           <li key={group.baseName + "-" + group.ids.join("-")}
             className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel transition hover:shadow-sm">
             {profiles.length > 1 && (
-              <input type="checkbox" className="shrink-0 cursor-pointer"
+              <input data-action="profiles.row.select" type="checkbox" className="shrink-0 cursor-pointer"
                 aria-label={t("profiles.selectRow", { name: group.baseName })}
                 checked={isGroupSelected}
                 ref={(el) => {
@@ -133,7 +133,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 {group.consecutive_failures > 1 && ` ×${group.consecutive_failures}`}
               </span>
             )}
-            <select
+            <select data-action="profiles.row.notify"
               className="input !py-1 !px-2 text-xs min-w-0 flex-1 sm:flex-none sm:w-44"
               // A `title` alone is not a label: it never reaches a touch user
               // and a screen reader may or may not announce it, so the control
@@ -147,27 +147,27 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               ))}
             </select>
             <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer shrink-0">
-              <input type="checkbox" checked={group.is_active}
+              <input data-action="profiles.row.active" type="checkbox" checked={group.is_active}
                 onChange={() =>
                   runBulk(group.ids, group.is_active ? "pause" : "activate")} />
               {t("profiles.active")}
             </label>
             <div className="flex items-center gap-1 shrink-0">
-              <button className="t-dim hover:opacity-70 transition text-sm btn-focus
+              <button data-action="profiles.row.edit" className="t-dim hover:opacity-70 transition text-sm btn-focus
                   inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 title={t("profiles.editBox")} aria-label={t("profiles.editBox")}
                 onClick={() => editGroup(group)}>
                 ✏️
               </button>
               {group.profiles.length > 1 && (
-                <button className="t-dim hover:text-purple-500 transition text-sm btn-focus
+                <button data-action="profiles.row.separate" className="t-dim hover:text-purple-500 transition text-sm btn-focus
                     inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                   title={t("profiles.separateBox")} aria-label={t("profiles.separateBox")}
                   onClick={() => separateGroup(group)}>
                   ✂️
                 </button>
               )}
-              <button className="t-dim hover:text-rose-500 transition text-sm btn-focus
+              <button data-action="profiles.row.delete" className="t-dim hover:text-rose-500 transition text-sm btn-focus
                   inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 title={t("profiles.deleteBox")} aria-label={t("profiles.deleteBox")}
                 onClick={() => askDelete(group.profiles)}>

@@ -64,7 +64,7 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
         )}
       </div>
 
-      <button className="btn-primary shrink-0 px-3 sm:px-4" onClick={onScanNow}
+      <button data-action="scan.now" className="btn-primary shrink-0 px-3 sm:px-4" onClick={onScanNow}
         disabled={running} aria-label={t("nav.scanNowAria")}>
         {running ? (
           t("nav.running")
@@ -85,21 +85,21 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
           specific that looks in the markup — the `px-3 sm:px-4` these buttons
           used to carry never applied at all, and the row was four px-4 buttons
           the whole time. */}
-      <button className="btn-ghost shrink-0 !px-2 sm:!px-3 font-semibold text-xs"
+      <button data-action="nav.language" className="btn-ghost shrink-0 !px-2 sm:!px-3 font-semibold text-xs"
         onClick={() => setLang(otherLang)}
         title={switchLangLabel} aria-label={switchLangLabel}>
         🌐 {lang.toUpperCase()}
       </button>
-      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
+      <button data-action="nav.theme" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
         title={dark ? t("nav.toLight") : t("nav.toDark")}
         aria-label={dark ? t("nav.toLight") : t("nav.toDark")}>
         {dark ? "☀️" : "🌙"}
       </button>
-      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
+      <button data-action="nav.logs" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
         title={t("nav.viewLog")} aria-label={t("nav.viewLog")}>
         📜
       </button>
-      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
+      <button data-action="nav.settings" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
         title={t("nav.settings")} aria-label={t("nav.settings")}>
         ⚙️
       </button>

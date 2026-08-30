@@ -44,7 +44,7 @@ export function MatchSection({ section }: { section: Section<Values> }) {
     <>
       <SectionHeading>{t("settings.matchTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-        <input type="checkbox" checked={values.enabled}
+        <input data-action="settings.match.enable" type="checkbox" checked={values.enabled}
           onChange={(e) => set("enabled", e.target.checked)} />
         {t("settings.matchEnable")}
       </label>
@@ -54,25 +54,25 @@ export function MatchSection({ section }: { section: Section<Values> }) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <label className="text-xs t-muted col-span-2 sm:col-span-1">
               {t("settings.dreamMaxPrice")}
-              <input className="input w-full mt-1" type="number" min={0}
+              <input data-action="settings.match.maxPrice" className="input w-full mt-1" type="number" min={0}
                 value={values.maxPrice}
                 onChange={(e) => set("maxPrice", Number(e.target.value))} />
             </label>
             <label className="text-xs t-muted">
               {t("settings.dreamMinRooms")}
-              <input className="input w-full mt-1" type="number" min={0}
+              <input data-action="settings.match.minRooms" className="input w-full mt-1" type="number" min={0}
                 value={values.minRooms}
                 onChange={(e) => set("minRooms", Number(e.target.value))} />
             </label>
             <label className="text-xs t-muted">
               {t("settings.dreamMinSqm")}
-              <input className="input w-full mt-1" type="number" min={0}
+              <input data-action="settings.match.minSqm" className="input w-full mt-1" type="number" min={0}
                 value={values.minSqm}
                 onChange={(e) => set("minSqm", Number(e.target.value))} />
             </label>
             <label className="text-xs t-muted">
               {t("settings.dreamMinFloor")}
-              <input className="input w-full mt-1" type="number" min={0}
+              <input data-action="settings.match.minFloor" className="input w-full mt-1" type="number" min={0}
                 value={values.minFloor}
                 onChange={(e) => set("minFloor", Number(e.target.value))} />
             </label>
@@ -81,14 +81,14 @@ export function MatchSection({ section }: { section: Section<Values> }) {
             <label className="text-xs t-muted block mb-1" htmlFor="match-features">
               {t("settings.dreamFeatures")}
             </label>
-            <input id="match-features" className="input w-full" value={values.keywords}
+            <input data-action="settings.match.features" id="match-features" className="input w-full" value={values.keywords}
               onChange={(e) => set("keywords", e.target.value)} />
           </div>
           <div>
             <label className="text-xs t-muted block mb-1" htmlFor="match-zones">
               {t("settings.dreamZones")}
             </label>
-            <input id="match-zones" className="input w-full" value={values.zones}
+            <input data-action="settings.match.zones" id="match-zones" className="input w-full" value={values.zones}
               onChange={(e) => set("zones", e.target.value)} />
           </div>
         </div>

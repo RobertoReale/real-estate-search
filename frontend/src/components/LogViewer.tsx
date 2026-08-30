@@ -65,17 +65,17 @@ export default function LogViewer({ onClose }: Props) {
     : lines;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="logs.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
       onClick={onClose}>
-      <div className="glass rounded-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90dvh] flex flex-col"
+      <div data-action="logs.panel" className="glass rounded-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3 gap-3">
           <h2 className="text-lg font-bold shrink-0">{t("logs.title")}</h2>
-          <button className="btn-ghost shrink-0" aria-label={t("common.close")} onClick={onClose}>✕</button>
+          <button data-action="logs.close" className="btn-ghost shrink-0" aria-label={t("common.close")} onClick={onClose}>✕</button>
         </div>
 
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-3">
-          <input
+          <input data-action="logs.filter"
             type="text"
             placeholder={t("logs.filterPlaceholder")}
             className="input col-span-2 w-full sm:w-auto sm:flex-1 sm:min-w-[240px]"
@@ -83,7 +83,7 @@ export default function LogViewer({ onClose }: Props) {
             onChange={(e) => setFilter(e.target.value)}
           />
           <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
-            <input type="checkbox" checked={autoRefresh}
+            <input data-action="logs.autoRefresh" type="checkbox" checked={autoRefresh}
               onChange={() => setAutoRefresh(!autoRefresh)} />
             {t("logs.autoRefresh")}
           </label>

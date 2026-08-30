@@ -486,7 +486,7 @@ export default function App() {
         {actionError && (
           <div className="glass rounded-2xl p-4 border-rose-500/50 text-rose-600 dark:text-rose-300 text-sm flex items-center justify-between gap-3">
             <span>⚠️ {actionError}</span>
-            <button className="btn-ghost shrink-0" aria-label={t("common.dismissError")}
+            <button data-action="app.error.dismiss" className="btn-ghost shrink-0" aria-label={t("common.dismissError")}
               onClick={() => setActionError("")}>✕</button>
           </div>
         )}
@@ -546,7 +546,7 @@ export default function App() {
           <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <button
+                <button data-action="selection.toggleMode"
                   type="button"
                   className={`btn-ghost text-xs px-3 py-1.5 rounded-lg border transition ${
                     selectionMode
@@ -561,7 +561,7 @@ export default function App() {
                 </button>
                 {selectionMode && (
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
-                    <input
+                    <input data-action="selection.selectAll"
                       type="checkbox"
                       checked={selectedIds.size === total && total > 0}
                       onChange={() => toggleSelectAll()}
@@ -572,7 +572,7 @@ export default function App() {
               </div>
               {selectionMode && selectedIds.size > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
+                  <button data-action="selection.hide"
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
@@ -580,28 +580,28 @@ export default function App() {
                     onClick={() => bulkAction("hide")}>
                     {t("app.hideSelected", { count: selectedIds.size })}
                   </button>
-                  <button
+                  <button data-action="selection.markSold"
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("sold")}>
                     {t("app.markSold", { count: selectedIds.size })}
                   </button>
-                  <button
+                  <button data-action="selection.favorite"
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
                     {t("app.addFavorites")}
                   </button>
-                  <button
+                  <button data-action="selection.unfavorite"
                     type="button"
                     className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("unfavorite")}>
                     {t("app.removeFavorites")}
                   </button>
-                  <button
+                  <button data-action="selection.checkAvailability"
                     type="button"
                     className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                     disabled={checkingBatch}
@@ -611,7 +611,7 @@ export default function App() {
                       : t("app.checkAvailability", { count: selectedIds.size })}
                   </button>
                   {checkingBatch && (
-                    <button
+                    <button data-action="selection.stopCheck"
                       type="button"
                       className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
                       disabled={cancellingBatch}
@@ -687,7 +687,7 @@ export default function App() {
                     <span className="block">{t("app.summaryCapped")}</span>
                   )}
                 </div>
-                <button
+                <button data-action="selection.dismissSummary"
                   type="button"
                   className="btn-ghost text-xs py-0.5 px-2"
                   onClick={() => setBatchSummary(null)}>
@@ -760,7 +760,7 @@ export default function App() {
             {properties.length < total && (
               <div ref={loadMoreRef}
                 className="col-span-full flex justify-center py-4">
-                <button type="button" className="btn-ghost text-sm"
+                <button data-action="grid.loadMore" type="button" className="btn-ghost text-sm"
                   disabled={loadingMore}
                   onClick={() => loadMore()}>
                   {loadingMore

@@ -81,7 +81,7 @@ export default function ScraperHealthPanel() {
 
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
-      <button
+      <button data-action="health.toggle"
         className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
         onClick={() => setOpen(!open)}>
         <h2 className="font-semibold text-base">

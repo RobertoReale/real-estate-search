@@ -176,7 +176,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
 
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
-      <button
+      <button data-action="trends.toggle"
         className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
         onClick={() => setOpen(!open)}>
         <h2 className="font-semibold text-base">
@@ -200,7 +200,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
 
           {areas.length > 0 && (
             <>
-              <select className="input w-full sm:w-72"
+              <select data-action="trends.area" className="input w-full sm:w-72"
                 value={selected} onChange={(e) => setSelected(e.target.value)}>
                 {areas.map((a) => (
                   <option key={areaKey(a)} value={areaKey(a)}>
@@ -244,7 +244,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                   only each past point's count, never its members. */}
               {trend && (
                 <div className="pt-1">
-                  <button
+                  <button data-action="trends.comparables"
                     className="text-sm accent-link hover:underline"
                     onClick={toggleComparables}>
                     {t(compsOpen ? "trends.hideComparables" : "trends.showComparables")}
@@ -275,7 +275,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                                 const delta = sqm && med ? (sqm - med) / med * 100 : null;
                                 return (
                                   <li key={p.id}>
-                                    <button
+                                    <button data-action="trends.openProperty"
                                       onClick={() => onOpenProperty(p)}
                                       className="w-full text-left flex flex-wrap items-baseline gap-x-2 gap-y-0.5 p-2 rounded-lg panel hover:border-blue-500/50 transition">
                                       <span className="text-sm font-medium truncate max-w-full">

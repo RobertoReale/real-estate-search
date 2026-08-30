@@ -149,7 +149,7 @@ export default function FiltersBar({
       <div className="col-span-2 w-full flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-q">{t("filters.search")}</label>
         <div className="relative">
-          <input
+          <input data-action="filters.query"
             id="filter-q"
             className={`input w-full ${filters.q ? "pr-9" : ""}`}
             placeholder={t("filters.searchPlaceholder")}
@@ -157,7 +157,7 @@ export default function FiltersBar({
             onChange={(e) => set({ q: e.target.value })}
           />
           {filters.q && (
-            <button
+            <button data-action="filters.query.clear"
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 t-muted hover:t-strong text-lg leading-none px-1"
               aria-label={t("filters.clearSearch")}
@@ -176,7 +176,7 @@ export default function FiltersBar({
         <span className="text-xs t-muted">{t("filters.market")}</span>
         <div role="group" aria-label={t("filters.market")}
           className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
-          <button
+          <button data-action="filters.contract.sale"
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
               !isRent
                 ? "bg-blue-600 text-white"
@@ -185,7 +185,7 @@ export default function FiltersBar({
             onClick={() => set({ contract: "sale" })}>
             {t("filters.buy")}
           </button>
-          <button
+          <button data-action="filters.contract.rent"
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
               isRent
                 ? "bg-teal-600 text-white"
@@ -198,41 +198,41 @@ export default function FiltersBar({
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-city">{t("filters.city")}</label>
-        <input id="filter-city" className="input w-full sm:w-32" placeholder={t("filters.cityPlaceholder")}
+        <input data-action="filters.city" id="filter-city" className="input w-full sm:w-32" placeholder={t("filters.cityPlaceholder")}
           value={filters.city} onChange={(e) => set({ city: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-zone">{t("filters.zone")}</label>
-        <input id="filter-zone" className="input w-full sm:w-32" placeholder={t("filters.zonePlaceholder")}
+        <input data-action="filters.zone" id="filter-zone" className="input w-full sm:w-32" placeholder={t("filters.zonePlaceholder")}
           value={filters.zone} onChange={(e) => set({ zone: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-min-price">
           {t("filters.minPrice")} {isRent && t("filters.perMonth")}
         </label>
-        <input id="filter-min-price" className="input w-full sm:w-28" type="number" placeholder="0"
+        <input data-action="filters.minPrice" id="filter-min-price" className="input w-full sm:w-28" type="number" placeholder="0"
           value={filters.min_price} onChange={(e) => set({ min_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-max-price">
           {t("filters.maxPrice")} {isRent && t("filters.perMonth")}
         </label>
-        <input id="filter-max-price" className="input w-full sm:w-28" type="number" placeholder="∞"
+        <input data-action="filters.maxPrice" id="filter-max-price" className="input w-full sm:w-28" type="number" placeholder="∞"
           value={filters.max_price} onChange={(e) => set({ max_price: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-min-sqm">{t("filters.minSqm")}</label>
-        <input id="filter-min-sqm" className="input w-full sm:w-20" type="number" placeholder="0"
+        <input data-action="filters.minSqm" id="filter-min-sqm" className="input w-full sm:w-20" type="number" placeholder="0"
           value={filters.min_sqm} onChange={(e) => set({ min_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-max-sqm">{t("filters.maxSqm")}</label>
-        <input id="filter-max-sqm" className="input w-full sm:w-20" type="number" placeholder="∞"
+        <input data-action="filters.maxSqm" id="filter-max-sqm" className="input w-full sm:w-20" type="number" placeholder="∞"
           value={filters.max_sqm} onChange={(e) => set({ max_sqm: e.target.value })} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-rooms">{t("filters.rooms")}</label>
-        <select id="filter-rooms" className="input w-full sm:w-24" value={filters.rooms}
+        <select data-action="filters.rooms" id="filter-rooms" className="input w-full sm:w-24" value={filters.rooms}
           onChange={(e) => set({ rooms: e.target.value })}>
           <option value="">{t("common.all")}</option>
           {[1, 2, 3, 4, 5].map((n) => (
@@ -245,7 +245,7 @@ export default function FiltersBar({
           matches no band and drops out while this is set. */}
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-floor">{t("filters.floor")}</label>
-        <select id="filter-floor" className="input w-full sm:w-36" value={filters.floor_band}
+        <select data-action="filters.floor" id="filter-floor" className="input w-full sm:w-36" value={filters.floor_band}
           onChange={(e) => set({
             floor_band: e.target.value as PropertyFilters["floor_band"],
           })}>
@@ -259,7 +259,7 @@ export default function FiltersBar({
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-sort">{t("filters.sortBy")}</label>
-        <select id="filter-sort" className="input w-full sm:w-40" value={filters.sort}
+        <select data-action="filters.sort" id="filter-sort" className="input w-full sm:w-40" value={filters.sort}
           onChange={(e) => set({ sort: e.target.value })}>
           <option value="newest">{t("filters.sortNewest")}</option>
           <option value="price_asc">{t("filters.sortPriceAsc")}</option>
@@ -273,7 +273,7 @@ export default function FiltersBar({
         {/* "gone" = no longer seen by scans for days (inferred exit);
             "sold" = user confirmed the sale; manually hidden/sold properties
             never appear in "All" but each has its own filter here */}
-        <select id="filter-status" className="input w-full sm:w-36" value={filters.status}
+        <select data-action="filters.status" id="filter-status" className="input w-full sm:w-36" value={filters.status}
           onChange={(e) => set({ status: e.target.value })}>
           <option value="active">
             {isRent ? t("filters.statusForRent") : t("filters.statusForSale")}
@@ -291,7 +291,7 @@ export default function FiltersBar({
           two are otherwise indistinguishable once accepted (source column). */}
       <div className="flex flex-col gap-1">
         <label className="text-xs t-muted" htmlFor="filter-origin">{t("filters.origin")}</label>
-        <select id="filter-origin" className="input w-full sm:w-36" value={filters.source}
+        <select data-action="filters.source" id="filter-origin" className="input w-full sm:w-36" value={filters.source}
           onChange={(e) => set({ source: e.target.value as PropertyFilters["source"] })}>
           <option value="">{t("filters.originAll")}</option>
           <option value="scan">{t("filters.originScan")}</option>
@@ -301,7 +301,7 @@ export default function FiltersBar({
       {tags.length > 0 && (
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="filter-tag">{t("filters.tag")}</label>
-          <select id="filter-tag" className="input w-full sm:w-36" value={filters.tag}
+          <select data-action="filters.tag" id="filter-tag" className="input w-full sm:w-36" value={filters.tag}
             onChange={(e) => set({ tag: e.target.value })}>
             <option value="">{t("filters.allTags")}</option>
             {tags.map((tag) => (
@@ -321,7 +321,7 @@ export default function FiltersBar({
               contract. The label used to read "Match a search", which was
               mistaken for a "best match" ranking. */}
           <label className="text-xs t-muted" htmlFor="filter-profile">{t("filters.limitToSearch")}</label>
-          <select id="filter-profile" className="input w-full sm:w-44" value={filters.profile_id}
+          <select data-action="filters.profile" id="filter-profile" className="input w-full sm:w-44" value={filters.profile_id}
             title={t("filters.limitToSearchTitle")}
             onChange={(e) => set({ profile_id: e.target.value })}>
             <option value="">{t("filters.allSearches")}</option>
@@ -335,19 +335,19 @@ export default function FiltersBar({
       )}
       <div className="col-span-2 flex flex-wrap gap-x-5 gap-y-1 sm:flex-col sm:gap-1 sm:pb-2">
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
-          <input type="checkbox" checked={filters.only_price_drops}
+          <input data-action="filters.priceDrops" type="checkbox" checked={filters.only_price_drops}
             onChange={(e) => set({ only_price_drops: e.target.checked })} />
           {t("filters.priceDrops")}
         </label>
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
-          <input type="checkbox" checked={filters.only_favorites}
+          <input data-action="filters.favorites" type="checkbox" checked={filters.only_favorites}
             onChange={(e) => set({ only_favorites: e.target.checked })} />
           {t("filters.favorites")}
         </label>
         {/* Gateway to the advanced filters — kept next to the checkboxes so the
             common controls above stay uncluttered. The badge shows how many
             advanced filters are active even while the panel is collapsed. */}
-        <button type="button"
+        <button data-action="filters.advanced.toggle" type="button"
           className="flex items-center gap-1.5 text-sm accent-link hover:underline"
           aria-expanded={advOpen}
           onClick={() => setAdvOpen((o) => !o)}>
@@ -372,7 +372,7 @@ export default function FiltersBar({
               the ones present on the chosen portal (see main.py `portal=`). */}
           <div className="flex flex-col gap-1">
             <label className="text-xs t-muted" htmlFor="filter-portal">{t("filters.portal")}</label>
-            <select id="filter-portal" className="input w-full sm:w-40" value={filters.portal}
+            <select data-action="filters.portal" id="filter-portal" className="input w-full sm:w-40" value={filters.portal}
               onChange={(e) => set({
                 portal: e.target.value as PropertyFilters["portal"],
               })}>
@@ -383,7 +383,7 @@ export default function FiltersBar({
           </div>
           <div className="flex flex-col gap-1 col-span-2 sm:col-span-1">
             <label className="text-xs t-muted" htmlFor="filter-agency">{t("filters.agency")}</label>
-            <input id="filter-agency" className="input w-full sm:w-48" placeholder={t("filters.agencyPlaceholder")}
+            <input data-action="filters.agency" id="filter-agency" className="input w-full sm:w-48" placeholder={t("filters.agencyPlaceholder")}
               value={filters.agency} onChange={(e) => set({ agency: e.target.value })} />
           </div>
           {/* Deal quality reads the Deal Score (€/sqm gap vs the local median).
@@ -391,7 +391,7 @@ export default function FiltersBar({
               so unscored cards fall out when set. */}
           <div className="flex flex-col gap-1">
             <label className="text-xs t-muted" htmlFor="filter-deal">{t("filters.deal")}</label>
-            <select id="filter-deal" className="input w-full sm:w-44" value={filters.deal}
+            <select data-action="filters.deal" id="filter-deal" className="input w-full sm:w-44" value={filters.deal}
               onChange={(e) => set({
                 deal: e.target.value as PropertyFilters["deal"],
               })}>
@@ -402,18 +402,18 @@ export default function FiltersBar({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs t-muted" htmlFor="filter-min-sqm-price">{t("filters.minSqmPrice")}</label>
-            <input id="filter-min-sqm-price" className="input w-full sm:w-24" type="number" placeholder="0"
+            <input data-action="filters.minSqmPrice" id="filter-min-sqm-price" className="input w-full sm:w-24" type="number" placeholder="0"
               value={filters.min_sqm_price}
               onChange={(e) => set({ min_sqm_price: e.target.value })} />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs t-muted" htmlFor="filter-max-sqm-price">{t("filters.maxSqmPrice")}</label>
-            <input id="filter-max-sqm-price" className="input w-full sm:w-24" type="number" placeholder="∞"
+            <input data-action="filters.maxSqmPrice" id="filter-max-sqm-price" className="input w-full sm:w-24" type="number" placeholder="∞"
               value={filters.max_sqm_price}
               onChange={(e) => set({ max_sqm_price: e.target.value })} />
           </div>
           <label className="col-span-2 flex items-center gap-2 text-sm t-body cursor-pointer min-h-11 sm:min-h-0 sm:pb-2">
-            <input type="checkbox" checked={filters.merged_only}
+            <input data-action="filters.mergedOnly" type="checkbox" checked={filters.merged_only}
               onChange={(e) => set({ merged_only: e.target.checked })} />
             {t("filters.mergedOnly")}
           </label>
@@ -429,7 +429,7 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1 justify-end pb-2">
           <span className="text-sm t-muted">{t("filters.countProperties", { count })}</span>
           {anyFilterActive && (
-            <button
+            <button data-action="filters.reset"
               type="button"
               className="text-xs accent-link hover:underline text-left"
               onClick={onReset}
@@ -440,7 +440,7 @@ export default function FiltersBar({
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium t-muted">{t("filters.maintenance")}</span>
-          <button
+          <button data-action="maintenance.geocode"
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               geocoding
                 ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
@@ -471,7 +471,7 @@ export default function FiltersBar({
             }}>
             {geocoding ? t("filters.locating") : t("filters.findCoords")}
           </button>
-          <button
+          <button data-action="maintenance.clearGeocodeCache"
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               clearingCache
                 ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
@@ -504,9 +504,17 @@ export default function FiltersBar({
           <span className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</span>
           <div role="group" aria-label={t("filters.export")}
             className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
-            {([["html", "HTML"], ["markdown", "MD"], ["csv", "CSV"], ["pdf", "PDF"]] as const).map(
-              ([fmt, label]) => (
-                <button key={fmt}
+            {/* The action id is carried in the tuple rather than built from
+                `fmt`: the inventory is checked against the literal strings in
+                the source, and a template one would be invisible to it. */}
+            {([
+              ["html", "HTML", "export.html"],
+              ["markdown", "MD", "export.markdown"],
+              ["csv", "CSV", "export.csv"],
+              ["pdf", "PDF", "export.pdf"],
+            ] as const).map(
+              ([fmt, label, action]) => (
+                <button key={fmt} data-action={action}
                   className="px-3 py-2 text-sm font-medium transition bg-white
                     text-slate-500 hover:text-slate-800 dark:bg-slate-800/80
                     dark:text-slate-400 dark:hover:text-slate-200
@@ -530,9 +538,12 @@ export default function FiltersBar({
           <span className="text-xs t-muted">{t("filters.view")}</span>
           <div role="group" aria-label={t("filters.view")}
             className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
-            {([["grid", t("filters.viewGrid")], ["map", t("filters.viewMap")]] as const).map(
-              ([value, label]) => (
-                <button key={value}
+            {([
+              ["grid", t("filters.viewGrid"), "view.grid"],
+              ["map", t("filters.viewMap"), "view.map"],
+            ] as const).map(
+              ([value, label, action]) => (
+                <button key={value} data-action={action}
                   className={`px-3 py-2 text-sm font-medium transition ${
                     view === value
                       ? "bg-blue-600 text-white"
@@ -553,7 +564,7 @@ export default function FiltersBar({
             <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
               <span>📍</span> {t("filters.geocodeRunning")}
             </span>
-            <button
+            <button data-action="maintenance.geocode.stop"
               className="btn py-1 px-2.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
               disabled={stoppingGeocode}
               onClick={async () => {
@@ -598,7 +609,7 @@ export default function FiltersBar({
           <p role="status" className="text-rose-700 dark:text-rose-300">
             ❌ {t("filters.exportFailed", { error: exportError })}
           </p>
-          <button
+          <button data-action="export.error.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setExportError(null)}
             title={t("common.close")}>
@@ -610,7 +621,7 @@ export default function FiltersBar({
       {geocodeError && (
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <p className="text-rose-700 dark:text-rose-300">❌ {geocodeError}</p>
-          <button
+          <button data-action="maintenance.error.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setGeocodeError(null)}
             title={t("common.close")}>
@@ -628,7 +639,7 @@ export default function FiltersBar({
                   count: cacheCleared,
                 })}
           </p>
-          <button
+          <button data-action="maintenance.cacheCleared.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setCacheCleared(null)}
             title={t("common.close")}>
@@ -664,7 +675,7 @@ export default function FiltersBar({
               </p>
             )}
           </div>
-          <button
+          <button data-action="maintenance.result.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
             onClick={() => setGeocodeResult(null)}
             title={t("common.close")}>

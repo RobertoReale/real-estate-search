@@ -147,6 +147,26 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     }
   }
 
+  /** Renames a search, keeping everything else exactly as it was.
+   *
+   *  The rename goes through the same PUT as editing, and that route takes a
+   *  whole search rather than a patch (`SearchProfileIn`: `name` and
+   *  `search_url` are both required, and the URL is validated). Sent as a bare
+   *  `{ name }`, every rename came back 422 — so Merge and Separate below have
+   *  never done anything at all, silently, and the only sign was an error line
+   *  under whichever form happened to be open. Resending the URL unchanged also
+   *  keeps `update_profile` from treating this as a new search and re-arming
+   *  the baseline (invariant 3). */
+  function rename(p: SearchProfile, name: string) {
+    return api.updateProfile(p.id, {
+      name,
+      search_url: p.search_url,
+      excluded_keywords: p.excluded_keywords ?? "",
+      notify_channels: p.notify_channels ?? "",
+      is_active: p.is_active,
+    });
+  }
+
   async function groupSelected(targets: SearchProfile[]) {
     if (targets.length < 2) return;
     const defaultName = getBaseName(targets[0].name || t("profiles.defaultName"));
@@ -157,9 +177,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     setError("");
     try {
       for (const p of targets) {
-        await api.updateProfile(p.id, {
-          name: `${cleaned} (${p.portal})`,
-        });
+        await rename(p, `${cleaned} (${p.portal})`);
       }
       setSelected(new Set());
       onChanged();
@@ -176,10 +194,14 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     setBulkBusy(true);
     setError("");
     try {
+      // A plain space before the portal, and this is the whole point of the
+      // button. `getBaseName` strips a trailing portal preceded by a bracket or
+      // a dash — which is how a merged pair is recognised as one search — so
+      // the `<base> - PORTAL` this used to write was stripped straight back off
+      // and the two rows folded together again the moment they were separated.
+      // Separating has to produce names the grouping will not undo.
       for (const p of group.profiles) {
-        await api.updateProfile(p.id, {
-          name: `${group.baseName} - ${p.portal.toUpperCase()}`,
-        });
+        await rename(p, `${group.baseName} ${p.portal}`);
       }
       onChanged();
     } catch (e) {

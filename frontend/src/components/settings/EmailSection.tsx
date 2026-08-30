@@ -79,18 +79,18 @@ export function EmailSection(
         {/* host and port share a row only when there is room for both: at
             phone width a 1/3-wide host field cannot show its own hostname */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input className="input w-full sm:col-span-2" placeholder={t("settings.smtpHost")}
+          <input data-action="settings.email.host" className="input w-full sm:col-span-2" placeholder={t("settings.smtpHost")}
             value={values.host} onChange={(e) => set("host", e.target.value)} />
-          <input className="input w-full" type="number" placeholder="587"
+          <input data-action="settings.email.port" className="input w-full" type="number" placeholder="587"
             aria-label={t("settings.smtpPortTitle")}
             title={t("settings.smtpPortTitle")}
             value={values.port} onChange={(e) => set("port", Number(e.target.value))} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input className="input w-full" placeholder={t("settings.smtpUser")}
+          <input data-action="settings.email.user" className="input w-full" placeholder={t("settings.smtpUser")}
             value={values.user} onChange={(e) => set("user", e.target.value)} />
           <div>
-            <input className="input w-full" type="password"
+            <input data-action="settings.email.password" className="input w-full" type="password"
               placeholder={t(settings.smtp_password_set ? "settings.passwordSaved" : "settings.appPassword")}
               value={values.password} onChange={(e) => set("password", e.target.value)} />
             <div className="mt-1">
@@ -99,18 +99,18 @@ export function EmailSection(
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input className="input w-full" placeholder={t("settings.emailFrom")}
+          <input data-action="settings.email.from" className="input w-full" placeholder={t("settings.emailFrom")}
             value={values.from} onChange={(e) => set("from", e.target.value)} />
-          <input className="input w-full" placeholder={t("settings.emailTo")}
+          <input data-action="settings.email.to" className="input w-full" placeholder={t("settings.emailTo")}
             value={values.to} onChange={(e) => set("to", e.target.value)} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={values.enabled}
+            <input data-action="settings.email.enable" type="checkbox" checked={values.enabled}
               onChange={(e) => set("enabled", e.target.checked)} />
             {t("settings.enableEmail")}
           </label>
-          <button className="btn-ghost" disabled={shell.anyBusy}
+          <button data-action="settings.email.test" className="btn-ghost" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest("email", api.emailTest,
               () => t("settings.emailTestSent", {
                 to: values.to || t("settings.theRecipient"),
