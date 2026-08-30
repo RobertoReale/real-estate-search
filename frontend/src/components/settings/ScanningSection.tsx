@@ -69,6 +69,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
       <SectionHeading>{t("settings.keywordsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.keywordsNote")}</p>
       <textarea className="input w-full h-20 resize-none"
+        aria-label={t("settings.keywordsTitle")}
         value={values.keywords} onChange={(e) => set("keywords", e.target.value)} />
     </>
   );

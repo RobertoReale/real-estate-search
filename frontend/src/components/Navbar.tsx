@@ -54,7 +54,7 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
           <>
             {scanStatus?.last_summary && <div>{scanStatus.last_summary}</div>}
             {scanStatus?.paused ? (
-              <div className="text-amber-600 dark:text-amber-400">
+              <div className="text-amber-700 dark:text-amber-400">
                 {t("nav.paused")}
               </div>
             ) : (
@@ -75,21 +75,31 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
           </>
         )}
       </button>
-      <button className="btn-ghost shrink-0 px-2 sm:px-3 font-semibold text-xs"
+      {/* Every control here is `shrink-0`, so the padding is what decides
+          whether the row fits: at 390px with the longer Italian labels the four
+          of them ran 3px past the viewport and scrolled the whole document
+          sideways. Tight on a phone, roomier from `sm` up.
+
+          The `!` is load-bearing. `.btn-ghost` carries its own `px-4` and is
+          declared outside `@layer`, so it beats a plain `px-2` utility however
+          specific that looks in the markup — the `px-3 sm:px-4` these buttons
+          used to carry never applied at all, and the row was four px-4 buttons
+          the whole time. */}
+      <button className="btn-ghost shrink-0 !px-2 sm:!px-3 font-semibold text-xs"
         onClick={() => setLang(otherLang)}
         title={switchLangLabel} aria-label={switchLangLabel}>
         🌐 {lang.toUpperCase()}
       </button>
-      <button className="btn-ghost shrink-0 px-3 sm:px-4" onClick={() => setDark(!dark)}
+      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
         title={dark ? t("nav.toLight") : t("nav.toDark")}
         aria-label={dark ? t("nav.toLight") : t("nav.toDark")}>
         {dark ? "☀️" : "🌙"}
       </button>
-      <button className="btn-ghost shrink-0 px-3 sm:px-4" onClick={onOpenLogs}
+      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
         title={t("nav.viewLog")} aria-label={t("nav.viewLog")}>
         📜
       </button>
-      <button className="btn-ghost shrink-0 px-3 sm:px-4" onClick={onOpenSettings}
+      <button className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
         title={t("nav.settings")} aria-label={t("nav.settings")}>
         ⚙️
       </button>

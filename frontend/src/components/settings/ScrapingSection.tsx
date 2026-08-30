@@ -209,6 +209,7 @@ export function ScrapingSection(
           <p className="text-xs t-dim">{t("settings.scrapeApiNote")}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <select className="input w-full" value={values.apiProvider}
+              aria-label={t("settings.scrapeApiTitle")}
               onChange={(e) => set("apiProvider", e.target.value)}>
               <option value="scrapfly">Scrapfly</option>
               <option value="scraperapi">ScraperAPI</option>

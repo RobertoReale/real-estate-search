@@ -732,15 +732,15 @@ export const it: Dict = {
   // ── ricerche monitorate: canali di notifica ─────────────────────────────
   "profiles.chAll": "🔔 Tutti i canali",
   "profiles.chAllWarn":
-    "Nessun canale di notifica è ancora configurato — questa ricerca non invierà avvisi. Configura Telegram o Email in ⚙️ Impostazioni.",
+    "Nessun canale di notifica è ancora configurato — le ricerche che ne chiedono uno non invieranno avvisi. Configura Telegram o Email in ⚙️ Impostazioni.",
   "profiles.chTelegram": "📨 Solo Telegram",
   "profiles.chTelegramOff": "📨 Solo Telegram (non configurato)",
   "profiles.chTelegramWarn":
-    "Telegram non è configurato — questa ricerca non invierà avvisi. Aggiungi il token del bot e il chat ID in ⚙️ Impostazioni.",
+    "Telegram non è configurato — le ricerche che notificano via Telegram non invieranno avvisi. Aggiungi il token del bot e il chat ID in ⚙️ Impostazioni.",
   "profiles.chEmail": "✉️ Solo Email",
   "profiles.chEmailOff": "✉️ Solo Email (non configurata)",
   "profiles.chEmailWarn":
-    "L'email non è configurata — questa ricerca non invierà avvisi. Configura l'SMTP in ⚙️ Impostazioni.",
+    "L'email non è configurata — le ricerche che notificano via email non invieranno avvisi. Configura l'SMTP in ⚙️ Impostazioni.",
   "profiles.chNone": "🔕 Nessuna notifica",
 
   // ── ricerche monitorate: assistente ─────────────────────────────────────
@@ -838,6 +838,7 @@ export const it: Dict = {
   "profiles.globalKeywords":
     "🌐 Sempre escluse per ogni ricerca (dalle Impostazioni): {words}",
   "profiles.notifyTitle": "Dove inviare le notifiche di questa ricerca",
+  "profiles.notifyFor": "Notifiche di {name}",
   "profiles.active": "Attiva",
   "profiles.editBox": "Modifica questo box di ricerca",
   "profiles.separateBox": "Separa i portali in box singoli indipendenti",

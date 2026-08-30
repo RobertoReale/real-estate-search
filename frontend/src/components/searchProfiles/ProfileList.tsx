@@ -14,14 +14,19 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
     <ul className="space-y-2">
       {groupedProfiles.map((group) => {
         const badge = statusBadge[group.last_run_status];
-        const channel = channelOptions.find((o) => o.value === group.notify_channels)
-          ?? channelOptions[0];
         const isGroupSelected = group.ids.length > 0 && group.ids.every((id) => selected.has(id));
         const isGroupIndeterminate = !isGroupSelected && group.ids.some((id) => selected.has(id));
         const paramsProfile = group.profiles.find((p) => p.params);
         const pParams = paramsProfile?.params;
 
         return (
+          // One wrapping row, but the wrapping is declared rather than left to
+          // chance: the name/URL block and the notify select each claim the
+          // full width on a phone, which puts the identity of the search on its
+          // own line and the controls on theirs. Squeezed into one row at 390px
+          // this was unreadable rather than merely tight — the name clipped to
+          // "Trilo…", the URL to "https:…", and the row pushed the document
+          // sideways. From `sm` up every block returns to its share of the row.
           <li key={group.baseName + "-" + group.ids.join("-")}
             className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel transition hover:shadow-sm">
             {profiles.length > 1 && (
@@ -44,7 +49,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 </span>
               )}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="w-full min-w-0 sm:w-auto sm:flex-1">
               <p className="font-medium text-sm truncate" title={group.baseName}>
                 {group.baseName}
               </p>
@@ -121,11 +126,6 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   })}
                 </p>
               )}
-              {!channel.ok && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  ⚠️ {channel.warn}
-                </p>
-              )}
             </div>
             {badge && (
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge.cls}`}>
@@ -134,7 +134,11 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               </span>
             )}
             <select
-              className="input !py-1 !px-2 text-xs w-44 shrink-0"
+              className="input !py-1 !px-2 text-xs min-w-0 flex-1 sm:flex-none sm:w-44"
+              // A `title` alone is not a label: it never reaches a touch user
+              // and a screen reader may or may not announce it, so the control
+              // that decides where a search's alerts go was unnamed.
+              aria-label={t("profiles.notifyFor", { name: group.baseName })}
               title={t("profiles.notifyTitle")}
               value={group.notify_channels}
               onChange={(e) => runBulk(group.ids, "notify", e.target.value)}>

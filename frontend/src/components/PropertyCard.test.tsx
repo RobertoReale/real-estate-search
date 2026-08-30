@@ -1,10 +1,15 @@
 /** The card is the door to a property's detail — the dashboard's primary flow.
  *
  * It was a bare `<article onClick>`: no focus, no key handling, so opening a
- * listing was available to pointer users only. These tests pin the keyboard
- * path, and the one subtlety that makes it safe — Enter inside a nested
- * control (the ⭐/✕ quick actions live in the same box) must stay that
- * control's, not open the modal on top of it.
+ * listing was available to pointer users only. That was first fixed by making
+ * the whole card a `role="button"`, which worked but made the card a widget
+ * containing other widgets — the ⭐/✕ quick actions and the tag picker all live
+ * inside it, and a control that contains controls is ambiguous to a screen
+ * reader. The door is now the title button, and Enter and Space come from the
+ * platform rather than from a key handler of ours.
+ *
+ * These tests pin what a user gets: a focusable, named way in, and quick
+ * actions that stay their own.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -44,27 +49,38 @@ function renderCard(onClick: () => void) {
 }
 
 describe("PropertyCard keyboard access", () => {
-  it("is focusable", () => {
+  it("is focusable, and named by the listing", () => {
     const card = renderCard(vi.fn());
     card.focus();
     expect(document.activeElement).toBe(card);
   });
 
-  it("opens the property on Enter and on Space", () => {
+  it("opens the property when its title is activated", () => {
     const onClick = vi.fn();
-    const card = renderCard(onClick);
-    fireEvent.keyDown(card, { key: "Enter" });
-    fireEvent.keyDown(card, { key: " " });
-    expect(onClick).toHaveBeenCalledTimes(2);
+    // A native <button>: the browser turns Enter and Space into this click, so
+    // asserting the click is asserting both keys.
+    fireEvent.click(renderCard(onClick));
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves Enter alone inside the quick-action buttons", () => {
-    // the ⭐ button lives inside the card; a keypress on it must favourite the
-    // property, not also open the detail modal behind its own handler
+  it("is not itself a control containing controls", () => {
+    // The whole point of moving the door onto the title: an <article> holding
+    // the star, the hide and the tag picker must not also claim to be a button
+    // (axe: nested-interactive), or the card and everything in it compete for
+    // the same activation.
+    renderCard(vi.fn());
+    const article = document.querySelector("article");
+    expect(article).not.toBeNull();
+    expect(article!.getAttribute("role")).toBeNull();
+    expect(article!.getAttribute("tabindex")).toBeNull();
+  });
+
+  it("leaves the quick-action buttons alone", () => {
+    // the ⭐ button lives inside the card, which opens the property on click;
+    // pressing it must favourite the property and nothing else
     const onClick = vi.fn();
     renderCard(onClick);
-    const favorite = screen.getByRole("button", { name: /favourite|favorite|preferit/i });
-    fireEvent.keyDown(favorite, { key: "Enter", bubbles: true });
+    fireEvent.click(screen.getByRole("button", { name: /favourite|favorite|preferit/i }));
     expect(onClick).not.toHaveBeenCalled();
   });
 });

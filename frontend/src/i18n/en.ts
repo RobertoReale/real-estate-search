@@ -716,15 +716,15 @@ export const en = {
   // ── monitored searches: notification channels ───────────────────────────
   "profiles.chAll": "🔔 All channels",
   "profiles.chAllWarn":
-    "No notification channel is set up yet — this search won't send alerts. Configure Telegram or Email in ⚙️ Settings.",
+    "No notification channel is set up yet — the searches that ask for one won't send alerts. Configure Telegram or Email in ⚙️ Settings.",
   "profiles.chTelegram": "📨 Telegram only",
   "profiles.chTelegramOff": "📨 Telegram only (not set up)",
   "profiles.chTelegramWarn":
-    "Telegram is not set up — this search won't send alerts. Add the bot token and chat ID in ⚙️ Settings.",
+    "Telegram is not set up — the searches that notify by Telegram won't send alerts. Add the bot token and chat ID in ⚙️ Settings.",
   "profiles.chEmail": "✉️ Email only",
   "profiles.chEmailOff": "✉️ Email only (not set up)",
   "profiles.chEmailWarn":
-    "Email is not set up — this search won't send alerts. Configure SMTP in ⚙️ Settings.",
+    "Email is not set up — the searches that notify by email won't send alerts. Configure SMTP in ⚙️ Settings.",
   "profiles.chNone": "🔕 No notifications",
 
   // ── monitored searches: assistant ───────────────────────────────────────
@@ -818,6 +818,7 @@ export const en = {
   "profiles.excludes": "🚫 Excludes: {words}",
   "profiles.globalKeywords": "🌐 Always excluded for every search (from Settings): {words}",
   "profiles.notifyTitle": "Where to send notifications for this search",
+  "profiles.notifyFor": "Notifications for {name}",
   "profiles.active": "Active",
   "profiles.editBox": "Edit this search box",
   "profiles.separateBox": "Separate the portals into independent boxes",
