@@ -241,6 +241,17 @@ npm test
 ```
 *(All tests must pass before committing changes).*
 
+There is also a browser suite, which runs the dashboard the way you actually use
+it — the production build, served against a real backend on a throwaway database
+filled with a synthetic demo corpus. It never opens your own `case.db`, never
+binds port 8000, and never reaches the network:
+
+```bash
+cd frontend
+npm run e2e:browser   # once: fetches Chromium
+npm run e2e
+```
+
 ### Dependency locking
 
 `backend/requirements.txt`, `requirements-dev.txt` and `requirements-package.txt`

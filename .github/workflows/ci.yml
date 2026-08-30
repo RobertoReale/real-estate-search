@@ -139,3 +139,74 @@ jobs:
       - name: Tests
         working-directory: frontend
         run: npm test
+
+  # The browser suite (frontend/playwright.config.ts). It needs both toolchains
+  # in one job — the harness starts the real backend against a throwaway
+  # database seeded with the demo corpus, then serves the production build at
+  # it — which is why it is not a step inside `frontend` above.
+  #
+  # Linux only: the suite drives Chromium against an app with no
+  # platform-specific code, so a second runner would double the minutes to
+  # re-prove the same thing. It reaches no network by construction (the offline
+  # guard in e2e/harness/offline.ts fails the run on an attempt), so this job
+  # never becomes traffic against a portal.
+  e2e:
+    name: browser suite
+    runs-on: ubuntu-latest
+
+    # Not yet a gate. The suite's first journeys are written against defects the
+    # audit already found and land before the fixes do, so until those are
+    # closed a red run here would be the expected result rather than news. The
+    # job still runs on every push from the day it exists: a harness that only
+    # works on the machine it was written on is worth finding out about now, not
+    # later.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # The runtime dependencies only: the harness runs the application, it does
+      # not lint or type-check it, and serve-backend.mjs picks this venv up by
+      # path the same way a developer's checkout does.
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install the backend from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install from the lockfile
+        working-directory: frontend
+        run: npm ci
+
+      # `--with-deps` because a bare runner has none of the shared libraries
+      # Chromium links against, and the failure without them is a launch error
+      # that reads like a bug in the suite.
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser suite
+        working-directory: frontend
+        run: npm run e2e
+
+      # The report is how a failure here is diagnosed without reproducing it:
+      # it carries the trace, the screenshot and the network log of every failed
+      # test.
+      - name: Keep the report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

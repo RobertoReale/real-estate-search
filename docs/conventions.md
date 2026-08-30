@@ -122,6 +122,18 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   still be right). `App.test.tsx` mounts under `StrictMode` on purpose: its double
   invocation of `useState` initializers is the bug, so nothing weaker reproduces it.
 
+- **There is a third tier: the browser suite** (`frontend/e2e/`, run `cd frontend && npm
+  run e2e`; `npm run e2e:browser` fetches Chromium the first time). It is the only thing
+  here that runs the *assembled* product — the production build, served by `vite preview`
+  against a real backend on a database seeded with the demo corpus — so it is where a
+  defect that is invisible to every part in isolation gets caught. Its shape and the two
+  ports it owns are in [`architecture.md`](architecture.md#where-to-act-for-each-type-of-modification);
+  the two rules that bind anything written into it are that it **never touches port 8000
+  or `backend/case.db`**, and that it **never reaches the network** — an off-harness
+  request is aborted and fails the test, because a suite that silently depends on a tile
+  server or a placeholder-image service goes red on somebody else's outage, and portal
+  traffic from a test run is spent against the residential IP the real scans need.
+
 - **Tests DO NOT cover:** the real network fetch (DataDome cannot be simulated), the
   APScheduler wiring itself (its decision helpers — catch-up, backup freshness — are
   tested), how the UI *looks* (layout and the responsive breakpoints are still manual
