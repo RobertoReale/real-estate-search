@@ -12,6 +12,10 @@ The generated URLs use only *documented-by-usage* formats:
   back the same way).
 - Idealista zone searches go through its free-text endpoint,
   /cerca/<base>/con-<filters>/<Zone_City>/ — see build_idealista_url.
+- A zone selection is a *list*, and on Immobiliare it lives in repeated
+  idMZona[] query params rather than in the path, so parse and build both read
+  and write it there. `zone` (one string) survives as the first element of
+  `zones` for every caller that predates the list.
 
 The UI always shows the generated URL with an "open in browser" link before
 saving: if a portal changes its URL grammar, the user sees it immediately.
@@ -33,6 +37,14 @@ from urllib.parse import parse_qs, urlparse
 # exactly additive (quadrilocali-4 = 367, 5-locali-o-piu = 141, both together
 # = 508). While 4 was treated as the open-ended bucket, every "4+ rooms" search
 # silently dropped all five-room flats — the failure shape of invariant 7.
+# Immobiliare carries a multi-zone selection in repeated query params, never in
+# the path: picking three districts on its own map yields
+# /vendita-case/milano/?idMZona[]=10046&idMZona[]=10047&idMZona[]=10048. The
+# brackets arrive bare and indexed (`fasciaPiano` does too), so both spellings
+# are read, and the ids are kept verbatim — they are the portal's own keys and
+# the one part of a zone selection that is exact rather than a best-effort slug.
+IMMOBILIARE_ZONE_ID_RE = re.compile(r"^idMZona(\[\d*\])?$")
+
 IDEALISTA_ROOMS = {
     1: "monolocali-1",
     2: "bilocali-2",
@@ -109,6 +121,51 @@ def _slug(name: str) -> str:
     return text.strip("-")
 
 
+def zone_names(zone: str = "", zones: list[str] | None = None) -> list[str]:
+    """The requested zone names, from either arity of the same field.
+
+    `zone` (one string) and `zones` (a list) are one parameter written twice:
+    the list is what a portal selection actually is, the string is what every
+    caller written before it passes, and it stays the first element of the list
+    so the two can never disagree. Blank entries are dropped — an empty zone is
+    "the whole municipality", and carrying it as a name would build
+    /vendita-case/milano//.
+    """
+    raw = zones if zones is not None else ([zone] if zone else [])
+    out: list[str] = []
+    for name in raw:
+        name = (name or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def zone_id_list(zone_ids: list[str] | None = None) -> list[str]:
+    """The portal's own zone ids, deduplicated and order-preserving."""
+    out: list[str] = []
+    for zid in zone_ids or []:
+        zid = str(zid).strip()
+        if zid and zid not in out:
+            out.append(zid)
+    return out
+
+
+def _immobiliare_zone_ids(qs: dict[str, list[str]]) -> list[str]:
+    """Reads `idMZona[]` out of a query string, in the order the portal wrote it.
+
+    This is the whole of G.1's defect: `parse_immobiliare_url` looked at the
+    path alone, so the URL a user produces by clicking zones on Immobiliare's
+    map — which keeps the path at the bare municipality — parsed as a city-wide
+    search, and rebuilding it from those parameters dropped the selection
+    entirely. Every zone the user picked, gone, silently.
+    """
+    ids: list[str] = []
+    for key, values in qs.items():
+        if IMMOBILIARE_ZONE_ID_RE.match(key):
+            ids.extend(values)
+    return zone_id_list(ids)
+
+
 def cerca_location(city: str, zone: str = "") -> str:
     """ "Milano" + "Udine Lambrate" -> "Udine_Lambrate_Milano".
 
@@ -149,6 +206,8 @@ def build_immobiliare_url(
     city: str,
     contract: str = "sale",
     zone: str = "",
+    zones: list[str] | None = None,
+    zone_ids: list[str] | None = None,
     min_price: int | None = None,
     max_price: int | None = None,
     min_rooms: int | None = None,
@@ -165,7 +224,14 @@ def build_immobiliare_url(
     **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
+    names = zone_names(zone, zones)
+    ids = zone_id_list(zone_ids)
     query = []
+    # The location leads the query string, at a fixed position like every filter
+    # below it: the same criteria must always produce a byte-identical URL, or
+    # search_validator reads two spellings of one search as two searches.
+    for zid in ids:
+        query.append(f"idMZona[]={zid}")
     if min_price:
         query.append(f"prezzoMinimo={min_price}")
     if max_price:
@@ -197,7 +263,18 @@ def build_immobiliare_url(
     # The api-next fallback copes either way: it resolves the last path
     # segment via geographic autocomplete and falls back to the municipality
     # when the zone is not recognised (see immobiliare._api_params).
-    path = f"{_slug(city)}/{_slug(zone)}" if zone else _slug(city)
+    #
+    # With ids, the path stays at the municipality and the ids do the filtering
+    # — which is exactly the URL the portal's own map produces, and the reason a
+    # rebuilt multi-zone search is the search that was pasted. Ids win over
+    # names because they are exact: a path slug beside a contradicting id list
+    # would be a grammar this portal has never been observed to emit.
+    #
+    # Several names and no ids is the one case that cannot be expressed:
+    # Immobiliare's path holds a single zone, and turning the rest into ids
+    # needs the api-next autocomplete, which is a live request this function
+    # does not make. The first name is used; naming the loss on screen is G.2's.
+    path = f"{_slug(city)}/{_slug(names[0])}" if names and not ids else _slug(city)
     url = f"https://www.immobiliare.it/{base}/{path}/"
     return f"{url}?{'&'.join(query)}" if query else url
 
@@ -207,6 +284,7 @@ def build_idealista_url(
     contract: str = "sale",
     province: str = "",
     zone: str = "",
+    zones: list[str] | None = None,
     min_price: int | None = None,
     max_price: int | None = None,
     min_rooms: int | None = None,
@@ -224,6 +302,14 @@ def build_idealista_url(
     **_ignored,
 ) -> str:
     base = "affitto-case" if contract == "rent" else "vendita-case"
+    # Idealista's grammar narrows to one zone — a zone page is a single page and
+    # /cerca/ is one free-text phrase — so a multi-zone selection lands on its
+    # first name here. Reading `zones` matters even so: without it, params
+    # carrying only the list would build the whole municipality while
+    # Immobiliare filtered, and the extra listings read as a deduplication bug
+    # rather than as the filter that was never applied.
+    names = zone_names(zone, zones)
+    zone = names[0] if names else ""
     filters = []
     if max_price:
         filters.append(f"prezzo_{max_price}")
@@ -512,6 +598,8 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         "city": city,
         "province": "",
         "zone": zone,
+        "zones": zone_names(zone),
+        "zone_ids": _immobiliare_zone_ids(qs),
         "contract": contract,
         "min_price": _safe_int(qs.get("prezzoMinimo", [None])[0]),
         "max_price": _safe_int(qs.get("prezzoMassimo", [None])[0]),
@@ -527,6 +615,12 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         "floor": floor,
         "condition": condition,
     }
+
+
+# A path segment that cannot be a location: the contract bases and the portal's
+# own furniture. Shared by the two grammars that find their location by
+# exclusion rather than by position (/cerca/ and /multi/).
+_IDEALISTA_NOT_A_LOCATION = ("vendita-", "affitto-", "con-", "lista-", "pag-")
 
 
 def parse_idealista_url(url: str) -> dict[str, Any]:
@@ -545,18 +639,25 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
     # zone "Vendita Case". Nothing to recover — leave the form blank rather
     # than prefill it with rubbish the user would then save.
     if segments and segments[0] in ("multi", "aree"):
-        return _idealista_params("", "", "", contract, segments)
+        # Still no city and no zone *name*: those stay blank, because a bogus
+        # city silently blocks every cross-portal merge (invariant 1). The ids
+        # themselves are another matter — /multi/vendita-case/aOA,aOw/ is two
+        # zones the portal named in its own alphabet, and reporting them is the
+        # opposite of inventing a location. Rendering nothing for a URL that
+        # plainly holds two zones is what made a city-wide search look like a
+        # zone search; nothing here reaches a fingerprint.
+        ids: list[str] = []
+        if segments[0] == "multi":
+            seg = next(
+                (s for s in segments[1:] if not s.startswith(_IDEALISTA_NOT_A_LOCATION)),
+                "",
+            )
+            ids = zone_id_list(seg.split(","))
+        return _idealista_params("", "", "", contract, segments, ids)
     if segments and segments[0] == "cerca":
         # /cerca/<base>/con-<filters>/<Zone_City>/: the location is free text
         # and trails the filters, so it is found by exclusion, not by position.
-        loc = next(
-            (
-                s
-                for s in segments[1:]
-                if not s.startswith(("vendita-", "affitto-", "con-", "lista-", "pag-"))
-            ),
-            "",
-        )
+        loc = next((s for s in segments[1:] if not s.startswith(_IDEALISTA_NOT_A_LOCATION)), "")
         city, zone = split_cerca_location(loc)
         return _idealista_params(city, province, zone, contract, segments)
 
@@ -585,7 +686,12 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
 
 
 def _idealista_params(
-    city: str, province: str, zone: str, contract: str, segments: list[str]
+    city: str,
+    province: str,
+    zone: str,
+    contract: str,
+    segments: list[str],
+    zone_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Reads the con-… filter segment. Shared by both location grammars: the
     /cerca/ endpoint takes the very same filters as a city page (verified
@@ -648,6 +754,8 @@ def _idealista_params(
         "city": city,
         "province": province,
         "zone": zone,
+        "zones": zone_names(zone),
+        "zone_ids": zone_id_list(zone_ids),
         "contract": contract,
         "min_price": min_price,
         "max_price": max_price,
@@ -676,6 +784,8 @@ def parse_search_url(url: str) -> dict[str, Any]:
         "city": "",
         "province": "",
         "zone": "",
+        "zones": [],
+        "zone_ids": [],
         "contract": "sale",
         "min_price": None,
         "max_price": None,
