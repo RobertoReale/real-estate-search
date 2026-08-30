@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
 
 class ListingOut(BaseModel):
@@ -291,7 +291,17 @@ class SearchBuilderParamsOut(BaseModel):
 
     city: str = ""
     province: str = ""
+    # `zone` is the first of `zones`, kept while the form still reads one string.
     zone: str = ""
+    zones: list[str] = []
+    # The portal's own zone keys, as they appear in the URL the user pasted
+    # (Immobiliare's `idMZona[]`, Idealista's opaque `/multi/` ids). Exact where
+    # a slug is best-effort, and sometimes the only thing a multi-zone URL
+    # carries: a selection made on the portal's map keeps the path at the bare
+    # municipality, so ids present with no names is the normal case, not an
+    # edge one. A field the parser could not name shows its ids rather than
+    # nothing — see search_builder.
+    zone_ids: list[str] = []
     contract: str = "sale"
     min_price: int | None = None
     max_price: int | None = None
@@ -450,6 +460,8 @@ class SearchBuilderIn(BaseModel):
     city: str
     province: str = ""
     zone: str = ""  # neighborhood; Immobiliare slugs are best-effort
+    zones: list[str] = []  # the same field at its real arity; `zone` is zones[0]
+    zone_ids: list[str] = []  # the portal's own zone keys, exact where a slug is not
     contract: str = "sale"  # sale | rent
     min_price: int | None = None
     max_price: int | None = None
@@ -479,6 +491,26 @@ class SearchBuilderIn(BaseModel):
         if not v.strip():
             raise ValueError("City is required")
         return v.strip()
+
+    @model_validator(mode="after")
+    def zone_agrees_with_zones(self) -> "SearchBuilderIn":
+        """One field, two arities, kept in step.
+
+        The form still posts `zone` and will post `zones` once it is a list, and
+        a payload carrying one of them must never mean less than the other:
+        `zone` alone left the list empty for whatever reads it next, and `zones`
+        alone left `zone` empty — which is the whole municipality on Idealista,
+        the wider half of a paired search nobody asked for. Where both arrive,
+        the list is the parameter and `zone` is its mirror, so the two can never
+        describe different searches.
+        """
+        from .services.search_builder import zone_id_list, zone_names
+
+        names = zone_names(self.zone, self.zones or None)
+        self.zones = names
+        self.zone = names[0] if names else ""
+        self.zone_ids = zone_id_list(self.zone_ids)
+        return self
 
     @field_validator("contract")
     @classmethod
