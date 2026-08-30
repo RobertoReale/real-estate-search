@@ -82,6 +82,20 @@ def test_a_token_the_browser_cannot_send_fails_closed(monkeypatch):
     assert _run("/api/properties", {"Authorization": "Bearer nope"}).status_code == 401
 
 
+def test_the_backup_routes_are_behind_the_same_gate(monkeypatch):
+    """Restoring overwrites the entire database and downloading hands the whole
+    of it to whoever asked, which makes these the most powerful routes in the
+    app. They add no access control of their own and need none: they are under
+    /api like everything else and inherit the bind address plus the optional
+    token — and that is the point of asserting it, because a route that
+    overwrites the database must never become the reason to widen either."""
+    _set_token(monkeypatch, "s3cret")
+    restore = "/api/maintenance/backups/case-20260101-000000.db/restore"
+    assert _run(restore, method="POST").status_code == 401
+    assert _run("/api/maintenance/backups").status_code == 401
+    assert _run(restore, {"Authorization": "Bearer s3cret"}, "POST") == "PASSED_THROUGH"
+
+
 def test_non_api_paths_stay_open_so_the_spa_can_load(monkeypatch):
     _set_token(monkeypatch, "s3cret")
     # the built app and its assets are served from "/", not /api, and must load

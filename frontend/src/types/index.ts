@@ -580,4 +580,20 @@ export interface CommuteSummary {
   cancelled?: boolean;
 }
 
+/** One copy of the database in the backups folder.
+ *
+ *  `kind` is what the copy is there for, and it decides what the row says:
+ *  `daily` is one of the fourteen rotating copies, `pre-upgrade` is the state a
+ *  version change left behind (kept indefinitely), `imported` is a database
+ *  brought in from another install. `revision` is the schema it holds — null
+ *  when the file is too damaged to say, which is exactly when the user needs
+ *  to see the row rather than a gap. */
+export interface BackupFile {
+  name: string;
+  kind: "daily" | "pre-upgrade" | "imported";
+  size_bytes: number;
+  taken_at: string;
+  revision: string | null;
+}
+
 export type ViewMode = "grid" | "map";

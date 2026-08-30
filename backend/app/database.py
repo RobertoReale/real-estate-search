@@ -207,7 +207,7 @@ def _backfill_property_source():
         )
 
 
-def _engine_db_path() -> Path | None:
+def engine_db_path() -> Path | None:
     """The file the current engine writes to, or None if it is not one.
 
     Not `config.DB_PATH`: `engine` is the single symbol that decides which
@@ -215,6 +215,10 @@ def _engine_db_path() -> Path | None:
     the demo seeder both redirect it. A snapshot resolved against DB_PATH while
     the engine pointed elsewhere would copy the wrong database, into the wrong
     folder, and call it a backup of this one.
+
+    Public because the backups routes ask the same question: "take a copy now"
+    and "restore this one" have to act on the live database, and there is only
+    one symbol that knows which that is.
     """
     name = engine.url.database
     if not name or name == ":memory:":
@@ -230,14 +234,14 @@ def _current_revision() -> str | None:
         return conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
 
 
-def _backups_dir() -> Path:
+def backups_dir() -> Path:
     """Where the copies of the live database are kept.
 
     Beside the database, not `config.BACKUP_DIR`, for the same reason
-    `_engine_db_path` exists: the engine is what decides which database is live.
+    `engine_db_path` exists: the engine is what decides which database is live.
     The constant is the fallback for an engine with no file behind it.
     """
-    db_path = _engine_db_path()
+    db_path = engine_db_path()
     return db_path.parent / "backups" if db_path is not None else BACKUP_DIR
 
 
@@ -276,7 +280,7 @@ def _is_from_a_newer_build(script_dir) -> bool:
         "back is to reinstall the newer version or restore the copy taken before the "
         "upgrade from %s",
         current,
-        _backups_dir(),
+        backups_dir(),
     )
     return True
 
@@ -309,7 +313,7 @@ def _snapshot_before_upgrade(script_dir) -> None:
         current = _current_revision() or BASELINE_REVISION
         if head is None or current == head:
             return
-        db_path = _engine_db_path()
+        db_path = engine_db_path()
         if db_path is None:
             return
     except Exception:
@@ -318,7 +322,7 @@ def _snapshot_before_upgrade(script_dir) -> None:
 
     # beside the database it protects: that is config.BACKUP_DIR in production,
     # and it follows the engine anywhere the engine has been redirected
-    snapshot_before_migration(current, db_path, _backups_dir())
+    snapshot_before_migration(current, db_path, backups_dir())
 
 
 def _run_migrations(protect_data: bool = False):
@@ -397,7 +401,7 @@ def init_db():
     # install has nothing to protect. Without this every first run would leave
     # behind a pre-upgrade snapshot of an empty database — and one that is
     # exempt from the rotation, so it would never be cleaned up either.
-    db_path = _engine_db_path()
+    db_path = engine_db_path()
     had_database = db_path is not None and db_path.exists()
 
     Base.metadata.create_all(bind=engine)

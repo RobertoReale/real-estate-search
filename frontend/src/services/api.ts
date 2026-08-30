@@ -4,7 +4,7 @@
 import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
-  CommuteProgress, CommuteSummary,
+  BackupFile, CommuteProgress, CommuteSummary,
   GeocodeProgress, GeocodeSummary, ListingAudit, LogTail, MarketVelocity, PricingTrend,
   ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, PropertyPage, ScanStatus, ScraperHealth,
@@ -352,6 +352,38 @@ export const api = {
     return request("/maintenance/commute-clear-cache", { method: "POST" });
   },
 
+  /** The copies of the database on disk, newest first, plus the folder that
+   *  holds them — a real path on the user's machine, and knowing it is what
+   *  makes the copies usable outside this app. */
+  listBackups(): Promise<{ folder: string; backups: BackupFile[] }> {
+    return request("/maintenance/backups");
+  },
+  /** Copy the database now, ignoring the once-a-day throttle. */
+  createBackup(): Promise<BackupFile> {
+    return request("/maintenance/backups", { method: "POST" });
+  },
+  /** Direct URL of one copy. Answers the file itself (Content-Disposition
+   *  attachment), so an unauthenticated browser can simply navigate to it. */
+  backupUrl(name: string): string {
+    return `${BASE}/maintenance/backups/${encodeURIComponent(name)}`;
+  },
+  /** Replace the live database with one of the copies. Destructive: the current
+   *  state is copied aside first and the answer names that copy, so restoring
+   *  the wrong file is recoverable. The backend re-opens the database itself,
+   *  but the whole UI is now looking at different data — reload after this. */
+  restoreBackup(name: string): Promise<{ restored: string; backup: string | null }> {
+    return request(`/maintenance/backups/${encodeURIComponent(name)}/restore`, { method: "POST" });
+  },
+  /** Bring in a `case.db` carried from another install. The body is the file
+   *  itself rather than a multipart form — nothing on either side needs a form
+   *  parser for a single file. It is validated and filed among the copies;
+   *  putting it over the live database is the separate, explicit restore. */
+  importBackup(file: File): Promise<BackupFile> {
+    return request("/maintenance/backups/import", {
+      method: "POST", body: file, headers: { "Content-Type": "application/octet-stream" },
+    });
+  },
+
   /** Irreversibly wipe a scope of stored data (Settings → Data management). */
   resetData(scope: "dashboard" | "pricing-snapshots" | "factory"): Promise<{
     scope: string; deleted: Record<string, number>; backup?: string | null;
@@ -458,6 +490,26 @@ export async function fetchExport(
   }
   const match = /filename="([^"]+)"/.exec(resp.headers.get("Content-Disposition") ?? "");
   return { blob: await resp.blob(), filename: match?.[1] ?? "dossier" };
+}
+
+/** One backup file fetched through the authenticated path, for when the API
+ *  token is on — the same reason `fetchExport` exists: a navigation cannot
+ *  carry an `Authorization` header, so the download would come back 401 and the
+ *  browser would save the error page under a `.db` name. */
+export async function fetchBackup(name: string): Promise<Blob> {
+  const token = authToken.get();
+  const resp = await fetch(api.backupUrl(name), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (resp.status === 401) {
+    onAuthRequired?.();
+    throw new AuthError();
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => null);
+    throw new Error(body?.detail ?? `Error ${resp.status}`);
+  }
+  return resp.blob();
 }
 
 /** Defence in depth for anchors built from scraped URLs: only http(s) may

@@ -637,6 +637,32 @@ export const it: Dict = {
   "settings.restartNoReturn":
     "Il backend non è tornato da solo — controlla la finestra del terminale (o rilancia start.bat / serve.bat).",
 
+  // ── impostazioni: copie di sicurezza ────────────────────────────────────
+  "settings.backupsTitle": "💾 Copie di sicurezza",
+  "settings.backupsNote":
+    "Una copia del database viene salvata una volta al giorno, e un'altra prima che un aggiornamento ne cambi la struttura. Scaricane una per conservarla altrove, oppure rimettine una: il ripristino sostituisce tutto quello che hai adesso, per questo lo stato attuale viene copiato prima.",
+  "settings.backupsFolder": "Si trovano in {folder}",
+  "settings.backupsEmpty":
+    "Ancora nessuna copia — la prima viene salvata al prossimo avvio dell'app.",
+  "settings.backupTakeNow": "💾 Salva una copia adesso",
+  "settings.backupImport": "📥 Portane una qui",
+  "settings.backupDownload": "Scarica",
+  "settings.backupRestore": "Ripristina questa",
+  "settings.backupKind.daily": "Copia giornaliera",
+  "settings.backupKind.pre-upgrade": "Salvata prima di un aggiornamento",
+  "settings.backupKind.imported": "Portata da un'altra installazione",
+  "settings.backupSchema": "schema {revision}",
+  "settings.backupSchemaUnknown": "schema illeggibile",
+  "settings.backupTaken": "Copia salvata: {name}",
+  "settings.backupImported":
+    "Aggiunta come {name}. Non è ancora in uso: premi «Ripristina questa» per passare a lei.",
+  "settings.restoreConfirmWord": "RIPRISTINA",
+  "settings.restoreConfirm":
+    "Ripristinare la copia del {date}? Tutto quello che c'è ora nel database viene sostituito (lo stato attuale viene copiato prima). Scrivi {word} per confermare.",
+  "settings.restoreDone": "Ripristinata {name}. Ricaricamento…",
+  "settings.restoreDoneBackup":
+    "Ripristinata {name} · quello che ha sostituito è stato salvato come {backup}. Ricaricamento…",
+
   // ── impostazioni: gestione dei dati ─────────────────────────────────────
   "settings.dataTitle": "🧹 Gestione dei dati",
   "settings.dataNote":

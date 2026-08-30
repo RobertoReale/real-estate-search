@@ -137,7 +137,13 @@ each invariant to its code home and its test file. See also
     polls for it instead**: the Telegram inline buttons (`services/telegram_bot.py`) take
     the `getUpdates` long poll rather than the webhook the Bot API also offers, precisely
     because a webhook is an inbound port in front of this API. Anything else arriving later
-    — a second chat platform, a callback from a portal — takes the same shape.
+    — a second chat platform, a callback from a portal — takes the same shape. **The
+    backups routes are the standing test of this rule**: `GET /api/maintenance/backups/{name}`
+    hands over the whole database and `POST .../restore` overwrites it, which makes them the
+    most powerful endpoints in the app. They add no access control of their own and need
+    none — they are under `/api`, so the bind address and the optional token cover them —
+    and a route that can overwrite the database must never become the argument for widening
+    either (`test_api_auth.py` asserts they answer 401 without the token).
 
 15. **RETIRED as written** — *`email_import_scan` is a sync `def` endpoint on purpose.*
     Its subject went with the inbox import; the number is kept rather than renumbering

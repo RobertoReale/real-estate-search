@@ -1,16 +1,20 @@
 """Operations the user runs deliberately from Settings → Data management: the
-opt-in geocoding batch, the opt-in commute batch, and the scoped data resets.
+opt-in geocoding batch, the opt-in commute batch, the scoped data resets, and
+the backups — listing, taking, downloading, restoring and importing them.
 
 `geocoder` and `commute` are imported inside each handler, not at module scope,
 to keep the import graph of a normal request free of them — the same lazy
 pattern the optional browser stack uses.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..services import data_reset
+from ..database import backups_dir, engine_db_path, get_db
+from ..services import backup, data_reset
 from ..services.scanner import scan_state
 
 router = APIRouter()
@@ -182,3 +186,129 @@ def maintenance_reset(scope: str, db: Session = Depends(get_db)):
         return fn(db)
     except data_reset.ResetError as e:
         raise HTTPException(500, str(e)) from e
+
+
+# --- Backups (Settings → Data management) ---
+#
+# The copies in `backups/` were written for months and never read back, so the
+# only way to use one was to stop the app and move files by hand — with the two
+# WAL companions, which is the part nobody knows. These five routes are the way
+# back in: what is there, take one now, download one, restore one, bring one in.
+#
+# **Invariant 14.** They live under `/api` like everything else and inherit the
+# access control unchanged: loopback by default, `api_auth_token` when the bind
+# is widened. Restoring overwrites the entire database, which makes it the most
+# powerful endpoint in the app — and therefore the last one that may ever become
+# a reason to open the bind further. It adds no auth of its own and asks for
+# none.
+#
+# The literal `/import` path is registered before `/{name}` for the reason the
+# properties module spells out: Starlette matches in registration order, and a
+# path parameter declared first swallows every literal that follows it.
+
+
+def _live_database() -> tuple[Path, Path]:
+    """The database that is open right now, and the folder holding its copies.
+
+    Resolved through the engine rather than `config.DB_PATH`, because the engine
+    is the single symbol that decides which database the app talks to — a
+    restore aimed anywhere else would be a restore of the wrong file.
+    """
+    db_path = engine_db_path()
+    if db_path is None:
+        raise HTTPException(503, "This instance has no database file to back up.")
+    return db_path, backups_dir()
+
+
+@router.get("/api/maintenance/backups")
+def list_backups_endpoint():
+    """The copies on disk, newest first, each with its date, size and schema
+    revision. The folder is reported too: it is a real path on the user's own
+    machine, and knowing it is what makes the copies usable outside the app."""
+    _, folder = _live_database()
+    return {"folder": str(folder), "backups": backup.list_copies(folder)}
+
+
+@router.post("/api/maintenance/backups")
+def create_backup_endpoint():
+    """Take a copy now, ignoring the once-a-day throttle — the button pressed
+    before doing something risky, where "there was already one this morning" is
+    not the answer the user wants."""
+    db_path, folder = _live_database()
+    path = backup.maybe_backup(db_path, folder, force=True)
+    if path is None:
+        raise HTTPException(
+            500,
+            f"The copy could not be written. Check disk space and permissions for {folder}.",
+        )
+    return backup.describe(path)
+
+
+@router.post("/api/maintenance/backups/import")
+async def import_backup_endpoint(request: Request):
+    """Bring in a `case.db` carried from another install.
+
+    The body is the file itself, not a multipart form: this app ships with a
+    deliberately small dependency set, and a raw body needs nothing that is not
+    already installed. Streamed to a staging file rather than read into memory —
+    a database is as large as the user's history, and this endpoint exists for
+    the person whose history is long.
+
+    The staged copy is validated before it is filed, and never touches the live
+    database: importing puts it in the list, restoring is a separate, explicit
+    step.
+    """
+    _, folder = _live_database()
+    folder.mkdir(parents=True, exist_ok=True)
+    # not `case-*.db`: a half-written upload must not appear in the listing, and
+    # must never be a candidate for the rotation or for a restore
+    staged = folder / f"import-{id(request):x}.part"
+    try:
+        with staged.open("wb") as fh:
+            async for chunk in request.stream():
+                fh.write(chunk)
+        return backup.describe(backup.accept_import(staged, folder))
+    except backup.RestoreError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        # accept_import renamed it away on success and removed it on failure;
+        # this catches the third case, a connection that dropped mid-upload
+        staged.unlink(missing_ok=True)
+
+
+@router.get("/api/maintenance/backups/{name}")
+def download_backup_endpoint(name: str):
+    """Hand a copy to the browser, so the user's data can leave the machine in a
+    form that can come back. It is also the honest answer to "am I locked in?" —
+    the file is a plain SQLite database, readable by anything."""
+    _, folder = _live_database()
+    try:
+        path = backup.find(name, folder)
+    except backup.RestoreError as e:
+        raise HTTPException(404, str(e)) from e
+    return FileResponse(path, media_type="application/vnd.sqlite3", filename=path.name)
+
+
+@router.post("/api/maintenance/backups/{name}/restore")
+def restore_backup_endpoint(name: str):
+    """Replace the live database with one of the copies.
+
+    Refused mid-scan (409) for the same reason the destructive resets and the
+    restart are: a scan is writing properties and their profile links, and
+    swapping the file under it would leave both half-written.
+
+    The response names the copy of the *previous* state that was taken first, so
+    the UI can say what to restore if this was the wrong file.
+    """
+    if scan_state["running"]:
+        raise HTTPException(409, "A scan is running: wait for it to finish before restoring")
+    db_path, folder = _live_database()
+    try:
+        source = backup.find(name, folder)
+    except backup.RestoreError as e:
+        raise HTTPException(404, str(e)) from e
+    try:
+        restored, safety = backup.restore(source, db_path, folder)
+    except backup.RestoreError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"restored": restored.name, "backup": safety.name if safety else None}

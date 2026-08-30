@@ -625,6 +625,31 @@ export const en = {
   "settings.restartNoReturn":
     "The backend did not come back on its own — check its terminal window (or re-run start.bat / serve.bat).",
 
+  // ── settings: backups ───────────────────────────────────────────────────
+  "settings.backupsTitle": "💾 Backups",
+  "settings.backupsNote":
+    "A copy of your database is taken once a day, and again before an update changes its structure. Download one to keep it somewhere else, or put one back — restoring replaces everything you have now, so a copy of the current state is saved first.",
+  "settings.backupsFolder": "They are kept in {folder}",
+  "settings.backupsEmpty": "No copies yet — the first one is taken the next time the app starts.",
+  "settings.backupTakeNow": "💾 Take a copy now",
+  "settings.backupImport": "📥 Bring one in",
+  "settings.backupDownload": "Download",
+  "settings.backupRestore": "Restore this one",
+  "settings.backupKind.daily": "Daily copy",
+  "settings.backupKind.pre-upgrade": "Taken before an update",
+  "settings.backupKind.imported": "Brought in from another install",
+  "settings.backupSchema": "schema {revision}",
+  "settings.backupSchemaUnknown": "schema unreadable",
+  "settings.backupTaken": "Copy saved: {name}",
+  "settings.backupImported":
+    "Added as {name}. It is not in use yet — press “Restore this one” on it to switch to it.",
+  "settings.restoreConfirmWord": "RESTORE",
+  "settings.restoreConfirm":
+    "Restore the copy from {date}? Everything currently in the database is replaced by it (a copy of the current state is saved first). Type {word} to confirm.",
+  "settings.restoreDone": "Restored {name}. Reloading…",
+  "settings.restoreDoneBackup":
+    "Restored {name} · what it replaced was saved as {backup}. Reloading…",
+
   // ── settings: data management ───────────────────────────────────────────
   "settings.dataTitle": "🧹 Data management",
   "settings.dataNote": "Irreversible. Your notification and login settings are always kept.",
