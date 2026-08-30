@@ -177,6 +177,20 @@ class _FakeScraper:
         return result
 
 
+def _summary() -> dict:
+    return {
+        "new": 0,
+        "updated": 0,
+        "filtered": 0,
+        "price_changes": 0,
+        "gone": 0,
+        "notified": 0,
+        "outside_area": 0,
+        "blocked_portals": [],
+        "errors": [],
+    }
+
+
 def _run_profile(db, monkeypatch, profile) -> tuple[list, dict]:
     notified = []
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _FakeScraper())
@@ -184,16 +198,7 @@ def _run_profile(db, monkeypatch, profile) -> tuple[list, dict]:
         scanner.notifier, "notify_new_property", lambda p, channels=None: notified.append(p) or True
     )
     monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
-    summary = {
-        "new": 0,
-        "updated": 0,
-        "filtered": 0,
-        "price_changes": 0,
-        "gone": 0,
-        "notified": 0,
-        "blocked_portals": [],
-        "errors": [],
-    }
+    summary = _summary()
     scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
     db.commit()
     return notified, summary
@@ -259,16 +264,7 @@ def test_profile_keywords_add_to_global(db, monkeypatch):
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _KwScraper())
     monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
     monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
-    summary = {
-        "new": 0,
-        "updated": 0,
-        "filtered": 0,
-        "price_changes": 0,
-        "gone": 0,
-        "notified": 0,
-        "blocked_portals": [],
-        "errors": [],
-    }
+    summary = _summary()
     scanner._scan_profile(db, profile, {"excluded_keywords": ["asta"]}, summary)
     db.commit()
 
@@ -647,3 +643,235 @@ def test_second_scan_notifies_only_new(db, monkeypatch):
     assert summary["new"] == 0
     assert summary["updated"] == 2
     assert notified == []
+
+
+# --- listings that came back from outside the requested area ---------------
+#
+# Search URLs are fixture *strings* here — the portal's own grammar, nothing
+# fetched. Asking a portal for a district is not the same as getting one: it
+# decides, and a listing it files under the next district still arrives. What
+# these pin is that the disagreement is reported and the listing is kept.
+
+NAVIGLI_URL = "https://www.immobiliare.it/vendita-case/milano/navigli/"
+MILANO_URL = "https://www.immobiliare.it/vendita-case/milano/"
+# What the portal's own map produces for a multi-district selection: the path
+# stays at the bare comune and the districts ride along as opaque ids.
+MULTIZONE_URL = "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047"
+
+# Somewhere in the Navigli, and Rome — 480 km outside any circle Milano has.
+IN_MILANO = (45.4500, 9.1750)
+IN_ROMA = (41.9028, 12.4964)
+
+
+def _listing(portal_id: str, sqm: float, **kwargs) -> RawListing:
+    """One listing, distinct enough from its siblings that the conservative
+    deduplication leaves it standing alone (fingerprint = city + rooms + sqm)."""
+    base: dict[str, Any] = dict(
+        portal="immobiliare",
+        portal_id=portal_id,
+        url=f"https://www.immobiliare.it/annunci/{portal_id}/",
+        title="Trilocale",
+        city="Milano",
+        rooms=3,
+        sqm=sqm,
+        price=300_000.0,
+        address=f"Via Roma, {portal_id}",
+    )
+    base.update(kwargs)
+    return RawListing(**base)
+
+
+def _area_scraper(listings: list[RawListing]):
+    class _S:
+        def __init__(self):
+            self.delay_seconds = 0
+            self.max_pages = 1
+
+        def scrape(self, url):
+            return ScrapeResult(listings=list(listings), pages_fetched=1, strategy_used="fake")
+
+    return _S()
+
+
+def _scan_area(db, monkeypatch, search_url: str, listings: list[RawListing], profile=None):
+    if profile is None:
+        profile = SearchProfile(name="Zone", portal="immobiliare", search_url=search_url)
+        db.add(profile)
+        db.commit()
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: _area_scraper(listings))
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    summary = _summary()
+    scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
+    db.commit()
+    return profile, summary
+
+
+def _by_title(db) -> dict[str, Property]:
+    return {p.title: p for p in db.query(Property).all()}
+
+
+def test_a_zone_search_counts_and_flags_what_came_back_from_elsewhere(db, monkeypatch):
+    """The acceptance case: the portal answers a Navigli search with listings
+    from Navigli's neighbours, and the scan has to say so."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        NAVIGLI_URL,
+        [
+            _listing(
+                "1",
+                90.0,
+                title="Dentro",
+                zone="Navigli",
+                latitude=IN_MILANO[0],
+                longitude=IN_MILANO[1],
+            ),
+            _listing("2", 70.0, title="Distretto accanto", zone="Città Studi"),
+            _listing("3", 80.0, title="Altro comune", city="Monza", zone="Centro"),
+            _listing("4", 60.0, title="Senza zona", zone=""),
+        ],
+    )
+
+    assert summary["outside_area"] == 2
+    props = _by_title(db)
+    assert props["Distretto accanto"].outside_requested_area is True
+    assert props["Altro comune"].outside_requested_area is True
+    assert props["Dentro"].outside_requested_area is False
+    # no district on the listing is not evidence of a wrong one: unjudged, so
+    # left exactly as it was rather than accused
+    assert props["Senza zona"].outside_requested_area is False
+
+
+def test_an_out_of_area_listing_is_kept_not_dropped(db, monkeypatch):
+    """A listing on a boundary, or one the portal files under the next
+    district, is often precisely the one the user wants. Deleting it would turn
+    a visible annoyance into an invisible one, so all three survive the scan
+    with their status untouched."""
+    _scan_area(
+        db,
+        monkeypatch,
+        NAVIGLI_URL,
+        [
+            _listing("1", 90.0, title="Dentro", zone="Navigli"),
+            _listing("2", 70.0, title="Distretto accanto", zone="Città Studi"),
+            _listing("3", 80.0, title="Altro comune", city="Monza", zone="Centro"),
+        ],
+    )
+
+    props = _by_title(db)
+    assert len(props) == 3
+    assert {p.status for p in props.values()} == {"active"}
+
+
+def test_the_profile_line_says_how_many_came_from_outside(db, monkeypatch):
+    profile, _ = _scan_area(
+        db,
+        monkeypatch,
+        NAVIGLI_URL,
+        [
+            _listing("1", 90.0, title="Dentro", zone="Navigli"),
+            _listing("2", 70.0, title="Distretto accanto", zone="Città Studi"),
+        ],
+    )
+
+    assert "1 outside the requested area" in profile.last_run_detail
+
+
+def test_a_scan_that_agrees_with_its_search_says_nothing_about_area(db, monkeypatch):
+    """A false alarm here would be as bad as the silence it replaces."""
+    profile, summary = _scan_area(
+        db,
+        monkeypatch,
+        NAVIGLI_URL,
+        [_listing("1", 90.0, title="Dentro", zone="Navigli")],
+    )
+
+    assert summary["outside_area"] == 0
+    assert "outside" not in profile.last_run_detail
+
+
+def test_coordinates_outside_the_comune_are_outside_the_area(db, monkeypatch):
+    """The city text says Milano and the pin is in Rome: the comune's own
+    circle is what catches a listing whose label agrees and whose location does
+    not."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        MILANO_URL,
+        [
+            _listing("1", 90.0, title="Dentro", latitude=IN_MILANO[0], longitude=IN_MILANO[1]),
+            _listing("2", 70.0, title="A Roma", latitude=IN_ROMA[0], longitude=IN_ROMA[1]),
+        ],
+    )
+
+    assert summary["outside_area"] == 1
+    assert _by_title(db)["A Roma"].outside_requested_area is True
+
+
+def test_a_city_search_never_flags_on_the_district(db, monkeypatch):
+    """A search for the whole comune asked for no district, so no district it
+    gets back can disagree with it."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        MILANO_URL,
+        [
+            _listing("1", 90.0, title="Navigli", zone="Navigli"),
+            _listing("2", 70.0, title="Citta Studi", zone="Città Studi"),
+        ],
+    )
+
+    assert summary["outside_area"] == 0
+
+
+def test_zone_ids_alone_never_flag_a_district(db, monkeypatch):
+    """`idMZona[]` values are opaque numbers only the portal can resolve, so a
+    listing's district text can never match one. Reading "no match" out of that
+    would flag every listing of a perfectly good multi-district search — the
+    comune still applies, the districts cannot."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        MULTIZONE_URL,
+        [
+            _listing("1", 90.0, title="Un distretto qualsiasi", zone="Città Studi"),
+            _listing("2", 70.0, title="Altro comune", city="Monza", zone="Centro"),
+        ],
+    )
+
+    assert summary["outside_area"] == 1
+    props = _by_title(db)
+    assert props["Un distretto qualsiasi"].outside_requested_area is False
+    assert props["Altro comune"].outside_requested_area is True
+
+
+def test_a_search_with_no_readable_location_judges_nothing(db, monkeypatch):
+    """Most of this suite's profiles carry `search_url="u"`. A check with an
+    opinion about those would mark the whole dashboard out of area."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        "u",
+        [_listing("1", 90.0, title="Ovunque", city="Monza", zone="Centro")],
+    )
+
+    assert summary["outside_area"] == 0
+    assert _by_title(db)["Ovunque"].outside_requested_area is False
+
+
+def test_a_wider_search_clears_the_flag_its_narrower_sibling_set(db, monkeypatch):
+    """Two searches can both find one property. The flag records the last
+    judgement that could actually be made, so a city-wide search re-finding a
+    listing its zone-search sibling flagged clears it — otherwise a property
+    stays accused by a search that no longer covers it."""
+    listings = [_listing("1", 90.0, title="Zona accanto", zone="Città Studi")]
+    _scan_area(db, monkeypatch, NAVIGLI_URL, listings)
+    assert _by_title(db)["Zona accanto"].outside_requested_area is True
+
+    wider = SearchProfile(name="Tutta Milano", portal="immobiliare", search_url=MILANO_URL)
+    db.add(wider)
+    db.commit()
+    _scan_area(db, monkeypatch, MILANO_URL, listings, profile=wider)
+
+    assert _by_title(db)["Zona accanto"].outside_requested_area is False

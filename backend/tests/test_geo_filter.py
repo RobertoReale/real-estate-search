@@ -20,7 +20,7 @@ from app.database import Base
 from app.routers.selection import parse_poly_param, select_properties
 from app.scrapers.base import RawListing
 from app.services.deduplicator import upsert_listing
-from app.services.geo_filter import haversine_m, parse_polygon, point_in_polygon
+from app.services.geo_filter import haversine_m, parse_polygon, point_in_any, point_in_polygon
 
 # --- haversine_m -----------------------------------------------------------
 
@@ -96,6 +96,55 @@ def test_point_far_outside_bounding_box_is_outside(lat, lng):
 )
 def test_point_strictly_within_square_is_inside(lat, lng):
     assert point_in_polygon(lat, lng, _SQUARE) is True
+
+
+# --- point_in_any ----------------------------------------------------------
+
+# A second square, well clear of the first: a *selection* of areas, which is
+# what a multi-zone search is and what a single-polygon test cannot express.
+_FAR_SQUARE = [(9.0, 9.0), (9.0, 11.0), (11.0, 11.0), (11.0, 9.0)]
+
+# The square above with its middle punched out, the shape a published perimeter
+# genuinely has (a block inside the boundary that belongs elsewhere).
+_HOLED = {"outer": _SQUARE, "holes": [[(-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (0.5, -0.5)]]}
+
+
+def test_point_in_any_finds_the_second_perimeter():
+    areas = [{"outer": _SQUARE}, {"outer": _FAR_SQUARE}]
+    assert point_in_any(10.0, 10.0, areas) is True
+
+
+def test_point_in_any_outside_every_perimeter():
+    areas = [{"outer": _SQUARE}, {"outer": _FAR_SQUARE}]
+    assert point_in_any(5.0, 5.0, areas) is False
+
+
+def test_point_in_any_respects_holes():
+    """The hole is not part of the area, so a point in it is outside — the
+    perimeter half of this has to behave exactly like point_in_rings."""
+    assert point_in_any(0.0, 0.0, [_HOLED]) is False
+    assert point_in_any(0.9, 0.9, [_HOLED]) is True
+
+
+def test_point_in_any_accepts_a_circle():
+    """A comune is known offline as a centroid and a radius, never a boundary,
+    so "inside the requested area" has to be answerable for a circle too."""
+    milano = (45.4642, 9.1900, 12_000.0)
+    assert point_in_any(45.47, 9.18, [milano]) is True
+    # Turin is ~126 km away: outside by two orders of magnitude
+    assert point_in_any(45.0625, 7.6785, [milano]) is False
+
+
+def test_point_in_any_mixes_shapes():
+    assert point_in_any(10.0, 10.0, [(45.4642, 9.19, 12_000.0), {"outer": _FAR_SQUARE}]) is True
+
+
+def test_nothing_requested_contains_nothing():
+    """An empty selection is False, not "everything": the caller keeps the
+    difference between "outside the requested area" and "no area requested",
+    and collapsing the two here would flag every listing of a search that named
+    no location at all."""
+    assert point_in_any(0.0, 0.0, []) is False
 
 
 # --- parse_polygon ---------------------------------------------------------

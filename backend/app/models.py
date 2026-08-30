@@ -70,6 +70,20 @@ class Property(Base):
     #            "gone" is only inferred exit, this is proof (see sold_at).
     status: Mapped[str] = mapped_column(String, default="active")
     filtered_reason: Mapped[str] = mapped_column(String, default="")
+    # True when the last scan that saw this property found it *outside* the area
+    # its search asked the portal for — a listing the portal filed under the next
+    # district, or one it returned from a neighbouring comune altogether. Asking
+    # for a zone is not the same as getting one: the portal decides, and it
+    # sometimes decides differently.
+    #
+    # A flag and not a deletion, deliberately. A listing on a zone boundary is
+    # often exactly the one the user wants, and dropping it would turn a visible
+    # annoyance into an invisible one — so the data keeps it, `scanner`'s summary
+    # counts it, and hiding it is a view's choice rather than the scan's.
+    # `scanner._outside_requested_area` writes it, and only when it can actually
+    # tell: a listing the check cannot place is left exactly as it was, so a
+    # search that names no location never marks anything.
+    outside_requested_area: Mapped[bool] = mapped_column(Boolean, default=False)
     # how this property first entered the dashboard:
     #   scan  = found by a monitored search profile
     #   email = imported from the inbox (never yet matched by a monitored scan)

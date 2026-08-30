@@ -3,6 +3,7 @@ deduplicates, filters by keywords, and sends Telegram notifications."""
 
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -11,9 +12,11 @@ from ..config import load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
-from . import deal_score, notifier, pricing_stats, scraper_health
+from ..scrapers.base import RawListing
+from . import deal_score, geo_filter, geo_reference, notifier, pricing_stats, scraper_health
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
+from .search_builder import parse_search_url, zone_names
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,9 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         "gone": 0,
         "notified": 0,
         "health_alerts": 0,
+        # how many of the listings that came back were outside the area their
+        # search asked for. Counted, never dropped — see _outside_requested_area.
+        "outside_area": 0,
         "blocked_portals": [],
         "errors": [],
     }
@@ -213,6 +219,100 @@ def _texts_for_filter(raw, prop: Property) -> list[str]:
     return [raw.title, raw.description, prop.title, *floors, *floor_texts]
 
 
+@dataclass(frozen=True)
+class RequestedArea:
+    """What a monitored search asked the portal for, read back from its own URL.
+
+    The search URL is the only statement of intent a scan has: nothing else on
+    `SearchProfile` records a location. Parsing it back is therefore how "what
+    was asked for" is known, and it is the same parser the builder form uses, so
+    the two can never disagree about what a URL says.
+
+    `circle` is the comune as the offline gazetteer knows it — a centroid and a
+    size-scaled radius, the very area `is_plausible_coordinate` measures a pin
+    against — so the area a scan is judged against and the area a pin is
+    believed in are one definition, not two.
+    """
+
+    city: str = ""
+    zones: tuple[str, ...] = ()
+    zone_ids: tuple[str, ...] = ()
+    circle: geo_filter.Circle | None = None
+
+
+def requested_area(search_url: str) -> RequestedArea:
+    params = parse_search_url(search_url)
+    city = (params.get("city") or "").strip()
+    return RequestedArea(
+        city=city,
+        zones=tuple(zone_names(params.get("zone") or "", params.get("zones"))),
+        zone_ids=tuple(params.get("zone_ids") or ()),
+        circle=geo_reference.city_search_area(city) if city else None,
+    )
+
+
+def _outside_requested_area(area: RequestedArea, raw: RawListing, prop: Property) -> bool | None:
+    """Did this listing come back from outside what its search asked for?
+
+    True = outside, False = inside, and **None = cannot tell** — the third
+    answer is the one that matters. Asking a portal for a zone is not the same
+    as getting one, so the result is checked here rather than trusted; but a
+    check that guessed when it had nothing to go on would accuse the portal of
+    a mistake the app cannot demonstrate, and the flag would stop meaning
+    anything. Every branch below either proves a disagreement or declines to
+    have an opinion.
+
+    The evidence, strongest first:
+
+    1. **the comune, by name.** A listing whose city is a different comune is
+       outside whatever the search asked for, zones or no zones.
+    2. **the comune, by coordinates.** The pin against the comune's own circle,
+       which is what catches a listing filed under the right city name and
+       plainly somewhere else.
+    3. **the zones, by name.** The requested zone names against the listing's
+       own zone text, word-bound and accent-insensitive — `find_excluded_keyword`
+       is exactly that matcher, and a second copy of it here would be a second
+       set of rules for "does this text name this place".
+
+    Zone *ids* are deliberately absent from step 3. Immobiliare's `idMZona[]`
+    values are opaque numbers the portal alone can resolve, and a listing's zone
+    text can never match one, so a search that carries ids and no names is
+    judged on the comune alone. Reading "no name matched" out of ids nobody can
+    name would flag every listing of a perfectly good multi-zone search.
+    """
+    if not area.city:
+        # A search with no readable location asks for nothing this can check —
+        # a URL from an unknown portal, or one whose location is an opaque id.
+        return None
+
+    city = (raw.city or prop.city or "").strip()
+    lat = raw.latitude if raw.latitude is not None else prop.latitude
+    lng = raw.longitude if raw.longitude is not None else prop.longitude
+    placed = False
+
+    if city:
+        if not geo_reference.same_comune(city, area.city):
+            return True
+        placed = True
+    if lat is not None and lng is not None and area.circle is not None:
+        if not geo_filter.point_in_any(lat, lng, [area.circle]):
+            return True
+        placed = True
+
+    if area.zones:
+        zone_text = (raw.zone or prop.zone or "").strip()
+        # The address is searched for a match but never counts as evidence on
+        # its own: a street name that happens to carry the district is a bonus,
+        # while "Via Roma, 9" says nothing about which district Via Roma is in.
+        if find_excluded_keyword([zone_text, raw.address or prop.address], list(area.zones)):
+            return False
+        # A listing that names *some* district, and not one of the requested
+        # ones, is the disagreement this exists to report. One that names no
+        # district at all is not evidence of anything.
+        return True if zone_text else None
+    return False if placed else None
+
+
 def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> None:
     logger.info("Scanning profile '%s' (%s)", profile.name, profile.portal)
     # `last_run_at` alone is not a safe proxy for "first scan": a blocked/error
@@ -259,6 +359,12 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     keywords = list(settings.get("excluded_keywords", []))
     keywords += [k for k in parse_keywords_csv(profile.excluded_keywords) if k not in keywords]
 
+    # what this search actually asked the portal for, so what came back can be
+    # checked against it rather than assumed to match. Read once per profile:
+    # it is a URL parse plus a gazetteer lookup, and it cannot change mid-scan.
+    area = requested_area(profile.search_url)
+    outside_area = 0
+
     new_properties: list[Property] = []
     price_drops: list[tuple[Property, float, float]] = []
     # (property, previous status) pairs that came back to life this scan:
@@ -269,6 +375,15 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
 
     for raw in result.listings:
         prop, is_new, price_changed = upsert_listing(db, raw, profile_id=profile.id)
+
+        # Before any status branch: a hidden or filtered listing is still a
+        # listing the portal returned, and the count is about what the portal
+        # sent back, not about what the dashboard ends up showing.
+        outside = _outside_requested_area(area, raw, prop)
+        if outside is not None:
+            prop.outside_requested_area = outside
+            if outside:
+                outside_area += 1
 
         if prop.status in ("hidden", "sold"):
             # manually hidden, or confirmed sold, by the user: data is updated
@@ -311,12 +426,26 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
             last = prop.price_history[-1]
             price_drops.append((prop, last.old_price or 0.0, last.new_price))
 
+    summary["outside_area"] += outside_area
+    if outside_area:
+        logger.info(
+            "Profile '%s': %d of %d listings came back outside the requested area",
+            profile.name,
+            outside_area,
+            len(result.listings),
+        )
+
     profile.last_run_status = "blocked" if result.blocked else "ok"
     if not result.blocked:
         detail = (
             f"{len(result.listings)} listings across {result.pages_fetched} pages "
             f"(strategy: {result.strategy_used or 'N/A'})"
         )
+        # said on the profile's own line, because it is a fact about *this*
+        # search: the portal was asked for an area and answered with something
+        # else. Kept, not dropped — the count is how the user finds out.
+        if outside_area:
+            detail += f" — {outside_area} outside the requested area"
         if is_first_run:
             detail += " — first scan: notifications suppressed"
         profile.last_run_detail = detail
