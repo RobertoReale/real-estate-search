@@ -163,6 +163,34 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   *declares* in order to be named, kept in step with the inventory in `e2e/actions.ts` by a
   gate that fails the build if the two drift.
 
+- **Which tier a new test goes in is decided by what the defect needs in order to be
+  visible**, never by which harness is nearest to hand. Pure logic — a codec, a formatter,
+  a dictionary, a payload built from eight sections — is a vitest, because a test that can
+  be written against a function should be. A defect that is a *relationship between
+  elements* — a label that must actually name its control, a dialog that must stay
+  dismissable when its data never arrives — is a component test, since nothing weaker
+  renders the relationship. Everything else is the browser suite: a real backend, the built
+  bundle rather than the dev server, layout at a given width, tab order, and what a control
+  actually does end to end. The rule cuts both ways and the second half is the one that
+  gets forgotten — the browser suite costs around five minutes against six seconds, so
+  putting something in it that a unit test could prove makes every future run slower for
+  nothing, and it is the tier a hurried change is most tempted to reach for.
+
+- **Every interactive control is inventoried, and that is a gate rather than a habit.**
+  Any element in `src/` carrying an `onClick`, `onChange`, `onSubmit` or `onKeyDown` — or a
+  `<form>` — declares a `data-action="<domain>.<verb>"`, and `e2e/actions.ts` carries one
+  row per id saying what the control is and what it must do. **A change that adds, moves or
+  removes a control updates that inventory and the spec that fires it, in the same commit.**
+  Forgetting is not a matter of discipline: a handler with no id, an id with no row, a row
+  with no control, or a row nothing exercised each fails `npm run e2e`, and the mechanism is
+  described in [`architecture.md`](architecture.md#where-to-act-for-each-type-of-modification).
+  A control the suite genuinely cannot fire costs a written reason in `blocked`, and that
+  field is the one thing here worth being strict about: an empty escape hatch would keep the
+  gate green by quietly shrinking what it checks, which is the failure mode this whole
+  arrangement exists to prevent. One row per *control*, not per rendering — a checkbox
+  inside a `.map` is one control the user meets several times, and splitting it per item
+  would make the inventory grow with the data instead of with the app.
+
 - **Every screen a journey reaches is held to two invariants**, applied by `checkScreen`
   at 390, 768 and 1440 px: the page must not scroll sideways, and `axe-core` must report no
   *serious* or *critical* violation. They are per-screen rather than per-test because they

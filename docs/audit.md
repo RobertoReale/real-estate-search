@@ -37,15 +37,31 @@ cd backend && .venv\Scripts\ruff format --check app tests
 # frontend types + production build, then its unit tests
 cd frontend && npm run build
 cd frontend && npm test
+
+# the browser suite: the production build served against a real backend on a
+# throwaway database, and every control in the app driven at least once
+# (`npm run e2e:browser` fetches Chromium the first time)
+cd frontend && npm run e2e
 ```
 
 Expected today: **860 passed + 1 skipped** (861 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**.
-If a test number changed, that is not a failure — it is a documentation trigger (see §4).
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
+and **35 browser tests** (15 journeys, then 20 that hold the run to the control inventory).
+The last of those prints the two numbers worth reading: **222 interactive elements, 230
+inventoried actions**, of which **228 exercised and 2 declared unreachable with a written
+reason**. If a test number changed, that is not a failure — it is a documentation trigger
+(see §4).
 
 `ruff format --check` belongs in this list and is easy to forget: CI's lint step runs
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
 locally and red on the very next push.
+
+`npm run e2e` is the slow one — around five minutes against the six seconds the rest of this
+list costs — and it is on it anyway, because it is the only gate that runs the *assembled*
+product and the only one that can notice a control that quietly stopped working. Two things
+turn it red that nothing else here can: a screen that scrolls sideways or fails an `axe-core`
+check at 390, 768 or 1440 px, and a control added without an entry in `frontend/e2e/actions.ts`.
+CI runs it on every push, so skipping it locally moves the failure rather than avoiding it.
 
 To fetch a portal page live during verification, use `AdProbe` (`scrapers/probe.py`), never
 a cold browser — it injects the real `datadome_cookie`. See

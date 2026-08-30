@@ -53,10 +53,17 @@ the body says *why*, which is the part that is not recoverable from the diff.
 
 ## 2. Before every commit: the gates
 
-Six gates: backend tests, pyright, `ruff check`, `ruff format --check`, the frontend build,
-the frontend tests. The commands and the expected numbers are in
-[`audit.md` §0](audit.md#0-green-baseline-run-first-every-audit) — that is the one place
+Seven gates: backend tests, pyright, `ruff check`, `ruff format --check`, the frontend
+build, the frontend tests, and the browser suite. The commands and the expected numbers are
+in [`audit.md` §0](audit.md#0-green-baseline-run-first-every-audit) — that is the one place
 they are written, so run them from there.
+
+The seventh is the odd one and it is worth saying why it is on the list rather than beside
+it: it costs around five minutes where the other six together cost seconds, and it is the
+only one that runs the assembled product. It is also the only one that can tell you a
+control stopped working, or that a screen scrolls sideways on a phone. Run it last, but run
+it before the commit like the rest — CI runs it on every push, so skipping it moves the
+failure to somebody else's morning.
 
 Three things about the timing, each of which has cost a session at least once:
 
@@ -140,8 +147,8 @@ and all three must match a real `pytest -q` run rather than each other.
 
 A release is a tag. Everything else is automatic.
 
-1. **`master` is green** — the six gates locally, CI green on both operating systems for the
-   commit being tagged.
+1. **`master` is green** — the seven gates locally, CI green on both operating systems for
+   the commit being tagged.
 2. **The two version numbers are in step**: `backend/pyproject.toml` and
    `frontend/package.json`. The halves ship as one artifact, so two different numbers are
    only ever a question nobody can answer.
@@ -175,7 +182,8 @@ minting a version number to throw away.
 
 ## 6. What a finished unit looks like
 
-- All six gates green, `ruff format --check` included, run before the commit.
+- All seven gates green, `ruff format --check` and the browser suite included, run before
+  the commit.
 - New behaviour that can be wrong has a test, and an invariant if breaking it would be
   silent.
 - Every document the change made untrue is fixed in the same commit.

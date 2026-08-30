@@ -150,17 +150,16 @@ jobs:
   # re-prove the same thing. It reaches no network by construction (the offline
   # guard in e2e/harness/offline.ts fails the run on an attempt), so this job
   # never becomes traffic against a portal.
+  # A gate now, where it started as advisory. It was let through while its first
+  # journeys were written against defects the audit had already found and that
+  # had not been fixed yet — a red run then was the expected result rather than
+  # news. Those are closed, so from here a failure here means something broke.
+  # Two of them nothing else in this workflow can see: a screen that scrolls
+  # sideways or fails an axe-core check at 390, 768 or 1440 px, and an
+  # interactive control added without an entry in frontend/e2e/actions.ts.
   e2e:
     name: browser suite
     runs-on: ubuntu-latest
-
-    # Not yet a gate. The suite's first journeys are written against defects the
-    # audit already found and land before the fixes do, so until those are
-    # closed a red run here would be the expected result rather than news. The
-    # job still runs on every push from the day it exists: a harness that only
-    # works on the machine it was written on is worth finding out about now, not
-    # later.
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v7
