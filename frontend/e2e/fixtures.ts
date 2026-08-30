@@ -1,9 +1,9 @@
 /** What every browser test imports instead of `@playwright/test`.
  *
- *  The only thing it adds today is the offline guard, applied automatically so
- *  no spec can forget it. Importing `test` from here rather than from the
- *  library is what makes that possible, and it is where the invariants the
- *  suite applies to *every* journey will go.
+ *  Two things come with it, both applied automatically so no spec can forget
+ *  them: the offline guard, and the per-screen invariants every journey is held
+ *  to (`checkScreen`, re-exported here so a spec needs one import). Importing
+ *  `test` from here rather than from the library is what makes that possible.
  */
 import { test as base, expect } from "@playwright/test";
 import type { OfflineGuard } from "./harness/offline";
@@ -17,8 +17,11 @@ export const test = base.extend<{ offlineGuard: OfflineGuard }>({
     async ({ context }, use) => {
       const guard = await installOfflineGuard(context);
       await use(guard);
-      if (guard.attempted.length > 0) {
-        throw new Error(offlineViolation(guard.attempted));
+      // `unexpected`, not `attempted`: a spec may declare an address it knows
+      // will be blocked (the map's tiles), and that declaration is the whole
+      // difference between testing the offline case and tripping over it.
+      if (guard.unexpected.length > 0) {
+        throw new Error(offlineViolation(guard.unexpected));
       }
     },
     // `auto` so it runs for a test that never mentions it — an opt-in guard is
@@ -27,4 +30,5 @@ export const test = base.extend<{ offlineGuard: OfflineGuard }>({
   ],
 });
 
+export { checkScreen } from "./harness/invariants";
 export { expect };

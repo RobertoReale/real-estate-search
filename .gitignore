@@ -43,9 +43,10 @@ backend/htmlcov/
 frontend/coverage/
 
 # Browser suite (frontend/playwright.config.ts): the traces, screenshots and
-# HTML report of the last run, and the throwaway data directory it seeds the
-# demo corpus into. The data directory is a database, so it follows the same
-# never-commit rule as case.db even though nothing in it is real.
+# HTML report of the last run, and the two throwaway data directories its
+# backends run on — one seeded with the demo corpus, one deliberately left empty
+# for the first-run journey. Both are databases, so they follow the same
+# never-commit rule as case.db even though nothing in them is real.
 frontend/test-results/
 frontend/playwright-report/
 frontend/.e2e-data/

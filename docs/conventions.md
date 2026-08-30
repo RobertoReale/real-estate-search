@@ -126,20 +126,32 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   run e2e`; `npm run e2e:browser` fetches Chromium the first time). It is the only thing
   here that runs the *assembled* product — the production build, served by `vite preview`
   against a real backend on a database seeded with the demo corpus — so it is where a
-  defect that is invisible to every part in isolation gets caught. Its shape and the two
-  ports it owns are in [`architecture.md`](architecture.md#where-to-act-for-each-type-of-modification);
+  defect that is invisible to every part in isolation gets caught. Its shape and the ports
+  it owns are in [`architecture.md`](architecture.md#where-to-act-for-each-type-of-modification);
   the two rules that bind anything written into it are that it **never touches port 8000
   or `backend/case.db`**, and that it **never reaches the network** — an off-harness
   request is aborted and fails the test, because a suite that silently depends on a tile
   server or a placeholder-image service goes red on somebody else's outage, and portal
-  traffic from a test run is spent against the residential IP the real scans need.
+  traffic from a test run is spent against the residential IP the real scans need. A spec
+  asserts what a user can see and name — a role, a label, visible text — and **never a CSS
+  class**: the classes are being rewritten wholesale, and a suite pinned to one goes red on
+  a rename while staying blind to a button that stopped working.
+
+- **Every screen a journey reaches is held to two invariants**, applied by `checkScreen`
+  at 390, 768 and 1440 px: the page must not scroll sideways, and `axe-core` must report no
+  *serious* or *critical* violation. They are per-screen rather than per-test because they
+  are properties of any screen the app can produce, and a journey that visits four of them
+  should say which one broke. Both are soft assertions, so a run reports the whole list
+  instead of the first item on it.
 
 - **Tests DO NOT cover:** the real network fetch (DataDome cannot be simulated), the
   APScheduler wiring itself (its decision helpers — catch-up, backup freshness — are
-  tested), how the UI *looks* (layout and the responsive breakpoints are still manual
-  verification via `start.bat`), and anything that needs a real layout engine — which in
-  practice means **Leaflet**: `L.map` on jsdom's zero-sized container measures nothing, so
-  `MapView`'s drawing tools and pin fitting are verified by hand.
+  tested), and how the UI *looks*. Layout is now covered where it is objectively wrong — a
+  page that scrolls sideways at 390 px, a control nothing can name — but nothing checks
+  whether a screen reads well, and that judgement stays manual (`start.bat`). Leaflet is
+  the one thing the *unit* tier cannot reach at all (`L.map` on jsdom's zero-sized container
+  measures nothing), so the browser suite is where the map's pins are asserted; its
+  drawing tools are still verified by hand.
 
 - **The offline sandbox (`tests/mock_portal.py`) is where a whole-flow test goes.** The
   suite has always been offline, but offline *by substitution* — a fake session handed to a

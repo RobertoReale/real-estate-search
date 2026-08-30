@@ -10,7 +10,9 @@
  *   1. a throwaway data directory, wiped first, so every run starts from the
  *      same rows and a failed run leaves nothing behind to poison the next one;
  *   2. a settings.json in it, with automatic scanning paused;
- *   3. the demo corpus seeded into it (scripts/seed_demo.py, deterministic);
+ *   3. the demo corpus seeded into it (scripts/seed_demo.py, deterministic),
+ *      unless E2E_SEED=0 — the onboarding journey needs a database that has
+ *      never held anything, and there is no way back to that state once seeded;
  *   4. the backend, with APP_DATA_DIR pointing at that directory and a port
  *      that is not 8000.
  *
@@ -78,17 +80,19 @@ rmSync(dataDir, { recursive: true, force: true });
 mkdirSync(dataDir, { recursive: true });
 writeFileSync(path.join(dataDir, "settings.json"), `${JSON.stringify(SETTINGS, null, 2)}\n`, "utf-8");
 
-const seeded = spawnSync(python, [path.join("scripts", "seed_demo.py"), "--data-dir", dataDir], {
-  cwd: ROOT,
-  stdio: "inherit",
-});
-if (seeded.status !== 0) {
-  console.error(
-    `seeding the demo corpus failed (${python} exited ${seeded.status}). ` +
-      "The backend is not started: a suite against an empty database would report " +
-      "an empty product as a passing one.",
-  );
-  process.exit(seeded.status ?? 1);
+if (process.env.E2E_SEED !== "0") {
+  const seeded = spawnSync(python, [path.join("scripts", "seed_demo.py"), "--data-dir", dataDir], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  if (seeded.status !== 0) {
+    console.error(
+      `seeding the demo corpus failed (${python} exited ${seeded.status}). ` +
+        "The backend is not started: a suite against an empty database would report " +
+        "an empty product as a passing one.",
+    );
+    process.exit(seeded.status ?? 1);
+  }
 }
 
 const backend = spawn(python, ["run.py"], {
