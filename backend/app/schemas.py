@@ -559,6 +559,11 @@ class SearchBuilderUrlsOut(BaseModel):
     # requested filters Idealista's URL grammar cannot express, so its half of
     # the pair is the wider search
     idealista_unsupported: list[str] = []
+    # the same admission for Immobiliare's zone selection: which of the zones
+    # the user picked the URL about to be saved cannot carry, and why. Said
+    # here because after the save the only evidence is a scan that answers
+    # normally for a wider area — see search_validator.zone_coverage_warnings
+    zone_warnings: list[str] = []
 
 
 class AssistantSearch(BaseModel):

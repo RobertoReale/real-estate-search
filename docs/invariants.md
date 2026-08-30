@@ -56,7 +56,13 @@ each invariant to its code home and its test file. See also
    (`idComune` etc. via autocomplete): with only `path` it answers `200 OK` with all of
    Italy — a silent failure
    ([`implementation_plan.md`](../implementation_plan.md#3-resilience-surviving-html-changes)
-   §3, strategy 4).
+   §3, strategy 4). **And a zone selection travels *beside* that geography, never instead
+   of it**: the resolved municipality is the area the endpoint answers in, the repeated
+   `idMZona[]` ids are the filter within it, and every id the URL carried is sent — that
+   is the grammar the portal's own map emits when districts are clicked. Dropping the
+   geography returns Italy; dropping or truncating the ids returns the whole comune. Both
+   are 200s that look like results, which is why the count that cannot fit in one request
+   is refused with the number named rather than sent (`immobiliare.MAX_ZONE_IDS`).
 
 8. **TLS Impersonation: ordered list, Safari first.** DataDome rejects Chrome desktop on
    both portals (measured); rotation occurs only on block. If someday everything is
