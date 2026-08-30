@@ -84,7 +84,7 @@ Companion documents:
 | Portal boilerplate in a title or zone | `backend/app/services/listing_text.py` | `is_bad_title` / `is_placeholder_zone`: does this text describe the property, or is it the portal's auto-generated "Appartamento in vendita a Milano, Milano"? Structural match (generic words + vendita/affitto + a place tail that must resolve to real comuni via `geo_reference.load_comuni`), never a list of known strings, and it **fails towards keeping** — an unrecognized tail means the text says something. Two readers: `availability_check` overwrites a placeholder title with the ad page's `og:title`, `geocoder` refuses to look up a placeholder zone. Agency branding also marks a title bad, from the settings-driven `repair_agency_prefixes` |
 | Reattaching UTC to a datetime read back from SQLite | `backend/app/services/timeutils.py` | `as_utc` / `as_utc_or_none`. SQLite has no timezone type, so every aware datetime the ORM writes comes back **naive**, while anything just built in memory is aware — and `SessionLocal` uses `expire_on_commit=False`, so one session can hold both kinds in a single list. Comparing them raises `TypeError`. This lived as five hand-rolled copies (scanner, scheduler, availability check, market velocity, harvester); one copy forgetting the reattachment is a 500 in whichever screen it feeds, so it lives here once |
 | Periodic scanning | `backend/app/services/scheduler.py` | APScheduler; catch-up scan on startup when the last scan is older than the interval |
-| Automatic DB backup | `backend/app/services/backup.py` | daily copy of `case.db` into `backend/backups/` (rotation: 14), checked at startup; `force=True` bypasses the throttle before a reset |
+| Automatic DB backup | `backend/app/services/backup.py` | two kinds of copy. `maybe_backup`: daily copy of `case.db` into `backend/backups/` (rotation: 14), checked at startup; `force=True` bypasses the throttle before a reset. `snapshot_before_migration`: taken by `database._snapshot_before_upgrade` *before* a pending migration runs, named `case-pre-<revision>.db` for the revision being left, and **exempt from the rotation** (see [Migrations](#migrations-additive-automatic--alembic-for-the-rest)) |
 | Deleting a search "with its results" | `backend/app/services/data_reset.py` (`profile_results`/`delete_profile_results`) | attribution comes from `ListingProfile`, never from the search criteria; spares shared + curated (invariant 20) |
 | User data resets ("start fresh") | `backend/app/services/data_reset.py` | scoped, irreversible wipes (`POST /api/maintenance/reset/{scope}`); **clearing the dashboard MUST re-arm `baseline_done=False` on every profile** (invariant 3) or the next scan notifies on every re-found listing; factory reset backs up first |
 | UI: grid/filters/modals | `frontend/src/components/*.tsx` | state in `App.tsx`, API in `services/api.ts` |
@@ -230,7 +230,8 @@ copy** — `services/backup.py` already uses `sqlite3.Connection.backup`, and
 `init_db()` runs three steps in order (`database.py`): `create_all` (creates missing
 tables), `_apply_additive_migrations()` (adds columns present in the models but missing on
 disk via `ALTER TABLE ADD COLUMN` with their default, so `case.db` and its price history
-survive new columns), then `_run_migrations()` (Alembic).
+survive new columns), then `_run_migrations()` (Alembic, which takes a pre-upgrade snapshot
+first — see below).
 
 **Adding a plain nullable/defaulted column still needs no migration** — the additive step
 handles it, and that remains the path for additive changes. Alembic
@@ -246,6 +247,20 @@ never re-runs against tables that already exist. The whole Alembic step is fail-
 (create_all + additive already guarantee a working schema), and a missing `alembic`
 install degrades to a warning — but a genuine post-baseline migration failure is logged
 loudly with a traceback.
+
+**A pending migration is snapshotted before it runs.** `_snapshot_before_upgrade()` compares
+the recorded revision (or `0001_baseline` for a database that has none) against the script
+head, and when they differ calls `backup.snapshot_before_migration()` for a copy named
+`case-pre-<revision>.db`, beside the database rather than at `config.BACKUP_DIR` — the
+engine, not `DB_PATH`, decides which database is live. It is skipped on a fresh install
+(`init_db` reads whether the file existed *before* `create_all` created it) and taken once
+per revision, so a retried migration does not overwrite the state that predates the first
+attempt. That copy is **exempt from the 14-copy daily rotation** (`backup._daily_copies`
+filters the prefix out): it is the oldest file in the folder, so counting it would make it
+the first thing pruned. The daily copy cannot do this job at all — it is scheduled from
+`scheduler.start_scheduler`, which starts after `init_db()` has already migrated.
+Fail-open like the rest of the path, but logged at **error** level: startup continues,
+and the line says the migration is running with nothing to fall back on.
 
 ---
 

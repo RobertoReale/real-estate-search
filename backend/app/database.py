@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -16,6 +17,12 @@ logger = logging.getLogger(__name__)
 # un-upgraded schema and the fail-open Alembic step would say so only in the log.
 ALEMBIC_INI = BASE_DIR / "alembic.ini"
 ALEMBIC_DIR = BASE_DIR / "alembic"
+
+# The revision every pre-Alembic database is adopted at (see `_run_migrations`).
+# Named once: `_snapshot_before_upgrade` has to agree with the stamp about which
+# revision such a database is leaving, or it would name the snapshot after one
+# thing and the migration would run from another.
+BASELINE_REVISION = "0001_baseline"
 
 
 def _sqlite_pragmas(dbapi_conn, _record):
@@ -200,7 +207,70 @@ def _backfill_property_source():
         )
 
 
-def _run_migrations():
+def _engine_db_path() -> Path | None:
+    """The file the current engine writes to, or None if it is not one.
+
+    Not `config.DB_PATH`: `engine` is the single symbol that decides which
+    database the app talks to (see `SessionLocal`), and the test fixtures and
+    the demo seeder both redirect it. A snapshot resolved against DB_PATH while
+    the engine pointed elsewhere would copy the wrong database, into the wrong
+    folder, and call it a backup of this one.
+    """
+    name = engine.url.database
+    if not name or name == ":memory:":
+        return None
+    return Path(name)
+
+
+def _current_revision() -> str | None:
+    """The Alembic revision recorded in the database, or None if it has none."""
+    if not inspect(engine).has_table("alembic_version"):
+        return None
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+
+
+def _snapshot_before_upgrade(script_dir) -> None:
+    """Copy the database aside when this startup is about to change its schema.
+
+    `services/backup.py` names "a botched migration" as the thing it exists to
+    protect against, but its copy is scheduled from `scheduler.start_scheduler`,
+    which runs *after* `init_db()`: on the one startup where that copy mattered
+    it was taken after the migration it was insuring against. Taking it here
+    puts it back on the right side of the event.
+
+    Only when the recorded revision and the script head actually differ, so an
+    ordinary startup — every startup, once the schema has settled — writes
+    nothing at all.
+
+    Fail-open, like everything else on this path: working out *whether* to
+    snapshot reads the database, and a failure there must not stop startup
+    either. Logged at error level rather than warning, because the user is
+    about to migrate without a net and that is worth seeing.
+    """
+    from .services.backup import snapshot_before_migration
+
+    try:
+        head = script_dir.get_current_head()
+        # A pre-Alembic database has no alembic_version row, and `_run_migrations`
+        # is about to stamp it at the baseline — so the baseline is the revision
+        # it is leaving, and the one to name the copy after.
+        current = _current_revision() or BASELINE_REVISION
+        if head is None or current == head:
+            return
+        db_path = _engine_db_path()
+        if db_path is None:
+            return
+    except Exception:
+        logger.error("could not read the schema revision before migrating", exc_info=True)
+        return
+
+    # beside the database it protects: that is config.BACKUP_DIR in production,
+    # and it follows the engine anywhere the engine has been redirected
+    snapshot_before_migration(current, db_path, db_path.parent / "backups")
+
+
+def _run_migrations(protect_data: bool = False):
     """Apply any authored Alembic migrations, and adopt pre-Alembic databases.
 
     Coexists with create_all + additive migrations on purpose (see the module
@@ -220,9 +290,13 @@ def _run_migrations():
     steps above, so a migration harness problem is logged, not fatal. A genuine
     post-baseline migration failure surfaces loudly (error + traceback) without
     taking startup down with it.
+
+    `protect_data` says the database existed before this startup, and is what
+    makes the pre-upgrade snapshot conditional — see `init_db`.
     """
     try:
         from alembic.config import Config
+        from alembic.script import ScriptDirectory
 
         from alembic import command
     except ImportError:
@@ -234,6 +308,8 @@ def _run_migrations():
 
     cfg = Config(str(ALEMBIC_INI))
     cfg.set_main_option("script_location", str(ALEMBIC_DIR))
+    if protect_data:
+        _snapshot_before_upgrade(ScriptDirectory.from_config(cfg))
     inspector = inspect(engine)
     has_version = inspector.has_table("alembic_version")
     has_schema = inspector.has_table("properties")
@@ -245,7 +321,7 @@ def _run_migrations():
             if has_schema and not has_version:
                 # Pre-Alembic DB (or a fresh one just built by create_all):
                 # mark it at the baseline instead of trying to recreate tables.
-                command.stamp(cfg, "0001_baseline")
+                command.stamp(cfg, BASELINE_REVISION)
             command.upgrade(cfg, "head")
     except Exception:
         logger.error("Alembic migration failed", exc_info=True)
@@ -254,11 +330,19 @@ def _run_migrations():
 def init_db():
     from . import models  # noqa: F401 - registers models on metadata
 
+    # Read before create_all, which is about to create the file: the absence of
+    # the database is the only reliable sign of a fresh install, and a fresh
+    # install has nothing to protect. Without this every first run would leave
+    # behind a pre-upgrade snapshot of an empty database — and one that is
+    # exempt from the rotation, so it would never be cleaned up either.
+    db_path = _engine_db_path()
+    had_database = db_path is not None and db_path.exists()
+
     Base.metadata.create_all(bind=engine)
     added = _apply_additive_migrations()
     if "properties.source" in added:
         _backfill_property_source()
-    _run_migrations()
+    _run_migrations(protect_data=had_database)
     with SessionLocal() as db:
         from .services.search_validator import deduplicate_search_profiles
 
