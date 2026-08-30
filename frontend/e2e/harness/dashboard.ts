@@ -9,7 +9,8 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /** The property cards. `<article>` is the card's own element and nothing else in
  *  the dashboard uses it; the accessible name of each is the listing's title
- *  (`PropertyCard`, `role="button"`). */
+ *  (`PropertyCard`, `aria-label`). A pointer opens a property by clicking the
+ *  card; a keyboard does it through the title button inside it. */
 export function cards(page: Page): Locator {
   return page.locator("article");
 }

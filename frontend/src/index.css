@@ -68,9 +68,12 @@ input[type="checkbox"] {
    desktop the extra height only loosens dense rows, so it is dropped at `sm`.
    inline-flex (rather than the default inline-block) is what keeps the label
    centered once min-height makes the box taller than its line. */
+/* Hover goes darker, not lighter: the label is white, and blue-500 under it
+   measures 3.8:1 — the button became less readable exactly when the pointer was
+   on it. blue-700 and blue-800 keep the same two steps of feedback above 4.5:1. */
 .btn-primary {
   @apply inline-flex items-center justify-center
-    bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium
+    bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium
     rounded-lg px-4 py-2 text-sm min-h-11 sm:min-h-0 transition disabled:opacity-50
     disabled:cursor-not-allowed shadow-lg shadow-blue-600/20
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
@@ -91,9 +94,17 @@ input[type="checkbox"] {
 
 /* Semantic helpers: the visual hierarchy inverts between themes
    (in light mode darker = more prominent, in dark mode lighter = more
-   prominent), so components use these instead of raw slate shades. */
-.t-muted { @apply text-slate-500 dark:text-slate-400; }
-.t-dim { @apply text-slate-400 dark:text-slate-500; }
+   prominent), so components use these instead of raw slate shades.
+
+   The light values are pinned by contrast rather than by taste. Secondary text
+   lands on `.glass` and `.panel`, which resolve to slate-100 and slate-50, and
+   against those slate-400 measures 2.5:1 and slate-500 measures 4.3:1 — both
+   under the 4.5:1 the browser suite gates on. slate-600 is the first shade in
+   the stock ramp that clears it, so light mode currently has one step where it
+   wants two. Dark mode keeps both, because a dark background leaves room the
+   light one does not. */
+.t-muted { @apply text-slate-600 dark:text-slate-400; }
+.t-dim { @apply text-slate-500 dark:text-slate-500; }
 .t-body { @apply text-slate-700 dark:text-slate-300; }
 .t-strong { @apply text-slate-800 dark:text-slate-200; }
 
@@ -114,8 +125,11 @@ input[type="checkbox"] {
 .chip-sky { @apply bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300; }
 
 .accent-price { @apply text-blue-700 dark:text-blue-300; }
-.accent-good { @apply text-emerald-600 dark:text-emerald-400; }
-.accent-bad { @apply text-rose-600 dark:text-rose-400; }
+/* 700 rather than 600 in light, for the same reason as `.t-muted` above: these
+   carry a number's verdict ("12% over the median", "no longer available") on a
+   near-white panel, where emerald-600 measures 3.5:1 and rose-600 4.3:1. */
+.accent-good { @apply text-emerald-700 dark:text-emerald-400; }
+.accent-bad { @apply text-rose-700 dark:text-rose-400; }
 .accent-link { @apply text-blue-600 dark:text-blue-400; }
 
 /* --- Leaflet (map view) ---------------------------------------------------
@@ -142,6 +156,15 @@ input[type="checkbox"] {
     dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600;
 }
 .dark .leaflet-tooltip-top::before { border-top-color: rgb(71 85 105); }
+
+/* Leaflet's own attribution line ("Leaflet | © OpenStreetMap") sets its links
+   apart by colour alone, inside a run of text. Colour alone is not a
+   distinction anyone with a colour-vision deficiency can act on, and it is the
+   one piece of markup on the map this app does not author — so the underline
+   is put back here. */
+.leaflet-control-attribution a {
+  @apply underline;
+}
 
 .leaflet-control-attribution,
 .leaflet-control-zoom a {

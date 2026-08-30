@@ -420,7 +420,12 @@ export default function FiltersBar({
         </div>
       )}
 
-      <div className="col-span-2 flex items-end justify-between gap-3 sm:ml-auto sm:justify-start">
+      {/* Count, maintenance, export and the view switch. `flex-wrap` is what
+          keeps them on the page: four groups whose combined width is ~540px
+          cannot share one row on a 390px phone, and without wrapping the last
+          of them (the Grid/Map switch) pushed the whole document sideways. */}
+      <div className="col-span-2 flex flex-wrap items-end justify-between gap-3
+        sm:ml-auto sm:justify-start">
         <div className="flex flex-col gap-1 justify-end pb-2">
           <span className="text-sm t-muted">{t("filters.countProperties", { count })}</span>
           {anyFilterActive && (

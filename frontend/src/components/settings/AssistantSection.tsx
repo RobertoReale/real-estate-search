@@ -49,6 +49,7 @@ export function AssistantSection(
       <SectionHeading>{t("settings.assistantTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.assistantNote")}</p>
       <select className="input w-full" value={values.backend}
+        aria-label={t("settings.assistantTitle")}
         onChange={(e) => set("backend", e.target.value)}>
         <option value="deterministic">{t("settings.backendBuiltin")}</option>
         <option value="llm">{t("settings.backendLlm")}</option>

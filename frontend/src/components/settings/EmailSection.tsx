@@ -82,6 +82,7 @@ export function EmailSection(
           <input className="input w-full sm:col-span-2" placeholder={t("settings.smtpHost")}
             value={values.host} onChange={(e) => set("host", e.target.value)} />
           <input className="input w-full" type="number" placeholder="587"
+            aria-label={t("settings.smtpPortTitle")}
             title={t("settings.smtpPortTitle")}
             value={values.port} onChange={(e) => set("port", Number(e.target.value))} />
         </div>

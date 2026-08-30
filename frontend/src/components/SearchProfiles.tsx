@@ -27,6 +27,22 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   const sp = useSearchProfiles({ profiles, settings, onChanged });
   const { t, mode, setMode, resetForm } = sp;
 
+  // Whether a channel is configured is a fact about the account, not about a
+  // search, and it used to be printed once per row: three identical "no
+  // notification channel is set up yet" paragraphs stacked down the list, which
+  // reads as three problems. One warning per distinct unconfigured channel that
+  // some search actually asks for — usually exactly one line, and never a
+  // warning about a channel nobody selected.
+  const channelWarnings = [
+    ...new Set(
+      sp.groupedProfiles
+        .map((g) =>
+          sp.channelOptions.find((o) => o.value === g.notify_channels) ?? sp.channelOptions[0])
+        .filter((c) => !c.ok)
+        .map((c) => c.warn),
+    ),
+  ];
+
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -60,6 +76,16 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       )}
 
       {profiles.length > 1 && <BulkToolbar sp={sp} />}
+
+      {channelWarnings.length > 0 && (
+        <div className="mb-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+          {channelWarnings.map((warn) => (
+            <p key={warn} className="text-xs text-amber-800 dark:text-amber-200">
+              ⚠️ {warn}
+            </p>
+          ))}
+        </div>
+      )}
 
       <ProfileList sp={sp} />
 

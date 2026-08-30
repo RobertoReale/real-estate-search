@@ -56,7 +56,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   the checker for one of the two platforms the app actually ships to.
 
 - **Responsive UI: phone-first, desktop restored at `sm`.** The dashboard is served to
-  phones (see `serve.bat`), so every control row must survive 390 px. Three patterns
+  phones (see `serve.bat`), so every control row must survive 390 px. Five patterns
   recur, each with a reason:
   1. dense control rows are `grid grid-cols-2 … sm:flex sm:flex-wrap`, and the
      `col-span-2` on wide fields needs no `sm:` prefix because `grid-column` is inert on a
@@ -64,11 +64,33 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   2. `.btn-primary`/`.btn-ghost` carry `min-h-11 sm:min-h-0` — a 44 px touch target on a
      phone, the original density on a mouse-driven desktop;
   3. full-height panels use `dvh`, never `vh`, since `vh` spans behind a mobile address
-     bar and pushes a modal's footer buttons out of reach.
+     bar and pushes a modal's footer buttons out of reach;
+  4. a row of groups that cannot fit side by side must say so: a `flex` bar of controls
+     needs `flex-wrap`, and a block that should claim its own line gets `w-full
+     sm:w-auto`. Wrapping left implicit is how the filter bar's Grid/Map switch and the
+     search rows' URLs each pushed the document 150 px past a 390 px viewport;
+  5. **a utility cannot override a `.btn-*`, `.input` or `.chip-*` class.** Those are
+     defined in `index.css` outside any `@layer`, and un-layered CSS beats layered CSS
+     whatever the selectors look like — so `className="btn-ghost px-2"` renders at the
+     `px-4` the component class carries, silently. Write `!px-2` when you mean it (as
+     `Navbar.tsx` and `ProfileList.tsx` do). A padding or width that "has no effect" is
+     almost always this.
 
   Fixed widths (`w-36`, `w-56`) must always be written `w-full sm:w-36`. `.input` jumps to
   16 px below `sm`: anything smaller makes iOS Safari zoom in on focus and never zoom back
   out.
+
+- **Text and fills are chosen against the background, not by eye.** The browser suite
+  fails a screen carrying any *serious* `axe-core` violation, and colour contrast is the
+  one that fires most: against this app's own surfaces (`.glass` resolves to slate-100,
+  `.panel` to slate-50) the stock 400 and 500 slate shades measure 2.5:1 and 4.3:1, both
+  under the 4.5:1 threshold. Hence the light values in `index.css`: `t-muted`, `t-dim`,
+  `accent-good` and `accent-bad` sit a step darker than they read as a design, and every
+  white-on-colour badge uses an **opaque 700** fill — a 600 at 80% opacity over a
+  property photo lands anywhere between 3.1 and 4.2:1 depending on the picture behind it,
+  which is a defect that appears for some listings and not others. Hover states darken
+  rather than lighten for the same reason. A genuinely three-step neutral scale needs a
+  custom palette rather than stock `slate`, and does not exist yet.
 
 ---
 
@@ -89,7 +111,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (68 in fourteen files: vitest +
+- **The frontend has unit tests too** (69 in fourteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -113,7 +135,8 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   pixels — for five things a pure test cannot reach, each written after the bug it now
   guards: that a label actually names its control (`FiltersBar.test.tsx` uses
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
-  takes focus and answers Enter (`PropertyCard.test.tsx`), that a dialog whose data fails to
+  offers a focusable, named way into the listing *without* itself becoming a control that
+  contains controls (`PropertyCard.test.tsx`), that a dialog whose data fails to
   load still renders something dismissable (`SettingsModal.test.tsx`), that an effect's
   abandoned request cannot repaint the screen (`LogViewer.test.tsx`), and that the OMI band
   never reaches the screen undated, unmarked when out of date, or uncredited
