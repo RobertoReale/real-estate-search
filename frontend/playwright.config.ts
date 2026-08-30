@@ -56,6 +56,9 @@ export default defineConfig({
   // would fail a slow machine as if the app were broken.
   timeout: 180_000,
   reporter: [["list"], ["html", { open: "never" }]],
+  // The action recorder appends to a directory the coverage gate reads back;
+  // last run's files would credit this one with what it never fired.
+  globalSetup: "./e2e/harness/global-setup.ts",
 
   use: {
     baseURL: PREVIEW_ORIGIN,
@@ -71,7 +74,25 @@ export default defineConfig({
   // Chromium only. A second engine doubles the run and the flakes to cover
   // rendering differences this app has never had; the browser bugs worth
   // catching here are ours.
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  //
+  // Two projects rather than one, and the split is load-bearing: A.5's second
+  // gate fails on any inventoried control the run never fired, so it has to be
+  // the last thing that happens. `dependencies` is what says so — the journeys
+  // run first, the coverage spec runs after them, and it reads what all of them
+  // recorded rather than only its own.
+  projects: [
+    {
+      name: "journeys",
+      testIgnore: /coverage\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "coverage",
+      testMatch: /coverage\.spec\.ts/,
+      dependencies: ["journeys"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
 
   webServer: [
     {

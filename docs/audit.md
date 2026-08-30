@@ -40,7 +40,7 @@ cd frontend && npm test
 ```
 
 Expected today: **860 passed + 1 skipped** (861 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **68 frontend tests**.
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**.
 If a test number changed, that is not a failure — it is a documentation trigger (see §4).
 
 `ruff format --check` belongs in this list and is easy to forget: CI's lint step runs

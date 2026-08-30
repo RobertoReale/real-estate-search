@@ -51,15 +51,15 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
           <span className="t-muted text-sm">({profiles.length})</span>
         </h2>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost"
+          <button data-action="profiles.mode.assistant" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
             {mode === "assistant" ? t("common.cancel") : t("profiles.modeAssistant")}
           </button>
-          <button className="btn-ghost"
+          <button data-action="profiles.mode.builder" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
             {mode === "builder" ? t("common.cancel") : t("profiles.modeBuilder")}
           </button>
-          <button className="btn-ghost"
+          <button data-action="profiles.mode.url" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
             {mode === "url" ? t("common.cancel") : t("profiles.modeUrl")}
           </button>

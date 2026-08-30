@@ -37,13 +37,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       {children}
       {needAuth && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form onSubmit={submit}
+          <form data-action="auth.submit" onSubmit={submit}
             className="glass rounded-2xl max-w-sm w-full p-6 space-y-4">
             <div>
               <h2 className="text-lg font-bold">{t("auth.title")}</h2>
               <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
             </div>
-            <input className="input w-full" type="password" autoFocus
+            <input data-action="auth.token" className="input w-full" type="password" autoFocus
               placeholder={t("auth.placeholder")}
               value={token} onChange={(e) => setToken(e.target.value)} />
             {error && (

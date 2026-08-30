@@ -10,14 +10,14 @@ export function AssistantPanel({ sp }: { sp: SearchProfilesState }) {
     <div className="mb-4 p-4 rounded-xl panel space-y-3">
       <p className="text-xs t-muted">{t("profiles.assistantIntro")}</p>
       <div className="flex flex-wrap gap-2">
-        <input
+        <input data-action="profiles.assistant.query"
           className="input flex-1 basis-full sm:basis-auto sm:min-w-[18rem]"
           placeholder={t("profiles.assistantPlaceholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
           autoFocus />
-        <button className="btn-primary" onClick={ask}
+        <button data-action="profiles.assistant.ask" className="btn-primary" onClick={ask}
           disabled={asking || !query.trim()}>
           {asking ? t("profiles.assistantReading") : t("profiles.assistantSubmit")}
         </button>
@@ -25,7 +25,7 @@ export function AssistantPanel({ sp }: { sp: SearchProfilesState }) {
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs t-dim">{t("profiles.assistantTry")}</span>
         {ASSISTANT_EXAMPLES.map((example) => (
-          <button key={example}
+          <button data-action="profiles.assistant.example" key={example}
             className="text-xs chip-blue px-2 py-1 rounded-lg hover:opacity-80 transition"
             onClick={() => setQuery(example)}>
             {example}

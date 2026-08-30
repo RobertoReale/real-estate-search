@@ -57,28 +57,28 @@ export function TelegramSection(
       />
       <div className="space-y-3">
         <div>
-          <input className="input w-full" type="password"
+          <input data-action="settings.telegram.token" className="input w-full" type="password"
             placeholder={t(settings.telegram_token_set ? "settings.tokenSaved" : "settings.tokenPlaceholder")}
             value={values.token} onChange={(e) => set("token", e.target.value)} />
           <div className="mt-1">
             <SecretStatus set={settings.telegram_token_set} dirty={!!values.token.trim()} />
           </div>
         </div>
-        <input className="input w-full" placeholder={t("settings.chatIdPlaceholder")}
+        <input data-action="settings.telegram.chatId" className="input w-full" placeholder={t("settings.chatIdPlaceholder")}
           value={values.chatId} onChange={(e) => set("chatId", e.target.value)} />
         <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" checked={values.actions}
+          <input data-action="settings.telegram.actions" type="checkbox" checked={values.actions}
             onChange={(e) => set("actions", e.target.checked)} />
           {t("settings.telegramActions")}
         </label>
         <p className="text-xs opacity-70 -mt-2">{t("settings.telegramActionsHelp")}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={values.enabled}
+            <input data-action="settings.telegram.enable" type="checkbox" checked={values.enabled}
               onChange={(e) => set("enabled", e.target.checked)} />
             {t("settings.enableTelegram")}
           </label>
-          <button className="btn-ghost" disabled={shell.anyBusy}
+          <button data-action="settings.telegram.test" className="btn-ghost" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest("telegram", api.telegramTest,
               () => t("settings.telegramTestSent"))}>
             {shell.busy === "telegram" ? t("settings.sending") : t("settings.saveAndTest")}

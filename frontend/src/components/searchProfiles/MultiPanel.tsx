@@ -15,7 +15,7 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
         <p className="text-xs t-muted flex-1">
           {t("profiles.multiIntro", { count: multi.length })}
         </p>
-        <button className="text-xs accent-link"
+        <button data-action="profiles.multi.reword" className="text-xs accent-link"
           onClick={() => setMode("assistant")}>
           {t("profiles.reword")}
         </button>
@@ -32,12 +32,12 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
                 {part}
               </span>
             ))}
-            <button className="text-xs accent-link ml-auto"
+            <button data-action="profiles.multi.edit" className="text-xs accent-link ml-auto"
               title={t("profiles.editInBuilder")}
               onClick={() => editInBuilder(search)}>
               {t("common.edit")}
             </button>
-            <button className="t-dim hover:text-rose-500 transition text-xs btn-focus"
+            <button data-action="profiles.multi.drop" className="t-dim hover:text-rose-500 transition text-xs btn-focus"
               title={t("profiles.dropAlternative")}
               aria-label={t("profiles.dropAlternative")}
               onClick={() => setMulti((m) => m.filter((_, i) => i !== idx))}>
@@ -73,19 +73,19 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
         {(["immobiliare", "idealista"] as const).map((portal) => (
           <label key={portal}
             className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
-            <input type="checkbox" checked={usePortals[portal]}
+            <input data-action="profiles.multi.usePortal" type="checkbox" checked={usePortals[portal]}
               onChange={(e) =>
                 setUsePortals((u) => ({ ...u, [portal]: e.target.checked }))} />
             {portal}
           </label>
         ))}
-        <input className="input flex-1 basis-full sm:basis-auto sm:min-w-[14rem]"
+        <input data-action="profiles.multi.keywords" className="input flex-1 basis-full sm:basis-auto sm:min-w-[14rem]"
           placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
       {error && <p className="accent-bad text-xs">{error}</p>}
-      <button className="btn-primary" onClick={createFromMulti}
+      <button data-action="profiles.multi.create" className="btn-primary" onClick={createFromMulti}
         disabled={
           saving
           || multi.every((s) => !s.urls)

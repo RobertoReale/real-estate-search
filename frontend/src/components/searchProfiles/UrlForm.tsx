@@ -16,18 +16,18 @@ export function UrlForm({ sp }: { sp: SearchProfilesState }) {
           filter is honored, including the ones the builder cannot express. */}
       <p className="text-xs rounded-lg px-3 py-2 chip-blue">{t("profiles.urlTip")}</p>
       <div className="grid sm:grid-cols-2 gap-3">
-        <input className="input w-full" placeholder={t("profiles.namePlaceholder")}
+        <input data-action="profiles.url.name" className="input w-full" placeholder={t("profiles.namePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
+        <input data-action="profiles.url.keywords" className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
       <div className="flex flex-wrap sm:flex-nowrap gap-2">
-        <input className="input w-full"
+        <input data-action="profiles.url.url" className="input w-full"
           placeholder={t("profiles.urlPlaceholder")}
           value={url} onChange={(e) => setUrl(e.target.value)} />
         {url.trim() && (
-          <button className="btn-secondary whitespace-nowrap text-xs px-3"
+          <button data-action="profiles.url.extract" className="btn-secondary whitespace-nowrap text-xs px-3"
             type="button"
             title={t("profiles.extractParamsTitle")}
             onClick={extractParamsFromUrl}>
@@ -36,7 +36,7 @@ export function UrlForm({ sp }: { sp: SearchProfilesState }) {
         )}
       </div>
       {error && <p className="accent-bad text-xs">{error}</p>}
-      <button className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
+      <button data-action="profiles.url.save" className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
         {saving
           ? t("common.saving")
           : t(editingId !== null ? "profiles.saveChanges" : "profiles.saveProfile")}

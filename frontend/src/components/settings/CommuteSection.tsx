@@ -50,7 +50,7 @@ export function CommuteSection(
     <>
       <SectionHeading>{t("settings.commuteTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-        <input type="checkbox" checked={values.enabled}
+        <input data-action="settings.commute.enable" type="checkbox" checked={values.enabled}
           onChange={(e) => set("enabled", e.target.checked)} />
         {t("settings.commuteEnable")}
       </label>
@@ -62,38 +62,38 @@ export function CommuteSection(
             <div key={i} className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 items-end">
               <label className="text-xs t-muted">
                 {t("settings.commutePointName")}
-                <input className="input w-full sm:w-32 mt-1" value={point.name}
+                <input data-action="settings.commute.pointName" className="input w-full sm:w-32 mt-1" value={point.name}
                   placeholder={t("settings.commutePointNamePlaceholder")}
                   onChange={(e) => update(i, { name: e.target.value })} />
               </label>
               <label className="text-xs t-muted col-span-2 sm:flex-1">
                 {t("settings.commutePointAddress")}
-                <input className="input w-full mt-1" value={point.address ?? ""}
+                <input data-action="settings.commute.pointAddress" className="input w-full mt-1" value={point.address ?? ""}
                   placeholder={t("settings.commutePointAddressPlaceholder")}
                   onChange={(e) => update(i, { address: e.target.value })} />
               </label>
               <label className="text-xs t-muted">
                 {t("settings.commutePointMode")}
-                <select className="input w-full sm:w-28 mt-1" value={point.mode}
+                <select data-action="settings.commute.pointMode" className="input w-full sm:w-28 mt-1" value={point.mode}
                   onChange={(e) => update(i, { mode: e.target.value as CommuteMode })}>
                   {MODES.map((m) => <option key={m} value={m}>{t(`settings.commuteMode.${m}`)}</option>)}
                 </select>
               </label>
-              <button className="btn-ghost" aria-label={t("settings.commuteRemovePoint")}
+              <button data-action="settings.commute.removePoint" className="btn-ghost" aria-label={t("settings.commuteRemovePoint")}
                 onClick={() => set("points", values.points.filter((_, j) => j !== i))}>
                 🗑
               </button>
             </div>
           ))}
 
-          <button className="btn-ghost text-xs"
+          <button data-action="settings.commute.addPoint" className="btn-ghost text-xs"
             onClick={() => set("points", [...values.points, { ...EMPTY }])}>
             ＋ {t("settings.commuteAddPoint")}
           </button>
 
           <div>
             <label className="text-xs t-muted block mb-1" htmlFor="commute-osrm-url">{t("settings.commuteOsrmUrl")}</label>
-            <input id="commute-osrm-url" className="input w-full" value={values.osrmUrl}
+            <input data-action="settings.commute.osrmUrl" id="commute-osrm-url" className="input w-full" value={values.osrmUrl}
               placeholder="https://router.project-osrm.org"
               onChange={(e) => set("osrmUrl", e.target.value)} />
             <p className="text-xs t-dim mt-1">{t("settings.commuteOsrmNote")}</p>
@@ -102,7 +102,7 @@ export function CommuteSection(
           {/* The grid only reads already-routed legs, so nothing appears on a
               card until this has run at least once. Through saveAndTest, so the
               batch routes to the places just typed rather than the saved ones. */}
-          <button className="btn-primary w-full sm:w-auto" disabled={shell.anyBusy}
+          <button data-action="settings.commute.compute" className="btn-primary w-full sm:w-auto" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest(
               "commute",
               () => api.computeCommutes(),

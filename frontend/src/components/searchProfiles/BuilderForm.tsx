@@ -26,7 +26,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
                 {part}
               </span>
             ))}
-            <button className="text-xs accent-link ml-auto"
+            <button data-action="profiles.builder.reword" className="text-xs accent-link ml-auto"
               onClick={() => setMode("assistant")}>
               {t("profiles.reword")}
             </button>
@@ -46,7 +46,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       ) : (
         <p className="text-xs t-muted">
           {t("profiles.builderIntroPrefix")}
-          <button className="accent-link underline"
+          <button data-action="profiles.builder.toUrlIntro" className="accent-link underline"
             onClick={() => setMode("url")}>{t("profiles.modeUrl")}</button>
           {t("profiles.builderIntroSuffix")}
         </p>
@@ -56,7 +56,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       <div className="grid grid-cols-2 gap-3 items-end sm:flex sm:flex-wrap">
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-contract">{t("common.contract")}</label>
-          <select id="builder-contract" className="input w-full sm:w-28" value={params.contract}
+          <select data-action="profiles.builder.contract" id="builder-contract" className="input w-full sm:w-28" value={params.contract}
             onChange={(e) => setParam({ contract: e.target.value as "sale" | "rent" })}>
             <option value="sale">{t("filters.buy")}</option>
             <option value="rent">{t("filters.rent")}</option>
@@ -64,36 +64,36 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-city">{t("profiles.cityRequired")}</label>
-          <input id="builder-city" className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
+          <input data-action="profiles.builder.city" id="builder-city" className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
             value={params.city} onChange={(e) => setParam({ city: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-province" title={t("profiles.provinceTitle")}>
             {t("profiles.province")}
           </label>
-          <input id="builder-province" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+          <input data-action="profiles.builder.province" id="builder-province" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
             value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-zone" title={t("profiles.zoneTitle")}>
             {t("filters.zone")}
           </label>
-          <input id="builder-zone" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+          <input data-action="profiles.builder.zone" id="builder-zone" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
             value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-min-price">{t("filters.minPrice")}</label>
-          <input id="builder-min-price" className="input w-full sm:w-24" type="number" value={params.min_price}
+          <input data-action="profiles.builder.minPrice" id="builder-min-price" className="input w-full sm:w-24" type="number" value={params.min_price}
             onChange={(e) => setParam({ min_price: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-max-price">{t("filters.maxPrice")}</label>
-          <input id="builder-max-price" className="input w-full sm:w-24" type="number" value={params.max_price}
+          <input data-action="profiles.builder.maxPrice" id="builder-max-price" className="input w-full sm:w-24" type="number" value={params.max_price}
             onChange={(e) => setParam({ max_price: e.target.value })} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-min-rooms">{t("profiles.minRooms")}</label>
-          <select id="builder-min-rooms" className="input w-full sm:w-24" value={params.min_rooms}
+          <select data-action="profiles.builder.minRooms" id="builder-min-rooms" className="input w-full sm:w-24" value={params.min_rooms}
             onChange={(e) => setParam({ min_rooms: e.target.value })}>
             <option value="">{t("common.any")}</option>
             {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+</option>)}
@@ -101,7 +101,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-min-sqm">{t("filters.minSqm")}</label>
-          <input id="builder-min-sqm" className="input w-full sm:w-20" type="number" value={params.min_sqm}
+          <input data-action="profiles.builder.minSqm" id="builder-min-sqm" className="input w-full sm:w-20" type="number" value={params.min_sqm}
             onChange={(e) => setParam({ min_sqm: e.target.value })} />
         </div>
       </div>
@@ -116,7 +116,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-floor">{t("filters.floor")}</label>
-          <select id="builder-floor" className="input w-full sm:w-36" value={params.floor}
+          <select data-action="profiles.builder.floor" id="builder-floor" className="input w-full sm:w-36" value={params.floor}
             onChange={(e) => setParam({
               floor: e.target.value as SearchBuilderParams["floor"],
             })}>
@@ -125,7 +125,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-condition">{t("profiles.condition")}</label>
-          <select id="builder-condition" className="input w-full sm:w-44" value={params.condition}
+          <select data-action="profiles.builder.condition" id="builder-condition" className="input w-full sm:w-44" value={params.condition}
             onChange={(e) => setParam({
               condition: e.target.value as SearchBuilderParams["condition"],
             })}>
@@ -137,7 +137,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {FEATURES.map(([key, label]) => (
           <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0">
-            <input type="checkbox" checked={params[key]}
+            <input data-action="profiles.builder.feature" type="checkbox" checked={params[key]}
               onChange={(e) => setParam({ [key]: e.target.checked })} />
             {t(label)}
           </label>
@@ -148,21 +148,21 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           found exactly when the user reaches for a filter that isn't here. */}
       <p className="text-xs rounded-lg px-3 py-2 chip-blue">
         {t("profiles.builderTipPrefix")}
-        <button className="underline font-medium"
+        <button data-action="profiles.builder.toUrlTip" className="underline font-medium"
           onClick={() => setMode("url")}>{t("profiles.builderTipLink")}</button>
         {t("profiles.builderTipSuffix")}
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <input className="input w-full" placeholder={t("profiles.profileNamePlaceholder")}
+        <input data-action="profiles.builder.name" className="input w-full" placeholder={t("profiles.profileNamePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
+        <input data-action="profiles.builder.keywords" className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
 
       {!built && (
-        <button className="btn-primary" onClick={generate}
+        <button data-action="profiles.builder.generate" className="btn-primary" onClick={generate}
           disabled={generating || !params.city.trim()}>
           {generating ? t("profiles.generating") : t("profiles.generate")}
         </button>
@@ -174,12 +174,12 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           {(["immobiliare", "idealista"] as const).map((portal) => (
             <label key={portal}
               className="flex items-center gap-3 p-2.5 rounded-xl panel cursor-pointer">
-              <input type="checkbox" checked={usePortals[portal]}
+              <input data-action="profiles.builder.usePortal" type="checkbox" checked={usePortals[portal]}
                 onChange={(e) =>
                   setUsePortals((u) => ({ ...u, [portal]: e.target.checked }))} />
               <PortalBadge portal={portal} />
               <span className="text-xs t-muted truncate flex-1">{built[portal]}</span>
-              <a href={built[portal]} target="_blank" rel="noreferrer"
+              <a data-action="profiles.builder.openBuilt" href={built[portal]} target="_blank" rel="noreferrer"
                 className="accent-link text-xs shrink-0"
                 onClick={(e) => e.stopPropagation()}>
                 {t("modal.open")}
@@ -203,7 +203,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
             </p>
           ) : null}
           {error && <p className="accent-bad text-xs">{error}</p>}
-          <button className="btn-primary" onClick={createFromBuilder}
+          <button data-action="profiles.builder.create" className="btn-primary" onClick={createFromBuilder}
             disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
             {saving
               ? t("common.saving")

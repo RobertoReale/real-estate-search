@@ -23,15 +23,15 @@ interface Props {
 function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const t = useT();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="settings.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
       onClick={onClose}>
       {/* dvh: `vh` on mobile spans behind the address bar, hiding the footer
           buttons ("Save settings") below the fold with no way to scroll to them */}
-      <div className="glass rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
+      <div data-action="settings.panel" className="glass rounded-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold">{t("settings.title")}</h2>
-          <button className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
+          <button data-action="settings.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
         </div>
         {children}
       </div>
@@ -153,8 +153,8 @@ export default function SettingsModal({ onClose }: Props) {
           ❌ {t("settings.loadFailed", { error: loadError })}
         </p>
         <div className="flex justify-end gap-2 mt-6">
-          <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-          <button className="btn-primary" onClick={() => setAttempt((n) => n + 1)}>
+          <button data-action="settings.loadError.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
+          <button data-action="settings.loadError.retry" className="btn-primary" onClick={() => setAttempt((n) => n + 1)}>
             {t("common.retry")}
           </button>
         </div>
@@ -194,8 +194,8 @@ export default function SettingsModal({ onClose }: Props) {
       <SystemSection section={system} settings={settings} shell={shell} />
 
       <div className="flex justify-end gap-2 mt-6">
-        <button className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-        <button className="btn-primary" onClick={save} disabled={shell.anyBusy}>
+        <button data-action="settings.footer.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
+        <button data-action="settings.save" className="btn-primary" onClick={save} disabled={shell.anyBusy}>
           {busy === "global" ? t("common.saving") : t("settings.save")}
         </button>
       </div>

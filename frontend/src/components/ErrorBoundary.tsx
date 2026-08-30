@@ -34,7 +34,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <p className="font-semibold t-strong">{translateCurrent("error.title")}</p>
             <p className="text-sm t-muted break-words">{this.state.error.message}</p>
             <p className="text-sm t-muted">{translateCurrent("error.dataSafe")}</p>
-            <button className="btn-primary" onClick={() => window.location.reload()}>
+            <button data-action="app.crash.reload" className="btn-primary" onClick={() => window.location.reload()}>
               {translateCurrent("error.reload")}
             </button>
           </div>
