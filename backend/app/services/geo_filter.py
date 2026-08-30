@@ -14,7 +14,8 @@ The same ray casting answers the OMI micro-zone question (`omi_zones.py`), which
 is why that module adds no geometry of its own: a second implementation of
 point-in-polygon is a second set of edge conventions to keep in step. What the
 zones do need on top is holes — `point_in_rings` — since a published perimeter
-can enclose an area that is not part of it.
+can enclose an area that is not part of it, and a *selection* of them —
+`point_in_any` — since an area someone asked for is rarely a single shape.
 
 **Dependency-free is a release constraint, not a preference.** `shapely` would
 answer all of this, and it carries GEOS: a compiled library, in an app that is
@@ -23,10 +24,22 @@ for the release to break on a machine that is not this one.
 """
 
 import math
+from collections.abc import Iterable
+from typing import Any
 
 # Great-circle radius of the Earth in metres (matches deduplicator._haversine_m,
 # whose gate is measured in metres too).
 _EARTH_RADIUS_M = 6_371_000
+
+# The two shapes this codebase knows a place by, and the only two `point_in_any`
+# accepts: a published perimeter — `{"outer": [(lat, lng), …], "holes": […]}`,
+# exactly how `omi_zones` stores a KML zone — or a circle, `(lat, lng,
+# radius_m)`, which is all the offline gazetteer holds about a comune
+# (`geo_reference.city_search_area`: centroids and a size-scaled radius, not
+# boundaries).
+Perimeter = dict[str, Any]
+Circle = tuple[float, float, float]
+Area = Perimeter | Circle
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -94,6 +107,34 @@ def point_in_rings(
     if not point_in_polygon(lat, lng, outer):
         return False
     return not any(point_in_polygon(lat, lng, hole) for hole in holes or [])
+
+
+def point_in_any(lat: float, lng: float, areas: Iterable[Area]) -> bool:
+    """Is (lat, lng) inside *any* of these areas?
+
+    An area someone asked for is rarely one shape. A portal search carries a
+    list of zones, and the comune those zones sit in is known here as a circle
+    rather than a perimeter, because a centroid and a radius is all the offline
+    gazetteer has. "Inside what was asked for" is therefore a union, and it is
+    answered once here rather than as a loop each caller writes for itself —
+    the same reason `omi_zones` borrows the ray casting instead of owning a
+    second copy of it.
+
+    An empty `areas` is False: nothing was asked for, so nothing contains the
+    point. A caller that means "no constraint" must not ask the question — the
+    difference between "outside the requested area" and "no area was
+    requested" is the caller's to keep, and collapsing the two here is how a
+    listing gets reported as out of area by a search that named none.
+    """
+    for area in areas:
+        if isinstance(area, dict):
+            if point_in_rings(lat, lng, area.get("outer") or [], area.get("holes")):
+                return True
+        else:
+            c_lat, c_lng, radius_m = area
+            if haversine_m(lat, lng, c_lat, c_lng) <= radius_m:
+                return True
+    return False
 
 
 def _on_segment(py: float, px: float, ay: float, ax: float, by: float, bx: float) -> bool:

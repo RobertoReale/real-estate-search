@@ -30,8 +30,8 @@ What the real 2025/2 delivery taught us, in the order it hurts:
 * **The semester is in the document title and nowhere else**, exactly as it is
   in the CSV's title line.
 
-Point-in-polygon is `geo_filter`'s ray casting, which was already there for the
-map's drawn filter. Not `shapely`: GEOS is a compiled dependency and this app is
+Point-in-polygon is `geo_filter`'s ray casting (`point_in_any` over the zone's
+polygons), which was already there for the map's drawn filter. Not `shapely`: GEOS is a compiled dependency and this app is
 frozen into a PyInstaller bundle, where every native library is a new way for
 the release to break on someone else's machine.
 
@@ -56,7 +56,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..models import OmiQuotation, OmiZone, Property
-from .geo_filter import point_in_rings
+from .geo_filter import point_in_any
 from .omi_import import OmiImportError, semester_sort_key
 
 logger = logging.getLogger(__name__)
@@ -406,9 +406,11 @@ def find_zone(db: Session, lat: float, lng: float, semester: str | None = None) 
         .order_by(OmiZone.municipality_code, OmiZone.zone_code, OmiZone.id)
     ).all()
     for zone in candidates:
-        for polygon in decode_rings(zone.rings):
-            if point_in_rings(lat, lng, polygon["outer"], polygon["holes"]):
-                return zone
+        # A zone is several polygons (see the module docstring), so the question
+        # is "inside any of them" — which is `point_in_any`'s, not a loop of its
+        # own here.
+        if point_in_any(lat, lng, decode_rings(zone.rings)):
+            return zone
     return None
 
 
