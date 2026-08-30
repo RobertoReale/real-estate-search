@@ -3,7 +3,7 @@ import { translateCurrent } from "../../i18n";
 import type { Settings } from "../../types";
 
 /** Which section a success/error message belongs to, so it can render there. */
-export type SectionName = "telegram" | "email" | "global" | "data" | "commute";
+export type SectionName = "telegram" | "email" | "global" | "data" | "backups" | "commute";
 
 export interface Feedback {
   where: SectionName;

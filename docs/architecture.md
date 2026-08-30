@@ -84,7 +84,8 @@ Companion documents:
 | Portal boilerplate in a title or zone | `backend/app/services/listing_text.py` | `is_bad_title` / `is_placeholder_zone`: does this text describe the property, or is it the portal's auto-generated "Appartamento in vendita a Milano, Milano"? Structural match (generic words + vendita/affitto + a place tail that must resolve to real comuni via `geo_reference.load_comuni`), never a list of known strings, and it **fails towards keeping** — an unrecognized tail means the text says something. Two readers: `availability_check` overwrites a placeholder title with the ad page's `og:title`, `geocoder` refuses to look up a placeholder zone. Agency branding also marks a title bad, from the settings-driven `repair_agency_prefixes` |
 | Reattaching UTC to a datetime read back from SQLite | `backend/app/services/timeutils.py` | `as_utc` / `as_utc_or_none`. SQLite has no timezone type, so every aware datetime the ORM writes comes back **naive**, while anything just built in memory is aware — and `SessionLocal` uses `expire_on_commit=False`, so one session can hold both kinds in a single list. Comparing them raises `TypeError`. This lived as five hand-rolled copies (scanner, scheduler, availability check, market velocity, harvester); one copy forgetting the reattachment is a 500 in whichever screen it feeds, so it lives here once |
 | Periodic scanning | `backend/app/services/scheduler.py` | APScheduler; catch-up scan on startup when the last scan is older than the interval |
-| Automatic DB backup | `backend/app/services/backup.py` | two kinds of copy. `maybe_backup`: daily copy of `case.db` into `backend/backups/` (rotation: 14), checked at startup; `force=True` bypasses the throttle before a reset. `snapshot_before_migration`: taken by `database._snapshot_before_upgrade` *before* a pending migration runs, named `case-pre-<revision>.db` for the revision being left, and **exempt from the rotation** (see [Migrations](#migrations-additive-automatic--alembic-for-the-rest)) |
+| Automatic DB backup | `backend/app/services/backup.py` | three kinds of copy, one rotation. `maybe_backup`: daily copy of `case.db` into `backend/backups/` (rotation: 14), checked at startup; `force=True` bypasses the throttle before a reset or a restore, and the filename is de-duplicated (`_free_name`) because two forced copies inside one second used to be one file. `snapshot_before_migration`: taken by `database._snapshot_before_upgrade` *before* a pending migration runs, named `case-pre-<revision>.db` for the revision being left. `accept_import`: a database uploaded from another install, filed as `case-imported-<timestamp>.db`. The last two are **exempt from the rotation** (`_daily_copies` filters both prefixes) — each is the only image of something that exists nowhere else, and both sort oldest (see [Migrations](#migrations-additive-automatic--alembic-for-the-rest)) |
+| Restoring a backup | `backend/app/services/backup.py` (`validate`/`restore`/`find`) + `backend/app/routers/maintenance.py` | The order is the feature: **validate first** (SQLite header, `quick_check`, and the three tables every release of this app has had) so a wrong file costs nothing; **copy the current database aside, forced**, exactly as `factory_reset` does, and refuse the restore if that copy fails; **dispose the pool, then `_copy` through the backup API** — a file dropped over an open database leaves the stale `case.db-wal` shadowing the restored pages; **then `init_db()`**, because the copy may hold an older schema. Refused mid-scan (409). `find` matches the requested name against the folder's *contents* instead of joining it onto the path, so a traversal names nothing. Uploads arrive as a raw body streamed to a `.part` file (no multipart dependency, no whole database in memory) and importing never touches the live database — restoring is the separate, explicit step |
 | Deleting a search "with its results" | `backend/app/services/data_reset.py` (`profile_results`/`delete_profile_results`) | attribution comes from `ListingProfile`, never from the search criteria; spares shared + curated (invariant 20) |
 | User data resets ("start fresh") | `backend/app/services/data_reset.py` | scoped, irreversible wipes (`POST /api/maintenance/reset/{scope}`); **clearing the dashboard MUST re-arm `baseline_done=False` on every profile** (invariant 3) or the next scan notifies on every re-found listing; factory reset backs up first |
 | UI: grid/filters/modals | `frontend/src/components/*.tsx` | state in `App.tsx`, API in `services/api.ts` |
@@ -221,7 +222,10 @@ pins all three and runs two threads writing concurrently.
 newest commits until a checkpoint, so they are user data (gitignored with it), and **any
 copy of the database must go through SQLite's backup API or `VACUUM INTO`, never a file
 copy** — `services/backup.py` already uses `sqlite3.Connection.backup`, and
-`test_backup.py` pins that an un-checkpointed transaction survives the copy.
+`test_backup.py` pins that an un-checkpointed transaction survives the copy. The same
+holds in the other direction: a *restore* that dropped the file over the live database
+would leave the old WAL in place, shadowing exactly the pages it had just written, which
+is why `backup.restore` disposes the engine's pool and copies through the same API.
 
 ---
 
@@ -272,7 +276,8 @@ and logs **one error line** naming the revision and the backups folder instead o
 Alembic traceback. Startup then continues against the newer schema, which normally works —
 the models ignore columns they do not know about — but "normally works" is stated, not
 assumed. The way back is to reinstall the newer version, or to restore the
-`case-pre-<revision>.db` the newer version wrote before it migrated.
+`case-pre-<revision>.db` the newer version wrote before it migrated — from Settings →
+Data management → Backups, without stopping the app or touching a file by hand.
 
 **The upgrade is proved against a database an older release wrote.**
 `backend/tests/fixtures/legacy_v1.db` is the schema release 1.0.0 shipped, holding the demo

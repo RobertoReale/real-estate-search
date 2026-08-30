@@ -1,12 +1,34 @@
-import { useState } from "react";
-import { useT } from "../../i18n";
-import { api } from "../../services/api";
-import type { Settings } from "../../types";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { formatDateTime, formatNumber, useT } from "../../i18n";
+import { api, authToken, AuthError, fetchBackup } from "../../services/api";
+import type { BackupFile, Settings } from "../../types";
 import { Result, SecretStatus, SectionHeading } from "./controls";
 import { errorText, useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
   apiToken: string;
+}
+
+/** A file size the way a person reads one. Whole kilobytes below a megabyte,
+ *  one decimal above: the point is telling a full database from an empty one at
+ *  a glance, not accounting for bytes. */
+function formatSize(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb < 1
+    ? `${formatNumber(Math.max(1, Math.round(bytes / 1024)))} kB`
+    : `${formatNumber(mb, { maximumFractionDigits: 1 })} MB`;
+}
+
+/** Hand a URL to the browser as a download. An anchor rather than
+ *  `window.open`: `download` is what makes the browser save the file under the
+ *  name we chose instead of navigating away from the dashboard. */
+function handOff(url: string, filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 export function useSystemSection(): Section<Values> {
@@ -25,6 +47,26 @@ export function SystemSection(
   const t = useT();
   const { values, set } = section;
   const [restarting, setRestarting] = useState(false);
+  const [backups, setBackups] = useState<BackupFile[] | null>(null);
+  const [folder, setFolder] = useState("");
+  const [listError, setListError] = useState("");
+  const filePicker = useRef<HTMLInputElement>(null);
+
+  const loadBackups = useCallback(async () => {
+    try {
+      const r = await api.listBackups();
+      setFolder(r.folder);
+      setBackups(r.backups);
+      setListError("");
+    } catch (e) {
+      // A backend older than these routes answers 404, which is a perfectly
+      // ordinary thing to meet after pulling an update without restarting.
+      setBackups([]);
+      setListError(errorText(e));
+    }
+  }, []);
+
+  useEffect(() => { void loadBackups(); }, [loadBackups]);
 
   /** Restart the backend and wait for it to come back, then reload the page so
    *  the whole UI is talking to the fresh process. Used after pulling a code
@@ -62,6 +104,97 @@ export function SystemSection(
     }
     setRestarting(false);
     shell.setFeedback({ where: "global", ok: false, text: t("settings.restartNoReturn") });
+  }
+
+  /** Copy the database right now, whatever the daily throttle thinks — the
+   *  button pressed before doing something risky. */
+  async function takeBackup() {
+    shell.setBusy("backups");
+    shell.setFeedback(null);
+    try {
+      const made = await api.createBackup();
+      await loadBackups();
+      shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupTaken", { name: made.name }) });
+    } catch (e) {
+      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+    } finally {
+      shell.setBusy(null);
+    }
+  }
+
+  /** Save one copy to the user's downloads. Without a token the browser can
+   *  fetch it itself (the response names the file); with one, a navigation
+   *  cannot carry the header, so it is fetched and handed over as a blob —
+   *  the same split the dossier export makes. */
+  async function download(name: string) {
+    shell.setFeedback(null);
+    if (!authToken.get()) {
+      handOff(api.backupUrl(name), name);
+      return;
+    }
+    shell.setBusy("backups");
+    try {
+      const url = URL.createObjectURL(await fetchBackup(name));
+      handOff(url, name);
+      // revoking at once cancels the transfer in some browsers
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      // an AuthError has already raised the token prompt
+      if (!(e instanceof AuthError)) {
+        shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+      }
+    } finally {
+      shell.setBusy(null);
+    }
+  }
+
+  /** Bring in a `case.db` carried from another install. It joins the list; it
+   *  does not become the live database until the user restores it. */
+  async function importPicked(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // cleared immediately, or picking the same file twice would not fire
+    event.target.value = "";
+    if (!file) return;
+    shell.setBusy("backups");
+    shell.setFeedback(null);
+    try {
+      const added = await api.importBackup(file);
+      await loadBackups();
+      shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupImported", { name: added.name }) });
+    } catch (e) {
+      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+    } finally {
+      shell.setBusy(null);
+    }
+  }
+
+  /** Replace the live database with a copy. The most destructive action in the
+   *  app, so it asks for a typed word rather than a click — and the backend
+   *  copies the current state aside first, which the confirmation says. */
+  async function restore(file: BackupFile) {
+    const word = t("settings.restoreConfirmWord");
+    const typed = window.prompt(
+      t("settings.restoreConfirm", { date: formatDateTime(file.taken_at), word }),
+    );
+    if (typed?.trim().toLocaleUpperCase() !== word.toLocaleUpperCase()) return;
+    shell.setBusy("backups");
+    shell.setFeedback(null);
+    try {
+      const r = await api.restoreBackup(file.name);
+      shell.setFeedback({
+        where: "backups",
+        ok: true,
+        text: r.backup
+          ? t("settings.restoreDoneBackup", { name: r.restored, backup: r.backup })
+          : t("settings.restoreDone", { name: r.restored }),
+      });
+      // Busy stays set: the page is about to reload, and the whole UI is now
+      // looking at a different database.
+      setTimeout(() => window.location.reload(), 1800);
+    } catch (e) {
+      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+      shell.setBusy(null);
+    }
   }
 
   /** Irreversible data reset. Confirmed in the browser (a second time for the
@@ -119,6 +252,56 @@ export function SystemSection(
         disabled={restarting || shell.anyBusy}>
         {restarting ? t("settings.restarting") : t("settings.restart")}
       </button>
+
+      <SectionHeading>{t("settings.backupsTitle")}</SectionHeading>
+      <p className="text-xs t-dim mb-3">{t("settings.backupsNote")}</p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <button className="btn-ghost w-full sm:w-auto" onClick={takeBackup} disabled={shell.anyBusy}>
+          {t("settings.backupTakeNow")}
+        </button>
+        <button className="btn-ghost w-full sm:w-auto"
+          onClick={() => filePicker.current?.click()} disabled={shell.anyBusy}>
+          {t("settings.backupImport")}
+        </button>
+        {/* .db only as a hint: the file is proved to be one of ours by the
+            backend before anything live is touched, never by its name */}
+        <input ref={filePicker} type="file" accept=".db,.sqlite,application/vnd.sqlite3"
+          className="hidden" onChange={importPicked} />
+      </div>
+      {folder && <p className="text-[11px] t-dim mt-2 break-all">{t("settings.backupsFolder", { folder })}</p>}
+      {listError && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{listError}</p>}
+      {backups !== null && backups.length === 0 && !listError && (
+        <p className="text-xs t-dim mt-2">{t("settings.backupsEmpty")}</p>
+      )}
+      {backups && backups.length > 0 && (
+        <ul className="mt-2 rounded-lg panel divide-y divide-slate-200/70 dark:divide-slate-700/70">
+          {backups.map((file) => (
+            <li key={file.name}
+              className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium t-body">{formatDateTime(file.taken_at)}</div>
+                <div className="text-[11px] t-dim">
+                  {t(`settings.backupKind.${file.kind}`)} · {formatSize(file.size_bytes)} ·{" "}
+                  {file.revision
+                    ? t("settings.backupSchema", { revision: file.revision })
+                    : t("settings.backupSchemaUnknown")}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button className="btn-ghost text-xs" disabled={shell.anyBusy}
+                  onClick={() => download(file.name)}>
+                  {t("settings.backupDownload")}
+                </button>
+                <button className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
+                  disabled={shell.anyBusy} onClick={() => restore(file)}>
+                  {t("settings.backupRestore")}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Result feedback={shell.feedback} where="backups" />
 
       <div className="mt-8 pt-5 border-t border-rose-300/40 dark:border-rose-800/40">
         <h3 className="font-semibold text-sm uppercase text-rose-600 dark:text-rose-400 mb-1">
