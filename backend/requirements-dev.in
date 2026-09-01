@@ -11,7 +11,7 @@
 -r requirements.in
 
 pytest>=8.0
-ruff>=0.6
+ruff>=0.16.5
 hypothesis>=6.100
 # starlette's TestClient (tests/test_routes.py) refuses to import without it —
 # the HTTP client it drives the app through. Named httpx2 since starlette 1.3;
