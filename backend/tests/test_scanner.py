@@ -2,6 +2,9 @@
 structured floor ("T") subjected to keyword filter, additive profile keywords,
 "gone" marking, and protection of hidden properties."""
 
+import json
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
@@ -9,6 +12,7 @@ from urllib.parse import urlparse
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app import config
 from app.database import Base
@@ -1246,3 +1250,350 @@ def test_a_search_that_fit_is_reported_exactly_as_before(db, portal, outcome_pro
     assert "of about" not in detail
     assert "page limit" not in detail
     assert summary["truncated"] == 0
+
+
+# --- a scan says what it is doing, while it does it -------------------------
+#
+# For several minutes the dashboard could say exactly one word, "scanning", and
+# a working scan looked identical to a hung one. These drive `run_scan` itself
+# against the loopback sandbox — a fake scraper handing back a finished
+# `ScrapeResult` has no middle, and the middle is the whole subject.
+
+IDEALISTA_SEARCH = "/vendita-case/torino-torino/"
+# One path, two searches: `serve_answering` sees the query, so the sandbox can
+# answer the same endpoint differently for each — which is how one scan is made
+# to produce two different outcomes without a second portal.
+TORINO_SEARCH = "/vendita-case/torino/"
+ANSWERING_CAP = "300000"
+REFUSING_CAP = "400000"
+
+PROGRESS_SETTINGS: dict = {
+    "excluded_keywords": [],
+    "request_delay_seconds": 0,
+    "max_pages_per_search": 2,
+    # the post-scan sweep is the one part of a scan that would leave the
+    # sandbox: it is G.8's, and it is off here so these stay offline
+    "geocode_after_scan": False,
+}
+
+
+def _progress_flats(page: int, count: int = 2) -> list[Flat]:
+    return [
+        Flat(
+            ad_id=f"9{page}{i}",
+            title=f"Trilocale {page}-{i}",
+            price=250_000 + i,
+            rooms=3,
+            sqm=90,
+            city="Torino",
+            latitude=45.07,
+            longitude=7.68,
+        )
+        for i in range(count)
+    ]
+
+
+@pytest.fixture
+def scan_db():
+    """One in-memory database, seen the same way from every thread.
+
+    `sqlite://` on the default pool gives each thread its own connection and so
+    its own empty database: a scan started on a second thread would not even
+    find `search_profiles`. `StaticPool` is what makes the watcher and the scan
+    look at one database, which is the premise of watching a scan from outside
+    it.
+    """
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine, expire_on_commit=False)()
+    yield session
+    session.close()
+
+
+@pytest.fixture
+def live_scan(scan_db, portal, monkeypatch):
+    """A real scan on the sandbox, ready to be started on its own thread.
+
+    Returns the settings hook, so each test names the delay and the page cap it
+    is about. `get_scraper` is deliberately *not* patched: which engine a portal
+    gets, and the delay floor it carries, are part of what is being reported.
+    """
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    monkeypatch.setattr(scanner, "SessionLocal", lambda: scan_db)
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+
+    def configure(**overrides) -> None:
+        monkeypatch.setattr(scanner, "load_settings", lambda: {**PROGRESS_SETTINGS, **overrides})
+
+    configure()
+    return configure
+
+
+def _watch(session, portal, name: str, portal_name: str, path: str) -> SearchProfile:
+    profile = SearchProfile(name=name, portal=portal_name, search_url=portal.url(path))
+    session.add(profile)
+    session.commit()
+    return profile
+
+
+def _await_phase(phase: str, timeout: float = 15.0) -> dict:
+    """The first progress snapshot in `phase`, or a failure naming what it saw."""
+    deadline = time.monotonic() + timeout
+    seen = ""
+    while time.monotonic() < deadline:
+        state = scanner.get_scan_progress()
+        if state["phase"] == phase:
+            return state
+        seen = state["phase"]
+        time.sleep(0.01)
+    raise AssertionError(f"the scan never reported '{phase}' (last seen: '{seen}')")
+
+
+def test_a_scan_says_which_search_and_which_page_while_it_runs(scan_db, portal, live_scan):
+    """The acceptance, and it is read from another thread on purpose: a dict
+    inspected only once the scan is over would pass while reporting nothing at
+    all during the minutes that matter.
+
+    The portal holds each page open until the watcher has looked, so what is
+    asserted is the state at four exact moments rather than whatever a sleep
+    happened to catch.
+    """
+    serving = threading.Semaphore(0)  # the portal: "I am about to answer a page"
+    proceed = threading.Semaphore(0)  # the watcher: "I have looked, carry on"
+
+    def render(page: int) -> dict:
+        serving.release()
+        assert proceed.acquire(timeout=20)
+        return mock_portal.immobiliare_api_page(_progress_flats(page), max_pages=2, count=4)
+
+    portal.serve_json_pages("/api-next/search-list/listings/", render)
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+    _watch(scan_db, portal, "Milano", "immobiliare", "/vendita-case/milano/")
+
+    scan = threading.Thread(target=scanner.run_scan, kwargs={"manual": True}, daemon=True)
+    scan.start()
+    seen = []
+    for _ in range(4):  # two searches, two pages each
+        assert serving.acquire(timeout=30), "the scan never reached the portal"
+        seen.append(scanner.get_scan_progress())
+        proceed.release()
+    scan.join(timeout=60)
+    assert not scan.is_alive()
+
+    assert [(s["profile"], s["portal"], s["page"]) for s in seen] == [
+        ("Torino", "immobiliare", 1),
+        ("Torino", "immobiliare", 2),
+        ("Milano", "immobiliare", 1),
+        ("Milano", "immobiliare", 2),
+    ]
+    assert [s["profile_index"] for s in seen] == [1, 1, 2, 2]
+    assert all(s["active"] and s["profile_total"] == 2 for s in seen)
+    # the second page knows what the first one read, and the portal's own page
+    # total is there to be shown the count against
+    assert seen[1]["listings"] == 2
+    assert seen[1]["total_pages"] == 2 and seen[1]["total_listings"] == 4
+    assert seen[1]["detail"] == "Torino on immobiliare: reading page 2 of 2"
+    # and the next search starts from nothing: a page count or a page total
+    # carried across would attribute one search's progress to another
+    assert seen[2]["listings"] == 0 and seen[2]["total_pages"] is None
+    assert seen[2]["detail"] == "Milano on immobiliare: reading page 1"
+    # and it goes quiet again rather than leaving the last page on screen
+    assert scanner.get_scan_progress() == dict(scanner._IDLE_PROGRESS)
+
+
+def test_a_page_total_the_portal_never_declared_is_never_invented(scan_db, portal, live_scan):
+    """The rule the shape exists to enforce: only a real total may be drawn as
+    a proportion. Idealista's HTML pages publish no page count anywhere, so what
+    a watcher gets is a rising count and nothing to divide it by — a bar that
+    fills to 90% and stops teaches the user the app lies."""
+    serving = threading.Semaphore(0)
+    proceed = threading.Semaphore(0)
+
+    def page(query: dict) -> mock_portal.Page:
+        serving.release()
+        assert proceed.acquire(timeout=20)
+        return mock_portal.Page(mock_portal.idealista_results_page(_progress_flats(1)))
+
+    portal.serve_answering(IDEALISTA_SEARCH, page)
+    _watch(scan_db, portal, "Torino", "idealista", IDEALISTA_SEARCH)
+    live_scan(max_pages_per_search=1)
+
+    scan = threading.Thread(target=scanner.run_scan, kwargs={"manual": True}, daemon=True)
+    scan.start()
+    assert serving.acquire(timeout=30), "the scan never reached the portal"
+    mid_scan = scanner.get_scan_progress()
+    proceed.release()
+    scan.join(timeout=60)
+    assert not scan.is_alive()
+
+    assert mid_scan["portal"] == "idealista" and mid_scan["page"] == 1
+    assert mid_scan["total_pages"] is None
+    assert mid_scan["detail"].endswith("reading page 1")
+
+
+def test_a_polite_pause_is_reported_as_waiting_and_not_as_a_hang(scan_db, portal, live_scan):
+    """`request_delay_seconds` is spent between every page, so most of a scan's
+    wall clock is this pause. Named, it is the app working as designed; unnamed,
+    it is the single most common reason a running scan is taken for a crashed
+    one."""
+    proceed = threading.Semaphore(0)
+
+    def render(page: int) -> dict:
+        if page > 1:
+            assert proceed.acquire(timeout=20)
+        return mock_portal.immobiliare_api_page(_progress_flats(page), max_pages=2, count=4)
+
+    portal.serve_json_pages("/api-next/search-list/listings/", render)
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+    live_scan(request_delay_seconds=1.5)
+
+    scan = threading.Thread(target=scanner.run_scan, kwargs={"manual": True}, daemon=True)
+    scan.start()
+    try:
+        # the pause between page 1 and page 2 is 1.05-2.1s wide, so it is there
+        # to be read rather than something a poll has to be lucky to catch
+        waiting = _await_phase("waiting")
+    finally:
+        proceed.release()
+    scan.join(timeout=60)
+    assert not scan.is_alive()
+
+    assert waiting["waiting_seconds"] > 0
+    assert "pausing" in waiting["detail"] and "before the next page" in waiting["detail"]
+    assert "keeps the portal answering" in waiting["detail"], "say why, or it reads as dead time"
+
+
+def test_the_journal_keeps_one_line_per_search_with_the_outcome_it_ended_on(
+    scan_db, portal, live_scan
+):
+    """ "Did it work?" is asked after a scan at least as often as during one,
+    and for somebody who left the room it is the only question. One entry per
+    search, in G.5's own words, readable once everything has stopped."""
+
+    def answer(query: dict) -> mock_portal.Page:
+        if (query.get("prezzoMassimo") or [""])[0] == REFUSING_CAP:
+            return mock_portal.Page("refused", status=403)
+        return mock_portal.Page(
+            json.dumps(mock_portal.immobiliare_api_page(_progress_flats(1, 1))),
+            content_type="application/json",
+        )
+
+    portal.serve_answering("/api-next/search-list/listings/", answer)
+    # the HTML safety net behind the refused search, so its verdict is the block
+    # api-next reported and not a 404 collected on the way past
+    portal.serve(TORINO_SEARCH, "Access is temporarily restricted", status=403)
+    _watch(
+        scan_db, portal, "Answered", "immobiliare", f"{TORINO_SEARCH}?prezzoMassimo={ANSWERING_CAP}"
+    )
+    _watch(
+        scan_db, portal, "Refused", "immobiliare", f"{TORINO_SEARCH}?prezzoMassimo={REFUSING_CAP}"
+    )
+
+    scanner.run_scan(manual=True)
+
+    entries = scanner.get_scan_journal()
+    # newest first: the search that ran last is the one being asked about
+    assert [(e["profile"], e["portal"], e["outcome"]) for e in entries] == [
+        ("Refused", "immobiliare", "blocked"),
+        ("Answered", "immobiliare", "ok"),
+    ]
+    answered = entries[1]
+    assert answered["pages"] == 1 and answered["listings"] == 1
+    assert answered["stopped_because"] == "the portal had nothing more to give"
+    assert answered["transport"] == "local (curl_cffi)"
+    assert answered["started_at"] <= answered["finished_at"]
+    assert "1 listings across 1 pages" in answered["detail"]
+    assert entries[0]["stopped_because"] == "the portal refused the request"
+    # it outlives the scan, which is the whole point of writing it down
+    assert scanner.get_scan_progress()["active"] is False
+    assert len(scanner.get_scan_journal()) == 2
+
+
+def test_a_search_that_crashed_is_in_the_journal_too(scan_db, portal, live_scan, monkeypatch):
+    """The run a user most wants to find afterwards is the one that fell over.
+    `run_scan` catches the exception so the other searches still run — and the
+    entry is written after that, so it reads the status the profile really
+    ended on."""
+
+    class _Exploding:
+        delay_seconds = 0
+        max_pages = 1
+        on_progress = None
+
+        def scrape(self, url):
+            raise RuntimeError("the parser gave up")
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Exploding())
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    scanner.run_scan(manual=True)
+
+    entry = scanner.get_scan_journal()[0]
+    assert entry["outcome"] == "error"
+    assert entry["pages"] == 0 and entry["listings"] == 0
+    assert entry["stopped_because"] == "the search could not be run at all"
+    assert "the parser gave up" in entry["detail"]
+
+
+def test_no_stored_secret_reaches_the_journal(scan_db, portal, live_scan, monkeypatch):
+    """A search URL can carry an API key and an error message copies whatever
+    URL it failed on, so the journal is one copy away from printing a
+    credential on a screen the user is meant to read."""
+    secret = "dd-cookie-9f3ab27c41"
+
+    class _LeakingScraper:
+        delay_seconds = 0
+        max_pages = 1
+        on_progress = None
+
+        def scrape(self, url):
+            return ScrapeResult(error=f"immobiliare: blocked on ?token={secret}")
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _LeakingScraper())
+    live_scan(datadome_cookie=secret)
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    scanner.run_scan(manual=True)
+
+    entry = scanner.get_scan_journal()[0]
+    assert entry["outcome"] == "error"
+    assert secret not in entry["detail"]
+    assert "?token=***" in entry["detail"]
+
+
+def test_the_journal_keeps_the_recent_scans_and_forgets_the_rest(scan_db, portal, live_scan):
+    """Bounded on purpose: this is an in-memory record of the last handful of
+    runs, not a second log file that grows for the life of the process."""
+    scanner._journal.extend({"profile": str(n)} for n in range(scanner.MAX_JOURNAL_ENTRIES + 10))
+
+    entries = scanner.get_scan_journal()
+
+    assert len(entries) == scanner.MAX_JOURNAL_ENTRIES
+    assert entries[0]["profile"] == str(scanner.MAX_JOURNAL_ENTRIES + 9)
+
+
+def test_progress_that_cannot_be_recorded_never_takes_the_scan_down(
+    scan_db, portal, live_scan, monkeypatch
+):
+    """A scan that failed *because* it was reporting on itself would be
+    strictly worse than one that says nothing. Same rule as
+    `scraper_health.record_scan`, and this is the assertion behind it."""
+    portal.serve_json(
+        "/api-next/search-list/listings/", mock_portal.immobiliare_api_page(_progress_flats(1, 1))
+    )
+    profile = _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    def explode(state: dict) -> str:
+        raise RuntimeError("the sentence could not be written")
+
+    monkeypatch.setattr(scanner, "_progress_sentence", explode)
+
+    summary = scanner.run_scan(manual=True)
+
+    assert summary["status"] == "done"
+    assert summary["new"] == 1
+    assert profile.last_run_status == "ok"

@@ -511,6 +511,7 @@ class ImmobiliareScraper(BaseScraper):
         max_pages = self.max_pages
 
         for page in range(1, self.max_pages + 1):
+            self.report_progress(phase="fetching", page=page)
             resp = self._api_get(params, referer, page)
             if resp.status_code in (403, 429) and self._rotate_session():
                 # retry the same page under a different TLS impersonation
@@ -556,6 +557,15 @@ class ImmobiliareScraper(BaseScraper):
                         result.total_listings = total
                         break
                 max_pages = min(self.max_pages, result.total_pages or self.max_pages)
+                # This is the one acquisition path that learns a real page
+                # total, so it is the one whose progress may be stated as a
+                # proportion at all — and only when `maxPages` was actually
+                # there, since a `None` passed on is a watcher's cue to count
+                # rather than to draw a bar.
+                self.report_progress(
+                    total_pages=result.total_pages,
+                    total_listings=result.total_listings,
+                )
 
             page_listings = []
             for entry in data["results"]:
@@ -572,6 +582,7 @@ class ImmobiliareScraper(BaseScraper):
             result.listings.extend(page_listings)
             result.pages_fetched += 1
             result.strategy_used = "api-next"
+            self.report_progress(page=page, listings=len(result.listings))
 
             if page >= max_pages:
                 # `max_pages` is the smaller of the cap and the portal's own

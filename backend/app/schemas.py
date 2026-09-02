@@ -255,6 +255,61 @@ class TrendAreaOut(BaseModel):
     point_count: int
 
 
+class ScanProgressOut(BaseModel):
+    """What the scan in flight is doing right now (`scanner.get_scan_progress`).
+
+    `total_pages` and `total_listings` are `None` unless the portal itself
+    declared them, and that is the whole contract with whatever draws this: a
+    proportion may only be shown against a real total, and every other case is a
+    count that rises. A bar filling to 90% and stopping teaches the user the app
+    lies, so the shape refuses to make one possible.
+    """
+
+    active: bool = False
+    # idle | starting | fetching | waiting | saving | locating
+    phase: str = "idle"
+    detail: str = ""
+    profile: str = ""
+    profile_index: int = 0
+    profile_total: int = 0
+    portal: str = ""
+    page: int = 0
+    total_pages: int | None = None
+    listings: int = 0
+    total_listings: int | None = None
+    transport: str = ""
+    waiting_seconds: float = 0.0
+
+
+class ScanJournalEntryOut(BaseModel):
+    """One search's line in the scan journal (`scanner.get_scan_journal`)."""
+
+    profile_id: int | None = None
+    profile: str = ""
+    portal: str = ""
+    started_at: str = ""
+    finished_at: str = ""
+    pages: int = 0
+    listings: int = 0
+    outcome: str = ""  # ok | no_results | blocked | error, as ScrapeResult said
+    detail: str = ""
+    transport: str = ""
+    stopped_because: str = ""
+
+
+class ScraperStatusOut(BaseModel):
+    """The dashboard's poll: `scan_state`, the schedule, and the live progress."""
+
+    running: bool = False
+    last_started_at: str | None = None
+    last_finished_at: str | None = None
+    last_summary: str = ""
+    next_auto_run: str | None = None
+    paused: bool = False
+    data_version: str = ""
+    progress: ScanProgressOut = ScanProgressOut()
+
+
 class SearchProfileIn(BaseModel):
     """Input payload for creating or modifying a monitored portal search profile."""
 

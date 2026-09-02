@@ -13,11 +13,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import schemas
 from ..config import load_settings
 from ..database import get_db
 from ..models import PriceHistory, Property
 from ..services import scheduler
-from ..services.scanner import run_scan, scan_state
+from ..services.scanner import get_scan_journal, get_scan_progress, run_scan, scan_state
 
 router = APIRouter()
 
@@ -94,11 +95,31 @@ def _properties_version(db: Session) -> str:
     return f"{buckets}|{last_price}"
 
 
-@router.get("/api/scrapers/status")
+@router.get("/api/scrapers/status", response_model=schemas.ScraperStatusOut)
 def scraper_status(db: Session = Depends(get_db)):
+    """Everything the dashboard needs to poll for, in one answer.
+
+    The live progress rides along rather than getting a route of its own
+    precisely because this endpoint is *already* the one polled every 4s during
+    a scan: a second poll beside it would double the traffic to say something
+    about the same moment. The journal is the opposite case — it changes once
+    per search, is read when somebody asks, and has its own route below.
+    """
     return {
         **scan_state,
         "next_auto_run": scheduler.next_run_time(),
         "paused": bool(load_settings().get("scanning_paused")),
         "data_version": _properties_version(db),
+        "progress": get_scan_progress(),
     }
+
+
+@router.get("/api/scans/journal", response_model=list[schemas.ScanJournalEntryOut])
+def scan_journal():
+    """The recent scans, per search, newest first.
+
+    "Did it work?" is asked after a scan at least as often as during one, and
+    for the person who left the room it is the only question. Readable when
+    nothing is running, which is the state it is mostly read in.
+    """
+    return get_scan_journal()

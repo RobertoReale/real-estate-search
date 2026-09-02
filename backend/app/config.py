@@ -436,11 +436,14 @@ def load_settings() -> dict:
     return settings
 
 
-# Gmail shows app passwords as four groups of four ("abcd efgh ijkl mnop") and
-# users paste them verbatim. smtplib forwards the spaces to the server,
-# which answers with an opaque AUTHENTICATIONFAILED. No provider allows spaces
-# in a password, so stripping them can only help.
-_SPACELESS_SECRETS = (
+# The settings whose value is a credential. Two things read this list, and both
+# would be wrong with a copy of it: `save_settings` strips whitespace out of
+# them, and `scanner` scrubs them out of anything it writes for the user to
+# read. Gmail shows app passwords as four groups of four ("abcd efgh ijkl
+# mnop") and users paste them verbatim; smtplib forwards the spaces to the
+# server, which answers with an opaque AUTHENTICATIONFAILED, and no provider
+# allows spaces in a password, so stripping them can only help.
+SECRET_SETTINGS = (
     "smtp_password",
     "telegram_bot_token",
     "datadome_cookie",
@@ -465,7 +468,7 @@ def save_settings(new_values: dict) -> dict:
             "datadome_cookie_updated_at": datetime.now(UTC).isoformat(),
         }
     settings.update({k: v for k, v in new_values.items() if k in DEFAULT_SETTINGS})
-    for key in _SPACELESS_SECRETS:
+    for key in SECRET_SETTINGS:
         value = settings.get(key)
         if isinstance(value, str):
             settings[key] = "".join(value.split())

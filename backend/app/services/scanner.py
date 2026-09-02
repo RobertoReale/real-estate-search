@@ -3,12 +3,14 @@ deduplicates, filters by keywords, and sends Telegram notifications."""
 
 import logging
 import threading
+from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 from sqlalchemy import select
 
-from ..config import load_settings
+from ..config import SECRET_SETTINGS, load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
@@ -60,6 +62,240 @@ scan_state = {
     "last_summary": "",
 }
 
+# ---------------------------------------------------------------------------
+# What a scan is doing while it runs, and what it did once it is over
+# ---------------------------------------------------------------------------
+#
+# A scan is the longest thing this app does and used to be the only one that
+# reported nothing until it was finished: `scan_state` above is a flag and a
+# sentence written at the end, so for several minutes the dashboard could say
+# exactly one word. The app already does this properly elsewhere — the
+# availability check keeps `_prop_check_progress` and drives a real bar off it —
+# and the shape here is deliberately that one: a module-level dict written by
+# the scanning thread, copied out on read by whoever polls, and never a database
+# write per page.
+#
+# Two things, because "is it working?" and "did it work?" are different
+# questions asked at different moments. The progress dict answers the first and
+# exists only while a scan runs; the journal answers the second and outlives it.
+
+_progress_lock = threading.Lock()
+
+# The empty state, and the shape of every reply. `total_pages` is `None`
+# whenever the portal did not declare one, and that is load-bearing: only a
+# real total may be drawn as a proportion, and a count that rises with no
+# percentage is the honest rendering of every path that has none to give.
+_IDLE_PROGRESS: dict = {
+    "active": False,
+    "phase": "idle",
+    "detail": "",
+    "profile": "",
+    "profile_index": 0,
+    "profile_total": 0,
+    "portal": "",
+    "page": 0,
+    "total_pages": None,
+    "listings": 0,
+    "total_listings": None,
+    "transport": "",
+    "waiting_seconds": 0.0,
+}
+_scan_progress: dict = dict(_IDLE_PROGRESS)
+
+# One entry per profile per scan, newest last. Enough to cover the last handful
+# of scans across a few searches, which is the span "did last night's run work?"
+# actually needs. It lives in memory with the progress dict rather than in the
+# database: a scan writes one entry per profile, and the point of the precedent
+# being followed is that observability owns no schema and no transaction.
+MAX_JOURNAL_ENTRIES = 40
+_journal: deque[dict] = deque(maxlen=MAX_JOURNAL_ENTRIES)
+
+# A credential nobody would issue is not worth mangling a sentence for: below
+# this length a blanket replace would shred the text it was meant to protect,
+# and every secret this app stores — a cookie, a bot token, an API key — is far
+# longer than it.
+MIN_REDACTED_SECRET = 6
+
+
+def get_scan_progress() -> dict:
+    """Snapshot of the scan in flight, for the dashboard's poll."""
+    with _progress_lock:
+        return dict(_scan_progress)
+
+
+def get_scan_journal() -> list[dict]:
+    """The recent per-profile scan entries, newest first.
+
+    Deliberately not `app.log`. `/api/logs/tail` already tails the Python
+    logger, which is the right tool for diagnosing a crash and the wrong one for
+    "is my search working?" — module names, levels and tracebacks are an
+    engineer's artifact. These entries are written for the person who uses the
+    app: which search, on which portal, how many pages, how many listings, how
+    it ended and why it stopped.
+    """
+    with _progress_lock:
+        return list(reversed(_journal))
+
+
+def _progress_sentence(state: dict) -> str:
+    """One line saying what is happening now, from the facts already recorded."""
+    who = f"{state['profile']} on {state['portal']}" if state["profile"] else ""
+    phase = state["phase"]
+    if phase == "waiting":
+        # The important one. `request_delay_seconds` defaults to 6 and is spent
+        # between every page, so most of a scan's wall clock is this pause —
+        # unnamed, the app's most deliberate behaviour reads as a hang.
+        return (
+            f"{who}: pausing {state['waiting_seconds']:g}s before the next page, "
+            "which is what keeps the portal answering"
+        )
+    if phase == "fetching":
+        page = f"page {state['page'] or 1}"
+        if state["total_pages"]:
+            page += f" of {state['total_pages']}"
+        return f"{who}: reading {page}"
+    if phase == "saving":
+        return f"{who}: saving what came back"
+    if phase == "locating":
+        return "Placing the new listings on the map"
+    if phase == "starting":
+        return f"Starting {who}" if who else "Starting the scan"
+    return ""
+
+
+def _set_progress(*, reset: bool = False, **facts) -> None:
+    """Record what the scan is doing now.
+
+    Never raises — every write to the dict goes through here for that reason
+    alone. A scan that failed *because* it was reporting on itself would be a
+    strictly worse product than one that says nothing, so this follows
+    `scraper_health.record_scan`'s rule exactly: swallow, log, carry on. The
+    lock is held for the update alone and never across a request.
+    """
+    try:
+        with _progress_lock:
+            if reset:
+                _scan_progress.update(_IDLE_PROGRESS)
+            _scan_progress.update(facts)
+            _scan_progress["detail"] = _progress_sentence(_scan_progress)
+    except Exception:
+        logger.exception("scan: progress could not be recorded")
+
+
+def _scrape_progress(scraper, settings: dict, **facts) -> None:
+    """The scrapers' end of the same dict: their page facts, plus the transport.
+
+    The transport is re-read on every call rather than once per profile because
+    a fully blocked local ladder escalates to the paid API *mid-scrape*
+    (`base.fetch`), and watching that happen is exactly what a user wants to see
+    when a scan starts going wrong.
+    """
+    try:
+        facts["transport"] = transport_policy.transport_used(scraper, settings)
+    except Exception:
+        logger.exception("scan: the transport in use could not be named")
+    _set_progress(**facts)
+
+
+def _begin_scan() -> None:
+    _set_progress(reset=True, active=True, phase="starting")
+
+
+def _begin_profile(profile: SearchProfile, index: int, total: int) -> None:
+    """Move to the next search, clearing what belonged to the previous one.
+
+    Every per-page field resets here. Carrying a page count or a page total
+    across profiles would attribute one search's progress to the next, which is
+    the sort of wrong number that is worse than no number.
+    """
+    _set_progress(
+        phase="starting",
+        profile=profile.name,
+        portal=profile.portal,
+        profile_index=index,
+        profile_total=total,
+        page=0,
+        total_pages=None,
+        listings=0,
+        total_listings=None,
+        transport="",
+        waiting_seconds=0.0,
+    )
+
+
+def _end_scan() -> None:
+    """Back to silence. Leaving the last page on screen would say a scan is
+    still reading it, which is exactly the kind of stale number this replaces."""
+    _set_progress(reset=True)
+
+
+def _without_secrets(text: str, settings: dict) -> str:
+    """Scrub every stored credential out of text written for the user to read.
+
+    A search URL can carry an API key and an error message copies whatever URL
+    it failed on, so the journal is one copy away from publishing a secret on a
+    screen. Redacting the *values* rather than looking for key-shaped strings is
+    what makes that hold for a message nobody has thought of yet.
+    """
+    for key in SECRET_SETTINGS:
+        value = settings.get(key)
+        if isinstance(value, str) and len(value.strip()) >= MIN_REDACTED_SECRET:
+            text = text.replace(value.strip(), "***")
+    return text
+
+
+def _stop_reason(result: ScrapeResult | None) -> str:
+    """Why this search stopped when it did, in the user's terms."""
+    if result is None:
+        return "the search could not be run at all"
+    if result.blocked:
+        return "the portal refused the request"
+    if result.error:
+        return "the search ran into an error"
+    if result.truncated:
+        pages = "page" if result.page_limit == 1 else "pages"
+        return f"the page limit of {result.page_limit} {pages}"
+    if not result.listings:
+        return "the portal had nothing to list"
+    return "the portal had nothing more to give"
+
+
+def _record_journal(
+    profile: SearchProfile,
+    result: ScrapeResult | None,
+    started_at: datetime,
+    settings: dict,
+) -> None:
+    """Close one profile's line in the journal. Never raises into the scan.
+
+    Written after the profile's own status and detail have settled, which is
+    why a crashed profile still earns an entry: `run_scan` has stamped `error`
+    on it by then, and a search that blew up is precisely one the user wants to
+    find afterwards.
+    """
+    try:
+        with _progress_lock:
+            transport = _scan_progress.get("transport") or ""
+        _journal.append(
+            {
+                "profile_id": profile.id,
+                "profile": profile.name,
+                "portal": profile.portal,
+                "started_at": started_at.isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
+                "pages": result.pages_fetched if result else 0,
+                "listings": len(result.listings) if result else 0,
+                # G.5's word, taken from the profile rather than recomputed, so
+                # the journal and the search's own line can never disagree.
+                "outcome": profile.last_run_status or "error",
+                "detail": _without_secrets(profile.last_run_detail or "", settings),
+                "transport": transport,
+                "stopped_because": _stop_reason(result),
+            }
+        )
+    except Exception:
+        logger.exception("scan: journal entry could not be recorded")
+
 
 def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     """Executes the scan of active profiles (or just one).
@@ -77,6 +313,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     scan_state["running"] = True
     started_at = datetime.now(UTC)
     scan_state["last_started_at"] = started_at.isoformat()
+    _begin_scan()
     summary = {
         "new": 0,
         "updated": 0,
@@ -114,9 +351,13 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
             query = select(SearchProfile).where(SearchProfile.is_active.is_(True))
             if profile_id:
                 query = select(SearchProfile).where(SearchProfile.id == profile_id)
-            for profile in list(db.scalars(query)):
+            profiles = list(db.scalars(query))
+            for index, profile in enumerate(profiles, start=1):
+                _begin_profile(profile, index, len(profiles))
+                profile_started_at = datetime.now(UTC)
+                result = None
                 try:
-                    _scan_profile(db, profile, settings, summary)
+                    result = _scan_profile(db, profile, settings, summary)
                 except Exception as e:
                     # a broken profile must not prevent scanning the others
                     db.rollback()
@@ -128,6 +369,9 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
                     profile.last_run_at = datetime.now(UTC)
                     profile.last_run_status = "error"
                     profile.last_run_detail = str(e)[:300]
+                # after the branch above, so the entry reads the status this
+                # profile actually ended on, crash included
+                _record_journal(profile, result, profile_started_at, settings)
                 _update_profile_health(profile, settings, summary)
                 db.commit()
             _locate_scanned_properties(db, settings, started_at, summary)
@@ -159,6 +403,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         logger.exception("Scan failed")
         summary["errors"].append(str(e))
     finally:
+        _end_scan()
         scan_state["running"] = False
         scan_state["last_finished_at"] = datetime.now(UTC).isoformat()
         last_summary = (
@@ -195,6 +440,7 @@ def _locate_scanned_properties(db, settings: dict, started_at: datetime, summary
     the scan finishes. A scan must never fail because a map pin could not be
     worked out.
     """
+    _set_progress(phase="locating")
     ids = set(
         db.scalars(
             select(Property.id)
@@ -417,7 +663,13 @@ def _truncation_note(result: ScrapeResult) -> str:
     return note + ": raise it, or narrow the search"
 
 
-def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> None:
+def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> ScrapeResult:
+    """Scan one search and record what it established on the profile.
+
+    Returns the scrape it ran on, so the caller can journal how it went without
+    a second reading of anything: the pages, the listings and the reason it
+    stopped exist only here.
+    """
     logger.info("Scanning profile '%s' (%s)", profile.name, profile.portal)
     # `last_run_at` alone is not a safe proxy for "first scan": a blocked/error
     # attempt with zero listings still stamps it further down, but never
@@ -433,8 +685,11 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     # default "always" keeps a configured key routing everything as before.
     decision = transport_policy.decide(profile.consecutive_failures or 0, settings)
     scraper.use_scrape_api = decision.start_on_api
+    # live reporting, for the minutes this next line takes
+    scraper.on_progress = partial(_scrape_progress, scraper, settings)
 
     result = scraper.scrape(profile.search_url)
+    _set_progress(phase="saving")
     profile.last_run_at = datetime.now(UTC)
     # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local
@@ -449,12 +704,12 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         profile.last_run_detail = "Portal temporarily blocked (anti-bot). Will retry on next scan."
         summary["blocked_portals"].append(profile.portal)
         if not result.listings:
-            return
+            return result
     elif outcome == "error":
         profile.last_run_status = "error"
         profile.last_run_detail = result.error[:300]
         summary["errors"].append(result.error)
-        return
+        return result
 
     # profile keywords ADD to global keywords (the UI presents them as "extra"):
     # a profile must never lose base protection just because it added its own
@@ -577,14 +832,14 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
             profile.name,
             len(new_properties),
         )
-        return
+        return result
 
     # per-profile channel routing: None = all enabled channels, [] = muted
     channels = notifier.profile_channels(profile.notify_channels)
     if channels is not None and not channels:
         # a muted search still fills the dashboard, it just never pings: bail
         # out before the (otherwise pointless) scoring pass and the broadcasts
-        return
+        return result
     # Deal Score for the new listings, so an undervalued one is flagged in the
     # notification itself (market position must be computed first — it feeds it).
     if new_properties:
@@ -593,6 +848,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     summary["notified"] += _dispatch_notifications(
         new_properties, price_drops, reactivated, channels
     )
+    return result
 
 
 def _dispatch_notifications(

@@ -287,6 +287,28 @@ def test_status_carries_a_data_version_that_moves_with_the_data(client):
     assert api.get("/api/scrapers/status").json()["data_version"] != hidden
 
 
+def test_the_status_poll_carries_what_a_running_scan_is_doing(client):
+    """The live progress rides on the endpoint the dashboard already polls every
+    few seconds during a scan — a second poll beside it would double the traffic
+    to describe the same moment."""
+    progress = client.get("/api/scrapers/status").json()["progress"]
+
+    assert progress["active"] is False and progress["phase"] == "idle"
+    # `None`, not zero: a total nobody declared must never arrive as a number,
+    # or whatever draws this would show a proportion of an invented whole
+    assert progress["total_pages"] is None
+    assert progress["total_listings"] is None
+
+
+def test_the_scan_journal_answers_when_nothing_is_running(client):
+    """It is read after the fact more often than during, so it has to exist
+    outside a scan — an empty list until the first one, never a 404."""
+    resp = client.get("/api/scans/journal")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 # --- route registration order ----------------------------------------------
 
 
@@ -452,6 +474,7 @@ def test_updating_a_missing_profile_is_404(client):
         ("/api/pricing-trends/comparables", {"city": "milano"}),
         ("/api/scraper-health", {}),
         ("/api/scrapers/status", {}),
+        ("/api/scans/journal", {}),
         ("/api/tags", {}),
         ("/api/search-profiles", {}),
     ],

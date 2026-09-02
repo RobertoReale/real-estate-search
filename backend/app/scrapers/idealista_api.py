@@ -369,6 +369,7 @@ class IdealistaApiScraper(IdealistaScraper):
         result = ScrapeResult(strategy_used="official-api", page_limit=budget)
         known: set[str] = set()
         for page in range(1, budget + 1):
+            self.report_progress(phase="fetching", page=page)
             try:
                 payload = search({**base_params, "numPage": str(page)})
             except IdealistaApiError as e:
@@ -385,6 +386,12 @@ class IdealistaApiScraper(IdealistaScraper):
             total_pages = to_int(payload.get("totalPages")) or 1
             result.total_pages = total_pages
             result.total_listings = to_int(payload.get("total"))
+            self.report_progress(
+                page=page,
+                listings=len(result.listings),
+                total_pages=result.total_pages,
+                total_listings=result.total_listings,
+            )
             if page >= total_pages or not listings:
                 break
             if page >= budget:
@@ -393,6 +400,9 @@ class IdealistaApiScraper(IdealistaScraper):
                 # fraction of the market, and the least likely to look like it.
                 result.truncated_by = "page_limit"
                 break
+            # Its own pause, not `polite_sleep`'s — reported the same way, or
+            # the two engines would tell the same wait differently.
+            self.report_progress(phase="waiting", waiting_seconds=float(PAGE_DELAY_SECONDS))
             time.sleep(PAGE_DELAY_SECONDS)
 
         if not result.listings:
