@@ -14,11 +14,18 @@ reach out to the developer's own machine unless every test is pointed elsewhere:
 
 Point every test at throwaway copies of both, so the defaults apply and neither
 a real credential nor real data is ever reachable from a test run.
+
+A third global reaches further still: a scan now ends by asking Nominatim about
+the listings it could not place from what it already knew, so any test driving
+`run_scan` would send real requests to OpenStreetMap. `_offline_geocoder` shuts
+that door for the whole suite; the tests that mean to exercise a lookup replace
+the same symbol with their own stub, as they always have.
 """
 
 import pytest
 
 from app import config, database
+from app.services import geocoder
 
 
 @pytest.fixture(autouse=True)
@@ -44,3 +51,20 @@ def isolated_database(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "engine", engine)
     yield
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _offline_geocoder(monkeypatch):
+    """No test reaches Nominatim unless it says so.
+
+    Raising rather than returning None is deliberate: `geocode()` treats an
+    exception as transient and caches nothing, so a stray lookup leaves no trace
+    in the test's database and cannot quietly change what a later assertion
+    sees. A test that wants a lookup overrides this the ordinary way, and its
+    `monkeypatch.setattr` wins because it runs after this fixture.
+    """
+
+    def refuse(*args, **kwargs):
+        raise ConnectionError("the test suite never reaches Nominatim")
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", refuse)

@@ -22,7 +22,8 @@ beforeEach(() => localStorage.setItem(STORAGE_KEY, "en"));
 
 const BASE = {
   id: 1, title: "Trilocale", city: "Milano", zone: "Centro", address: "",
-  latitude: null, longitude: null, rooms: 3, floor: "2", sqm: 100,
+  latitude: null, longitude: null, coordinate_source: "" as const,
+  rooms: 3, floor: "2", sqm: 100,
   contract: "sale", current_min_price: 1000000, first_price: 1000000,
   image_url: "", status: "active", filtered_reason: "", source: "scan",
   is_favorite: false, notes: "", area_median_sqm_price: 9000,

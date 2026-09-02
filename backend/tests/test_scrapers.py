@@ -143,6 +143,70 @@ def test_empty_page_does_not_crash():
     assert listings == []
 
 
+# --- Every coordinate the portal hands over is taken ------------------------
+#
+# A pin the ad already carried is free and exact, and the alternative is a paced
+# Nominatim request for something the app was given. Idealista's JSON-LD read
+# past `geo` for years, so a listing found by that strategy arrived with no
+# coordinates and waited for a maintenance sweep to approximate one — which is
+# the expensive half of this suite's point. These four cases are one per parsing
+# path that can be handed a coordinate, so a field dropped from any of them
+# turns a test red instead of quietly emptying the map.
+
+IDEALISTA_JSON_LD = """
+<html><head>
+<script type="application/ld+json">
+{
+  "@type": "ItemList",
+  "itemListElement": [
+    {"item": {
+      "@type": "RealEstateListing",
+      "url": "https://www.idealista.it/immobile/88888/",
+      "name": "Trilocale in vendita in Via Dante, 5, Milano",
+      "offers": {"price": "315000"},
+      "geo": {"@type": "GeoCoordinates", "latitude": 45.4661, "longitude": 9.1878}
+    }}
+  ]
+}
+</script></head><body></body></html>
+"""
+
+IDEALISTA_EMBEDDED = """
+<html><body><script>
+window.__INITIAL_PROPS__ = [
+  {"adId": 99001, "title": "Bilocale Isola", "price": 285000, "size": 62,
+   "rooms": 2, "latitude": 45.4881, "longitude": 9.1889,
+   "municipality": "Milano", "address": "Via Borsieri 4"}
+];
+</script></body></html>
+"""
+
+
+@pytest.mark.parametrize(
+    "scraper,page,expected",
+    [
+        (ImmobiliareScraper, PAGE_JSON_LD, (45.07, 7.68)),
+        (ImmobiliareScraper, PAGE_NEXT_DATA, (45.45, 9.17)),
+        (IdealistaScraper, IDEALISTA_JSON_LD, (45.4661, 9.1878)),
+        (IdealistaScraper, IDEALISTA_EMBEDDED, (45.4881, 9.1889)),
+    ],
+)
+def test_a_page_that_carries_coordinates_never_loses_them(scraper, page, expected):
+    listings, _ = scraper().parse_page(page, "https://example.invalid/vendita-case/milano-milano/")
+    assert len(listings) == 1
+    assert (listings[0].latitude, listings[0].longitude) == expected
+
+
+def test_the_heuristic_strategy_places_nothing_it_cannot_read():
+    """The two card parsers get plain text and no coordinates, and must not
+    invent any: an unplaced listing is the geocoder's problem, and a guessed pin
+    would be a wrong one nobody could detect."""
+    for scraper, page in ((ImmobiliareScraper, PAGE_HTML_ONLY), (IdealistaScraper, IDEALISTA_HTML)):
+        listings, strategy = scraper().parse_page(page, "url")
+        assert "heuristic" in strategy
+        assert listings[0].latitude is None and listings[0].longitude is None
+
+
 # The portals' real "nothing matched" pages, reduced to what decides the case.
 # Idealista serves this with HTTP 404 — the same status as a dead slug — while
 # Immobiliare serves its own with 200.

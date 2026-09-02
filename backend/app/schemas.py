@@ -85,6 +85,12 @@ class PropertyOut(BaseModel):
     address: str
     latitude: float | None
     longitude: float | None
+    # where that pin came from: "portal" / "address" are the property's own
+    # location, "zone" / "city" are the middle of an area it is somewhere
+    # inside. Served rather than inferred on the client, because the difference
+    # is a fact the backend established and the map must not redraw as if the
+    # two were the same thing (services/geocoder.py).
+    coordinate_source: str = ""
     rooms: int | None
     floor: str
     sqm: float | None

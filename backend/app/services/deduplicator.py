@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Listing, ListingProfile, PriceHistory, Property
 from ..scrapers.base import RawListing
+from . import geocoder
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,9 @@ def upsert_listing(
             address=raw.address,
             latitude=raw.latitude,
             longitude=raw.longitude,
+            # the ad carried its own pin: the cheapest and the most exact one
+            # there is, and the reason `geocoder` has nothing to do for it
+            coordinate_source=geocoder.SOURCE_PORTAL if raw.latitude is not None else "",
             rooms=raw.rooms,
             floor=raw.floor,
             sqm=raw.sqm,
@@ -310,8 +314,17 @@ def upsert_listing(
         # enriches the Property with any missing data
         if not prop.title and raw.title:
             prop.title = raw.title
-        if prop.latitude is None and raw.latitude is not None:
+        # A pin the ad brought with it beats one this app worked out. It
+        # overwrites an *approximate* pin (a district or comune centre placed by
+        # `geocoder.resolve_offline`) rather than leaving the property sitting
+        # in the middle of its zone with its real address now known — but it
+        # never touches an exact pin, which would be one lookup traded for
+        # another of the same quality.
+        if raw.latitude is not None and (
+            prop.latitude is None or geocoder.is_approximate(prop.coordinate_source)
+        ):
             prop.latitude, prop.longitude = raw.latitude, raw.longitude
+            prop.coordinate_source = geocoder.SOURCE_PORTAL
         if not prop.address and raw.address:
             prop.address = raw.address
         if prop.rooms is None and raw.rooms is not None:

@@ -145,6 +145,13 @@ class IdealistaScraper(BaseScraper):
                 image = item.get("image")
                 if isinstance(image, list):
                     image = image[0] if image else ""
+                # Schema.org puts the pin in `geo` (GeoCoordinates). It was
+                # being read past for years, so a listing this strategy found
+                # arrived with no coordinates and waited for the paced Nominatim
+                # sweep to invent one it had already been given for free. The
+                # sibling strategy below reads them, and so does Immobiliare's
+                # JSON-LD — this path was the odd one out.
+                geo = item.get("geo") or {}
                 out.append(
                     RawListing(
                         portal=self.portal,
@@ -155,6 +162,8 @@ class IdealistaScraper(BaseScraper):
                         # request" placeholders (0/1) live there too
                         price=plausible_price(to_float(offers.get("price")), self.contract),
                         city=city,
+                        latitude=to_float(geo.get("latitude")) if isinstance(geo, dict) else None,
+                        longitude=to_float(geo.get("longitude")) if isinstance(geo, dict) else None,
                         description=item.get("description", ""),
                         image_url=image if isinstance(image, str) else "",
                     )

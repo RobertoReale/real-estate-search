@@ -1,23 +1,40 @@
-"""Opt-in geocoding to backfill the map coordinates most listings lack.
+"""Filling in the map coordinates a listing did not arrive with.
 
-~70% of Immobiliare listings arrive with no lat/lng, so the map view is mostly
-empty. This turns a listing's "address/zone + city" into a real pin via
-Nominatim (OpenStreetMap) — free, and self-hostable for unlimited offline use.
+~70% of Immobiliare listings arrive with no lat/lng, so the map view starts
+mostly empty. Three things fill it in, in the order that costs least first, and
+the order is the whole design:
 
-Two rules keep it safe and inside the free tier:
+1. **What the ad already carried.** Free and exact. `deduplicator` writes it,
+   this module never sees it, and every coordinate field a parser can read is
+   held to that by `test_scrapers.py` — a portal that sends a pin the app then
+   pays Nominatim to re-derive is the cheapest bug there is.
+2. **What is already known offline** (`resolve_offline`). A street this
+   database has geocoded once answers every other listing on it for nothing,
+   and a district that already holds pins can place a listing inside itself.
+   No request, so a scan can do it every time.
+3. **Nominatim** (`geocode_missing_properties`), paced at one request a second
+   and bounded per run. A scan triggers it over what it has just imported; the
+   maintenance action still runs it over everything on demand.
+
+Three rules keep it safe, cheap and honest:
 
 * **Fail-open, never a wrong pin.** A lookup that fails or is ambiguous leaves
   the property's coordinates untouched. A missing pin is fine; a pin in the
   wrong place is a lie the user would act on.
 * **Cache everything, including misses.** Every query is remembered in
   `GeocodeCache` (a NULL result is a *negative* cache), so the same
-  "via Dante, Milano" is never asked twice — that is what lets an opt-in batch
-  stay under Nominatim's 1-request-per-second policy.
+  "via Dante, Milano" is never asked twice — that is what lets a paced batch
+  stay under Nominatim's 1-request-per-second policy, and what makes layer 2
+  answer most of a city for free.
+* **Say how precise the pin is.** A district centre is not an address, and
+  drawing the two the same way is an approximation presented as a location —
+  the one kind of error the user cannot catch. Every write records where the
+  pin came from in `Property.coordinate_source`; `APPROXIMATE_SOURCES` below is
+  the single list of which of those are not addresses.
 
-It only ever runs when the user triggers it (a batched, paced maintenance
-endpoint), never inside the hot scan path. The outbound HTTP
-call lives in `_nominatim_lookup` alone, so tests drive the whole cache/batch
-logic with it mocked — no network, fully reproducible (invariant 17's spirit).
+The outbound HTTP call lives in `_nominatim_lookup` alone, so tests drive the
+whole cache/batch logic with it mocked — no network, fully reproducible
+(invariant 17's spirit).
 """
 
 import json
@@ -41,6 +58,39 @@ logger = logging.getLogger(__name__)
 # User-Agent identifying the app. Both are non-negotiable for the public
 # instance; a self-hosted one does not care but the pause is harmless.
 PACE_SECONDS = 1.0
+
+# The vocabulary of `Property.coordinate_source`, written down once. The models
+# module documents what each value means for a reader of the schema; the
+# authority on which of them are *approximations* is here, next to the code that
+# creates them, so a fourth source cannot be added without deciding.
+SOURCE_PORTAL = "portal"  # the ad carried its own pin
+SOURCE_ADDRESS = "address"  # this property's own street, resolved
+SOURCE_ZONE = "zone"  # the middle of its district
+
+# A pin here is somewhere in the right area and nowhere in particular. The map
+# draws it differently, and a portal pin overwrites it. There is deliberately no
+# comune-wide equivalent: a bare city would drop every unplaceable listing on
+# one downtown pin, which is why `build_located_queries` has never built a query
+# out of one either.
+APPROXIMATE_SOURCES = frozenset({SOURCE_ZONE})
+
+# How many exact pins a district needs before their mean counts as its centre.
+# Two, for a reason that is not statistical: the mean of two points is neither
+# of them, so an approximate pin can never land exactly on a real address and be
+# read as one. With a single pin it would, which is the confusion the whole
+# `coordinate_source` column exists to prevent.
+ZONE_CENTRE_MIN_PINS = 2
+
+
+def is_approximate(source: str | None) -> bool:
+    """Is a pin from `source` an area rather than an address?
+
+    An unknown source ("") answers False: it is a pin written before this column
+    existed, and calling it approximate would put a warning on the map for every
+    property in an upgraded database. Only what this code can prove is an
+    approximation is labelled as one.
+    """
+    return (source or "") in APPROXIMATE_SOURCES
 
 
 def _get_user_agent() -> str:
@@ -174,44 +224,56 @@ def _clean_street_name(place: str) -> str:
     return s
 
 
-def build_queries(prop: Property) -> list[str]:
-    """Returns a prioritized list of address queries for a property, anchored to city.
+def build_located_queries(prop: Property) -> list[tuple[str, str]]:
+    """The queries to try for a property, each with the precision it would buy.
 
-    Prefers full address with house number, falling back to street name without
-    number, and finally zone, so if 'Via Tolmezzo, 2, Milano, Italia' fails or is
-    in another municipality, 'Via Tolmezzo, Milano, Italia' or 'Udine, Milano, Italia'
-    can still succeed.
+    Same prioritized list `build_queries` has always returned — full address
+    with house number, then the street without it, then the zone — paired with
+    the `SOURCE_*` the resolved pin would deserve. The pairing is the point: the
+    fallback to the zone was always there and always produced a district centre
+    labelled exactly like a street address, so a property whose address could
+    not be resolved ended up on the map claiming a precision nobody had.
     """
     city = (prop.city or "").strip()
     if not city:
         return []
 
-    queries = []
+    queries: list[tuple[str, str]] = []
     seen = set()
 
-    def _add(q: str) -> None:
+    def _add(q: str, source: str) -> None:
         key = _normalize(q)
         if key and key not in seen:
             seen.add(key)
-            queries.append(q)
+            queries.append((q, source))
 
     address = (prop.address or "").strip()
     if address:
-        _add(f"{address}, {city}, Italia")
+        _add(f"{address}, {city}, Italia", SOURCE_ADDRESS)
         clean_addr = _clean_street_name(address)
         if clean_addr and len(clean_addr) >= 3 and _normalize(clean_addr) != _normalize(address):
-            _add(f"{clean_addr}, {city}, Italia")
+            _add(f"{clean_addr}, {city}, Italia", SOURCE_ADDRESS)
 
     zone = (prop.zone or "").strip()
     from .listing_text import is_placeholder_zone
 
     if zone and not is_placeholder_zone(zone):
         clean_zone = _clean_street_name(zone)
-        _add(f"{zone}, {city}, Italia")
+        _add(f"{zone}, {city}, Italia", SOURCE_ZONE)
         if clean_zone and len(clean_zone) >= 3 and _normalize(clean_zone) != _normalize(zone):
-            _add(f"{clean_zone}, {city}, Italia")
+            _add(f"{clean_zone}, {city}, Italia", SOURCE_ZONE)
 
     return queries
+
+
+def build_queries(prop: Property) -> list[str]:
+    """The same list as `build_located_queries`, without the precisions.
+
+    Kept for the callers that only need something to look up — the commute
+    resolver and the negative-cache repair — so neither has to know that a
+    query carries a precision at all.
+    """
+    return [query for query, _ in build_located_queries(prop)]
 
 
 def build_query(prop: Property) -> str:
@@ -331,7 +393,7 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
     base_url = (
         load_settings().get("nominatim_url") or "https://nominatim.openstreetmap.org"
     ).strip()
-    for query in build_queries(prop):
+    for query, source in build_located_queries(prop):
         key = _normalize(query)
         cached_row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
         # A positive cache hit costs no network; a negative one is retried here
@@ -347,6 +409,7 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
             return None
         if coords:
             prop.latitude, prop.longitude = coords
+            prop.coordinate_source = source
             db.commit()
             return coords
         # Pace only between genuine network lookups; a cached miss is free.
@@ -355,23 +418,162 @@ def geocode_property(db: Session, prop: Property) -> tuple[float, float] | None:
     return None
 
 
-def geocode_missing_properties(db: Session, max_calls: int | None = -1) -> dict:
+# ---------------------------------------------------------------------------
+# Layer 2: what is already known, without a single request
+# ---------------------------------------------------------------------------
+
+
+def _zone_centres(db: Session) -> dict[tuple[str, str], tuple[float, float]]:
+    """The middle of every district this database can already draw.
+
+    Built from the properties that carry an *exact* pin: a district holding
+    `ZONE_CENTRE_MIN_PINS` of them knows roughly where it is, and that is enough
+    to place a listing whose own address nobody has resolved. It is the same
+    trick the cache plays with streets, one level coarser, and it is why a first
+    scan can put most of its listings on the map for nothing.
+
+    Approximate pins are excluded from the input on purpose: averaging centroids
+    into new centroids would let one district's guess drift into the next one's
+    and there would be no way back to a real coordinate.
+    """
+    rows = db.scalars(
+        select(Property)
+        .where(Property.latitude.is_not(None))
+        .where(Property.city != "")
+        .where(Property.zone != "")
+    ).all()
+    grouped: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for prop in rows:
+        if is_approximate(prop.coordinate_source):
+            continue
+        if prop.latitude is None or prop.longitude is None:
+            continue
+        key = (_normalize(prop.city), _normalize(prop.zone))
+        grouped.setdefault(key, []).append((prop.latitude, prop.longitude))
+    return {
+        key: (sum(p[0] for p in pins) / len(pins), sum(p[1] for p in pins) / len(pins))
+        for key, pins in grouped.items()
+        if len(pins) >= ZONE_CENTRE_MIN_PINS
+    }
+
+
+def _place_offline(
+    db: Session, prop: Property, zone_centres: dict[tuple[str, str], tuple[float, float]]
+) -> tuple[float, float, str] | None:
+    """(lat, lng, source) for one property from local knowledge alone, or None.
+
+    Best precision first, and each layer is a fact this database already holds:
+
+    1. **a lookup already paid for.** `GeocodeCache` is keyed by the query
+       string, so "via dei tigli 4, milano, italia" resolved for one listing
+       answers every other listing at that address, and the street-level
+       fallback answers the whole street. This is the layer that does the work.
+    2. **the district's own pins.** Coarser, and honestly labelled as such.
+
+    And then it stops. A listing this cannot place keeps no pin and goes to
+    Nominatim, which is the whole reason the network layer runs *after* this one
+    — a comune-wide fallback here would place everything, badly, and the paced
+    lookup that could have found the real address would never get a candidate.
+
+    Nothing here opens a socket, and nothing here writes a negative cache row:
+    a query this pass cannot answer is left exactly as the network layer would
+    find it.
+    """
+    city = (prop.city or "").strip()
+    if not city:
+        return None
+
+    for query, source in build_located_queries(prop):
+        row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == _normalize(query)))
+        if row is None or row.latitude is None or row.longitude is None:
+            continue
+        if is_valid_coordinate_for_city(row.latitude, row.longitude, city):
+            return row.latitude, row.longitude, source
+
+    zone = (prop.zone or "").strip()
+    if not zone:
+        return None
+    from .listing_text import is_placeholder_zone
+
+    if is_placeholder_zone(zone):
+        return None
+    centre = zone_centres.get((_normalize(city), _normalize(zone)))
+    if centre and is_valid_coordinate_for_city(centre[0], centre[1], city):
+        return centre[0], centre[1], SOURCE_ZONE
+    return None
+
+
+def resolve_offline(db: Session, property_ids: set[int] | None = None) -> dict:
+    """Place every property this database can already place, with no network.
+
+    Runs before the paced Nominatim batch and, unlike it, is free — so a scan
+    calls it every time rather than leaving the map empty until somebody clicks
+    a maintenance button. Fail-open like the rest of the module: a property it
+    cannot place keeps no pin at all, and the network layer gets its turn.
+
+    Returns what it did, split by precision, because "68 placed" and "68 placed,
+    12 of them only to their district" are different sentences and the caller
+    reports the second one.
+    """
+    stmt = (
+        select(Property)
+        .where(Property.latitude.is_(None))
+        .where(Property.city != "")
+        .order_by(Property.id)
+    )
+    if property_ids is not None:
+        stmt = stmt.where(Property.id.in_(property_ids))
+    candidates = db.scalars(stmt).all()
+
+    summary = {"scanned": len(candidates), "placed": 0, "exact": 0, "approximate": 0}
+    if not candidates:
+        return summary
+
+    zone_centres = _zone_centres(db)
+    for prop in candidates:
+        found = _place_offline(db, prop, zone_centres)
+        if found is None:
+            continue
+        prop.latitude, prop.longitude, prop.coordinate_source = found
+        summary["placed"] += 1
+        summary["approximate" if is_approximate(found[2]) else "exact"] += 1
+    db.commit()
+    if summary["placed"]:
+        logger.info(
+            "geocoder: placed %d properties offline (%d exact, %d approximate)",
+            summary["placed"],
+            summary["exact"],
+            summary["approximate"],
+        )
+    return summary
+
+
+def geocode_missing_properties(
+    db: Session, max_calls: int | None = -1, property_ids: set[int] | None = None
+) -> dict:
     """Fill in coordinates for properties that have an address/zone but no pin.
 
     When `max_calls` is -1 (default), it caps at `MAX_PER_CALL` for synchronous
     batches. When `max_calls` is None, it runs all remaining candidates without
     capping (`budget = float("inf")`), ideal for background progress execution.
+
+    `property_ids` narrows the candidates to a named set, which is how a scan
+    sweeps what it has just imported instead of re-attempting, every hour, the
+    addresses Nominatim has already declined. The maintenance action passes
+    nothing and still sees the whole database.
     """
     if not _geocode_run_lock.acquire(blocking=False):
         raise GeocoderError("A geocoding batch is already running: wait for it to finish")
     _geocode_cancel_event.clear()
     try:
-        return _geocode_missing_properties_inner(db, max_calls)
+        return _geocode_missing_properties_inner(db, max_calls, property_ids)
     finally:
         _geocode_run_lock.release()
 
 
-def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -> dict:
+def _geocode_missing_properties_inner(
+    db: Session, max_calls: int | None = -1, property_ids: set[int] | None = None
+) -> dict:
     from ..config import load_settings
 
     base_url = (
@@ -380,10 +582,12 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
 
     # Clear out any existing coordinates that fall clearly outside the property's city
     # (repairing old mis-geocodings like 'Via Tolmezzo, 2' -> Cernusco or 'Dergano' -> Torino).
-    existing_geocoded = db.scalars(
-        select(Property).where(Property.latitude.is_not(None)).where(Property.city != "")
-    ).all()
-    for p in existing_geocoded:
+    # Scoped like the candidates below: a scan repairs what it has just touched,
+    # while the maintenance action still sweeps the whole database.
+    repair_stmt = select(Property).where(Property.latitude.is_not(None)).where(Property.city != "")
+    if property_ids is not None:
+        repair_stmt = repair_stmt.where(Property.id.in_(property_ids))
+    for p in db.scalars(repair_stmt).all():
         if not is_valid_coordinate_for_city(p.latitude, p.longitude, p.city):
             logger.info(
                 "geocoder: clearing out-of-bounds coords for property #%s (%s: %s, %s)",
@@ -393,19 +597,27 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                 p.longitude,
             )
             p.latitude, p.longitude = None, None
+            p.coordinate_source = ""
     db.commit()
 
-    candidates = db.scalars(
+    stmt = (
         select(Property)
         .where(Property.latitude.is_(None))
         .where(Property.city != "")
         .where(or_(Property.address != "", Property.zone != ""))
         .order_by(Property.id)
-    ).all()
+    )
+    if property_ids is not None:
+        stmt = stmt.where(Property.id.in_(property_ids))
+    candidates = db.scalars(stmt).all()
 
     summary = {
         "scanned": 0,
         "geocoded": 0,
+        # of those, how many landed on a district centre rather than a street.
+        # Counted separately because "40 properties placed" and "40 properties
+        # placed, 31 of them only to the district" are different answers.
+        "approximate": 0,
         "cached": 0,
         "not_found": 0,
         "remaining": 0,
@@ -436,16 +648,17 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                 logger.info("geocoder: cancelled by user after %d candidates", index)
                 break
 
-            queries = build_queries(prop)
+            queries = build_located_queries(prop)
             if not queries:
                 _geocode_progress.update(done=index + 1)
                 continue
             summary["scanned"] += 1
 
             coords = None
+            source = ""
             was_cached = False
             try:
-                for query in queries:
+                for query, query_source in queries:
                     key = _normalize(query)
                     cached_row = db.scalar(select(GeocodeCache).where(GeocodeCache.query == key))
                     cached_exists = cached_row is not None
@@ -458,6 +671,7 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                     if cached_exists and coords:
                         was_cached = True
                     if coords:
+                        source = query_source
                         break
                     if not cached_exists and budget > 0:
                         if _geocode_cancel_event.is_set():
@@ -478,7 +692,13 @@ def _geocode_missing_properties_inner(db: Session, max_calls: int | None = -1) -
                 summary["cached"] += 1
             if coords:
                 prop.latitude, prop.longitude = coords
+                # `source` says which of this property's queries answered: the
+                # street, or the district it stands in. The batch has always
+                # fallen back to the district and never said so.
+                prop.coordinate_source = source
                 summary["geocoded"] += 1
+                if is_approximate(source):
+                    summary["approximate"] += 1
             else:
                 summary["not_found"] += 1
 

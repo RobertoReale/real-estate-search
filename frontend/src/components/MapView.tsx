@@ -53,18 +53,35 @@ function pinKind(p: Property): PinKind {
   return "active";
 }
 
+/** True when the backend placed this property in the middle of its district
+ *  because nobody could resolve its actual address. Which sources count as
+ *  approximate is the backend's list (`geocoder.APPROXIMATE_SOURCES`); this only
+ *  reads the answer it sent. */
+function isApproximate(p: Property): boolean {
+  return p.coordinate_source === "zone";
+}
+
 /** Leaflet's default marker is a PNG resolved relative to the CSS file, which
  *  bundlers rewrite into a 404. A divIcon sidesteps the asset pipeline
- *  entirely and lets the pin carry its own color. */
-function makeIcon(kind: PinKind): L.DivIcon {
+ *  entirely and lets the pin carry its own color.
+ *
+ *  An approximate pin is drawn hollow and dashed, at the same size and colour:
+ *  it still reads as that property's status, and it no longer claims to be
+ *  standing on its doorstep. Presenting an area as an address is the one error
+ *  the user has no way of catching, so the difference is in the shape and not
+ *  only in the tooltip. */
+function makeIcon(kind: PinKind, approximate: boolean): L.DivIcon {
   const { color } = PIN_STYLE[kind];
+  const fill = approximate
+    ? `background:transparent;border:2px dashed ${color};`
+    : `background:${color};border:2px solid rgba(255,255,255,.9);`;
   return L.divIcon({
     className: "", // Leaflet's default class draws a white box behind the pin
     iconSize: [18, 18],
     iconAnchor: [9, 9],
     html: `<span style="
       display:block;width:18px;height:18px;border-radius:9999px;
-      background:${color};border:2px solid rgba(255,255,255,.9);
+      ${fill}
       box-shadow:0 1px 6px rgba(0,0,0,.4);"></span>`,
   });
 }
@@ -286,8 +303,9 @@ export default function MapView({
     let focusMarker: L.Marker | null = null;
     let focusLatLng: L.LatLngExpression | null = null;
     for (const p of geolocated) {
+      const approximate = isApproximate(p);
       const marker = L.marker([p.latitude!, p.longitude!], {
-        icon: makeIcon(pinKind(p)),
+        icon: makeIcon(pinKind(p), approximate),
         title: p.title || translateCurrent("card.untitled"),
       });
       const sqmPrice =
@@ -303,7 +321,12 @@ export default function MapView({
           `<br/><em>${escapeHtml(
             [p.zone, p.city].filter(Boolean).join(", ") ||
               translateCurrent("card.locationUnknown"),
-          )}</em>`,
+          )}</em>` +
+          // said in words as well as in the shape: someone reading a single
+          // tooltip has no other pin to compare the dashes against
+          (approximate
+            ? `<br/><small>${escapeHtml(translateCurrent("map.approximateZone"))}</small>`
+            : ""),
         { direction: "top", offset: [0, -8] },
       );
       marker.on("click", () => onSelectRef.current(p));
@@ -344,6 +367,9 @@ export default function MapView({
   const legend = (Object.keys(PIN_STYLE) as PinKind[]).filter((kind) =>
     geolocated.some((p) => pinKind(p) === kind),
   );
+  // The dashed pin needs a stated meaning, and only while one is on screen: a
+  // legend entry for a shape nobody can see is noise.
+  const approximateCount = geolocated.filter(isApproximate).length;
 
   return (
     <section className="glass rounded-2xl p-4 space-y-3">
@@ -366,6 +392,12 @@ export default function MapView({
               {t(PIN_STYLE[kind].label)}
             </span>
           ))}
+          {approximateCount > 0 && (
+            <span className="flex items-center gap-1.5" title={t("map.pinApproximateTitle")}>
+              <span className="w-3 h-3 rounded-full border border-dashed border-current" />
+              {t("map.pinApproximate", { count: approximateCount })}
+            </span>
+          )}
         </div>
       </div>
 
