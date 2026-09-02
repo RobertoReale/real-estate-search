@@ -3,6 +3,7 @@ the parser must dynamically choose JSON-LD -> embedded -> heuristic."""
 
 import json
 import logging
+from collections.abc import Callable
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -1471,3 +1472,105 @@ def test_a_search_page_total_is_read_only_where_the_portal_states_one():
     )
     assert declared_result_total("<html><body><a>Case in vendita a Roma</a></body>") is None
     assert declared_result_total("") is None
+
+
+# --- what a scrape reports about itself while it runs -----------------------
+#
+# A scrape used to be silent for its whole duration, which for a ten-page search
+# at six seconds a page is minutes with nothing to show. These pin the facts it
+# now emits and, as importantly, that emitting them can never cost a listing.
+
+
+def _recorder() -> tuple[list[dict], Callable[..., None]]:
+    seen: list[dict] = []
+    return seen, lambda **facts: seen.append(facts)
+
+
+def test_a_scrape_announces_every_page_before_it_asks_for_it(portal, monkeypatch):
+    """The page in flight, reported before the request rather than after it:
+    reported afterwards, the number on screen would always be the page that has
+    already finished — silence for exactly as long as the fetch takes."""
+    _paged_portal(portal, monkeypatch, total_pages=2, per_page=2)
+    seen, record = _recorder()
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=2)
+    s.on_progress = record
+    s._api_search(portal.url(TRUNCATION_SEARCH), ScrapeResult())
+
+    assert {"phase": "fetching", "page": 1} in seen
+    assert {"page": 1, "listings": 2} in seen
+    assert {"phase": "fetching", "page": 2} in seen
+    assert {"page": 2, "listings": 4} in seen
+    # the portal's own totals, once, from the page that states them
+    assert {"total_pages": 2, "total_listings": 4} in seen
+
+
+def test_the_html_path_reports_pages_without_inventing_a_total(portal, monkeypatch):
+    """No portal publishes a page count in its HTML, so this path reports a
+    rising count and no total to divide it by. That absence is the point: only
+    a real total may ever be drawn as a proportion."""
+    portal.install(monkeypatch)
+    portal.serve(TRUNCATION_SEARCH, mock_portal.idealista_results_page([_flat(1), _flat(2)]))
+    seen, record = _recorder()
+
+    s = IdealistaScraper(delay_seconds=0, max_pages=1)
+    s.delay_seconds = 0
+    s.on_progress = record
+    s.scrape(portal.url(TRUNCATION_SEARCH))
+
+    assert {"phase": "fetching", "page": 1} in seen
+    assert {"page": 1, "listings": 2} in seen
+    assert not any("total_pages" in facts for facts in seen)
+    assert {"total_listings": None} in seen
+
+
+def test_the_pause_between_pages_is_announced_before_it_is_spent(monkeypatch):
+    """Most of a scan's wall clock is `polite_sleep`, so announcing it after the
+    fact would report the wait once it no longer matters. The seconds reported
+    are the ones actually about to be slept."""
+    slept: list[float] = []
+    monkeypatch.setattr("app.scrapers.base.time.sleep", slept.append)
+    seen, record = _recorder()
+
+    s = BaseScraper(delay_seconds=6.0)
+    s.on_progress = record
+    s.polite_sleep()
+
+    assert len(seen) == 1 and len(slept) == 1
+    assert seen[0]["phase"] == "waiting"
+    assert seen[0]["waiting_seconds"] == round(slept[0], 1)
+    assert 4.2 <= seen[0]["waiting_seconds"] <= 8.4  # the 0.7-1.4 jitter around 6s
+
+
+def test_a_watcher_that_raises_never_costs_the_scrape_a_listing(portal, monkeypatch, caplog):
+    """Observability must never take a scan down. The callback belongs to the
+    caller, so a broken one is contained where it is invoked rather than ending
+    the scrape it was only supposed to describe."""
+    _paged_portal(portal, monkeypatch, total_pages=2, per_page=2)
+
+    def explode(**facts):
+        raise RuntimeError("the watcher is broken")
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=2)
+    s.on_progress = explode
+    result = ScrapeResult()
+    with caplog.at_level(logging.ERROR):
+        s._api_search(portal.url(TRUNCATION_SEARCH), result)
+
+    assert len(result.listings) == 4
+    assert result.pages_fetched == 2
+    assert "progress callback failed" in caplog.text
+
+
+def test_a_scrape_nobody_is_watching_reports_nothing(portal, monkeypatch):
+    """The default, and the one every non-scan caller uses: `AdProbe`, the
+    availability check and the search validator all leave `on_progress` unset,
+    and pay a single `is None` for it."""
+    _paged_portal(portal, monkeypatch, total_pages=1, per_page=2)
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=1)
+    result = ScrapeResult()
+    s._api_search(portal.url(TRUNCATION_SEARCH), result)
+
+    assert s.on_progress is None
+    assert len(result.listings) == 2

@@ -20,12 +20,17 @@ the listings it could not place from what it already knew, so any test driving
 `run_scan` would send real requests to OpenStreetMap. `_offline_geocoder` shuts
 that door for the whole suite; the tests that mean to exercise a lookup replace
 the same symbol with their own stub, as they always have.
+
+And two more are deliberately in memory rather than in the database — what a
+scan is doing, and what the last few did — so they survive a test the way they
+survive a scan, and a run's assertions would otherwise depend on which file
+happened to drive a scan before it.
 """
 
 import pytest
 
 from app import config, database
-from app.services import geocoder
+from app.services import geocoder, scanner
 
 
 @pytest.fixture(autouse=True)
@@ -68,3 +73,10 @@ def _offline_geocoder(monkeypatch):
         raise ConnectionError("the test suite never reaches Nominatim")
 
     monkeypatch.setattr(geocoder, "_nominatim_lookup", refuse)
+
+
+@pytest.fixture(autouse=True)
+def _empty_scan_report():
+    """Every test starts with no scan in flight and an empty journal."""
+    scanner._journal.clear()
+    scanner._set_progress(reset=True)

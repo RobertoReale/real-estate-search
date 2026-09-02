@@ -287,6 +287,18 @@ class MockPortalServer:
             content_type="application/json",
         )
 
+    def serve_answering(
+        self, path: str, answer: typing.Callable[[dict[str, list[str]]], Page]
+    ) -> str:
+        """Publish a path whose reply is computed per request, from its query.
+
+        Anything a fixed body cannot express goes through here: a portal that
+        answers differently across pages, and one that *holds the request open*
+        until the test has looked at what the scan is reporting mid-flight.
+        """
+        self._httpd.pages[urlparse(path).path] = answer
+        return self.url(path)
+
     def serve_json_pages(self, path: str, render: typing.Callable[[int], typing.Any]) -> str:
         """Publish a *paginated* JSON endpoint: `render(page)` builds the body
         for the page the scraper asked for.
@@ -304,8 +316,7 @@ class MockPortalServer:
                 page = 1
             return Page(json.dumps(render(page)), content_type="application/json")
 
-        self._httpd.pages[urlparse(path).path] = answer
-        return self.url(path)
+        return self.serve_answering(path, answer)
 
     @property
     def requested(self) -> list[str]:

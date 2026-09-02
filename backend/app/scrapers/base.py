@@ -161,6 +161,11 @@ class BaseScraper:
     # "fallback"` (the default) starts on the free path and only escalates on
     # a block.
     use_scrape_api = True
+    # Who is watching this scrape, if anyone. The scanner sets it for the
+    # duration of one profile so the dashboard can say which page is in flight
+    # and how long the next pause is; every other caller leaves it None and the
+    # reporting costs a single `is None` per page.
+    on_progress: typing.Callable[..., None] | None = None
 
     def __init__(self, delay_seconds: float = 6.0, max_pages: int = 10):
         self.delay_seconds = delay_seconds
@@ -333,8 +338,32 @@ class BaseScraper:
                         continue
                     raise last_error from e
 
+    def report_progress(self, **facts) -> None:
+        """Say what this scrape is doing, to whoever asked to be told.
+
+        Facts only — a page number, a count, the seconds about to be spent
+        waiting — never a sentence: the wording belongs to the caller, which is
+        the side that knows whose scan this is and who is going to read it.
+
+        A watcher that raises must not end the scrape it was only supposed to
+        describe, so the callback is contained here. That is the same rule
+        `scraper_health.record_scan` follows for the same reason.
+        """
+        if self.on_progress is None:
+            return
+        try:
+            self.on_progress(**facts)
+        except Exception:
+            logger.exception("%s: progress callback failed", self.portal)
+
     def polite_sleep(self):
-        time.sleep(self.delay_seconds * random.uniform(0.7, 1.4))
+        seconds = self.delay_seconds * random.uniform(0.7, 1.4)
+        # Announced before it is spent, and this is the reporting that matters
+        # most: `request_delay_seconds` defaults to 6 and is paid between every
+        # page, so most of a scan's wall clock is this line. Unannounced, the
+        # longest thing the app does looks like the thing that hung.
+        self.report_progress(phase="waiting", waiting_seconds=round(seconds, 1))
+        time.sleep(seconds)
 
     # --- 3-Strategy Pipeline ---
 
@@ -373,6 +402,7 @@ class BaseScraper:
         result = ScrapeResult(page_limit=self.max_pages)
         url = search_url
         for page in range(1, self.max_pages + 1):
+            self.report_progress(phase="fetching", page=page)
             try:
                 html = self.fetch(url)
             except BlockedError as e:
@@ -390,6 +420,11 @@ class BaseScraper:
                 # capped, since "47 listings, and the portal says it has 47" is
                 # the statement that proves a scan complete.
                 result.total_listings = declared_result_total(html)
+                # Reported only because the portal published it. No HTML path
+                # declares a page count anywhere, so the watcher is left with a
+                # rising number and no percentage — which is the honest shape
+                # of this scrape and must not be dressed up as a proportion.
+                self.report_progress(total_listings=result.total_listings)
             listings, strategy = self.parse_page(html, url)
             result.pages_fetched += 1
             result.strategy_used = strategy or result.strategy_used
@@ -408,6 +443,7 @@ class BaseScraper:
             before = len(result.listings)
             known = {l.url for l in result.listings}
             result.listings.extend(l for l in listings if l.url not in known)
+            self.report_progress(page=page, listings=len(result.listings))
             if len(result.listings) == before:  # page with only duplicates: stop
                 break
             next_url = self.next_page_url(search_url, page + 1)
