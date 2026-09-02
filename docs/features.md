@@ -127,13 +127,22 @@
   *Mark sold* count as **confirmed** sales here — a real close date rather than
   the "not seen for a while" guess — and the panel reports how many of the
   closes are confirmed.
-* **Scraper health**: a panel showing, portal by portal, how the last month of
-  scans actually went — one colored cell per day (green = every scan ok, amber =
-  some failed, red = all failed), the failure rate over the window, which
-  transport carried the last scan, and which searches are currently on a failure
-  streak. A blocked scraper is otherwise silent (no listings looks exactly like
-  a quiet market), so this is the place that says *the pipeline is degrading,
-  add a proxy pool or a scraping-API key* before scans quietly stop delivering.
+* **Scraper health**: a panel in two halves, labelled so neither can be read as
+  the other. *History* is portal by portal, how the last month of scans actually
+  went — one colored cell per day (green = every scan ok, amber = some failed,
+  red = all failed), the failure rate over the window, and which transport
+  carried the last scan. *Right now* is the searches still on a failure streak,
+  which clears the moment a scan gets through. A blocked scraper is otherwise
+  silent (no listings looks exactly like a quiet market), so this is the place
+  that says *the pipeline is degrading, add a proxy pool or a scraping-API key*
+  before scans quietly stop delivering.
+* **"Nothing found" is not "something went wrong"**: a search that comes back
+  empty says which of the two it was. **No matches** means the portal answered
+  and its answer was that nothing fits your criteria today; **Blocked** means it
+  did not really answer at all. The distinction is taken from the portal's own
+  words — an empty result set it counted, versus an empty one it did not — and
+  a "no matches" run is treated as a working scan, so a search over a quiet
+  market never builds up towards a false outage alert.
 * **Tags**: create your own free-form categories — "senza ascensore", "con
   giardino", "mi piace ma…" — and attach as many as you like to a property,
   right from its card or the detail modal. Typing a name that already exists

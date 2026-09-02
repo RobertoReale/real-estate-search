@@ -114,6 +114,13 @@ export default function ScraperHealthPanel() {
 
           {data && data.portals.length > 0 && (
             <div className="overflow-x-auto">
+              {/* Labelled as history explicitly, and the streak below as the
+                  live state. The two are different kinds of number sitting on
+                  the same panel: a day's `blocked` count is a total that stays
+                  on the record for ever, while a streak is what is true right
+                  now and clears on the next scan that gets through. Unlabelled,
+                  a historical total reads as a current problem. */}
+              <h3 className="font-medium text-sm mb-2">{t("health.historyTitle")}</h3>
               <table className="w-full text-sm">
                 <thead className="t-muted text-xs text-left">
                   <tr className="border-b border-slate-200 dark:border-slate-700/50">
@@ -167,7 +174,8 @@ export default function ScraperHealthPanel() {
 
           {failingProfiles.length > 0 && (
             <div>
-              <h3 className="font-medium text-sm mb-2">{t("health.failingTitle")}</h3>
+              <h3 className="font-medium text-sm">{t("health.failingTitle")}</h3>
+              <p className="text-xs t-dim mb-2">{t("health.failingSubtitle")}</p>
               <ul className="text-sm space-y-1">
                 {failingProfiles.map((p) => (
                   <li key={p.profile_id} className="flex items-center gap-2">

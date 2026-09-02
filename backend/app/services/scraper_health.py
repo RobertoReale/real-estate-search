@@ -46,6 +46,12 @@ def record_scan(db: Session, portal: str, status: str, transport: str) -> None:
         elif status == "error":
             row.errors = (row.errors or 0) + 1
         else:
+            # `ok` and `no_results` alike: both mean the portal was reached and
+            # said what it had. Counting a search over a quiet market as a
+            # failure would put it on the same footing as a blocked one — in
+            # the block rate here, and in the streak invariant 11 alerts on,
+            # which would then never clear for a search that legitimately
+            # matches nothing.
             row.successes = (row.successes or 0) + 1
         row.last_transport = transport or row.last_transport
     except Exception:

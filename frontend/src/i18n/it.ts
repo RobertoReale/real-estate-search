@@ -695,6 +695,7 @@ export const it: Dict = {
   // ── ricerche monitorate: struttura e modalità ───────────────────────────
   "profiles.title": "🔍 Ricerche monitorate",
   "profiles.statusOk": "OK",
+  "profiles.statusNoResults": "Nessun risultato",
   "profiles.statusBlocked": "Bloccata (riproverà)",
   "profiles.statusError": "Errore",
   "profiles.modeAssistant": "💬 Descrivila e basta",
@@ -996,6 +997,7 @@ export const it: Dict = {
   "health.window":
     "Ultimi {days} giorni di esiti delle scansioni per portale. La prossima scansione parte da: {transport}.",
   "health.empty": "Nessuna scansione registrata — si riempie man mano che le scansioni girano.",
+  "health.historyTitle": "Storico — com'è andata giorno per giorno",
   "health.colPortal": "Portale",
   "health.colDays": "Giorni (dal più vecchio a oggi)",
   "health.colScans": "Scansioni",
@@ -1011,7 +1013,9 @@ export const it: Dict = {
   "health.daySomeFailed": "alcune scansioni fallite",
   "health.dayLabel":
     "{date}: {state} — {attempts} scansioni, {blocked} bloccate, {errors} errori",
-  "health.failingTitle": "Ricerche attualmente in errore",
+  "health.failingTitle": "Adesso — ricerche ancora in errore",
+  "health.failingSubtitle":
+    "La serie in corso, non un totale: si azzera alla prima scansione che passa.",
   "health.failingRow": "({portal}) — {count} scansioni {status} consecutive",
   "health.failingStatusFallback": "fallite",
   "health.failingHint":

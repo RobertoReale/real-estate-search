@@ -4,6 +4,7 @@ structured floor ("T") subjected to keyword filter, additive profile keywords,
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 import pytest
 from sqlalchemy import create_engine
@@ -12,7 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Property, SearchProfile
 from app.scrapers.base import RawListing, ScrapeResult
+from app.scrapers.immobiliare import ImmobiliareScraper
 from app.services import scanner
+
+from . import mock_portal
+from .mock_portal import Flat, MockPortalServer
 
 
 def _prop(**kwargs) -> Property:
@@ -875,3 +880,151 @@ def test_a_wider_search_clears_the_flag_its_narrower_sibling_set(db, monkeypatch
     _scan_area(db, monkeypatch, MILANO_URL, listings, profile=wider)
 
     assert _by_title(db)["Zona accanto"].outside_requested_area is False
+
+
+# --- "nothing found" is not "ok" -------------------------------------------
+#
+# Three different events used to reach the dashboard as the same word: a portal
+# that answered with an empty market, one that did not really answer at all,
+# and one that answered with listings. What these pin is the sentence the user
+# ends up reading and the failure streak underneath it — a portal that said
+# "none" has answered, and must not accumulate towards an outage alert the way
+# a block does.
+#
+# They run against the loopback sandbox rather than a fake scraper on purpose:
+# what separates the outcomes is the *payload*, so the payload has to come over
+# HTTP from something that can be made to send each of them in turn.
+
+OUTCOME_SEARCH = "/vendita-case/torino/"
+
+OUTCOME_FLAT = Flat(
+    ad_id="70001",
+    title="Trilocale via Sacchi",
+    price=280_000,
+    rooms=3,
+    sqm=95,
+    city="Torino",
+    zone="Centro",
+    street="Via Sacchi",
+    civic="8",
+)
+
+# A search results page with a grid and nothing in it, and — deliberately —
+# without the portal's own "nothing matched" wording. This is what the HTML
+# safety net is served in the block test below, so that the `blocked` verdict
+# under assertion can only have come from the api-next classification: this
+# page produces an *error* on the HTML path, never a block.
+_EMPTY_HTML_NO_MARKER = "<html><body><main></main></body></html>"
+
+
+@pytest.fixture
+def portal():
+    with MockPortalServer() as server:
+        yield server
+
+
+@pytest.fixture
+def outcome_profile(db, portal, monkeypatch):
+    """A real `ImmobiliareScraper` aimed at the sandbox, driven through the
+    scanner's own path, with the geography already resolvable (invariant 7)."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    monkeypatch.setattr(
+        scanner, "get_scraper", lambda _portal: ImmobiliareScraper(delay_seconds=0, max_pages=1)
+    )
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    profile = SearchProfile(
+        name="Torino", portal="immobiliare", search_url=portal.url(OUTCOME_SEARCH)
+    )
+    db.add(profile)
+    db.commit()
+    return profile
+
+
+def _scan_outcome(db, profile) -> dict:
+    """One scan plus the health bookkeeping `run_scan` performs after it, which
+    is where the streak this asserts on is actually kept."""
+    summary = _summary()
+    summary["health_alerts"] = 0
+    scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
+    scanner._update_profile_health(profile, {"health_alert_after_failures": 3}, summary)
+    db.commit()
+    return summary
+
+
+def _serve_blocked(portal) -> None:
+    portal.serve_json("/api-next/search-list/listings/", {"detail": "blocked"}, status=403)
+    portal.serve(
+        OUTCOME_SEARCH, "<html><body>Access is temporarily restricted</body></html>", status=403
+    )
+
+
+def _serve_api(portal, flats, *, declare_count: bool = True) -> None:
+    portal.serve_json(
+        "/api-next/search-list/listings/",
+        mock_portal.immobiliare_api_page(flats, declare_count=declare_count),
+    )
+
+
+def test_a_blocked_scan_opens_the_failure_streak(db, portal, outcome_profile):
+    _serve_blocked(portal)
+
+    summary = _scan_outcome(db, outcome_profile)
+
+    assert outcome_profile.last_run_status == "blocked"
+    assert outcome_profile.consecutive_failures == 1
+    assert summary["blocked_portals"] == ["immobiliare"]
+
+
+def test_the_portal_answering_none_is_an_answer_and_clears_the_streak(db, portal, outcome_profile):
+    """The case this task exists for: an empty result set that the portal
+    counted is a statement about the market, not a failed scan. It closes the
+    streak a preceding block opened, and it says so in words."""
+    _serve_blocked(portal)
+    _scan_outcome(db, outcome_profile)
+    assert outcome_profile.consecutive_failures == 1
+
+    _serve_api(portal, [])
+    already_requested = len(portal.requested)
+    summary = _scan_outcome(db, outcome_profile)
+
+    assert outcome_profile.last_run_status == "no_results"
+    assert outcome_profile.consecutive_failures == 0
+    assert "portal answered" in outcome_profile.last_run_detail
+    assert summary["blocked_portals"] == [] and summary["errors"] == []
+    # and it stopped there: confirming an answer by spending a
+    # guaranteed-blocked HTML request would turn it back into an alarm
+    second_scan = [urlparse(p).path for p in portal.requested[already_requested:]]
+    assert OUTCOME_SEARCH not in second_scan
+
+
+def test_a_scan_that_finds_listings_is_ok(db, portal, outcome_profile):
+    _serve_api(portal, [OUTCOME_FLAT])
+
+    summary = _scan_outcome(db, outcome_profile)
+
+    assert outcome_profile.last_run_status == "ok"
+    assert outcome_profile.consecutive_failures == 0
+    assert summary["new"] == 1
+    assert "1 listings" in outcome_profile.last_run_detail
+
+
+def test_an_empty_api_page_that_states_no_count_is_a_block(db, portal, outcome_profile):
+    """A soft block IS an empty 200: the portal serves the same status and the
+    same empty list, minus any statement of how many results it matched. Read
+    as `no_results` it would report a working search over an empty market,
+    which is the most expensive way this can be wrong.
+
+    The HTML safety net is served an empty page here, so it contributes an
+    error and never a block — the `blocked` verdict under assertion can only
+    have come from the api-next page above.
+    """
+    _serve_api(portal, [], declare_count=False)
+    portal.serve(OUTCOME_SEARCH, _EMPTY_HTML_NO_MARKER)
+
+    summary = _scan_outcome(db, outcome_profile)
+
+    assert outcome_profile.last_run_status == "blocked"
+    assert outcome_profile.consecutive_failures == 1
+    assert summary["blocked_portals"] == ["immobiliare"]

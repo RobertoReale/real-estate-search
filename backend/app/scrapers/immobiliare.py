@@ -85,6 +85,16 @@ API_ZONE_ID_PARAM = "idMZona[]"
 # search must stay one request.
 MAX_ZONE_IDS = 300
 
+# How this endpoint says "I looked, and there are none": it states the size of
+# the result set beside the page it is returning. That statement is the whole
+# signal — an empty `results` list is only an *answer* about the market when the
+# portal also counted what it matched, because a soft block is served as exactly
+# the same HTTP 200 with the same empty list and no count at all. Both spellings
+# occur depending on the search, so the rule reads whichever one is present and
+# treats their joint absence as the block it is. This is the api-next twin of
+# `page_text.text_says_no_results`, which does the same job for the HTML path.
+API_TOTAL_KEYS = ("count", "totalAds")
+
 
 class ImmobiliareScraper(BaseScraper):
     portal = "immobiliare"
@@ -448,6 +458,34 @@ class ImmobiliareScraper(BaseScraper):
         self.warm_session()
         return True
 
+    def _classify_empty_first_page(self, data: dict, result: ScrapeResult) -> None:
+        """Decide what a first api-next page that yielded no listing *means*.
+
+        Three different things arrive here looking identical, and leaving them
+        identical is the defect: an empty 200 was recorded as a successful scan
+        of a quiet market, which is also precisely how a soft block presents.
+        Only the middle branch leaves `result` untouched, and an untouched
+        result is what `ScrapeResult.outcome` reads as `no_results`.
+        """
+        if data["results"]:
+            # entries came back and not one of them survived parsing: the
+            # api-next twin of the HTML path's "no listings extracted" alarm,
+            # and a change to the payload's shape rather than an empty market.
+            result.error = (
+                "immobiliare: API returned entries none of which could be parsed — "
+                "possible change of internal endpoint"
+            )
+        elif any(k in data for k in API_TOTAL_KEYS):
+            # the portal counted its own results and the count is zero: an
+            # answer, and the one case the user is entitled to see as such.
+            logger.info("immobiliare: the portal answered, no listing matches this search")
+        else:
+            result.blocked = True
+            result.error = (
+                "immobiliare: API answered with neither listings nor a result count — "
+                "treating it as a block rather than as an empty market"
+            )
+
     def _api_search(self, search_url: str, result: ScrapeResult) -> None:
         params = self._api_params(search_url)
         if params is None:
@@ -516,6 +554,8 @@ class ImmobiliareScraper(BaseScraper):
                     page_listings.append(listing)
 
             if not page_listings:
+                if page == 1:
+                    self._classify_empty_first_page(data, result)
                 break
             result.listings.extend(page_listings)
             result.pages_fetched += 1
@@ -547,6 +587,14 @@ class ImmobiliareScraper(BaseScraper):
         if primary.listings:
             for listing in primary.listings:
                 listing.contract = self.contract
+            return primary
+
+        if primary.outcome == "no_results":
+            # The portal answered, and its answer was "none". Falling through
+            # would spend a guaranteed-blocked HTML request to confirm what has
+            # already been established, and the block it earns would overwrite
+            # a clean answer with an alarm — the exact confusion this path
+            # exists to remove.
             return primary
 
         # Fallback safety net: the api-next endpoint changed/was removed (or the

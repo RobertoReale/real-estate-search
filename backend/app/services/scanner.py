@@ -183,6 +183,10 @@ def _update_profile_health(profile: SearchProfile, settings: dict, summary: dict
     the `blocked`/`error` status outside the dashboard, so an outage could
     last days unnoticed. Alerting on a *streak* rather than a single failure
     is what makes the alert trustworthy: transient DataDome 403s are routine.
+
+    Only `blocked` and `error` count. `no_results` is an answer, so it clears
+    the streak exactly as `ok` does — a search over a market that genuinely has
+    nothing in it must not accumulate towards an outage alert.
     """
     threshold = int(settings.get("health_alert_after_failures") or 0)
     # same routing as listing notifications: a profile that only wants email
@@ -335,11 +339,9 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local
     # ladder may have escalated to the API mid-scan.
-    _status = (
-        "blocked" if result.blocked else ("error" if result.error and not result.listings else "ok")
-    )
+    outcome = result.outcome
     scraper_health.record_scan(
-        db, profile.portal, _status, transport_policy.transport_used(scraper, settings)
+        db, profile.portal, outcome, transport_policy.transport_used(scraper, settings)
     )
 
     if result.blocked:
@@ -348,7 +350,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         summary["blocked_portals"].append(profile.portal)
         if not result.listings:
             return
-    elif result.error and not result.listings:
+    elif outcome == "error":
         profile.last_run_status = "error"
         profile.last_run_detail = result.error[:300]
         summary["errors"].append(result.error)
@@ -435,8 +437,14 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
             len(result.listings),
         )
 
-    profile.last_run_status = "blocked" if result.blocked else "ok"
-    if not result.blocked:
+    profile.last_run_status = outcome
+    if outcome == "no_results":
+        # Said as the portal's own statement, because that is what it is. The
+        # user reading this line is entitled to know they are looking at an
+        # answer about the market and not at a search that failed quietly —
+        # the two used to produce the same word.
+        profile.last_run_detail = "The portal answered: no listing matches this search"
+    elif not result.blocked:
         detail = (
             f"{len(result.listings)} listings across {result.pages_fetched} pages "
             f"(strategy: {result.strategy_used or 'N/A'})"
