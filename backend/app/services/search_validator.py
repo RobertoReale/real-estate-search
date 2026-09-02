@@ -29,8 +29,14 @@ def normalize_profile_url(url: str) -> str:
     """Normalizes a portal search URL for exact duplicate comparison.
 
     Strips whitespace and trailing slashes, lowercases scheme/netloc/path,
-    removes non-filtering/bookmark parameters (`id`, `imm_source`, `pag`),
-    and sorts remaining query parameters alphabetically.
+    removes non-filtering/bookmark parameters (`id`, `imm_source`, `pag`, and
+    the sort order), and sorts remaining query parameters alphabetically.
+
+    The sort order belongs on that list for the same reason as `pag`: it decides
+    how the answer is arranged, never what is in it, so the same search ranked
+    two ways is one search. Left in, the day the builder started pinning
+    newest-first every rebuilt URL would have stopped matching the profile it
+    was rebuilt from — a duplicate the check could no longer see.
     """
     url_str = (url or "").strip()
     if not url_str:
@@ -41,8 +47,8 @@ def normalize_profile_url(url: str) -> str:
         netloc = parsed.netloc.lower()
         path = parsed.path.rstrip("/").lower()
 
-        # Parse query params, filtering out tracking/pagination params
-        ignore_params = {"id", "imm_source", "pag"}
+        # Parse query params, filtering out tracking/pagination/ordering params
+        ignore_params = {"id", "imm_source", "pag", "criterio", "ordine"}
         query_items = [
             (k, v)
             for k, v in parse_qsl(parsed.query, keep_blank_values=True)

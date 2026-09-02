@@ -1474,6 +1474,114 @@ def test_a_search_page_total_is_read_only_where_the_portal_states_one():
     assert declared_result_total("") is None
 
 
+# --- the window a scan takes has to be the same window twice running --------
+#
+# Both portals rank by relevance unless told otherwise, and a relevance ranking
+# is re-computed continuously. The pages the cap allows are therefore a
+# different set of listings on every run, so an ad near the cut drifts into the
+# window and arrives as a *first sighting* — announced as new a month after it
+# went on sale. Pinned to newest-first the window is a deterministic prefix.
+#
+# The sandbox honours the parameter instead of ignoring it (`asks_newest_first`),
+# which is what makes these assertions statements about the request the scraper
+# issued: with the pin dropped, the portal answers in the order the flats are
+# written below and every one of them fails.
+
+ORDERING_SEARCH = "/vendita-case/torino/"
+IDEALISTA_ORDERING_SEARCH = "/vendita-case/torino-torino/"
+
+
+def _dated_flat(n: int, published: str) -> mock_portal.Flat:
+    return mock_portal.Flat(
+        ad_id=f"8{n:04d}",
+        title=f"Trilocale {n}",
+        price=250_000 + n,
+        rooms=3,
+        sqm=90,
+        city="Torino",
+        published=published,
+    )
+
+
+# Deliberately not in date order: this is the sandbox's stand-in for a
+# relevance ranking, and it is what comes back when nothing asks for anything.
+UNSORTED_FLATS = [
+    _dated_flat(1, "2026-08-01"),
+    _dated_flat(2, "2026-08-20"),
+    _dated_flat(3, "2026-08-10"),
+]
+
+
+def test_the_api_request_asks_for_the_newest_listings_first(monkeypatch):
+    s = ImmobiliareScraper()
+    _milano_geography(monkeypatch, s)
+    params = s._api_params("https://www.immobiliare.it/vendita-case/milano/")
+
+    assert params is not None
+    assert params["criterio"] == "dataModifica"
+    assert params["ordine"] == "desc"
+
+
+def test_a_pasted_url_that_states_its_own_order_reaches_the_api_unchanged(monkeypatch):
+    """Their URL is a statement of intent. A search someone copied out of the
+    portal sorted by price stays sorted by price — the pin is a default for the
+    searches that never said, not an override for the ones that did."""
+    s = ImmobiliareScraper()
+    _milano_geography(monkeypatch, s)
+    params = s._api_params(
+        "https://www.immobiliare.it/vendita-case/milano/?criterio=prezzo&ordine=asc"
+    )
+
+    assert params is not None
+    assert params["criterio"] == "prezzo"
+    assert params["ordine"] == "asc"
+
+
+def test_the_first_api_page_comes_back_in_descending_date_order(portal, monkeypatch):
+    """The Vincolo behind the whole task: a sort parameter that changed nothing
+    must not look like it worked. The sandbox really sorts, so this asserts the
+    answer and not the request — and the second assertion is the one that
+    matters, because it is the order the portal falls back to when nobody
+    asked."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    portal.serve_answering(
+        "/api-next/search-list/listings/",
+        mock_portal.immobiliare_ranked_pages(UNSORTED_FLATS),
+    )
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=1)
+    result = ScrapeResult()
+    s._api_search(portal.url(ORDERING_SEARCH), result)
+
+    assert [l.portal_id for l in result.listings] == [
+        f.ad_id for f in mock_portal.newest_first(UNSORTED_FLATS)
+    ]
+    assert [l.portal_id for l in result.listings] != [f.ad_id for f in UNSORTED_FLATS]
+
+
+def test_the_idealista_page_comes_back_in_descending_date_order(portal, monkeypatch):
+    """Idealista's half. The pin is applied by the scraper rather than only by
+    the builder, because a profile saved by pasting a link never went through
+    the builder — and `next_page_url` rewrites the path alone, so the ordering
+    rides along to every /lista-N.htm after the first."""
+    portal.install(monkeypatch)
+    portal.serve_answering(
+        IDEALISTA_ORDERING_SEARCH,
+        mock_portal.idealista_ranked_page(UNSORTED_FLATS),
+    )
+
+    s = IdealistaScraper(delay_seconds=0, max_pages=1)
+    s.delay_seconds = 0  # the constructor floors it at 8s for the real portal
+    result = s.scrape(portal.url(IDEALISTA_ORDERING_SEARCH))
+
+    assert [l.portal_id for l in result.listings] == [
+        f.ad_id for f in mock_portal.newest_first(UNSORTED_FLATS)
+    ]
+    assert [l.portal_id for l in result.listings] != [f.ad_id for f in UNSORTED_FLATS]
+    assert any("ordine=pubblicazione-desc" in path for path in portal.requested)
+
+
 # --- what a scrape reports about itself while it runs -----------------------
 #
 # A scrape used to be silent for its whole duration, which for a ten-page search

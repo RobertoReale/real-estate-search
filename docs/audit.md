@@ -44,7 +44,7 @@ cd frontend && npm test
 cd frontend && npm run e2e
 ```
 
-Expected today: **947 passed + 1 skipped** (948 collected; the skip needs the optional
+Expected today: **955 passed + 1 skipped** (956 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
 and **35 browser tests** (15 journeys, then 20 that hold the run to the control inventory).
 The last of those prints the two numbers worth reading: **222 interactive elements, 230

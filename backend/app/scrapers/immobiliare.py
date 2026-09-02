@@ -381,6 +381,28 @@ class ImmobiliareScraper(BaseScraper):
             params[API_ZONE_ID_PARAM] = ids
         return params
 
+    def _pin_ordering(self, params: dict[str, str | list[str]]) -> dict[str, str | list[str]]:
+        """Ask api-next for the most recently published listings first.
+
+        Without it the endpoint ranks by relevance, and a relevance ranking is
+        re-computed continuously: the ten pages a scan is allowed are ten pages
+        of an order that is different every run, so a listing near the cut drifts
+        into the window and is recorded as a first sighting — announced as new
+        weeks after it went on sale. Pinned, the window is a deterministic
+        prefix of the newest, which is also what makes the truncation notice
+        G.7 prints a sentence a user can act on.
+
+        The check reads the *absorbed* parameters rather than the raw URL, so a
+        link the user pasted with its own `criterio` keeps it: their URL states
+        an intent, and this is a default, not an override.
+        """
+        from ..services.search_builder import ORDER_KEYS, newest_first_params
+
+        if any(key in params for key in ORDER_KEYS[self.portal]):
+            return params
+        params.update(newest_first_params(self.portal))
+        return params
+
     def _api_params(self, search_url: str) -> dict[str, str | list[str]] | None:
         """Constructs API parameters starting from the user-pasted search URL."""
         parsed = urlparse(search_url)
@@ -397,7 +419,7 @@ class ImmobiliareScraper(BaseScraper):
             if "idCategoria" not in params:
                 params["idCategoria"] = "1"
             params["path"] = parsed.path
-            return params
+            return self._pin_ordering(params)
 
         # e.g. "vendita-case" -> contract 1 (sale) / 2 (rental)
         contract = "2" if segments[0].startswith("affitto") else "1"
@@ -417,7 +439,7 @@ class ImmobiliareScraper(BaseScraper):
         params["idContratto"] = contract
         params["idCategoria"] = "1"
         params["path"] = parsed.path
-        return self._absorb_query(params, parsed.query)
+        return self._pin_ordering(self._absorb_query(params, parsed.query))
 
     def _api_get(self, params, referer: str, page: int):
         """Single api-next page request. Reads `self.session` at call time so a
@@ -629,8 +651,12 @@ class ImmobiliareScraper(BaseScraper):
 
         # Fallback safety net: the api-next endpoint changed/was removed (or the
         # block also reached it). Try the HTML strategies 1-3 (super().scrape()).
+        # Ordered like the API path, or the fallback would quietly hand back a
+        # different window than the one it is standing in for.
+        from ..services.search_builder import with_newest_first
+
         logger.info("immobiliare: api-next unusable, falling back to HTML strategies")
-        html = super().scrape(search_url)
+        html = super().scrape(with_newest_first(search_url, self.portal))
         if html.listings:
             return html
         # no path succeeded: keep the most informative signal

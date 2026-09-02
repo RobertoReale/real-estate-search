@@ -88,10 +88,36 @@ class Flat:
     longitude: float | None = None
     agency: str = ""
     description: str = ""
+    # When the portal published this ad, ISO "2026-08-30". Fixture data, not a
+    # field any scraper reads: it exists so the sandbox can *order* what it
+    # serves, which is the only way a test can say "the first page came back
+    # newest-first" about a request rather than about a canned page.
+    published: str = ""
 
     @property
     def address(self) -> str:
         return f"{self.street} {self.civic}".strip()
+
+
+def newest_first(flats: list[Flat]) -> list[Flat]:
+    """The flats in the order a portal sorted by publication date answers in."""
+    return sorted(flats, key=lambda f: f.published, reverse=True)
+
+
+def asks_newest_first(query: dict[str, list[str]], portal: str) -> bool:
+    """Did this request carry the portal's own newest-first ordering?
+
+    The sandbox *honours* the parameter rather than ignoring it, which is what
+    turns "the scraper read the pages newest-first" into a statement about the
+    request it issued: drop the pin and the portal below answers in its
+    relevance order instead, and the assertion fails. The spelling comes from
+    the table the app writes from, because what a fixture can prove is that the
+    two sides agree — the live portal's answer is not in this building.
+    """
+    from app.services.search_builder import ORDER_NEWEST_FIRST
+
+    wanted = ORDER_NEWEST_FIRST.get(portal, ())
+    return bool(wanted) and all(value in query.get(key, []) for key, value in wanted)
 
 
 def _italian_thousands(value: int) -> str:
@@ -212,6 +238,54 @@ class Page:
     body: str
     status: int = 200
     content_type: str = "text/html; charset=utf-8"
+
+
+def immobiliare_ranked_pages(
+    flats: list[Flat], *, per_page: int | None = None
+) -> typing.Callable[[dict[str, list[str]]], Page]:
+    """An api-next endpoint that really ranks, and really paginates.
+
+    Newest-first when the request asks for it; otherwise the order `flats` was
+    written in, which stands for the portal's relevance ranking and is
+    deliberately *not* date order. A window narrower than the corpus is the
+    whole point: a listing outside it is one this scan never sees, which is
+    what pinning the order is for.
+    """
+
+    def answer(query: dict[str, list[str]]) -> Page:
+        ordered = newest_first(flats) if asks_newest_first(query, "immobiliare") else list(flats)
+        size = per_page or max(len(ordered), 1)
+        try:
+            page = max(int((query.get("pag") or ["1"])[0]), 1)
+        except ValueError:
+            page = 1
+        window = ordered[(page - 1) * size : page * size]
+        return Page(
+            json.dumps(
+                immobiliare_api_page(
+                    window,
+                    max_pages=max(1, -(-len(ordered) // size)),
+                    count=len(ordered),
+                )
+            ),
+            content_type="application/json",
+        )
+
+    return answer
+
+
+def idealista_ranked_page(
+    flats: list[Flat], *, total: int | None = None
+) -> typing.Callable[[dict[str, list[str]]], Page]:
+    """The HTML twin of `immobiliare_ranked_pages`, for the first page only —
+    Idealista paginates in the path (`/lista-N.htm`), so later pages are their
+    own entry in the page table and cannot be answered from this one."""
+
+    def answer(query: dict[str, list[str]]) -> Page:
+        ordered = newest_first(flats) if asks_newest_first(query, "idealista") else list(flats)
+        return Page(idealista_results_page(ordered, total=total))
+
+    return answer
 
 
 class _PortalHTTPServer(ThreadingHTTPServer):

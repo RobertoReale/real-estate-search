@@ -11,20 +11,30 @@ here fetches a page or needs a portal to be reachable.
 
 from app import schemas
 from app.services.search_builder import (
+    build_idealista_url,
     build_immobiliare_url,
     parse_search_url,
+    with_newest_first,
 )
 
 # The URL Immobiliare produces when three districts are picked on its own map.
 # The selection is nowhere in the path — that stays at the bare municipality —
 # and lives entirely in the repeated idMZona[] parameters, which is the whole of
-# the defect this file was written for. `criterio` is the portal's sort order and
-# no business of the builder's.
+# the defect this file was written for. `criterio=rilevanza` is the portal's own
+# sort control, copied along with the rest: it is where the spelling the builder
+# now writes was read from.
 MULTI_ZONE_URL = (
     "https://www.immobiliare.it/vendita-case/milano/"
     "?idMZona[]=10046&idMZona[]=10047&idMZona[]=10048"
     "&criterio=rilevanza&prezzoMassimo=450000&superficieMinima=70"
 )
+
+# What a built search now ends with, in each portal's own spelling of "newest
+# first". Written out here rather than imported from the builder: a test that
+# reads the value it is checking would pass whatever the value became, and the
+# point of these assertions is that a scan asks for a *stated* order.
+IMMOBILIARE_NEWEST = "criterio=dataModifica&ordine=desc"
+IDEALISTA_NEWEST = "ordine=pubblicazione-desc"
 
 
 def test_a_multi_zone_url_parses_to_a_zone_list():
@@ -68,11 +78,11 @@ def test_the_zone_ids_lead_the_query_string_in_the_order_they_were_picked():
     (invariant 20's duplicate check normalizes values, not ordering)."""
     assert build_immobiliare_url(city="Milano", zone_ids=["10047", "10046"], max_price=450_000) == (
         "https://www.immobiliare.it/vendita-case/milano/"
-        "?idMZona[]=10047&idMZona[]=10046&prezzoMassimo=450000"
+        f"?idMZona[]=10047&idMZona[]=10046&prezzoMassimo=450000&{IMMOBILIARE_NEWEST}"
     )
     # the same ids in the other order are a different URL, and a repeat is not
     assert build_immobiliare_url(city="Milano", zone_ids=["10046", "10047", "10046"]) == (
-        "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047"
+        f"https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047&{IMMOBILIARE_NEWEST}"
     )
 
 
@@ -88,15 +98,17 @@ def test_the_indexed_spelling_of_the_zone_parameter_is_read_too():
 
 def test_a_single_zone_path_url_still_round_trips_exactly():
     """The pretty single-zone form is what the portal emits for one district,
-    and it must come back out byte-identical: the zone list is an addition, not
-    a rewrite of the grammar that already worked."""
+    and the search it describes must come back out untouched: the zone list is
+    an addition, not a rewrite of the grammar that already worked. What the
+    rebuilt URL gains is the ordering, which is not part of the search — it
+    decides how the same listings are arranged."""
     url = "https://www.immobiliare.it/vendita-case/milano/navigli/?prezzoMassimo=380000"
     parsed = parse_search_url(url)
 
     assert parsed["zone"] == "Navigli"
     assert parsed["zones"] == ["Navigli"]
     assert parsed["zone_ids"] == []
-    assert build_immobiliare_url(**parsed) == url
+    assert build_immobiliare_url(**parsed) == f"{url}&{IMMOBILIARE_NEWEST}"
 
 
 def test_a_plain_city_url_still_round_trips_exactly():
@@ -104,7 +116,7 @@ def test_a_plain_city_url_still_round_trips_exactly():
     parsed = parse_search_url(url)
 
     assert parsed["zone"] == "" and parsed["zones"] == [] and parsed["zone_ids"] == []
-    assert build_immobiliare_url(**parsed) == url
+    assert build_immobiliare_url(**parsed) == f"{url}&{IMMOBILIARE_NEWEST}"
 
 
 def test_zone_and_zones_are_one_field_at_two_arities():
@@ -112,7 +124,11 @@ def test_zone_and_zones_are_one_field_at_two_arities():
     directions, so nothing written before the list changes meaning."""
     from_string = build_immobiliare_url(city="Milano", zone="Navigli")
     from_list = build_immobiliare_url(city="Milano", zones=["Navigli"])
-    assert from_string == from_list == "https://www.immobiliare.it/vendita-case/milano/navigli/"
+    assert (
+        from_string
+        == from_list
+        == f"https://www.immobiliare.it/vendita-case/milano/navigli/?{IMMOBILIARE_NEWEST}"
+    )
 
     payload = schemas.SearchBuilderIn(city="Milano", zone="Navigli")
     assert payload.zones == ["Navigli"]
@@ -126,7 +142,10 @@ def test_ids_decide_the_path_when_a_url_carries_both():
     never been observed to emit, so the ids win and the path stays at the
     municipality — exactly what the portal's own map produces."""
     url = build_immobiliare_url(city="Milano", zone="Navigli", zone_ids=["10046"])
-    assert url == "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046"
+    assert (
+        url
+        == f"https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&{IMMOBILIARE_NEWEST}"
+    )
 
 
 def test_several_zone_names_without_ids_use_the_first_and_do_not_invent_a_grammar():
@@ -135,7 +154,7 @@ def test_several_zone_names_without_ids_use_the_first_and_do_not_invent_a_gramma
     offline. The first name is used rather than a made-up path — and saying so
     on screen is G.2's job, not this function's."""
     url = build_immobiliare_url(city="Milano", zones=["Navigli", "Bovisa"])
-    assert url == "https://www.immobiliare.it/vendita-case/milano/navigli/"
+    assert url == f"https://www.immobiliare.it/vendita-case/milano/navigli/?{IMMOBILIARE_NEWEST}"
 
 
 def test_idealista_opaque_zone_ids_are_reported_without_inventing_a_location():
@@ -176,8 +195,58 @@ def test_a_zone_list_narrows_both_portals_or_neither():
     urls = build_search_urls(dict(city="Milano", zones=["Navigli"], max_price=380_000))
 
     assert urls["immobiliare"] == (
-        "https://www.immobiliare.it/vendita-case/milano/navigli/?prezzoMassimo=380000"
+        f"https://www.immobiliare.it/vendita-case/milano/navigli/?prezzoMassimo=380000&{IMMOBILIARE_NEWEST}"
     )
     assert urls["idealista"] == (
-        "https://www.idealista.it/cerca/vendita-case/con-prezzo_380000/Navigli_Milano/"
+        f"https://www.idealista.it/cerca/vendita-case/con-prezzo_380000/Navigli_Milano/?{IDEALISTA_NEWEST}"
+    )
+
+
+# --- The order the results come back in -------------------------------------
+#
+# No search this app built ever stated one, so every search took the portal's
+# default: relevance, re-ranked continuously. The ten pages the cap allows are
+# then ten pages of an order that differs on every run, and a listing near the
+# cut drifts in and out of the window for reasons that have nothing to do with
+# the listing — arriving as a first sighting weeks after it went on sale.
+
+
+def test_both_portals_are_asked_for_the_newest_listings_first():
+    """The pin, in each portal's own spelling and on every URL shape a builder
+    can produce. Always in the query string: Idealista answers 404 to a path
+    segment it does not recognise, while an unknown query key is ignored by
+    both portals — so a spelling that ages out costs the ordering and never the
+    search."""
+    assert build_immobiliare_url(city="Milano") == (
+        f"https://www.immobiliare.it/vendita-case/milano/?{IMMOBILIARE_NEWEST}"
+    )
+    assert build_immobiliare_url(city="Milano", max_price=300_000).endswith(
+        f"&{IMMOBILIARE_NEWEST}"
+    )
+
+    # Idealista's three grammars: the municipality page, a proven zone page,
+    # and the free-text /cerca/ fallback every unproven zone lands on
+    assert build_idealista_url(city="Milano").endswith(f"?{IDEALISTA_NEWEST}")
+    assert build_idealista_url(city="Milano", zone="Forlanini", zone_page=True).endswith(
+        f"?{IDEALISTA_NEWEST}"
+    )
+    assert build_idealista_url(city="Milano", zone="Bovisa").endswith(f"?{IDEALISTA_NEWEST}")
+
+
+def test_a_url_that_orders_itself_keeps_the_order_it_came_with():
+    """A link the user pasted is a statement of intent, not a default to
+    overwrite — someone who copied a price-sorted search asked for a
+    price-sorted search. Everything else gets the pin, including the profiles
+    saved before there was one to get."""
+    theirs = "https://www.immobiliare.it/vendita-case/milano/?criterio=prezzo&ordine=asc"
+    assert with_newest_first(theirs, "immobiliare") == theirs
+
+    plain = "https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000"
+    assert with_newest_first(plain, "immobiliare") == f"{plain}&{IMMOBILIARE_NEWEST}"
+
+    idealista = "https://www.idealista.it/vendita-case/milano-milano/"
+    assert with_newest_first(idealista, "idealista") == f"{idealista}?{IDEALISTA_NEWEST}"
+    assert (
+        with_newest_first(f"{idealista}?ordine=prezzo-asc", "idealista")
+        == f"{idealista}?ordine=prezzo-asc"
     )

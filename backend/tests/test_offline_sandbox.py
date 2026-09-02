@@ -231,6 +231,132 @@ def test_scrape_normalize_deduplicate_notify_with_no_network(portal, mailbox, sa
     assert IDEALISTA_SEARCH in paths
 
 
+# --- the window a capped scan takes -----------------------------------------
+#
+# Four ads on one portal, a scan allowed one page of two: the window is half the
+# market, and which half depends entirely on how the portal ranked it. Written
+# oldest-first below, because that stands for the relevance ranking the sandbox
+# answers with when nothing asks for an order — and relevance is what every
+# search this app built used to take.
+#
+# Nothing here merges: different streets, sizes and prices, and no coordinates,
+# so conservative deduplication (invariant 1) has no proof of location to work
+# from and leaves all four standing alone.
+
+STALE_ON_IMMOBILIARE = Flat(
+    ad_id="70001",
+    title="Bilocale rimasto invenduto",
+    price=199_000,
+    rooms=2,
+    sqm=55,
+    city="Torino",
+    zone="San Salvario",
+    street="Via Sacchi",
+    civic="3",
+    published="2026-08-10",
+)
+SETTLED_ON_IMMOBILIARE = Flat(
+    ad_id="70002",
+    title="Trilocale in Via Garibaldi",
+    price=310_000,
+    rooms=3,
+    sqm=88,
+    city="Torino",
+    zone="Centro",
+    street="Via Garibaldi",
+    civic="21",
+    published="2026-08-28",
+)
+ALSO_SETTLED_ON_IMMOBILIARE = Flat(
+    ad_id="70003",
+    title="Quadrilocale in Corso Francia",
+    price=475_000,
+    rooms=4,
+    sqm=130,
+    city="Torino",
+    zone="Cit Turin",
+    street="Corso Francia",
+    civic="82",
+    published="2026-08-29",
+)
+FRESH_ON_IMMOBILIARE = Flat(
+    ad_id="70004",
+    title="Monolocale appena pubblicato",
+    price=125_000,
+    rooms=1,
+    sqm=40,
+    city="Torino",
+    zone="Vanchiglia",
+    street="Lungo Dora Firenze",
+    civic="7",
+    published="2026-09-02",
+)
+
+
+def test_a_listing_that_drifts_into_the_window_is_not_announced_as_new(portal, mailbox, sandbox):
+    """The defect H.1 exists for.
+
+    A scan capped at one page of a relevance-ranked search does not take "the
+    first two listings" — it takes two out of an order the portal recomputes
+    continuously. The three-week-old ad below floats to the top of that order on
+    the second scan, is upserted for the first time, and `_scan_profile` reads
+    that first sighting as `is_new` and announces it. The user is told about a
+    house that has been on the market for a month in the same words used for one
+    that appeared this morning, and has no way to tell the two apart.
+
+    Pinned to newest-first the window is a deterministic prefix, so the only ad
+    that can arrive new is one that really is.
+    """
+    on_sale = [STALE_ON_IMMOBILIARE, SETTLED_ON_IMMOBILIARE, ALSO_SETTLED_ON_IMMOBILIARE]
+
+    # The fixture states the thing the test is about: the portal's own ranking
+    # would put the stale ad inside a two-listing window, and the pinned one
+    # keeps it out. Without this the corpus could drift into one that proves
+    # nothing and the test would still pass.
+    assert STALE_ON_IMMOBILIARE in on_sale[:2]
+    assert STALE_ON_IMMOBILIARE not in mock_portal.newest_first(on_sale)[:2]
+
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    portal.serve_answering(
+        "/api-next/search-list/listings/",
+        mock_portal.immobiliare_ranked_pages(on_sale, per_page=2),
+    )
+    db = database.SessionLocal()
+    try:
+        db.add(
+            SearchProfile(
+                name="Torino - Immobiliare",
+                portal="immobiliare",
+                search_url=portal.url(IMMOBILIARE_SEARCH),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    first = scanner.run_scan()
+    assert first["new"] == 2, first  # the baseline: the two newest, and silent
+    assert mailbox.messages == []
+
+    # One genuinely new ad appears. The stale one has not moved, and still leads
+    # the portal's relevance ranking.
+    portal.serve_answering(
+        "/api-next/search-list/listings/",
+        mock_portal.immobiliare_ranked_pages([*on_sale, FRESH_ON_IMMOBILIARE], per_page=2),
+    )
+    second = scanner.run_scan()
+
+    assert second["new"] == 1, second
+    assert second["notified"] == 1, second
+    delivered = mailbox.texts()
+    assert len(delivered) == 1
+    assert FRESH_ON_IMMOBILIARE.title in delivered[0]
+
+    # the stale ad was never collected, so it can never have been announced
+    assert STALE_ON_IMMOBILIARE.title not in delivered[0]
+    assert STALE_ON_IMMOBILIARE.title not in {p.title for p in _properties()}
+
+
 def test_the_sandbox_serves_the_portals_over_real_http(portal, sandbox):
     """A portal page is fetched with `AdProbe`, never a hand-rolled client.
 
