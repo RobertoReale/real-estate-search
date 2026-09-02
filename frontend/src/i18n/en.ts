@@ -679,6 +679,7 @@ export const en = {
   // ── monitored searches: shell & modes ───────────────────────────────────
   "profiles.title": "🔍 Monitored searches",
   "profiles.statusOk": "OK",
+  "profiles.statusNoResults": "No matches",
   "profiles.statusBlocked": "Blocked (will retry)",
   "profiles.statusError": "Error",
   "profiles.modeAssistant": "💬 Just describe it",
@@ -973,6 +974,7 @@ export const en = {
   "health.window":
     "Last {days} days of scan outcomes per portal. Next scan starts on: {transport}.",
   "health.empty": "No scans recorded yet — this fills in as scans run.",
+  "health.historyTitle": "History — how past scans went, day by day",
   "health.colPortal": "Portal",
   "health.colDays": "Days (oldest → today)",
   "health.colScans": "Scans",
@@ -987,7 +989,9 @@ export const en = {
   "health.dayAllFailed": "every scan failed",
   "health.daySomeFailed": "some scans failed",
   "health.dayLabel": "{date}: {state} — {attempts} scans, {blocked} blocked, {errors} errors",
-  "health.failingTitle": "Searches currently failing",
+  "health.failingTitle": "Right now — searches still failing",
+  "health.failingSubtitle":
+    "The current unbroken streak, not a running total: it clears the moment a scan gets through.",
   "health.failingRow": "({portal}) — {count} consecutive {status} scans",
   "health.failingStatusFallback": "failed",
   "health.failingHint":

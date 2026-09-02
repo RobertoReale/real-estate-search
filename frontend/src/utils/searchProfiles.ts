@@ -56,7 +56,10 @@ export function groupSearchProfiles(profiles: SearchProfile[]): GroupedSearchPro
     const notify_channels = group[0].notify_channels || "";
     const consecutive_failures = Math.max(...group.map((g) => g.consecutive_failures || 0));
 
-    // Status priority: error > blocked > ok
+    // Status priority: error > blocked > ok. Anything else — today only
+    // `no_results` — falls through to the first profile's own word: one portal
+    // finding listings makes the group "ok", and a group where none did keeps
+    // the portals' own answer rather than being promoted to a problem.
     let last_run_status = "ok";
     if (group.some((g) => g.last_run_status === "error")) {
       last_run_status = "error";

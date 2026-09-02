@@ -80,6 +80,32 @@ class ScrapeResult:
     blocked: bool = False
     error: str = ""
 
+    @property
+    def outcome(self) -> str:
+        """What this scrape actually established, in one word.
+
+        `ok` / `no_results` / `blocked` / `error`. The distinction that matters
+        is the middle one: **"the portal answered and listed nothing" is not
+        "nothing came back"**, and flattening the two is what let a soft block
+        be recorded as a healthy scan of a quiet market.
+
+        `no_results` is therefore the *proved* case, never the default one. It
+        is reached only by falling through every other branch, which each
+        scraper path is responsible for arming: a page that came back empty
+        without the portal's own "nothing matched" signal sets `error` (the
+        HTML path's markup-change alarm) or `blocked` (an empty 200 on
+        api-next, which is exactly what a soft block looks like). A partial
+        scrape that was blocked mid-way stays `blocked` even though it carries
+        listings — the answer is incomplete and the profile line has to say so.
+        """
+        if self.blocked:
+            return "blocked"
+        if self.listings:
+            return "ok"
+        if self.error:
+            return "error"
+        return "no_results"
+
 
 class BaseScraper:
     portal: str = ""

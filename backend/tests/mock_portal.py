@@ -127,8 +127,24 @@ def immobiliare_api_entry(flat: Flat) -> dict:
     }
 
 
-def immobiliare_api_page(flats: list[Flat], *, max_pages: int = 1) -> dict:
-    return {"results": [immobiliare_api_entry(f) for f in flats], "maxPages": max_pages}
+def immobiliare_api_page(
+    flats: list[Flat], *, max_pages: int = 1, declare_count: bool = True
+) -> dict:
+    """One api-next page, counted the way the portal counts its own results.
+
+    `declare_count=False` drops that count, which is the only thing separating
+    the endpoint's two empty answers: a search that matched nothing says so by
+    stating a total of zero, while a soft block is the same HTTP 200 with the
+    same empty list and no total at all. A page carrying flats is unaffected —
+    the difference exists only when there is nothing to return.
+    """
+    page: dict[str, typing.Any] = {
+        "results": [immobiliare_api_entry(f) for f in flats],
+        "maxPages": max_pages,
+    }
+    if declare_count:
+        page["count"] = len(flats)
+    return page
 
 
 def immobiliare_geography(*, comune_id: str = "8042") -> list[dict]:

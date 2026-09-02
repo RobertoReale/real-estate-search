@@ -509,7 +509,10 @@ class SearchProfile(Base):
     notify_channels: Mapped[str] = mapped_column(String, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    last_run_status: Mapped[str] = mapped_column(String, default="")  # ok | blocked | error
+    # ok | no_results | blocked | error — `ScrapeResult.outcome`, stored as it
+    # came. `no_results` is a success: the portal answered, and its answer was
+    # that nothing matches this search.
+    last_run_status: Mapped[str] = mapped_column(String, default="")
     last_run_detail: Mapped[str] = mapped_column(String, default="")
     # How many scans in a row ended "blocked"/"error". A single failure is
     # noise (DataDome hands out 403s that clear within the hour); a streak

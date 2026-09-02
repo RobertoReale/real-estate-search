@@ -96,8 +96,11 @@ each invariant to its code home and its test file. See also
     rent.
 
 11. **Scraper health alerts fire on a streak, once per outage.** `consecutive_failures`
-    counts `blocked`/`error` scans in a row (an unhandled exception in `_scan_profile`
-    counts too, hence `run_scan` records `error` itself); the alert goes out at the
+    counts `blocked`/`error` scans in a row — and **only** those: `no_results` is an
+    answer from the portal, so it clears the streak exactly as `ok` does, or a search
+    over a market that genuinely has nothing in it would alert as an outage. An
+    unhandled exception in `_scan_profile` counts as a failure, hence `run_scan` records
+    `error` itself. The alert goes out at the
     `health_alert_after_failures` threshold and `health_alert_sent` suppresses repeats
     until recovery. That flag is set **only when `broadcast()` actually delivered**:
     otherwise an outage occurring while no channel is configured would be swallowed forever
