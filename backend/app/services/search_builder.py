@@ -24,7 +24,7 @@ saving: if a portal changes its URL grammar, the user sees it immediately.
 import re
 import unicodedata
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 # Idealista encodes room counts as named segments with a numeric suffix
 # ("con-trilocali/" is a 404 — verified live on 2026-07-09, along with every
@@ -111,6 +111,75 @@ IDEALISTA_CONDITION = {
 # Guessing loses in the other direction too: four spellings of an auction filter
 # (escludi-aste, senza-asta, non-asta, no-aste) 404'd before the portal's own UI
 # produced "aste_no" — the syntax was wrong, not just the word.
+
+
+# --- Ordering ---------------------------------------------------------------
+#
+# Until now no search this app built stated an ordering, so every one of them
+# took the portal's default: relevance, which both portals re-rank continuously.
+# Ten pages of a relevance ranking is not "the first 250 listings" — it is 250
+# listings out of an order that differs on every run, so a listing sitting near
+# the cut drifts into and out of the window for reasons that have nothing to do
+# with the listing. It is then a *first sighting*, and the scan announces it as
+# new: a house that has been on the market a month, in the same words as one
+# that appeared this morning.
+#
+# Pinned to newest-first, a capped scan takes a deterministic prefix — the N
+# most recently published, the same N a person would see — which is also what
+# lets a truncation notice mean something ("the 250 most recent of about 1.050").
+#
+# Immobiliare's pair is read off the portal's own URL: its sort control writes
+# `criterio=<key>` beside an `ordine=<direction>`, and `criterio=rilevanza` is
+# what a copied URL carries (`MULTI_ZONE_URL` in `test_search_builder.py` is one).
+# Idealista spells the same control as a single `ordine=<key>-<direction>`.
+#
+# Both live in the QUERY string, and deliberately: Idealista 404s a path segment
+# it does not know, while an unknown query key is ignored by both portals. So a
+# spelling that ages out costs the ordering — the behaviour this app had until
+# now — and never a search that stops answering. Which is also why nothing here
+# may be reported as *proven*: the sandbox honours these parameters, the live
+# portal is asked, and only the sandbox can be asserted on.
+ORDER_NEWEST_FIRST: dict[str, tuple[tuple[str, str], ...]] = {
+    "immobiliare": (("criterio", "dataModifica"), ("ordine", "desc")),
+    "idealista": (("ordine", "pubblicazione-desc"),),
+}
+
+# Every query key that means "this URL has already decided its own ordering".
+# Wider than the table above on purpose: a pasted `criterio=prezzo` states an
+# intent even though it is not a key this app would ever write.
+ORDER_KEYS: dict[str, tuple[str, ...]] = {
+    "immobiliare": ("criterio", "ordine"),
+    "idealista": ("ordine",),
+}
+
+
+def newest_first_params(portal: str) -> list[tuple[str, str]]:
+    """The portal's newest-first ordering, as query key/value pairs in order."""
+    return list(ORDER_NEWEST_FIRST.get(portal, ()))
+
+
+def states_an_order(url: str, portal: str) -> bool:
+    """Does this URL already say how the portal should rank the results?"""
+    query = parse_qs(urlparse(url or "").query)
+    return any(key in query for key in ORDER_KEYS.get(portal, ()))
+
+
+def with_newest_first(url: str, portal: str) -> str:
+    """`url`, ordered newest-first — unless it already orders itself.
+
+    The user's own pasted link wins: a URL that carries an explicit ordering is
+    a statement of intent, not a default to overwrite. Everything else — a
+    search this app built, and every profile saved before the ordering existed —
+    gets the pin, so the window a scan takes is the same window twice running.
+    """
+    if not url or states_an_order(url, portal):
+        return url
+    params = newest_first_params(portal)
+    if not params:
+        return url
+    parsed = urlparse(url)
+    added = "&".join(f"{key}={value}" for key, value in params)
+    return urlunparse(parsed._replace(query=f"{parsed.query}&{added}" if parsed.query else added))
 
 
 def _slug(name: str) -> str:
@@ -258,6 +327,10 @@ def build_immobiliare_url(
         query.append(f"fasciaPiano[]={IMMOBILIARE_FLOORS[floor]}")
     if condition in IMMOBILIARE_CONDITION:
         query.append(f"stato={IMMOBILIARE_CONDITION[condition]}")
+    # Last, and after every filter, because it is not one: it changes the order
+    # of the answer, never its contents. See ORDER_NEWEST_FIRST for why a built
+    # search states an order at all.
+    query.extend(f"{key}={value}" for key, value in newest_first_params("immobiliare"))
     # zone slugs are best-effort (the portal's own naming is not knowable
     # offline), so the UI shows the URL for verification before saving.
     # The api-next fallback copes either way: it resolves the last path
@@ -365,19 +438,24 @@ def build_idealista_url(
     # user generates the search. `zone_page=True` is that proof, and the /cerca/
     # fallback below is what the other zones get until their macro-area is known.
     if zone and zone_page:
-        return f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/{con_seg}"
+        url = f"https://www.idealista.it/{base}/{_slug(city)}/{_slug(zone)}/{con_seg}"
     # Unproven (or unprobed) zone: the free-text endpoint, which resolves the
     # location server-side and always answers. It honours the same con- filters
     # (the result total moves, 179 -> 112 with trilocali-3) and still paginates
     # with /lista-N.htm. It is a *text* search though, so it is broader than a
     # zone page — Forlanini gives 220 against the zone page's 124 — which is
     # why it is the fallback and not the first choice.
-    if zone:
-        return f"https://www.idealista.it/cerca/{base}/{con_seg}{cerca_location(city, zone)}/"
-    # without a province the municipality usually is the province capital
-    # (e.g. milano-milano).
-    city_seg = f"{_slug(city)}-{_slug(province or city)}"
-    return f"https://www.idealista.it/{base}/{city_seg}/{con_seg}"
+    elif zone:
+        url = f"https://www.idealista.it/cerca/{base}/{con_seg}{cerca_location(city, zone)}/"
+    else:
+        # without a province the municipality usually is the province capital
+        # (e.g. milano-milano).
+        city_seg = f"{_slug(city)}-{_slug(province or city)}"
+        url = f"https://www.idealista.it/{base}/{city_seg}/{con_seg}"
+    # The ordering rides in the query string on every one of the three
+    # grammars: it is the one part of the search that is not a path segment,
+    # and the one part an unknown spelling can cost without costing the search.
+    return with_newest_first(url, "idealista")
 
 
 def idealista_zone_page_url(city: str, zone: str, contract: str = "sale") -> str:

@@ -24,6 +24,11 @@ from app.services.search_builder import (
     parse_search_url,
 )
 
+# The newest-first suffix every built URL now ends with, spelled out once in
+# `test_search_builder.py` — which owns the URL grammar — and read from there
+# rather than copied, so the two files cannot come to disagree about it.
+from .test_search_builder import IDEALISTA_NEWEST, IMMOBILIARE_NEWEST
+
 
 @pytest.fixture
 def db():
@@ -330,7 +335,7 @@ def test_five_plus_rooms_is_its_own_bucket_not_folded_into_four():
 
 def test_idealista_url_defaults_province_to_city():
     url = build_idealista_url(city="Milano")
-    assert url == "https://www.idealista.it/vendita-case/milano-milano/"
+    assert url == f"https://www.idealista.it/vendita-case/milano-milano/?{IDEALISTA_NEWEST}"
 
 
 def test_accents_are_stripped_from_slugs():
@@ -527,19 +532,19 @@ def test_zone_urls_use_the_zone_page_grammar():
     total moves 179 -> 112 when trilocali-3 is added).
     """
     assert build_immobiliare_url(city="Milano", zone="Navigli") == (
-        "https://www.immobiliare.it/vendita-case/milano/navigli/"
+        f"https://www.immobiliare.it/vendita-case/milano/navigli/?{IMMOBILIARE_NEWEST}"
     )
     assert build_idealista_url(city="Milano", zone="Navigli") == (
-        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/"
+        f"https://www.idealista.it/cerca/vendita-case/Navigli_Milano/?{IDEALISTA_NEWEST}"
     )
     # filters keep their con- segment, which on /cerca/ PRECEDES the location
     assert build_idealista_url(city="Milano", zone="Porta Romana", max_price=300_000) == (
-        "https://www.idealista.it/cerca/vendita-case/con-prezzo_300000/Porta_Romana_Milano/"
+        f"https://www.idealista.it/cerca/vendita-case/con-prezzo_300000/Porta_Romana_Milano/?{IDEALISTA_NEWEST}"
     )
     # a plain city keeps the canonical municipality-province page: it works,
     # and it is the URL the user recognises from their own browser
     assert build_idealista_url(city="Milano") == (
-        "https://www.idealista.it/vendita-case/milano-milano/"
+        f"https://www.idealista.it/vendita-case/milano-milano/?{IDEALISTA_NEWEST}"
     )
 
 
@@ -774,6 +779,7 @@ def test_zone_page_is_used_only_on_positive_proof():
     assert zone_page is True
     assert url == (
         "https://www.idealista.it/vendita-case/milano/forlanini/con-prezzo_380000,dimensione_65/"
+        f"?{IDEALISTA_NEWEST}"
     )
 
     for answer in (False, None):  # 404, and "blocked/timed out: unknown"
@@ -811,7 +817,7 @@ def test_search_builder_endpoint_forwards_verify_to_the_probe():
         assert asked, "verify=True did not reach the probe"
         assert out["idealista_zone_page"] is True
         assert out["idealista"] == (
-            "https://www.idealista.it/vendita-case/milano/forlanini/con-prezzo_380000/"
+            f"https://www.idealista.it/vendita-case/milano/forlanini/con-prezzo_380000/?{IDEALISTA_NEWEST}"
         )
 
         # and the default stays off: no field, no live request
@@ -851,7 +857,7 @@ def test_immobiliare_zona_prefix_is_url_furniture_not_part_of_the_name():
     )
     assert parsed["zone"] == "Navigli"
     assert build_idealista_url(city="Milano", zone=parsed["zone"]) == (
-        "https://www.idealista.it/cerca/vendita-case/Navigli_Milano/"
+        f"https://www.idealista.it/cerca/vendita-case/Navigli_Milano/?{IDEALISTA_NEWEST}"
     )
 
 

@@ -55,7 +55,16 @@ class IdealistaScraper(BaseScraper):
 
     def scrape(self, search_url: str):
         self.warm_session()
-        return super().scrape(search_url)
+        # Newest first, unless the pasted URL already said how to rank. A
+        # relevance ranking is re-ordered continuously, so the pages the cap
+        # allows are a different set of listings every run and a three-week-old
+        # ad that drifts back in reads as a first sighting. Applied here rather
+        # than only in the builder, because a profile saved by pasting a link
+        # never went through the builder — and `next_page_url` rewrites the
+        # path alone, so the ordering rides along to /lista-N.htm.
+        from ..services.search_builder import with_newest_first
+
+        return super().scrape(with_newest_first(search_url, self.portal))
 
     @staticmethod
     def _city_from_url(page_url: str) -> str:

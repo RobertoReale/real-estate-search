@@ -42,6 +42,26 @@ def test_normalize_profile_url():
     assert normalize_profile_url(imm1) == normalize_profile_url(imm2)
 
 
+def test_the_sort_order_is_not_part_of_the_search():
+    """A sort order decides how an answer is arranged, never what is in it, so
+    the same search ranked two ways is one search — the same reason `pag` is
+    ignored. Counted as a filter, the day the builder started pinning
+    newest-first every rebuilt URL stopped matching the profile it was rebuilt
+    from, and the duplicate check went blind to it."""
+    base = "https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000"
+
+    assert normalize_profile_url(base) == normalize_profile_url(
+        f"{base}&criterio=dataModifica&ordine=desc"
+    )
+    assert normalize_profile_url(f"{base}&criterio=rilevanza") == normalize_profile_url(
+        f"{base}&criterio=prezzo&ordine=asc"
+    )
+    # and the filters are still what decides it
+    assert normalize_profile_url(base) != normalize_profile_url(
+        "https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=400000"
+    )
+
+
 def test_normalize_profile_keywords():
     assert normalize_profile_keywords("box, garage, Terrazzo") == "box,garage,terrazzo"
     assert normalize_profile_keywords("garage,  terrazzo, BOX , box ") == "box,garage,terrazzo"
