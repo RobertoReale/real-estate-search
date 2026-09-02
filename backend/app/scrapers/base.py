@@ -16,7 +16,7 @@ from curl_cffi import requests as curl_requests
 from curl_cffi.requests.impersonate import BrowserTypeLiteral
 
 from ..config import DEFAULT_TLS_IMPERSONATIONS
-from .page_text import text_says_no_results
+from .page_text import declared_result_total, text_says_no_results
 from .parsing import detect_contract
 from .transport import (
     BlockedError,
@@ -79,6 +79,38 @@ class ScrapeResult:
     strategy_used: str = ""
     blocked: bool = False
     error: str = ""
+    # What the portal said its whole result set was, when it says so at all.
+    # `None` means "not declared" and must never be shown as a total: a page
+    # count invented by the app is worse than no page count, because it reads
+    # exactly like one the portal stated.
+    total_pages: int | None = None
+    total_listings: int | None = None
+    # The page cap this scrape ran under (`max_pages_per_search`), carried so
+    # the sentence the user reads takes the number from the scrape that was
+    # actually capped rather than from a second reading of the setting.
+    page_limit: int = 0
+    # Why the walk stopped short of what the portal had, or "" when it did not.
+    # Only `page_limit` today; a value here is a claim that listings exist which
+    # this scan did not see, so it is set only where that is provably true.
+    truncated_by: str = ""
+
+    @property
+    def truncated(self) -> bool:
+        """Did this scrape stop before the portal ran out of listings?
+
+        The stop condition is `max_pages_per_search`, ten pages by default, and
+        for years a forty-page search returned its first ten and reported "N
+        listings across 10 pages" — a sentence that sounds complete and is not.
+        This is the flag that lets the scan say which of the two it is.
+
+        The negative case is as load-bearing as the positive one: a search that
+        fit inside the cap must never be reported as truncated, or the notice
+        becomes noise and stops being read. So each acquisition path arms this
+        only when it has the portal's own total in hand and is demonstrably
+        short of it, or (on the HTML path, where no total is published) when it
+        used its last permitted page on a full one with another still to come.
+        """
+        return bool(self.truncated_by)
 
     @property
     def outcome(self) -> str:
@@ -338,7 +370,7 @@ class BaseScraper:
 
     def scrape(self, search_url: str) -> ScrapeResult:
         self.contract = detect_contract(search_url)
-        result = ScrapeResult()
+        result = ScrapeResult(page_limit=self.max_pages)
         url = search_url
         for page in range(1, self.max_pages + 1):
             try:
@@ -352,6 +384,12 @@ class BaseScraper:
                 logger.warning("%s: error fetching page %s: %s", self.portal, page, e)
                 result.error = str(e)
                 break
+            if page == 1:
+                # Read once, from the first page, because that is where the
+                # portals print it — and read whether or not the scrape ends up
+                # capped, since "47 listings, and the portal says it has 47" is
+                # the statement that proves a scan complete.
+                result.total_listings = declared_result_total(html)
             listings, strategy = self.parse_page(html, url)
             result.pages_fetched += 1
             result.strategy_used = strategy or result.strategy_used
@@ -374,6 +412,15 @@ class BaseScraper:
                 break
             next_url = self.next_page_url(search_url, page + 1)
             if not next_url:
+                break
+            if page >= self.max_pages:
+                # A full page, another one to go, and no permission left to
+                # fetch it. No portal publishes a page count in its HTML, so
+                # this is as far as the evidence goes — which is exactly why
+                # the total the scan reports stays whatever the page declared,
+                # `None` included, instead of being inferred from here.
+                if result.total_listings is None or len(result.listings) < result.total_listings:
+                    result.truncated_by = "page_limit"
                 break
             url = next_url
             self.polite_sleep()

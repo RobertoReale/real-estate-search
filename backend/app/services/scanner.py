@@ -12,7 +12,7 @@ from ..config import load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
-from ..scrapers.base import RawListing
+from ..scrapers.base import RawListing, ScrapeResult
 from . import deal_score, geo_filter, geo_reference, notifier, pricing_stats, scraper_health
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
@@ -79,6 +79,9 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         # how many of the listings that came back were outside the area their
         # search asked for. Counted, never dropped — see _outside_requested_area.
         "outside_area": 0,
+        # how many searches stopped at the page limit with listings still to
+        # collect. A scan that cannot say this cannot claim it found everything.
+        "truncated": 0,
         "blocked_portals": [],
         "errors": [],
     }
@@ -144,10 +147,17 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     finally:
         scan_state["running"] = False
         scan_state["last_finished_at"] = datetime.now(UTC).isoformat()
-        scan_state["last_summary"] = (
+        last_summary = (
             f"{summary['new']} new, {summary['updated']} updated, "
             f"{summary['filtered']} filtered, {summary['price_changes']} price changes"
         )
+        if summary["truncated"]:
+            # The one thing this line could not previously say: whether the
+            # numbers in front of it are the whole answer. Which searches, and
+            # of how many listings, is on each search's own line.
+            searches = "search" if summary["truncated"] == 1 else "searches"
+            last_summary += f" — {summary['truncated']} {searches} stopped at the page limit"
+        scan_state["last_summary"] = last_summary
         _scan_lock.release()
     return {"status": "done", **summary}
 
@@ -317,6 +327,27 @@ def _outside_requested_area(area: RequestedArea, raw: RawListing, prop: Property
     return False if placed else None
 
 
+def _truncation_note(result: ScrapeResult) -> str:
+    """What a search owes the user when the page limit cut it short.
+
+    "N listings across 10 pages" is a sentence that sounds complete, and for a
+    search with forty pages of results it was not: `max_pages_per_search`
+    stopped it at ten and nothing said so. The note names the cap that did it
+    and what to do about it, and it is deliberately absent from every search
+    that fit — a truncation warning on a complete answer teaches the user to
+    ignore the one that matters.
+    """
+    if not result.truncated:
+        return ""
+    pages = "page" if result.page_limit == 1 else "pages"
+    note = f" — stopped at the page limit of {result.page_limit} {pages}"
+    if result.total_listings is None and result.total_pages is None:
+        # The HTML paths, where no portal publishes a total: all that is known
+        # is that the last permitted page was full, so that is all it claims.
+        return note + ", so the portal may have more"
+    return note + ": raise it, or narrow the search"
+
+
 def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> None:
     logger.info("Scanning profile '%s' (%s)", profile.name, profile.portal)
     # `last_run_at` alone is not a safe proxy for "first scan": a blocked/error
@@ -445,10 +476,22 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
         # the two used to produce the same word.
         profile.last_run_detail = "The portal answered: no listing matches this search"
     elif not result.blocked:
+        found = str(len(result.listings))
+        pages = str(result.pages_fetched)
+        if result.truncated:
+            summary["truncated"] += 1
+            # Both numbers come from the portal's own declaration, never from
+            # the app's arithmetic, and each is printed only where the portal
+            # made it: a search whose total went unstated says how many it
+            # took and nothing about how many it missed.
+            if result.total_listings is not None:
+                found += f" of about {result.total_listings:,}"
+            if result.total_pages is not None:
+                pages += f" of {result.total_pages}"
         detail = (
-            f"{len(result.listings)} listings across {result.pages_fetched} pages "
-            f"(strategy: {result.strategy_used or 'N/A'})"
+            f"{found} listings across {pages} pages (strategy: {result.strategy_used or 'N/A'})"
         )
+        detail += _truncation_note(result)
         # said on the profile's own line, because it is a fact about *this*
         # search: the portal was asked for an area and answered with something
         # else. Kept, not dropped — the count is how the user finds out.

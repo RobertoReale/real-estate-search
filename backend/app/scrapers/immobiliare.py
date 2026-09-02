@@ -487,6 +487,7 @@ class ImmobiliareScraper(BaseScraper):
             )
 
     def _api_search(self, search_url: str, result: ScrapeResult) -> None:
+        result.page_limit = self.max_pages
         params = self._api_params(search_url)
         if params is None:
             result.error = "immobiliare: unable to parse search URL (unrecognized location)"
@@ -543,7 +544,18 @@ class ImmobiliareScraper(BaseScraper):
                 return
 
             if page == 1:
-                max_pages = min(self.max_pages, data.get("maxPages") or self.max_pages)
+                # The endpoint states the size of its own result set beside the
+                # page it returns — the same declaration `_classify_empty_first_page`
+                # reads to tell an empty market from a soft block, used here for
+                # the other question it answers: how much of it this scan is
+                # about to take.
+                result.total_pages = to_int(data.get("maxPages"))
+                for key in API_TOTAL_KEYS:
+                    total = to_int(data.get(key))
+                    if total is not None:
+                        result.total_listings = total
+                        break
+                max_pages = min(self.max_pages, result.total_pages or self.max_pages)
 
             page_listings = []
             for entry in data["results"]:
@@ -562,6 +574,13 @@ class ImmobiliareScraper(BaseScraper):
             result.strategy_used = "api-next"
 
             if page >= max_pages:
+                # `max_pages` is the smaller of the cap and the portal's own
+                # page count, so the two reasons for stopping here are told
+                # apart by which one won: a search the cap cut short is the
+                # only one that leaves listings unseen, and the only one the
+                # scan may say so about.
+                if (result.total_pages or 0) > self.max_pages:
+                    result.truncated_by = "page_limit"
                 break
             self.polite_sleep()
 

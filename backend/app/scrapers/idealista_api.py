@@ -365,9 +365,10 @@ class IdealistaApiScraper(IdealistaScraper):
             return None
         base_params, city = plan
 
-        result = ScrapeResult(strategy_used="official-api")
+        budget = max_pages()
+        result = ScrapeResult(strategy_used="official-api", page_limit=budget)
         known: set[str] = set()
-        for page in range(1, max_pages() + 1):
+        for page in range(1, budget + 1):
             try:
                 payload = search({**base_params, "numPage": str(page)})
             except IdealistaApiError as e:
@@ -382,7 +383,15 @@ class IdealistaApiScraper(IdealistaScraper):
             result.listings.extend(listings)
             result.pages_fetched += 1
             total_pages = to_int(payload.get("totalPages")) or 1
+            result.total_pages = total_pages
+            result.total_listings = to_int(payload.get("total"))
             if page >= total_pages or not listings:
+                break
+            if page >= budget:
+                # The default budget is one request — about fifty listings —
+                # so this path is the one most likely to be returning a
+                # fraction of the market, and the least likely to look like it.
+                result.truncated_by = "page_limit"
                 break
             time.sleep(PAGE_DELAY_SECONDS)
 

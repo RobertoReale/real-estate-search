@@ -191,6 +191,7 @@ def _summary() -> dict:
         "gone": 0,
         "notified": 0,
         "outside_area": 0,
+        "truncated": 0,
         "blocked_portals": [],
         "errors": [],
     }
@@ -942,12 +943,17 @@ def outcome_profile(db, portal, monkeypatch):
     return profile
 
 
-def _scan_outcome(db, profile) -> dict:
+def _scan_outcome(db, profile, **settings) -> dict:
     """One scan plus the health bookkeeping `run_scan` performs after it, which
-    is where the streak this asserts on is actually kept."""
+    is where the streak this asserts on is actually kept.
+
+    `settings` overrides go to `_scan_profile`, which reads the page cap from
+    them — the fixture's `max_pages` is overwritten there on every scan, so a
+    test about the cap has to set it here and not on the scraper.
+    """
     summary = _summary()
     summary["health_alerts"] = 0
-    scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
+    scanner._scan_profile(db, profile, {"excluded_keywords": [], **settings}, summary)
     scanner._update_profile_health(profile, {"health_alert_after_failures": 3}, summary)
     db.commit()
     return summary
@@ -1028,3 +1034,65 @@ def test_an_empty_api_page_that_states_no_count_is_a_block(db, portal, outcome_p
     assert outcome_profile.last_run_status == "blocked"
     assert outcome_profile.consecutive_failures == 1
     assert summary["blocked_portals"] == ["immobiliare"]
+
+
+# --- "N listings across 10 pages" is not the same as "all of them" ----------
+#
+# The cap is `max_pages_per_search`, ten by default and one in this fixture. A
+# search with more pages than that returned its first few and reported a count
+# with no qualification — a sentence a user reads as complete. These two pin
+# what the profile's own line now says, and, as importantly, what it does not
+# say about a search that fit.
+
+
+def _serve_api_pages(portal, *, total_pages: int, total_listings: int) -> None:
+    portal.serve_json_pages(
+        "/api-next/search-list/listings/",
+        lambda page: mock_portal.immobiliare_api_page(
+            [
+                Flat(
+                    ad_id=f"71{page:02d}{i}",
+                    title=f"Trilocale {page}-{i}",
+                    price=280_000 + i,
+                    rooms=3,
+                    sqm=95,
+                    city="Torino",
+                )
+                for i in range(2)
+            ],
+            max_pages=total_pages,
+            count=total_listings,
+        ),
+    )
+
+
+def test_a_search_stopped_by_the_page_limit_names_both_numbers(db, portal, outcome_profile):
+    """The acceptance: what came back, what the portal said it had, and the cap
+    that stood between them — on the search's own line, where the user is
+    already looking to find out how it went."""
+    _serve_api_pages(portal, total_pages=3, total_listings=60)
+
+    summary = _scan_outcome(db, outcome_profile, max_pages_per_search=1)
+
+    detail = outcome_profile.last_run_detail
+    assert "2 of about 60 listings" in detail
+    assert "1 of 3 pages" in detail
+    assert "stopped at the page limit of 1 page" in detail
+    assert "narrow the search" in detail
+    assert outcome_profile.last_run_status == "ok"
+    assert summary["truncated"] == 1
+
+
+def test_a_search_that_fit_is_reported_exactly_as_before(db, portal, outcome_profile):
+    """One page on the portal, one page allowed: this scan holds everything
+    there was. Saying otherwise here would be the false alarm that makes the
+    real notice unreadable."""
+    _serve_api_pages(portal, total_pages=1, total_listings=2)
+
+    summary = _scan_outcome(db, outcome_profile, max_pages_per_search=1)
+
+    detail = outcome_profile.last_run_detail
+    assert detail.startswith("2 listings across 1 pages")
+    assert "of about" not in detail
+    assert "page limit" not in detail
+    assert summary["truncated"] == 0
