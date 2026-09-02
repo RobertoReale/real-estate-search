@@ -11,9 +11,13 @@ here fetches a page or needs a portal to be reachable.
 
 from app import schemas
 from app.services.search_builder import (
+    MAX_SEARCH_PARTS,
+    bands_are_total,
     build_idealista_url,
     build_immobiliare_url,
     parse_search_url,
+    price_bands,
+    segment_search,
     with_newest_first,
 )
 
@@ -250,3 +254,111 @@ def test_a_url_that_orders_itself_keeps_the_order_it_came_with():
         with_newest_first(f"{idealista}?ordine=prezzo-asc", "idealista")
         == f"{idealista}?ordine=prezzo-asc"
     )
+
+
+# --- Splitting a search too big for one -------------------------------------
+#
+# The scanner decides *when* to split and proves the parts covered the whole
+# afterwards; what is under test here is the grammar it splits along — the two
+# axes that partition a search with no gap and no overlap, and the searches that
+# have neither.
+
+
+def test_price_bands_leave_no_gap_and_no_overlap():
+    """Both failure modes are silent and only one of them loses listings, which
+    is why the bands are inclusive and each floor is the previous ceiling plus
+    one euro: written to share a boundary, every listing priced at exactly the
+    boundary is fetched twice; written a euro apart, every one of them is lost."""
+    bands = price_bands(0, 400_000, 4)
+
+    assert bands == [(0, 99_999), (100_000, 199_999), (200_000, 299_999), (300_000, 400_000)]
+    assert bands_are_total(bands, 0, 400_000)
+
+    # and the check is not a formality: it says no to a partition that misses
+    # the 100.000-149.999 slice, and to one that counts it twice
+    assert not bands_are_total([(0, 99_999), (150_000, 400_000)], 0, 400_000)
+    assert not bands_are_total([(0, 199_999), (100_000, 400_000)], 0, 400_000)
+    # nor does it accept a partition that stops short of what was asked for
+    assert not bands_are_total([(0, 99_999), (100_000, 300_000)], 0, 400_000)
+    assert not bands_are_total([], 0, 400_000)
+
+
+def test_a_narrow_range_is_not_split_into_more_bands_than_it_has_euros():
+    assert price_bands(200_000, 200_002, 4) == []
+    assert price_bands(0, 400_000, 1) == []
+
+
+def test_a_zone_selection_becomes_one_search_per_zone():
+    """The cheapest axis, and the exact one: `idMZona[]` values are the portal's
+    own disjoint keys, so one search per zone covers the selection exactly once
+    with no arithmetic to get wrong. Everything else about the URL — the price
+    cap, the surface, the ordering the user pasted — travels into every part."""
+    parts = segment_search(MULTI_ZONE_URL, "immobiliare", 3)
+
+    assert len(parts) == 3
+    assert [parse_search_url(p)["zone_ids"] for p in parts] == [
+        ["10046"],
+        ["10047"],
+        ["10048"],
+    ]
+    assert all(parse_search_url(p)["max_price"] == 450_000 for p in parts)
+    assert all(parse_search_url(p)["min_sqm"] == 70 for p in parts)
+    assert all("criterio=rilevanza" in p for p in parts)
+
+
+def test_more_zones_than_the_ceiling_are_grouped_down_to_it():
+    """Segmenting multiplies requests and requests are what get an IP blocked,
+    so a fifty-district selection is not fifty searches. Grouped, the parts
+    still partition it exactly — every zone appears in exactly one group."""
+    ids = [str(10_000 + n) for n in range(50)]
+    url = "https://www.immobiliare.it/vendita-case/milano/?" + "&".join(
+        f"idMZona[]={i}" for i in ids
+    )
+
+    parts = segment_search(url, "immobiliare", 4)
+
+    assert len(parts) == MAX_SEARCH_PARTS
+    grouped = [z for p in parts for z in parse_search_url(p)["zone_ids"]]
+    assert sorted(grouped) == sorted(ids)
+    assert len(grouped) == len(set(grouped))
+
+
+def test_a_search_with_too_few_zones_to_split_falls_to_the_price_axis():
+    """Two zones cannot make five parts, and spending two searches that still
+    do not fit would buy nothing. The price axis can express five, so it is the
+    one that works — and the zones stay on every part, since they are what was
+    asked for and not what is being divided."""
+    url = (
+        "https://www.immobiliare.it/vendita-case/milano/"
+        "?idMZona[]=10046&idMZona[]=10047&prezzoMassimo=500000"
+    )
+
+    parts = segment_search(url, "immobiliare", 5)
+
+    assert len(parts) == 5
+    bounds = [(parse_search_url(p)["min_price"], parse_search_url(p)["max_price"]) for p in parts]
+    assert bounds[0][0] == 0 and bounds[-1][1] == 500_000
+    assert bands_are_total([(low or 0, high or 0) for low, high in bounds], 0, 500_000)
+    assert all(parse_search_url(p)["zone_ids"] == ["10046", "10047"] for p in parts)
+
+
+def test_a_search_no_axis_can_divide_is_not_split_at_all():
+    """An empty list is an answer: the caller keeps what the single search
+    collected and reports it truncated, exactly as it did before this existed.
+
+    A search with no zones and no maximum price is the shape that has neither
+    axis — bands would have to invent a ceiling the user never asked for, and a
+    search with a price cap nobody set is a search for something else.
+    Idealista has neither axis at all: its price lives in a path segment it
+    answers 404 to when the spelling is wrong, so rewriting one would be a
+    guess rather than arithmetic.
+    """
+    open_ended = "https://www.immobiliare.it/vendita-case/milano/?prezzoMinimo=100000"
+    assert segment_search(open_ended, "immobiliare", 3) == []
+
+    assert segment_search(MULTI_ZONE_URL, "idealista", 3) == []
+    assert (
+        segment_search("https://www.idealista.it/vendita-case/milano-milano/", "idealista", 3) == []
+    )
+    # and "one part" is not a split
+    assert segment_search(MULTI_ZONE_URL, "immobiliare", 1) == []

@@ -284,6 +284,16 @@ DEFAULT_SETTINGS = {
     "excluded_keywords": DEFAULT_EXCLUDED_KEYWORDS,
     "request_delay_seconds": 6.0,
     "max_pages_per_search": 10,
+    # What happens when a search has more results than that cap can carry: run
+    # it again as several narrower searches whose results do not overlap (one
+    # per zone, or one per price band) and merge them, so the scan ends up
+    # holding the whole result set instead of its first ten pages. Bounded on
+    # every side — at most `search_builder.MAX_SEARCH_PARTS` parts, never split
+    # a second time, and only where the portal declares the totals that make the
+    # coverage checkable; anything else keeps the truncation notice it always
+    # had. Off is for a scan that must stay at exactly one request per page, at
+    # the cost of the truncation coming back.
+    "split_large_searches": True,
     # Scraper health alerting: notify after this many *consecutive* failed
     # scans of the same profile. A single blocked scan is a transient
     # DataDome 403, not a broken scraper — alerting on it trains the user to

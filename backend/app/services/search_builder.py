@@ -24,7 +24,7 @@ saving: if a portal changes its URL grammar, the user sees it immediately.
 import re
 import unicodedata
 from typing import Any
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # Idealista encodes room counts as named segments with a numeric suffix
 # ("con-trilocali/" is a 404 — verified live on 2026-07-09, along with every
@@ -44,6 +44,8 @@ from urllib.parse import parse_qs, urlparse, urlunparse
 # are read, and the ids are kept verbatim — they are the portal's own keys and
 # the one part of a zone selection that is exact rather than a best-effort slug.
 IMMOBILIARE_ZONE_ID_RE = re.compile(r"^idMZona(\[\d*\])?$")
+# The one spelling this module *writes*, out of the several it reads.
+IMMOBILIARE_ZONE_ID_PARAM = "idMZona[]"
 
 IDEALISTA_ROOMS = {
     1: "monolocali-1",
@@ -182,6 +184,141 @@ def with_newest_first(url: str, portal: str) -> str:
     return urlunparse(parsed._replace(query=f"{parsed.query}&{added}" if parsed.query else added))
 
 
+# --- Splitting a search that does not fit -----------------------------------
+#
+# Ordering above makes a capped scan take a *deterministic* prefix. This makes
+# it stop being a prefix at all. `max_pages_per_search` cuts a search off at ten
+# pages and the portals cut a single search off at around eighty, so a city-wide
+# search has always come back as its first few hundred listings — G.7 can report
+# that honestly and the answer is still its first few hundred. The established
+# way out, and the one every commercial extractor for these sites documents, is
+# to run the same search as several narrower ones whose results do not overlap
+# and merge them.
+#
+# Two axes partition cleanly, and only two:
+#
+# - **the zone ids.** `idMZona[]` values are the portal's own keys and disjoint
+#   by construction, so one search per zone — or per group of zones — covers the
+#   selection exactly once, with no arithmetic that can be got wrong.
+# - **price bands.** `prezzoMinimo`/`prezzoMassimo` are inclusive, so
+#   consecutive bands partition an interval exactly when each floor is the
+#   previous ceiling plus one euro, and the portal declares a total per band —
+#   which is what lets the split be *checked* rather than assumed.
+#
+# Immobiliare only, and for the same reason the ordering rides in the query
+# string: both of its axes ARE query parameters, and rewriting one is arithmetic
+# on a grammar this module already reads and writes. Idealista carries its price
+# in a `con-` path segment and answers 404 to a segment it does not recognise,
+# and its zone selection is either a single name or a list of opaque ids in the
+# path. Rewriting either would be a guess, and a guessed URL does not fail — it
+# quietly searches for something else.
+#
+# The ceiling is here rather than in the caller because it bounds the *shape* of
+# the split: segmenting multiplies requests, and requests are what get an IP
+# blocked (invariant 8). Eight parts against the default ten-page cap is eighty
+# pages, which is about where a single search tops out on the portal itself — as
+# far as it is worth going for one search, and a bound the user can multiply out
+# from their own settings.
+MAX_SEARCH_PARTS = 8
+
+
+def price_bands(low: int, high: int, parts: int) -> list[tuple[int, int]]:
+    """`parts` consecutive inclusive euro ranges covering `low`-`high` exactly.
+
+    Integer arithmetic throughout, and the ceilings are one euro below the next
+    floor: a band pair written `(0, 200000)` and `(200000, 400000)` would count
+    every listing priced at exactly 200,000 twice, and a pair leaving a euro
+    between them would lose those listings entirely. Both are silent.
+    """
+    span = high - low + 1
+    if parts < 2 or span < parts:
+        return []
+    edges = [low + (span * i) // parts for i in range(parts)] + [high + 1]
+    return [(edges[i], edges[i + 1] - 1) for i in range(parts)]
+
+
+def bands_are_total(bands: list[tuple[int, int]], low: int, high: int) -> bool:
+    """Do these bands cover `low`-`high` with no gap and no overlap?
+
+    The structural half of "a split must be provably total" — the other half is
+    the portals' own counts, which the scanner adds up after the parts have run.
+    A partition that silently loses the 300,000-310,000 euro slice is worse than
+    the truncation it replaced, because the truncation announced itself.
+    """
+    if not bands or bands[0][0] != low or bands[-1][1] != high:
+        return False
+    if any(band_low > band_high for band_low, band_high in bands):
+        return False
+    # strict=False on purpose: the pairs are consecutive bands, so the second
+    # sequence is one shorter than the first by construction.
+    return all(nxt[0] == prev[1] + 1 for prev, nxt in zip(bands, bands[1:], strict=False))
+
+
+def _in_groups(items: list[str], groups: int) -> list[list[str]]:
+    """`items` split into `groups` near-equal runs, order preserved."""
+    groups = max(1, min(groups, len(items)))
+    return [
+        items[(len(items) * i) // groups : (len(items) * (i + 1)) // groups] for i in range(groups)
+    ]
+
+
+def _immobiliare_zone_part(url: str, ids: list[str]) -> str:
+    """`url` narrowed to these zone ids, whichever spelling it carried them in."""
+    parsed = urlparse(url)
+    qs = {k: v for k, v in parse_qs(parsed.query).items() if not IMMOBILIARE_ZONE_ID_RE.match(k)}
+    qs[IMMOBILIARE_ZONE_ID_PARAM] = ids
+    return urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+
+
+def _immobiliare_price_part(url: str, low: int, high: int) -> str:
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+    qs["prezzoMinimo"] = [str(low)]
+    qs["prezzoMassimo"] = [str(high)]
+    return urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+
+
+def _immobiliare_price_parts(url: str, parts: int) -> list[str]:
+    qs = parse_qs(urlparse(url).query)
+    high = _safe_int((qs.get("prezzoMassimo") or [""])[0])
+    if high is None:
+        # No ceiling was asked for, so the interval has no top to divide. Bands
+        # would have to invent one, and a search with a maximum price the user
+        # never set is a search for something else.
+        return []
+    low = _safe_int((qs.get("prezzoMinimo") or [""])[0]) or 0
+    bands = price_bands(low, high, parts)
+    if not bands_are_total(bands, low, high):
+        return []
+    return [_immobiliare_price_part(url, band_low, band_high) for band_low, band_high in bands]
+
+
+def segment_search(url: str, portal: str, parts: int) -> list[str]:
+    """`url` as several narrower searches whose results partition it exactly.
+
+    The cheapest axis that *works* wins, and "works" means it can produce as
+    many parts as were asked for: a two-zone search that needs five parts is
+    split by price instead, because splitting it by zone would spend two
+    searches and still not fit.
+
+    Zones are preferred where they can, and one part per zone rather than the
+    fewest parts that would do, because zone populations are wildly uneven — a
+    city centre against a suburb — so grouping them to the minimum leaves the
+    busiest group truncated and wastes the whole split. Past `MAX_SEARCH_PARTS`
+    zones they are grouped down to it.
+
+    An empty list means this search cannot be split along an axis that provably
+    covers it. That is an answer and not a failure: the caller keeps what the
+    single search collected and reports it as truncated, exactly as before.
+    """
+    if portal != "immobiliare" or parts < 2:
+        return []
+    ids = _immobiliare_zone_ids(parse_qs(urlparse(url).query))
+    if len(ids) >= parts:
+        return [_immobiliare_zone_part(url, group) for group in _in_groups(ids, MAX_SEARCH_PARTS)]
+    return _immobiliare_price_parts(url, parts)
+
+
 def _slug(name: str) -> str:
     """ "Sesto San Giovanni" -> "sesto-san-giovanni" (accents stripped)."""
     text = unicodedata.normalize("NFKD", (name or "").strip().lower())
@@ -300,7 +437,7 @@ def build_immobiliare_url(
     # below it: the same criteria must always produce a byte-identical URL, or
     # search_validator reads two spellings of one search as two searches.
     for zid in ids:
-        query.append(f"idMZona[]={zid}")
+        query.append(f"{IMMOBILIARE_ZONE_ID_PARAM}={zid}")
     if min_price:
         query.append(f"prezzoMinimo={min_price}")
     if max_price:

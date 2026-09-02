@@ -439,6 +439,7 @@ class SettingsIn(BaseModel):
     excluded_keywords: list[str] | None = None
     request_delay_seconds: float | None = None
     max_pages_per_search: int | None = None
+    split_large_searches: bool | None = None
     health_alert_after_failures: int | None = None
     proxy_url: str | None = None
     proxy_urls: list[str] | None = None

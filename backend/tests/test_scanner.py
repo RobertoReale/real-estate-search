@@ -3,6 +3,7 @@ structured floor ("T") subjected to keyword filter, additive profile keywords,
 "gone" marking, and protection of hidden properties."""
 
 import json
+import logging
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -20,6 +21,7 @@ from app.models import Property, SearchProfile
 from app.scrapers.base import RawListing, ScrapeResult
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.services import scanner
+from app.services.search_builder import IMMOBILIARE_ZONE_ID_PARAM
 
 from . import mock_portal
 from .mock_portal import Flat, MockPortalServer
@@ -1597,3 +1599,277 @@ def test_progress_that_cannot_be_recorded_never_takes_the_scan_down(
     assert summary["status"] == "done"
     assert summary["new"] == 1
     assert profile.last_run_status == "ok"
+
+
+# --- when there are more than fit, split the search -------------------------
+#
+# G.7 taught a scan to say "241 of about 1.050" instead of "241". This is the
+# half that makes the apology unnecessary: a search with more results than
+# `max_pages_per_search` can carry is run again as several narrower searches
+# whose results do not overlap, and merged on the fingerprint that already
+# deduplicates everything else.
+#
+# Three things have to hold or the split is worse than the truncation it
+# replaces, and all three are below: the merge holds every listing exactly once;
+# a partition whose parts do not add up to the whole is never reported as
+# complete; and a search too big even for the part ceiling spends no extra
+# request at all, because segmenting multiplies requests and requests are what
+# get an IP blocked.
+
+SPLIT_SEARCH = "/vendita-case/milano/"
+SPLIT_ZONES = ("10046", "10047", "10048")
+
+
+def _zone_flats(zone: str, count: int = 2) -> list[Flat]:
+    return [
+        Flat(
+            ad_id=f"8{zone}{i}",
+            title=f"Trilocale zona {zone}-{i}",
+            price=300_000 + i,
+            rooms=3,
+            sqm=90,
+            city="Milano",
+            zone=zone,
+        )
+        for i in range(count)
+    ]
+
+
+def _zoned_answer(corpus: dict[str, list[Flat]], per_page: int):
+    """An api-next that answers the zones it was *asked* for, and counts them.
+
+    The whole search names every zone and gets a result set past the page cap;
+    each part names one and gets a result set that fits. That difference is the
+    entire subject, and it exists only on a portal reading `idMZona[]` off the
+    request rather than serving one canned page to every caller.
+    """
+
+    def answer(query: dict[str, list[str]]) -> mock_portal.Page:
+        asked = query.get(IMMOBILIARE_ZONE_ID_PARAM) or list(corpus)
+        flats = [f for zone in asked for f in corpus.get(zone, [])]
+        try:
+            page = max(int((query.get("pag") or ["1"])[0]), 1)
+        except ValueError:
+            page = 1
+        return mock_portal.Page(
+            json.dumps(
+                mock_portal.immobiliare_api_page(
+                    flats[(page - 1) * per_page : page * per_page],
+                    max_pages=max(1, -(-len(flats) // per_page)),
+                    count=len(flats),
+                )
+            ),
+            content_type="application/json",
+        )
+
+    return answer
+
+
+def _serve_zoned_portal(portal, corpus: dict[str, list[Flat]], *, per_page: int = 2) -> None:
+    portal.serve_answering("/api-next/search-list/listings/", _zoned_answer(corpus, per_page))
+
+
+def _listing_requests(portal) -> list[str]:
+    """Every api-next *search* request, which is what a split spends."""
+    return [
+        path
+        for path in portal.requested
+        if urlparse(path).path == "/api-next/search-list/listings/"
+    ]
+
+
+@pytest.fixture
+def split_profile(db, portal, monkeypatch):
+    """A three-zone Immobiliare search on the sandbox, scanned the real way."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: ImmobiliareScraper())
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    zones = "&".join(f"{IMMOBILIARE_ZONE_ID_PARAM}={zone}" for zone in SPLIT_ZONES)
+    profile = SearchProfile(
+        name="Milano", portal="immobiliare", search_url=portal.url(f"{SPLIT_SEARCH}?{zones}")
+    )
+    db.add(profile)
+    db.commit()
+    return profile
+
+
+def _scan_split(db, profile, **settings) -> tuple[ScrapeResult, dict]:
+    """One scan, and the scrape it ran on — the parts and the reason it stopped
+    exist only there. The delay is zeroed because the pause between parts is
+    real: they are consecutive searches against one host and owe it the same
+    politeness every page does."""
+    summary = _summary()
+    result = scanner._scan_profile(
+        db,
+        profile,
+        {
+            "excluded_keywords": [],
+            "max_pages_per_search": 1,
+            "request_delay_seconds": 0,
+            **settings,
+        },
+        summary,
+    )
+    db.commit()
+    return result, summary
+
+
+def test_a_search_too_big_for_the_cap_is_run_in_parts_and_reported_complete(
+    db, portal, split_profile
+):
+    """The acceptance: three zones the cap cannot carry together and can carry
+    one at a time. Every listing lands exactly once — a listing returned by two
+    parts costs one wasted parse, because `upsert_listing` deduplicates it the
+    way it deduplicates everything else — and the sentence the user reads stops
+    apologising for a page limit that no longer cost them anything."""
+    _serve_zoned_portal(portal, {zone: _zone_flats(zone) for zone in SPLIT_ZONES})
+
+    result, summary = _scan_split(db, split_profile)
+
+    assert result.parts == 3
+    assert not result.truncated
+    assert len(result.listings) == 6
+    assert len({listing.url for listing in result.listings}) == 6
+    assert db.query(Property).count() == 6
+    assert summary["new"] == 6 and summary["truncated"] == 0
+
+    detail = split_profile.last_run_detail
+    assert detail.startswith("6 listings across 4 pages")
+    assert "searched in 3 parts" in detail
+    assert "covered the whole result set" in detail
+    assert "page limit" not in detail
+
+
+def test_a_partition_that_does_not_add_up_is_never_reported_as_complete(
+    db, portal, split_profile, monkeypatch, caplog
+):
+    """A split that lost the middle zone is worse than the truncation it
+    replaced, because the truncation at least announced itself. The portal
+    counts each part for us, so the check is its arithmetic and not this app's:
+    two parts declaring four results between them, against a whole of six,
+    cannot have covered it — and what the scan keeps is the honest notice plus
+    every listing the parts did bring back."""
+    _serve_zoned_portal(portal, {zone: _zone_flats(zone) for zone in SPLIT_ZONES})
+    base = split_profile.search_url.split("?")[0]
+    monkeypatch.setattr(
+        scanner,
+        "segment_search",
+        lambda *_a, **_k: [
+            f"{base}?{IMMOBILIARE_ZONE_ID_PARAM}={SPLIT_ZONES[0]}",
+            f"{base}?{IMMOBILIARE_ZONE_ID_PARAM}={SPLIT_ZONES[2]}",
+        ],
+    )
+
+    with caplog.at_level(logging.ERROR):
+        result, summary = _scan_split(db, split_profile)
+
+    assert result.parts == 2
+    assert result.truncated and summary["truncated"] == 1
+    assert "not provably total" in caplog.text
+    # kept, not discarded: a partition that cannot be proved total is still
+    # four listings this scan did not have before
+    assert len(result.listings) == 4
+    detail = split_profile.last_run_detail
+    assert "stopped at the page limit" in detail
+    assert "still did not fit" in detail
+
+
+def test_a_search_past_the_part_ceiling_keeps_the_notice_and_spends_nothing(
+    db, portal, split_profile
+):
+    """ "Never split past the point of return." A search needing more parts than
+    the ceiling allows would not fit in the ceiling's worth of parts either, so
+    running them buys the same truncation notice at eight times the requests.
+    It is refused before the first extra one, which is what the request log
+    asserts here — degrading to the notice, not to more traffic."""
+    _serve_zoned_portal(portal, {zone: _zone_flats(zone, 8) for zone in SPLIT_ZONES}, per_page=1)
+
+    result, summary = _scan_split(db, split_profile)
+
+    assert result.parts == 0
+    assert result.truncated and summary["truncated"] == 1
+    assert "stopped at the page limit" in split_profile.last_run_detail
+    assert "parts" not in split_profile.last_run_detail
+    assert len(_listing_requests(portal)) == 1
+
+
+def test_a_part_that_still_does_not_fit_is_not_split_again(db, portal, split_profile):
+    """The other half of the same rule: the recursion has no natural floor, and
+    no depth at which a search is guaranteed to fit.
+
+    The corpus is deliberately lopsided, because that is the only way a part
+    overflows — an evenly divided search fits by construction. One district
+    holds four of the six listings and is still two pages against a one-page
+    cap, so the parts run once, keep what they got, and hand back G.7's notice:
+    four searches, not four and then twelve.
+    """
+    lopsided = {SPLIT_ZONES[0]: _zone_flats(SPLIT_ZONES[0], 4)}
+    lopsided.update({zone: _zone_flats(zone, 1) for zone in SPLIT_ZONES[1:]})
+    _serve_zoned_portal(portal, lopsided)
+
+    result, summary = _scan_split(db, split_profile)
+
+    assert result.parts == 3
+    assert result.truncated and summary["truncated"] == 1
+    assert "still did not fit" in split_profile.last_run_detail
+    assert len(result.listings) == 4
+    assert len(_listing_requests(portal)) == 1 + 3
+
+
+def test_splitting_a_search_is_one_setting_the_user_can_turn_off(db, portal, split_profile):
+    """It multiplies requests, and requests are what get an IP blocked. Off, the
+    scan is exactly the one search it always was, truncation notice included."""
+    _serve_zoned_portal(portal, {zone: _zone_flats(zone) for zone in SPLIT_ZONES})
+
+    result, summary = _scan_split(db, split_profile, split_large_searches=False)
+
+    assert result.parts == 0
+    assert result.truncated and summary["truncated"] == 1
+    assert len(result.listings) == 2
+    assert len(_listing_requests(portal)) == 1
+
+
+def test_a_split_search_says_which_part_it_is_on_while_it_runs(scan_db, portal, live_scan):
+    """ "Part 3 of 7", while it is happening, and read from another thread for
+    the same reason G.9's own tests are: a dict inspected once the scan is over
+    would pass while reporting nothing during the minutes that matter.
+
+    Without it the page count restarts at 1 once per part and a watcher reads a
+    scan that keeps starting over — and a scan quietly making several times the
+    requests it made last week is precisely what the user has to be able to see.
+    """
+    serving = threading.Semaphore(0)
+    proceed = threading.Semaphore(0)
+    zoned = _zoned_answer({zone: _zone_flats(zone) for zone in SPLIT_ZONES}, per_page=2)
+
+    def answer(query: dict[str, list[str]]) -> mock_portal.Page:
+        serving.release()
+        assert proceed.acquire(timeout=20)
+        return zoned(query)
+
+    portal.serve_answering("/api-next/search-list/listings/", answer)
+    zones = "&".join(f"{IMMOBILIARE_ZONE_ID_PARAM}={zone}" for zone in SPLIT_ZONES)
+    _watch(scan_db, portal, "Milano", "immobiliare", f"{SPLIT_SEARCH}?{zones}")
+
+    scan = threading.Thread(target=scanner.run_scan, kwargs={"manual": True}, daemon=True)
+    scan.start()
+    seen = []
+    for _ in range(5):  # two pages of the whole search, then one page per part
+        assert serving.acquire(timeout=30), "the scan never reached the portal"
+        seen.append(scanner.get_scan_progress())
+        proceed.release()
+    scan.join(timeout=60)
+    assert not scan.is_alive()
+
+    assert [(s["part"], s["part_total"], s["page"]) for s in seen] == [
+        (0, 0, 1),
+        (0, 0, 2),
+        (1, 3, 1),
+        (2, 3, 1),
+        (3, 3, 1),
+    ]
+    assert seen[3]["detail"] == "Milano on immobiliare, part 2 of 3: reading page 1"
+    # and the ordinary case says nothing about parts it does not have
+    assert seen[0]["detail"] == "Milano on immobiliare: reading page 1"
