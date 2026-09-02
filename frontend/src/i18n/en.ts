@@ -857,6 +857,10 @@ export const en = {
   "map.pinGone": "💨 No longer available",
   "map.pinSold": "🔑 Sold / rented out",
   "map.pinActive": "Active listing",
+  "map.pinApproximate": "{count} placed approximately",
+  "map.pinApproximateTitle":
+    "The listing did not carry coordinates and its address could not be resolved, so it sits at the centre of the area it belongs to — not at its address.",
+  "map.approximateZone": "Approximate: centre of the area, not the address",
   "map.onMap": "{shown} of {total} properties on the map",
   "map.missing": "{count} without coordinates",
   "map.missingTitle":

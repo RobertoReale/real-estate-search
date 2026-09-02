@@ -41,7 +41,8 @@ const FILTERS: PropertyFilters = {
 // Italian portal abbreviation only `humanizeFloor` can read.
 const PROPERTY = {
   id: 1, title: "", city: "Milano", zone: "", address: "", latitude: null,
-  longitude: null, rooms: 3, floor: "T", sqm: 80, contract: "rent",
+  longitude: null, coordinate_source: "" as const,
+  rooms: 3, floor: "T", sqm: 80, contract: "rent",
   current_min_price: 1200, first_price: 1500, image_url: "", status: "sold",
   filtered_reason: "", source: "scan", is_favorite: false, notes: "",
   area_median_sqm_price: null, area_median_scope: null,

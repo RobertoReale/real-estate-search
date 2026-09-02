@@ -237,6 +237,11 @@ def seed_demo(
             address=f"{street} {rng.randint(1, 180)}",
             latitude=None if i in no_coordinates else _jitter(rng, zone.lat),
             longitude=None if i in no_coordinates else _jitter(rng, zone.lng),
+            # A corpus pin stands for one the portal sent with the ad, which is
+            # what most real pins are. The ones left without coordinates are the
+            # other real case, and `geocoder.resolve_offline` is what turns them
+            # into the third: an approximate pin, labelled as one.
+            coordinate_source="" if i in no_coordinates else "portal",
             rooms=rooms,
             floor=rng.choice(FLOORS),
             sqm=sqm,

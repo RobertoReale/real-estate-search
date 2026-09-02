@@ -242,11 +242,20 @@ DEFAULT_SETTINGS = {
     # structured params, then FALLS BACK to the deterministic parser on any
     # failure. Point llm_base_url at Ollama (http://localhost:11434/v1) for a
     # free, fully-offline local model, or at a free cloud tier. See IMPROVEMENTS.md.
-    # Geocoding endpoint for the opt-in "backfill missing map coordinates"
-    # maintenance action (services/geocoder.py). Public Nominatim by default
-    # (1 request/second, cached so a batch stays inside it); point it at a
-    # self-hosted instance for unlimited, fully-offline use.
+    # Geocoding endpoint for the "backfill missing map coordinates" batch
+    # (services/geocoder.py). Public Nominatim by default (1 request/second,
+    # cached so a batch stays inside it); point it at a self-hosted instance for
+    # unlimited, fully-offline use.
     "nominatim_url": "https://nominatim.openstreetmap.org",
+    # Whether a scan finishes by asking Nominatim for the listings it has just
+    # imported and could not place from what this database already knew. The
+    # free half of that sweep — the cache and the district centres — runs
+    # regardless: it costs nothing, and the map being empty until somebody finds
+    # the maintenance button is the reason this setting exists. The paid half is
+    # bounded by `geocoder.MAX_PER_CALL` per scan and paced at one request a
+    # second, so turning it off is for a user who would rather their scans not
+    # touch OpenStreetMap at all.
+    "geocode_after_scan": True,
     # Commute times to the places the user actually goes (services/commute.py).
     # Off by default: with no saved place there is nothing to route to, so no
     # badge appears — the same stance as the Smart Match Score above. Each point

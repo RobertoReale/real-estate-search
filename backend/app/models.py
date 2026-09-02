@@ -50,6 +50,21 @@ class Property(Base):
     address: Mapped[str] = mapped_column(String, default="")
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Where the pin above came from, because not every pin means the same thing:
+    #
+    #   "portal"  the ad itself carried the coordinates — exact, and free
+    #   "address" a geocoder lookup of this property's own street — exact
+    #   "zone"    the middle of its district, not its address — APPROXIMATE
+    #   ""        no pin, or one written before this column existed
+    #
+    # "zone" is the reason the column exists. A district centroid drawn the same
+    # way as a street address is an approximation presented as a location, which
+    # is the one kind of wrong the user cannot detect for themselves — so it is
+    # recorded here and rendered differently on the map. There is deliberately
+    # no comune-wide value: see `geocoder.APPROXIMATE_SOURCES`, which is the
+    # single list of which sources are approximate and the only place that
+    # judgement is made.
+    coordinate_source: Mapped[str] = mapped_column(String, default="")
     rooms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     floor: Mapped[str] = mapped_column(String, default="")
     sqm: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -16,12 +16,28 @@
   published.
 * **Map view**: the same properties as pins on an OpenStreetMap background —
   useful to see how a shortlist is spread across the city. Clicking a pin opens
-  the property. Many Immobiliare listings arrive without coordinates, so the map
-  can look sparse; the **📍 Find coordinates** button under *Maintenance*
-  looks up the missing pins from each listing's address or zone via OpenStreetMap
-  (opt-in, cached, and it never invents a wrong pin — a lookup it cannot resolve
-  is simply left off the map). It works in batches, so on a large dashboard press
-  it again to continue. You can also jump to a single property: open its card and
+  the property. Many Immobiliare listings arrive without coordinates, so **a scan
+  fills the map in as it goes**, without being asked: it takes whatever the ad
+  itself carried, then places the rest from what your dashboard already knows —
+  an address looked up once answers every other listing on that street for free —
+  and finally asks OpenStreetMap about what is left, for the listings that scan
+  collected only. That last step is the only one that costs a request, is capped
+  per scan and paced at OpenStreetMap's one request a second; set
+  `geocode_after_scan` to `false` in `settings.json` if you would rather your
+  scans stay entirely local. The two free steps always run.
+* **A pin that is not an address says so**: when a listing's own address cannot
+  be placed, it is drawn at the centre of its district instead — as a **hollow,
+  dashed pin**, counted in the legend, and labelled "approximate: centre of the
+  area, not the address" when you hover it. A rough location is useful; a rough
+  location that looks exact is not, and it is the kind of mistake you would have
+  no way of spotting. Nothing else in the app treats those pins differently, so a
+  zone you draw around a district will include them.
+* The **📍 Find coordinates** button under *Maintenance* runs the same
+  OpenStreetMap lookup over the *whole* dashboard rather than one scan's
+  listings — the remedy for what is still missing after a scan, or after
+  importing older data (cached, and it never invents a wrong pin: a lookup it
+  cannot resolve is simply left off the map). It works in batches, so on a large
+  dashboard press it again to continue. You can also jump to a single property: open its card and
   press **🗺️ View on map** — it opens the map centered on that pin, and if the
   property has no coordinates yet it finds them first (same OpenStreetMap lookup),
   telling you if the address was too vague to place. Failed lookups are

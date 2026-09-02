@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app import config
 from app.database import Base
 from app.models import Property, SearchProfile
 from app.scrapers.base import RawListing, ScrapeResult
@@ -881,6 +882,155 @@ def test_a_wider_search_clears_the_flag_its_narrower_sibling_set(db, monkeypatch
     _scan_area(db, monkeypatch, MILANO_URL, listings, profile=wider)
 
     assert _by_title(db)["Zona accanto"].outside_requested_area is False
+
+
+# --- coordinates on the first run ------------------------------------------
+#
+# The map was emptiest on the run where it matters most. Coordinates arrive only
+# when the portal chooses to send them, and everything else waited for someone
+# to find the "Find coordinates" maintenance button — so the first scan of a new
+# search drew a map full of holes at exactly the moment somebody is deciding
+# whether this app works. A scan now closes that itself, in the two halves the
+# geocoder is built around.
+
+
+def _scan_with(db, monkeypatch, listings: list[RawListing], search_url: str = MILANO_URL) -> dict:
+    """One full `run_scan` over a fake scraper returning `listings`."""
+    db.add(SearchProfile(name="Milano", portal="immobiliare", search_url=search_url))
+    db.commit()
+    monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: _area_scraper(listings))
+    monkeypatch.setattr(scanner.geocoder, "PACE_SECONDS", 0)
+    return scanner.run_scan()
+
+
+def test_a_scan_places_what_it_imported_from_what_it_already_knew(db, monkeypatch):
+    """Two listings arrive with the portal's own pins and a third without. The
+    district those two describe is enough to place the third, for nothing — and
+    the pin it gets says it is a district and not a doorstep."""
+    result = _scan_with(
+        db,
+        monkeypatch,
+        [
+            _listing("1", 90.0, title="Con pin A", zone="Isola", latitude=45.486, longitude=9.186),
+            _listing("2", 70.0, title="Con pin B", zone="Isola", latitude=45.490, longitude=9.190),
+            _listing("3", 60.0, title="Senza pin", zone="Isola"),
+        ],
+    )
+
+    assert (result["located"], result["located_approximate"]) == (1, 1)
+    placed = _by_title(db)["Senza pin"]
+    assert placed.latitude == pytest.approx(45.488)
+    assert placed.coordinate_source == scanner.geocoder.SOURCE_ZONE
+    # ...and the two that arrived with pins are recorded as the portal's own.
+    assert _by_title(db)["Con pin A"].coordinate_source == scanner.geocoder.SOURCE_PORTAL
+
+
+def test_a_scan_asks_nominatim_only_for_what_it_could_not_place_itself(db, monkeypatch):
+    """The paced half. It runs after the free half, over that scan's own
+    imports, and never over the listing the free half already placed."""
+    asked = []
+
+    def lookup(query, base, **kwargs):
+        asked.append(query)
+        return (45.47, 9.19)
+
+    monkeypatch.setattr(scanner.geocoder, "_nominatim_lookup", lookup)
+    result = _scan_with(
+        db,
+        monkeypatch,
+        [
+            _listing("1", 90.0, title="Con pin A", zone="Isola", latitude=45.486, longitude=9.186),
+            _listing("2", 70.0, title="Con pin B", zone="Isola", latitude=45.490, longitude=9.190),
+            _listing("3", 60.0, title="Zona nota", zone="Isola"),
+            _listing("4", 50.0, title="Zona ignota", zone="Lambrate"),
+        ],
+    )
+
+    # Only the one district-less listing reached the network: the other three
+    # were answered by the portal or by the district the scan had just learnt.
+    assert asked == ["Via Roma, 4, Milano, Italia"]
+    assert (result["located"], result["located_approximate"]) == (2, 1)
+    assert _by_title(db)["Zona ignota"].coordinate_source == scanner.geocoder.SOURCE_ADDRESS
+
+
+def test_turning_the_post_scan_lookup_off_still_places_what_is_free(db, monkeypatch):
+    """The setting governs the requests, not the pins: the cache and the
+    district centres cost nothing, so they are not something to opt out of."""
+
+    def boom(*args, **kwargs):
+        raise AssertionError("geocode_after_scan is off: no request may be made")
+
+    monkeypatch.setattr(scanner.geocoder, "_nominatim_lookup", boom)
+    monkeypatch.setattr(
+        scanner, "load_settings", lambda: {**config.DEFAULT_SETTINGS, "geocode_after_scan": False}
+    )
+    result = _scan_with(
+        db,
+        monkeypatch,
+        [
+            _listing("1", 90.0, title="Con pin A", zone="Isola", latitude=45.486, longitude=9.186),
+            _listing("2", 70.0, title="Con pin B", zone="Isola", latitude=45.490, longitude=9.190),
+            _listing("3", 60.0, title="Senza pin", zone="Isola"),
+            _listing("4", 50.0, title="Zona ignota", zone="Lambrate"),
+        ],
+    )
+
+    assert result["located"] == 1
+    assert _by_title(db)["Zona ignota"].latitude is None
+
+
+def test_a_property_from_an_earlier_scan_is_not_swept_again(db, monkeypatch):
+    """Bounded to what this scan touched. An address Nominatim has already
+    declined must not be re-asked on every scheduled run for the rest of time."""
+    old = _prop(title="Vecchio", fingerprint="old", city="Milano", zone="Isola")
+    old.address = "Via Antica 1"
+    db.add(old)
+    db.commit()
+    old.last_seen_at = datetime.now(UTC) - timedelta(days=3)
+    db.commit()
+
+    asked = []
+    monkeypatch.setattr(
+        scanner.geocoder,
+        "_nominatim_lookup",
+        lambda q, base, **kw: asked.append(q) or (45.47, 9.19),
+    )
+    _scan_with(db, monkeypatch, [_listing("1", 90.0, title="Nuovo", zone="Lambrate")])
+
+    assert asked == ["Via Roma, 1, Milano, Italia"]
+    assert old.latitude is None
+
+
+def test_a_scan_survives_a_geocoder_that_fails(db, monkeypatch):
+    """Fail-open: a map pin that cannot be worked out is not a reason for a scan
+    to report an error over the listings it did collect."""
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the gazetteer is on fire")
+
+    monkeypatch.setattr(scanner.geocoder, "resolve_offline", broken)
+    monkeypatch.setattr(scanner.geocoder, "geocode_missing_properties", broken)
+    result = _scan_with(db, monkeypatch, [_listing("1", 90.0, title="Nuovo", zone="Isola")])
+
+    assert result["status"] == "done"
+    assert result["errors"] == [] and result["new"] == 1
+    assert result["located"] == 0
+
+
+def test_a_manual_geocoding_batch_makes_the_scan_step_aside(db, monkeypatch):
+    """The user pressed "Find coordinates" and it is still running. The scan
+    reports no pins rather than fighting for the lock."""
+    monkeypatch.setattr(
+        scanner.geocoder, "_nominatim_lookup", lambda *a, **kw: pytest.fail("must not be reached")
+    )
+    assert scanner.geocoder._geocode_run_lock.acquire(blocking=False)
+    try:
+        result = _scan_with(db, monkeypatch, [_listing("1", 90.0, title="Nuovo", zone="Isola")])
+    finally:
+        scanner.geocoder._geocode_run_lock.release()
+
+    assert result["status"] == "done" and result["located"] == 0
 
 
 # --- "nothing found" is not "ok" -------------------------------------------

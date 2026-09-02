@@ -13,7 +13,15 @@ from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
 from ..scrapers.base import RawListing, ScrapeResult
-from . import deal_score, geo_filter, geo_reference, notifier, pricing_stats, scraper_health
+from . import (
+    deal_score,
+    geo_filter,
+    geo_reference,
+    geocoder,
+    notifier,
+    pricing_stats,
+    scraper_health,
+)
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
 from .search_builder import parse_search_url, zone_names
@@ -67,7 +75,8 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
     if not _scan_lock.acquire(blocking=False):
         return {"status": "already_running"}
     scan_state["running"] = True
-    scan_state["last_started_at"] = datetime.now(UTC).isoformat()
+    started_at = datetime.now(UTC)
+    scan_state["last_started_at"] = started_at.isoformat()
     summary = {
         "new": 0,
         "updated": 0,
@@ -82,6 +91,10 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         # how many searches stopped at the page limit with listings still to
         # collect. A scan that cannot say this cannot claim it found everything.
         "truncated": 0,
+        # how many of the listings this scan touched got a map pin out of it,
+        # and how many of those are a district centre rather than an address.
+        "located": 0,
+        "located_approximate": 0,
         "blocked_portals": [],
         "errors": [],
     }
@@ -117,6 +130,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
                     profile.last_run_detail = str(e)[:300]
                 _update_profile_health(profile, settings, summary)
                 db.commit()
+            _locate_scanned_properties(db, settings, started_at, summary)
             # only on full scans: scanning a single profile says nothing
             # about properties belonging to other profiles. And only on
             # *clean* full scans: the day-based GONE_AFTER_DAYS threshold
@@ -160,6 +174,61 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
         scan_state["last_summary"] = last_summary
         _scan_lock.release()
     return {"status": "done", **summary}
+
+
+def _locate_scanned_properties(db, settings: dict, started_at: datetime, summary: dict) -> None:
+    """Give the listings this scan just touched a pin, before anyone asks.
+
+    The first scan of a new search is the run where the map matters most and the
+    run where it was emptiest: coordinates arrive only when the portal chooses to
+    send them, and everything else waited for a person to find the "Find
+    coordinates" maintenance button. So the scan does it, in the two halves the
+    geocoder is built around — the free one always, the paced one on a budget.
+
+    The candidates are the properties this scan saw and still cannot place,
+    identified by `last_seen_at`: `upsert_listing` stamps it on every listing it
+    writes, so "seen since the scan started" is exactly what this scan imported
+    or refreshed, with no bookkeeping threaded through `_scan_profile`.
+
+    Fail-open, twice over. A geocoding batch the user started by hand holds the
+    lock and this one steps aside; anything else that goes wrong is logged and
+    the scan finishes. A scan must never fail because a map pin could not be
+    worked out.
+    """
+    ids = set(
+        db.scalars(
+            select(Property.id)
+            .where(Property.latitude.is_(None))
+            .where(Property.city != "")
+            # naive, because that is how SQLite holds it: the ORM writes an
+            # aware UTC value and the stored text carries no offset (timeutils).
+            .where(Property.last_seen_at >= started_at.replace(tzinfo=None))
+        )
+    )
+    if not ids:
+        return
+    try:
+        offline = geocoder.resolve_offline(db, property_ids=ids)
+        summary["located"] += offline["placed"]
+        summary["located_approximate"] += offline["approximate"]
+    except Exception:
+        db.rollback()
+        logger.exception("scan: offline coordinate resolution failed")
+
+    if not settings.get("geocode_after_scan", True):
+        return
+    try:
+        # `max_calls=-1` is the geocoder's own per-run cap, and the pacing and
+        # cancel path inside it are untouched: this is the maintenance batch,
+        # pointed at one scan's worth of properties.
+        batch = geocoder.geocode_missing_properties(db, property_ids=ids)
+        summary["located"] += batch["geocoded"]
+        summary["located_approximate"] += batch["approximate"]
+    except geocoder.GeocoderError:
+        logger.info("scan: a geocoding batch is already running, skipping the post-scan sweep")
+    except Exception:
+        db.rollback()
+        logger.exception("scan: post-scan geocoding failed")
 
 
 def _mark_vanished_properties(db) -> int:

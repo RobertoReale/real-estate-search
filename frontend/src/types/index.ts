@@ -45,6 +45,11 @@ export interface Property {
   address: string;
   latitude: number | null;
   longitude: number | null;
+  /** Where the pin came from. "portal" and "address" are this property's own
+   *  location; "zone" is the middle of the district it is somewhere inside, and
+   *  the map has to say so rather than draw the two alike. "" is a pin from
+   *  before the backend recorded this. */
+  coordinate_source: "" | "portal" | "address" | "zone";
   rooms: number | null;
   floor: string;
   sqm: number | null;

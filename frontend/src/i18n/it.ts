@@ -878,6 +878,10 @@ export const it: Dict = {
   "map.pinGone": "💨 Non più disponibile",
   "map.pinSold": "🔑 Venduto / affittato",
   "map.pinActive": "Annuncio attivo",
+  "map.pinApproximate": "{count} in posizione approssimata",
+  "map.pinApproximateTitle":
+    "L’annuncio non portava le coordinate e non è stato possibile risolverne l’indirizzo: il segnaposto è al centro della zona di appartenenza, non all’indirizzo.",
+  "map.approximateZone": "Approssimato: centro della zona, non l’indirizzo",
   "map.onMap": "{shown} di {total} immobili sulla mappa",
   "map.missing": "{count} senza coordinate",
   "map.missingTitle":

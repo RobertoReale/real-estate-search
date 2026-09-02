@@ -3,7 +3,7 @@
 with no network and no per-second wait."""
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -378,6 +378,229 @@ def test_build_queries_fallback_order():
         "Via Tolmezzo, Milano, Italia",
         "Udine, Milano, Italia",
     ]
+
+
+def test_each_query_carries_the_precision_it_would_buy():
+    # The fallback to the zone was always there; what was missing is that a pin
+    # resolved from it is a district and not a doorstep.
+    prop = _prop(address="Via Tolmezzo, 2", zone="Udine", city="Milano")
+    assert geocoder.build_located_queries(prop) == [
+        ("Via Tolmezzo, 2, Milano, Italia", geocoder.SOURCE_ADDRESS),
+        ("Via Tolmezzo, Milano, Italia", geocoder.SOURCE_ADDRESS),
+        ("Udine, Milano, Italia", geocoder.SOURCE_ZONE),
+    ]
+
+
+def test_a_pin_records_where_it_came_from(db, monkeypatch):
+    street = _prop(fingerprint="a", address="Via Dante 5", zone="Centro")
+    district = _prop(fingerprint="b", address="", zone="Navigli")
+    db.add_all([street, district])
+    db.commit()
+    resolved = {
+        "Via Dante 5, Milano, Italia": (45.4660, 9.1900),
+        "Navigli, Milano, Italia": (45.4520, 9.1750),
+    }
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base, **kw: resolved.get(q))
+
+    summary = geocoder.geocode_missing_properties(db)
+    assert summary["geocoded"] == 2
+    # One of the two is an address and one is a district: the batch says which.
+    assert summary["approximate"] == 1
+    assert street.coordinate_source == geocoder.SOURCE_ADDRESS
+    assert district.coordinate_source == geocoder.SOURCE_ZONE
+    assert geocoder.is_approximate(street.coordinate_source) is False
+    assert geocoder.is_approximate(district.coordinate_source) is True
+
+
+def test_an_unknown_source_is_not_called_approximate():
+    # Every pin in an upgraded database has an empty source. Labelling those as
+    # approximations would put a warning on the whole map on the first run after
+    # the upgrade, for pins that are very probably exact.
+    assert geocoder.is_approximate("") is False
+    assert geocoder.is_approximate(None) is False
+
+
+# --- Layer 2: what this database can already answer, with no network ---------
+
+
+def test_offline_resolution_reuses_a_lookup_already_paid_for(db):
+    # The whole point of the cache being keyed by query string: one property's
+    # street answers every other property on it, for nothing.
+    db.add(_prop(fingerprint="a", address="Via dei Tigli 4", zone="Isola"))
+    db.add(_prop(fingerprint="b", address="Via dei Tigli 9", zone="Isola"))
+    db.add(GeocodeCache(query="via dei tigli, milano, italia", latitude=45.487, longitude=9.188))
+    db.commit()
+
+    summary = geocoder.resolve_offline(db)
+    assert summary["placed"] == 2 and summary["exact"] == 2
+    for prop in db.scalars(select(Property)):
+        assert prop.latitude == 45.487
+        assert prop.coordinate_source == geocoder.SOURCE_ADDRESS
+
+
+def test_offline_resolution_places_a_listing_inside_its_own_district(db):
+    # No cache at all, but the district already holds pins the portal sent. Their
+    # middle is somewhere in the right area, and is labelled as exactly that.
+    db.add(
+        _prop(fingerprint="a", zone="Isola", latitude=45.486, longitude=9.186, address="Via A 1")
+    )
+    db.add(
+        _prop(fingerprint="b", zone="Isola", latitude=45.490, longitude=9.190, address="Via B 2")
+    )
+    db.add(_prop(fingerprint="c", zone="Isola", address="Via Sconosciuta 3"))
+    db.commit()
+
+    summary = geocoder.resolve_offline(db)
+    assert summary["placed"] == 1 and summary["approximate"] == 1
+    placed = db.scalar(select(Property).where(Property.fingerprint == "c"))
+    assert placed is not None
+    assert placed.coordinate_source == geocoder.SOURCE_ZONE
+    assert placed.latitude == pytest.approx(45.488)
+    assert placed.longitude == pytest.approx(9.188)
+    # ...and it lands on neither of the two real addresses, so it can never be
+    # read as one of them (geocoder.ZONE_CENTRE_MIN_PINS explains why).
+    assert placed.latitude not in (45.486, 45.490)
+
+
+def test_one_pin_is_not_a_district_centre(db):
+    # With a single pin the "centre" would sit exactly on a real address and be
+    # read as one, which is the confusion coordinate_source exists to prevent.
+    db.add(
+        _prop(fingerprint="a", zone="Isola", latitude=45.486, longitude=9.186, address="Via A 1")
+    )
+    db.add(_prop(fingerprint="b", zone="Isola", address="Via Sconosciuta 3"))
+    db.commit()
+
+    assert geocoder.resolve_offline(db)["placed"] == 0
+    lonely = db.scalar(select(Property).where(Property.fingerprint == "b"))
+    assert lonely is not None and lonely.latitude is None
+
+
+def test_an_approximate_pin_never_becomes_another_districts_centre(db):
+    # A centroid averaged out of centroids drifts, and there is no way back to a
+    # real coordinate once it has. Only exact pins define a district.
+    db.add(
+        _prop(
+            fingerprint="a",
+            zone="Isola",
+            latitude=45.486,
+            longitude=9.186,
+            coordinate_source=geocoder.SOURCE_ZONE,
+        )
+    )
+    db.add(
+        _prop(
+            fingerprint="b",
+            zone="Isola",
+            latitude=45.490,
+            longitude=9.190,
+            coordinate_source=geocoder.SOURCE_ZONE,
+        )
+    )
+    db.commit()
+    assert geocoder._zone_centres(db) == {}
+
+
+def test_what_this_pass_cannot_place_is_left_for_the_network(db, monkeypatch):
+    """The ordering that makes the whole design work.
+
+    Nothing cached, no district pins: the honest answer here is *no pin*, so the
+    paced lookup that can find the real address still has a candidate when it
+    runs. A comune-wide fallback would have placed this on Milano's centre and
+    starved the layer that could have got it right — which is also why
+    `geocode_missing_properties` has always refused a property with only a city.
+    """
+    db.add(_prop(fingerprint="a", city="Milano", address="Via Ignota 1", zone=""))
+    db.commit()
+
+    assert geocoder.resolve_offline(db)["placed"] == 0
+    assert db.scalars(select(Property)).one().latitude is None
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", lambda q, base, **kw: (45.47, 9.19))
+    assert geocoder.geocode_missing_properties(db)["geocoded"] == 1
+    prop = db.scalars(select(Property)).one()
+    assert prop.coordinate_source == geocoder.SOURCE_ADDRESS
+
+
+def test_offline_resolution_leaves_a_placeless_property_alone(db):
+    # No city means no comune, no district and no query: nothing can be said, so
+    # nothing is written. Fail-open, like every other path in this module.
+    db.add(_prop(fingerprint="a", city="", address="Via Ignota 1"))
+    db.commit()
+
+    assert geocoder.resolve_offline(db)["placed"] == 0
+    assert db.scalars(select(Property)).one().latitude is None
+
+
+def test_offline_resolution_writes_no_cache_row_and_opens_no_socket(db, monkeypatch):
+    db.add(_prop(fingerprint="a", address="Via Ignota 1", zone="Isola"))
+    db.commit()
+
+    def boom(*args, **kwargs):
+        raise AssertionError("the offline pass must never reach Nominatim")
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", boom)
+    geocoder.resolve_offline(db)
+    # No negative row either: a query this pass could not answer must look
+    # untried to the network layer that gets it next.
+    assert db.scalars(select(GeocodeCache)).all() == []
+
+
+def test_offline_resolution_can_be_scoped_to_one_scans_imports(db):
+    db.add(_prop(fingerprint="a", address="Via Ignota 1"))
+    db.add(_prop(fingerprint="b", address="Via Ignota 2"))
+    db.commit()
+    mine = db.scalar(select(Property).where(Property.fingerprint == "a"))
+    assert mine is not None
+
+    assert geocoder.resolve_offline(db, property_ids={mine.id})["scanned"] == 1
+    other = db.scalar(select(Property).where(Property.fingerprint == "b"))
+    assert other is not None and other.latitude is None
+
+
+def test_the_demo_corpus_gets_a_pin_for_every_property_without_a_request(db, monkeypatch):
+    """The acceptance figures, recorded so a dropped coordinate field is visible.
+
+    Layer 1 is whatever the ads carried, which in the corpus is 68 of 80 — the
+    other 12 stand for the listings a portal publishes without coordinates, the
+    normal case on Immobiliare. Layer 2 places all 12 from what the database
+    already holds, and every one of them is labelled approximate: there is no
+    cache to reuse here, so they can only be placed by their own district.
+    """
+    from app.services import demo_data
+
+    def boom(*args, **kwargs):
+        raise AssertionError("both layers must run with no network at all")
+
+    monkeypatch.setattr(geocoder, "_nominatim_lookup", boom)
+    demo_data.seed_demo(db)
+
+    total = db.scalar(select(func.count()).select_from(Property))
+    with_pin = db.scalar(
+        select(func.count()).select_from(Property).where(Property.latitude.is_not(None))
+    )
+    assert (total, with_pin) == (80, 68)
+
+    summary = geocoder.resolve_offline(db)
+    assert summary == {"scanned": 12, "placed": 12, "exact": 0, "approximate": 12}
+
+    with_pin = db.scalar(
+        select(func.count()).select_from(Property).where(Property.latitude.is_not(None))
+    )
+    assert with_pin == 80
+    approximate = [
+        p for p in db.scalars(select(Property)) if geocoder.is_approximate(p.coordinate_source)
+    ]
+    assert len(approximate) == 12
+    # Every one of them is inside Milano, and none is a copy of a real address.
+    exact_pins = {
+        (p.latitude, p.longitude)
+        for p in db.scalars(select(Property))
+        if p.coordinate_source == geocoder.SOURCE_PORTAL
+    }
+    for prop in approximate:
+        assert geocoder.is_valid_coordinate_for_city(prop.latitude, prop.longitude, prop.city)
+        assert (prop.latitude, prop.longitude) not in exact_pins
 
 
 def test_geocode_missing_properties_clears_out_of_bounds_existing_pins(db, monkeypatch):
