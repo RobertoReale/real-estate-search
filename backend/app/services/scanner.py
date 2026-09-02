@@ -14,7 +14,7 @@ from ..config import SECRET_SETTINGS, load_settings
 from ..database import SessionLocal
 from ..models import Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
-from ..scrapers.base import RawListing, ScrapeResult
+from ..scrapers.base import RawListing, ScrapeResult, merge_scrapes
 from . import (
     deal_score,
     geo_filter,
@@ -26,7 +26,7 @@ from . import (
 )
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
-from .search_builder import parse_search_url, zone_names
+from .search_builder import MAX_SEARCH_PARTS, parse_search_url, segment_search, zone_names
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,11 @@ _IDLE_PROGRESS: dict = {
     "profile_index": 0,
     "profile_total": 0,
     "portal": "",
+    # Which narrower search of a split one this is, and how many there are.
+    # Both 0 for the ordinary case of a search that ran as one, which is what
+    # keeps "part 3 of 7" off every screen that has no parts to report.
+    "part": 0,
+    "part_total": 0,
     "page": 0,
     "total_pages": None,
     "listings": 0,
@@ -140,6 +145,11 @@ def get_scan_journal() -> list[dict]:
 def _progress_sentence(state: dict) -> str:
     """One line saying what is happening now, from the facts already recorded."""
     who = f"{state['profile']} on {state['portal']}" if state["profile"] else ""
+    if who and state["part_total"]:
+        # A split search makes the same profile fetch the same-looking page
+        # several times over; without this the watcher sees the page count reset
+        # to 1 twice and reads it as a scan that restarted.
+        who += f", part {state['part']} of {state['part_total']}"
     phase = state["phase"]
     if phase == "waiting":
         # The important one. `request_delay_seconds` defaults to 6 and is spent
@@ -214,6 +224,8 @@ def _begin_profile(profile: SearchProfile, index: int, total: int) -> None:
         portal=profile.portal,
         profile_index=index,
         profile_total=total,
+        part=0,
+        part_total=0,
         page=0,
         total_pages=None,
         listings=0,
@@ -255,6 +267,8 @@ def _stop_reason(result: ScrapeResult | None) -> str:
     if result.truncated:
         pages = "page" if result.page_limit == 1 else "pages"
         return f"the page limit of {result.page_limit} {pages}"
+    if result.parts:
+        return f"every one of the {result.parts} parts was read to the end"
     if not result.listings:
         return "the portal had nothing to list"
     return "the portal had nothing more to give"
@@ -663,6 +677,162 @@ def _truncation_note(result: ScrapeResult) -> str:
     return note + ": raise it, or narrow the search"
 
 
+def _split_note(result: ScrapeResult) -> str:
+    """What a search that had to be run in parts owes the user.
+
+    The other half of `_truncation_note`, and the reason this task exists: a
+    search bigger than the page limit used to end in an apology, and now it can
+    end in a fact — but only when the portal's own counts say the parts covered
+    it. A split that fell short says so instead, beside the truncation notice it
+    did not manage to remove.
+
+    Deliberately no second number: `found` above already says how many listings
+    came back, and a completeness claim carrying a slightly different total
+    (duplicates across parts, a listing published between two requests) reads as
+    an arithmetic error in the one sentence that has to be trusted.
+    """
+    if not result.parts:
+        return ""
+    if result.truncated:
+        return f" (searched in {result.parts} parts, and still did not fit)"
+    return f" — searched in {result.parts} parts, which between them covered the whole result set"
+
+
+def _parts_needed(result: ScrapeResult) -> int:
+    """How many narrower searches this one would have to become to fit.
+
+    Off the portal's own page count, so a search whose total was never declared
+    is never split: without the portal's arithmetic there is nothing to size the
+    split with, and — the half that matters more — nothing to check it against
+    afterwards.
+    """
+    if result.total_pages is None or result.page_limit <= 0:
+        return 0
+    return -(-result.total_pages // result.page_limit)
+
+
+def _parts_cover_the_whole(whole: ScrapeResult, parts: list[ScrapeResult]) -> bool:
+    """Did the parts, between them, account for everything the portal declared?
+
+    The check is the portal's arithmetic and not this app's: each part is
+    counted by the same endpoint that counted the whole, and the counts have to
+    add up. A partition that silently lost the 300,000-310,000 euro slice is
+    worse than the truncation it replaced, because the truncation announced
+    itself — so anything short of agreement leaves the truncation notice alone.
+
+    The comparison is "at least", not "exactly", and the direction is the whole
+    point. **A gap can only make the sum fall short**, which is the case being
+    guarded against. Overlapping parts and a listing published between the two
+    requests can only make it exceed, and neither loses anything. A listing
+    *withdrawn* between them makes it fall short too and costs the completeness
+    claim — a search reported as truncated when it was probably complete, which
+    is the error worth making in this direction.
+    """
+    if whole.total_listings is None:
+        return False
+    totals = [part.total_listings for part in parts]
+    if any(total is None for total in totals):
+        return False
+    return sum(total for total in totals if total is not None) >= whole.total_listings
+
+
+def _split_the_search(
+    scraper, profile: SearchProfile, whole: ScrapeResult, settings: dict
+) -> ScrapeResult:
+    """Run a truncated search again as several narrower ones, and merge them.
+
+    Every exit before the parts run returns `whole` untouched, which is G.7's
+    behaviour exactly: what was collected is kept and reported as truncated. The
+    split is an improvement on that answer, never a replacement for it.
+
+    **It does not recurse.** A part that is still too big keeps the truncation
+    notice rather than being split again: the recursion has no natural floor —
+    each level multiplies the requests, and requests are what get an IP blocked
+    — and there is no depth at which a search is guaranteed to fit.
+    """
+    if not settings.get("split_large_searches", True):
+        return whole
+    needed = _parts_needed(whole)
+    if needed < 2:
+        return whole
+    if needed > MAX_SEARCH_PARTS:
+        # The ceiling is refused *here*, before a single extra request: a
+        # search this big would not fit in `MAX_SEARCH_PARTS` parts either, so
+        # spending them would buy a truncation notice at eight times the price.
+        logger.info(
+            "Profile '%s': %s pages would take %d parts, past the %d allowed — "
+            "leaving the search truncated rather than spending the requests",
+            profile.name,
+            whole.total_pages,
+            needed,
+            MAX_SEARCH_PARTS,
+        )
+        return whole
+    urls = segment_search(profile.search_url, profile.portal, needed)
+    if not urls:
+        logger.info(
+            "Profile '%s': no axis splits this search into %d parts that provably cover it",
+            profile.name,
+            needed,
+        )
+        return whole
+
+    logger.info(
+        "Profile '%s': %s pages do not fit in %d — running it as %d narrower searches",
+        profile.name,
+        whole.total_pages,
+        whole.page_limit,
+        len(urls),
+    )
+    parts: list[ScrapeResult] = []
+    for index, url in enumerate(urls, start=1):
+        # Reset what belonged to the previous part for the same reason
+        # `_begin_profile` does between searches: a page number carried over
+        # attributes one part's progress to the next.
+        _set_progress(
+            phase="starting",
+            part=index,
+            part_total=len(urls),
+            page=0,
+            total_pages=None,
+            listings=0,
+            total_listings=None,
+        )
+        # The parts are consecutive searches against one host, so they owe it
+        # the same pause every page of one search owes it.
+        scraper.polite_sleep()
+        parts.append(scraper.scrape(url))
+
+    merged = merge_scrapes([whole, *parts])
+    merged.parts = len(urls)
+    unfinished = [p for p in parts if p.truncated or p.outcome not in ("ok", "no_results")]
+    if unfinished:
+        # Blocked, errored, or still over the cap: each leaves listings this
+        # scan did not see, so the notice stays. Checked before the totals,
+        # because a part blocked half way through still declared the count it
+        # read on its first page and would otherwise add up perfectly.
+        logger.info(
+            "Profile '%s': %d of the %d parts did not finish — keeping the truncation notice",
+            profile.name,
+            len(unfinished),
+            len(urls),
+        )
+        return merged
+    if not _parts_cover_the_whole(whole, parts):
+        logger.error(
+            "Profile '%s': the %d parts declare %s results between them against the portal's "
+            "%s for the whole search — the split is not provably total, so it is not reported "
+            "as complete",
+            profile.name,
+            len(urls),
+            sum(p.total_listings or 0 for p in parts),
+            whole.total_listings,
+        )
+        return merged
+    merged.truncated_by = ""
+    return merged
+
+
 def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> ScrapeResult:
     """Scan one search and record what it established on the profile.
 
@@ -689,6 +859,10 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     scraper.on_progress = partial(_scrape_progress, scraper, settings)
 
     result = scraper.scrape(profile.search_url)
+    if result.truncated:
+        # More listings than one search can carry. Ask the portal again in
+        # narrower pieces rather than report the first ten pages of it.
+        result = _split_the_search(scraper, profile, result, settings)
     _set_progress(phase="saving")
     profile.last_run_at = datetime.now(UTC)
     # observability: accumulate this scan into today's per-portal
@@ -810,12 +984,17 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
             # took and nothing about how many it missed.
             if result.total_listings is not None:
                 found += f" of about {result.total_listings:,}"
-            if result.total_pages is not None:
+            # Not against a split search's page count: that is the pages of
+            # several narrower searches, and the portal's total describes the
+            # one wide search nobody ran to the end. "80 of 42 pages" is the
+            # shape of the nonsense being avoided.
+            if result.total_pages is not None and not result.parts:
                 pages += f" of {result.total_pages}"
         detail = (
             f"{found} listings across {pages} pages (strategy: {result.strategy_used or 'N/A'})"
         )
         detail += _truncation_note(result)
+        detail += _split_note(result)
         # said on the profile's own line, because it is a fact about *this*
         # search: the portal was asked for an area and answered with something
         # else. Kept, not dropped — the count is how the user finds out.

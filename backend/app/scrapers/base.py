@@ -93,6 +93,12 @@ class ScrapeResult:
     # Only `page_limit` today; a value here is a claim that listings exist which
     # this scan did not see, so it is set only where that is provably true.
     truncated_by: str = ""
+    # How many narrower searches this result was assembled from, 0 when the
+    # search ran as one — which is every scrape a scraper produces, since a
+    # scrape is one search and the splitting is the scanner's (`_split_the_search`).
+    # It is also the only thing that can clear `truncated_by`: a search that came
+    # back in parts covered what a single walk could not.
+    parts: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -137,6 +143,46 @@ class ScrapeResult:
         if self.error:
             return "error"
         return "no_results"
+
+
+def merge_scrapes(results: list[ScrapeResult]) -> ScrapeResult:
+    """One result out of several searches over parts of the same criteria.
+
+    Listings merge on their URL — the very key `parse_page` already merges a
+    page's strategies on — because a partition can overlap at its edges and a
+    portal can file one listing under two of its own zones. A listing arriving
+    twice therefore costs one wasted parse and nothing else, which is what makes
+    splitting a search cheap enough to be worth doing at all.
+
+    What the portal said about the **whole** search is the first result's: its
+    declared total, its page count, and the cap the walk ran under all describe
+    the question that was asked, not the narrower ones asked afterwards.
+    `truncated_by` is carried the same way and deliberately so — a merge cannot
+    know whether the parts covered what the whole could not, so it leaves the
+    pessimistic answer standing for the caller to clear on proof.
+    """
+    if not results:
+        return ScrapeResult()
+    first = results[0]
+    merged = ScrapeResult(
+        strategy_used=first.strategy_used,
+        total_pages=first.total_pages,
+        total_listings=first.total_listings,
+        page_limit=first.page_limit,
+        truncated_by=first.truncated_by,
+    )
+    known: set[str] = set()
+    for result in results:
+        merged.pages_fetched += result.pages_fetched
+        merged.blocked = merged.blocked or result.blocked
+        merged.error = merged.error or result.error
+        merged.strategy_used = merged.strategy_used or result.strategy_used
+        for listing in result.listings:
+            key = listing.url.split("?")[0].rstrip("/")
+            if key not in known:
+                known.add(key)
+                merged.listings.append(listing)
+    return merged
 
 
 class BaseScraper:
