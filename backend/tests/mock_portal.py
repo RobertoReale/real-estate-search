@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from email.header import decode_header, make_header
 from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from app.scrapers import idealista, immobiliare
 
@@ -128,7 +128,11 @@ def immobiliare_api_entry(flat: Flat) -> dict:
 
 
 def immobiliare_api_page(
-    flats: list[Flat], *, max_pages: int = 1, declare_count: bool = True
+    flats: list[Flat],
+    *,
+    max_pages: int = 1,
+    declare_count: bool = True,
+    count: int | None = None,
 ) -> dict:
     """One api-next page, counted the way the portal counts its own results.
 
@@ -137,13 +141,18 @@ def immobiliare_api_page(
     stating a total of zero, while a soft block is the same HTTP 200 with the
     same empty list and no total at all. A page carrying flats is unaffected —
     the difference exists only when there is nothing to return.
+
+    `count` is the size of the **whole** result set, which on a one-page search
+    is the page and on a paginated one is not: a scan reporting "4 of about 8"
+    reads it, so a sandbox that always counted the page could never produce the
+    case that sentence exists for.
     """
     page: dict[str, typing.Any] = {
         "results": [immobiliare_api_entry(f) for f in flats],
         "maxPages": max_pages,
     }
     if declare_count:
-        page["count"] = len(flats)
+        page["count"] = len(flats) if count is None else count
     return page
 
 
@@ -168,7 +177,7 @@ def immobiliare_geography(*, comune_id: str = "8042") -> list[dict]:
     ]
 
 
-def idealista_results_page(flats: list[Flat]) -> str:
+def idealista_results_page(flats: list[Flat], *, total: int | None = None) -> str:
     """A results page carrying only what the heuristic strategy may read.
 
     No CSS classes anywhere (invariant 2): the parser finds a card by climbing
@@ -177,14 +186,20 @@ def idealista_results_page(flats: list[Flat]) -> str:
     exist at all. A single-card page lets the climb run to `<html>` and read
     the whole document as one listing — which is the footer bug in miniature,
     and would make this sandbox lie about the parser it is exercising.
+
+    `total` writes the heading in which a portal states the size of its whole
+    result set ("1.234 case in vendita a Milano"). Omitted, the page carries no
+    such statement — which is the case that must stay reachable, because a scan
+    is only allowed to name a total the portal actually published.
     """
+    heading = f"<h1>{_italian_thousands(total)} case in vendita a Milano</h1>" if total else ""
     cards = [
         f'<article><a href="/immobile/{f.ad_id}/">{f.title}</a>'
         f"<span>€ {_italian_thousands(f.price)}</span>"
         f"<span>{f.rooms} locali</span><span>{f.sqm} m²</span></article>"
         for f in flats
     ]
-    return f"<html><body><main>{''.join(cards)}</main></body></html>"
+    return f"<html><body>{heading}<main>{''.join(cards)}</main></body></html>"
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +215,15 @@ class Page:
 
 
 class _PortalHTTPServer(ThreadingHTTPServer):
-    """Carries the page table so the handler can reach it through `self.server`."""
+    """Carries the page table so the handler can reach it through `self.server`.
+
+    An entry is a fixed `Page`, or a callable answering one from the query
+    string — the only way to express a portal that has *more* than what a
+    single canned body can hold.
+    """
 
     daemon_threads = True
-    pages: dict[str, Page]
+    pages: dict[str, "Page | typing.Callable[[dict[str, list[str]]], Page]"]
     requested: list[str]
 
 
@@ -211,7 +231,11 @@ class _PortalHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         server = typing.cast(_PortalHTTPServer, self.server)
         server.requested.append(self.path)
-        page = server.pages.get(urlparse(self.path).path) or Page(_NOT_FOUND_HTML, status=404)
+        parsed = urlparse(self.path)
+        entry = server.pages.get(parsed.path)
+        if callable(entry):
+            entry = entry(parse_qs(parsed.query))
+        page = entry or Page(_NOT_FOUND_HTML, status=404)
         body = page.body.encode("utf-8")
         self.send_response(page.status)
         self.send_header("Content-Type", page.content_type)
@@ -262,6 +286,26 @@ class MockPortalServer:
             status=status,
             content_type="application/json",
         )
+
+    def serve_json_pages(self, path: str, render: typing.Callable[[int], typing.Any]) -> str:
+        """Publish a *paginated* JSON endpoint: `render(page)` builds the body
+        for the page the scraper asked for.
+
+        Truncation is the one thing a single canned body cannot express — "the
+        portal had more than this scan took" only exists across pages. `pag` is
+        the page parameter (Immobiliare's api-next, the only JSON path the
+        scrapers paginate); anything else means page 1.
+        """
+
+        def answer(query: dict[str, list[str]]) -> Page:
+            try:
+                page = int((query.get("pag") or ["1"])[0])
+            except ValueError:
+                page = 1
+            return Page(json.dumps(render(page)), content_type="application/json")
+
+        self._httpd.pages[urlparse(path).path] = answer
+        return self.url(path)
 
     @property
     def requested(self) -> list[str]:

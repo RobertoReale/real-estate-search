@@ -47,6 +47,17 @@ DATADOME_BLOCK_MARKERS = (
     "please enable js and disable any ad blocker",
 )
 
+# How a search page states the size of its own result set: "1.234 case in
+# vendita a Milano". Both portals head their results with that sentence, and it
+# is the only page-count evidence the HTML paths get — neither publishes a
+# number of pages anywhere a parser can reach. Italian, and matched on visible
+# text, for the same reasons as the markers above; the noun is required so a
+# card's "3 locali" or a footer's "case in vendita a Roma" cannot be read as a
+# total.
+SEARCH_TOTAL_RE = re.compile(
+    r"(\d[\d.]*)\s+(?:case|annunci|immobili|appartamenti)\s+in\s+(?:vendita|affitto)"
+)
+
 
 def _visible_text(html: str) -> str:
     """Lowercased text a human would actually see, with <script>/<style>/
@@ -92,6 +103,28 @@ def text_says_no_results(html: str) -> bool:
     """
     text = _visible_text(html)
     return any(m in text for m in SEARCH_EMPTY_MARKERS)
+
+
+def declared_result_total(html: str) -> int | None:
+    """How many results the search page says it matched, or None if it does not.
+
+    None is the answer that must be preserved: a scan reports "241 of about
+    1,050" only where the portal itself published the 1,050, and reports "241,
+    and there may be more" where it did not. Guessing the second number is the
+    one way this feature can be worse than the silence it replaces.
+
+    Visible text only, like every other reading in this module — the portals
+    ship their i18n dictionaries inside the page JSON, so a raw scan would find
+    the sentence on pages that never showed it.
+    """
+    match = SEARCH_TOTAL_RE.search(_visible_text(html))
+    if not match:
+        return None
+    try:
+        # Italian thousands separators: "1.234" is 1234, not 1.234
+        return int(match.group(1).replace(".", ""))
+    except ValueError:
+        return None
 
 
 def has_block_marker(html: str) -> bool:

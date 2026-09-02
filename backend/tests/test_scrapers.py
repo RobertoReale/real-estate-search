@@ -1259,3 +1259,151 @@ def test_idealista_address_survives_in_vendita_in_phrasing():
     assert fn("Trilocale in Via Volvinio, 26, Stadera, Milano") == "Via Volvinio, 26"
     assert fn("Appartamento in affitto in Corso Lodi, 3, Milano") == "Corso Lodi, 3"
     assert fn("Villa unifamiliare") == ""
+
+
+# --- Was that all of them? (the page limit, said out loud) ------------------
+#
+# `max_pages_per_search` defaults to 10, and the stop condition it drives was
+# silent: a search with forty pages of results returned the first ten and
+# reported "N listings across 10 pages", a sentence that sounds complete. These
+# pin both halves — a capped scrape says so and carries the portal's own
+# totals, and a scrape that fit says nothing, because a truncation notice on a
+# complete answer is how the real one stops being read.
+
+TRUNCATION_SEARCH = "/vendita-case/torino/"
+
+
+def _flat(n: int) -> mock_portal.Flat:
+    return mock_portal.Flat(
+        ad_id=f"9{n:04d}",
+        title=f"Trilocale {n}",
+        price=250_000 + n,
+        rooms=3,
+        sqm=90,
+        city="Torino",
+    )
+
+
+def _paged_portal(portal, monkeypatch, *, total_pages: int, per_page: int = 2):
+    """The sandbox serving a search that really does span several pages."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    portal.serve_json_pages(
+        "/api-next/search-list/listings/",
+        lambda page: mock_portal.immobiliare_api_page(
+            [_flat(page * 100 + i) for i in range(per_page)],
+            max_pages=total_pages,
+            count=total_pages * per_page,
+        ),
+    )
+
+
+def test_a_scrape_the_page_limit_cut_short_says_so(portal, monkeypatch):
+    """The acceptance: more pages on the portal than the cap allows. The scrape
+    stops at the cap, and carries the two numbers the message needs — what came
+    back, and what the portal said it had."""
+    _paged_portal(portal, monkeypatch, total_pages=4, per_page=2)
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=2)
+    result = ScrapeResult()
+    s._api_search(portal.url(TRUNCATION_SEARCH), result)
+
+    assert result.truncated
+    assert result.truncated_by == "page_limit"
+    assert result.page_limit == 2
+    assert result.pages_fetched == 2
+    assert result.total_pages == 4
+    assert result.total_listings == 8
+    assert len(result.listings) == 4
+
+
+def test_a_scrape_that_fit_inside_the_cap_is_not_truncated(portal, monkeypatch):
+    """The other half, and as important: the portal had two pages and the cap
+    allowed ten, so everything it has is here. A false alarm at this point
+    trains the user to ignore the true one."""
+    _paged_portal(portal, monkeypatch, total_pages=2, per_page=2)
+
+    s = ImmobiliareScraper(delay_seconds=0, max_pages=10)
+    result = ScrapeResult()
+    s._api_search(portal.url(TRUNCATION_SEARCH), result)
+
+    assert not result.truncated
+    assert result.truncated_by == ""
+    assert result.pages_fetched == 2
+    assert result.total_pages == 2
+    assert result.total_listings == 4
+    assert len(result.listings) == 4
+
+
+def test_a_portal_that_declares_no_page_count_makes_no_truncation_claim(monkeypatch):
+    """No `maxPages` in the payload means the app does not know whether there
+    was more. It must not guess: an unstated total is reported as unstated, not
+    as complete and not as truncated."""
+    s = _api_first_scraper(monkeypatch)
+    setattr(
+        s,
+        "session",
+        _FakeApiSession(lambda u, p, h: _FakeApiResp(200, {"results": [_API_ENTRY], "count": 1})),
+    )
+    s.max_pages = 1
+    result = ScrapeResult()
+    s._api_search("https://www.immobiliare.it/vendita-case/milano/", result)
+
+    assert result.total_pages is None
+    assert not result.truncated
+
+
+def test_the_html_path_reports_the_cap_when_a_full_page_had_a_successor(portal, monkeypatch):
+    """Idealista publishes no page count anywhere a parser can reach, so the
+    evidence stops at "the last page this scan was allowed to fetch was full,
+    and another one follows". That is reported as the page limit with no total
+    attached — never as a number nobody stated."""
+    portal.install(monkeypatch)
+    flats = [_flat(1), _flat(2)]
+    portal.serve(TRUNCATION_SEARCH, mock_portal.idealista_results_page(flats, total=1234))
+    portal.serve(
+        f"{TRUNCATION_SEARCH}lista-2.htm",
+        mock_portal.idealista_results_page([_flat(3), _flat(4)], total=1234),
+    )
+
+    s = IdealistaScraper(delay_seconds=0, max_pages=2)
+    s.delay_seconds = 0  # the constructor floors it at 8s for the real portal
+    result = s.scrape(portal.url(TRUNCATION_SEARCH))
+
+    assert result.truncated_by == "page_limit"
+    assert result.page_limit == 2
+    assert result.total_listings == 1234
+    assert result.total_pages is None
+    assert len(result.listings) == 4
+
+
+def test_the_html_path_says_nothing_when_the_results_ran_out_first(portal, monkeypatch):
+    """The search ended before the cap did — the second page is empty, so this
+    scan holds everything there was and claims no truncation."""
+    portal.install(monkeypatch)
+    portal.serve(TRUNCATION_SEARCH, mock_portal.idealista_results_page([_flat(1), _flat(2)]))
+    portal.serve(f"{TRUNCATION_SEARCH}lista-2.htm", mock_portal.idealista_results_page([]))
+
+    s = IdealistaScraper(delay_seconds=0, max_pages=5)
+    s.delay_seconds = 0
+    result = s.scrape(portal.url(TRUNCATION_SEARCH))
+
+    assert not result.truncated
+    assert len(result.listings) == 2
+
+
+def test_a_search_page_total_is_read_only_where_the_portal_states_one():
+    """The regex behind the HTML path's total. It reads the portal's own
+    heading, and answers None for a page that carries no such sentence — which
+    is what keeps "of about N" off a scan that was never told an N."""
+    from app.scrapers.page_text import declared_result_total
+
+    assert (
+        declared_result_total("<html><body><h1>1.234 case in vendita a Milano</h1></body>") == 1234
+    )
+    assert declared_result_total("<html><body><p>87 annunci in affitto a Torino</p></body>") == 87
+    assert (
+        declared_result_total("<html><body><main>Trilocale, 3 locali, 90 m²</main></body>") is None
+    )
+    assert declared_result_total("<html><body><a>Case in vendita a Roma</a></body>") is None
+    assert declared_result_total("") is None
