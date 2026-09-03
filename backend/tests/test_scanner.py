@@ -160,7 +160,7 @@ class _FakeScraper:
         self.delay_seconds = 0
         self.max_pages = 1
 
-    def scrape(self, url):
+    def scrape(self, url, known=None):
         result = ScrapeResult(pages_fetched=1, strategy_used="fake")
         result.listings = [
             RawListing(
@@ -266,8 +266,8 @@ def test_profile_keywords_add_to_global(db, monkeypatch):
     )
 
     class _KwScraper(_FakeScraper):
-        def scrape(self, url):
-            result = super().scrape(url)
+        def scrape(self, url, known=None):
+            result = super().scrape(url, known)
             result.listings[0].title = "Trilocale in vendita all'asta"
             result.listings[1].title = "Bilocale con giardino"
             return result
@@ -474,7 +474,7 @@ def test_crashed_profile_counts_as_a_failure(db, profile, health, monkeypatch):
         delay_seconds = 0
         max_pages = 1
 
-        def scrape(self, url):
+        def scrape(self, url, known=None):
             raise RuntimeError("connection reset")
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _Boom())
@@ -501,7 +501,7 @@ class _BlockedScraper:
     delay_seconds = 0
     max_pages = 1
 
-    def scrape(self, url):
+    def scrape(self, url, known=None):
         result = ScrapeResult(pages_fetched=0, strategy_used="fake")
         result.blocked = True
         return result
@@ -564,7 +564,7 @@ def test_paused_skips_automatic_scan_but_manual_runs(db, profile, monkeypatch):
         delay_seconds = 0
         max_pages = 1
 
-        def scrape(self, url):
+        def scrape(self, url, known=None):
             raise AssertionError("paused automatic scan must not touch the portal")
 
     monkeypatch.setattr(scanner, "get_scraper", lambda portal: _MustNotScrape())
@@ -700,7 +700,7 @@ def _area_scraper(listings: list[RawListing]):
             self.delay_seconds = 0
             self.max_pages = 1
 
-        def scrape(self, url):
+        def scrape(self, url, known=None):
             return ScrapeResult(listings=list(listings), pages_fetched=1, strategy_used="fake")
 
     return _S()
@@ -1526,7 +1526,7 @@ def test_a_search_that_crashed_is_in_the_journal_too(scan_db, portal, live_scan,
         max_pages = 1
         on_progress = None
 
-        def scrape(self, url):
+        def scrape(self, url, known=None):
             raise RuntimeError("the parser gave up")
 
     monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Exploding())
@@ -1552,7 +1552,7 @@ def test_no_stored_secret_reaches_the_journal(scan_db, portal, live_scan, monkey
         max_pages = 1
         on_progress = None
 
-        def scrape(self, url):
+        def scrape(self, url, known=None):
             return ScrapeResult(error=f"immobiliare: blocked on ?token={secret}")
 
     monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _LeakingScraper())
@@ -2093,3 +2093,307 @@ def test_reading_the_portals_at_once_is_a_speed_setting_and_never_a_behaviour_on
     assert together == one_at_a_time
     # two portals, two flats a page, and a listing row for every property
     assert len(together) == 4 * 2 * CONCURRENT_PAGES
+
+
+# --- a routine scan stops when it recognises everything ----------------------
+#
+# With the ordering pinned newest-first (H.1), the tenth scan of an unchanged
+# search spent about a minute of deliberate waiting to re-read listings it
+# already had — the arrivals, if there are any, are on page 1. So the walk stops
+# on the first full page holding nothing this search has not already seen at the
+# same price, and a routine scan costs two page-fetches instead of ten.
+#
+# It is a shortcut and never the only path, which is what most of these spend
+# their time on: a first scan never takes it, a full sweep comes round on a
+# schedule and on demand, a page that came back short is a reason to keep going
+# rather than to stop, and the search's own line says which of the two kinds of
+# scan the numbers on it came from.
+
+EARLY_STOP_SEARCH = "/vendita-case/torino/"
+EARLY_STOP_PER_PAGE = 2
+# Ten flats over five full pages, and an eleventh that arrives between two
+# scans: the corpus is what the portal already held, the extra one is the news.
+EARLY_STOP_CORPUS = 10
+EARLY_STOP_PAGES = EARLY_STOP_CORPUS // EARLY_STOP_PER_PAGE
+
+
+def _early_flat(index: int) -> Flat:
+    """One flat, dated so the sandbox can rank it. Index 0 is the newest."""
+    return Flat(
+        ad_id=f"90{index:02d}",
+        title=f"Trilocale {index}",
+        price=300_000 + index,
+        rooms=3,
+        sqm=90,
+        city="Torino",
+        published=f"2026-08-{30 - index:02d}",
+    )
+
+
+def _dated(flats: list[Flat]) -> list[Flat]:
+    """Stamp a list with descending publication dates, so the sandbox's
+    newest-first ranking answers in exactly the order it was written in — which
+    is how a test says which page a given listing lands on."""
+    for position, flat in enumerate(flats):
+        flat.published = f"2026-08-{30 - position:02d}"
+    return flats
+
+
+def _serve_early_stop(portal, flats: list[Flat]) -> None:
+    portal.serve_answering(
+        "/api-next/search-list/listings/",
+        mock_portal.immobiliare_ranked_pages(flats, per_page=EARLY_STOP_PER_PAGE),
+    )
+
+
+@pytest.fixture
+def early_stop_profile(db, portal, monkeypatch):
+    """A paginated Immobiliare search on the sandbox, scanned the real way."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: ImmobiliareScraper())
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    profile = SearchProfile(
+        name="Torino", portal="immobiliare", search_url=portal.url(EARLY_STOP_SEARCH)
+    )
+    db.add(profile)
+    db.commit()
+    return profile
+
+
+def _scan_early(db, profile, *, full_sweep: bool = False, **settings):
+    """One scan of that search, and the scrape it ran on — how many pages were
+    read and why it stopped exist only there."""
+    summary = _summary()
+    result = scanner._scan_profile(
+        db,
+        profile,
+        {
+            "excluded_keywords": [],
+            "max_pages_per_search": 10,
+            "request_delay_seconds": 0,
+            **settings,
+        },
+        summary,
+        full_sweep=full_sweep,
+    )
+    db.commit()
+    return result, summary
+
+
+def _pages_asked_for(portal, since: int) -> list[str]:
+    """The api-next search requests issued after `since` — a page fetch is what
+    an early stop saves, so it is what the saving is counted in."""
+    return [
+        path
+        for path in portal.requested[since:]
+        if urlparse(path).path == "/api-next/search-list/listings/"
+    ]
+
+
+def _property_rows(db) -> list[tuple]:
+    """Everything a scan is allowed to have written, ids included, so two runs
+    that disagreed about the order could not still look identical."""
+    return [
+        (p.id, p.fingerprint, p.title, p.city, p.contract, p.current_min_price, p.status)
+        for p in db.query(Property).order_by(Property.id)
+    ] + [
+        (listing.id, listing.property_id, listing.portal, listing.portal_id, listing.url)
+        for listing in db.query(Listing).order_by(Listing.id)
+    ]
+
+
+def _baseline(db, portal, profile):
+    """The first scan, which is a full sweep by construction (`baseline_done` is
+    unset) and is what leaves a corpus in the database to be recognised."""
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+    result, _ = _scan_early(db, profile)
+    assert result.pages_fetched == EARLY_STOP_PAGES
+    assert not result.stopped_early
+    return result
+
+
+def test_a_routine_scan_stops_at_the_first_page_it_recognises(db, portal, early_stop_profile):
+    """The acceptance: a search whose newest page holds one arrival and nothing
+    else new costs two page-fetches instead of five, and the arrival is still
+    found. The saving is requests *not made*, which is the only kind of speed-up
+    that also makes a block less likely."""
+    _baseline(db, portal, early_stop_profile)
+    already = len(portal.requested)
+    # the arrival, newest of them all, so the ordering puts it on page 1
+    _serve_early_stop(portal, [_early_flat(i) for i in range(EARLY_STOP_CORPUS + 1)])
+
+    result, summary = _scan_early(db, early_stop_profile)
+
+    assert result.stopped_early
+    assert result.pages_fetched == 2
+    assert len(_pages_asked_for(portal, already)) == 2
+    # and it found the one thing there was to find
+    assert summary["new"] == 1
+    assert db.query(Property).count() == EARLY_STOP_CORPUS + 1
+    assert "Trilocale 0" in {p.title for p in db.query(Property).all()}
+
+
+def test_a_page_that_came_back_short_is_never_a_page_with_nothing_new_on_it(
+    db, portal, early_stop_profile
+):
+    """A partial parse and "nothing new" look identical from inside the walk,
+    and reading the first as the second would leave the app blind while it
+    reported success. So a page shorter than the pages before it does not end
+    the walk — proved by the listing on the page *after* it, which a scan that
+    stopped on the short page would never have seen."""
+    _baseline(db, portal, early_stop_profile)
+    behind = _early_flat(99)
+    behind.title = "Trilocale behind the short page"
+    arrival = _early_flat(0)  # on page 1, so the walk reaches page 2 at all
+    full = mock_portal.immobiliare_ranked_pages(
+        _dated(
+            [
+                arrival,
+                *[_early_flat(i) for i in (1, 2, 3)],
+                behind,  # first slot of page 3, immediately after the short one
+                *[_early_flat(i) for i in range(4, EARLY_STOP_CORPUS + 1)],
+            ]
+        ),
+        per_page=EARLY_STOP_PER_PAGE,
+    )
+
+    def short_second_page(query: dict[str, list[str]]) -> mock_portal.Page:
+        page = full(query)
+        if (query.get("pag") or ["1"])[0] != "2":
+            return page
+        # page 2 parses incompletely: one of its two entries comes back unusable
+        payload = json.loads(page.body)
+        payload["results"] = payload["results"][:1]
+        return mock_portal.Page(json.dumps(payload), content_type="application/json")
+
+    portal.serve_answering("/api-next/search-list/listings/", short_second_page)
+
+    result, _ = _scan_early(db, early_stop_profile)
+
+    assert result.pages_fetched > 2
+    assert "Trilocale behind the short page" in {p.title for p in db.query(Property).all()}
+
+
+def test_the_first_scan_of_a_search_never_stops_early(db, portal, early_stop_profile):
+    """`baseline_done` is already the flag for exactly this (invariant 3): a
+    search that has not built a baseline reads every page it is allowed to,
+    whatever another search happened to leave in the database."""
+    _baseline(db, portal, early_stop_profile)
+    early_stop_profile.baseline_done = False
+    db.commit()
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+
+    result, _ = _scan_early(db, early_stop_profile)
+
+    assert not result.stopped_early
+    assert result.pages_fetched == EARLY_STOP_PAGES
+
+
+def test_a_full_sweep_still_walks_to_the_cap(db, portal, early_stop_profile):
+    """The other path, on demand: an early stop cannot see a price change on
+    page 5, so the sweep the user asks for reads every page whatever it
+    recognises — and does not call itself a quick scan afterwards."""
+    _baseline(db, portal, early_stop_profile)
+    already = len(portal.requested)
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+
+    result, _ = _scan_early(db, early_stop_profile, full_sweep=True)
+
+    assert not result.stopped_early
+    assert result.pages_fetched == EARLY_STOP_PAGES
+    assert len(_pages_asked_for(portal, already)) == EARLY_STOP_PAGES
+    assert "quick scan" not in early_stop_profile.last_run_detail
+
+
+def test_a_sweep_comes_round_on_its_own_once_the_period_has_passed(db, portal, early_stop_profile):
+    """The scheduled half of the same rule, and it needs no job of its own: each
+    scan asks whether this search is owed a sweep. A sweep that got through
+    stamps the clock, so the next one is a period away and not a scan away."""
+    _baseline(db, portal, early_stop_profile)
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+    swept_at = early_stop_profile.last_full_sweep_at
+    assert swept_at is not None
+
+    # the next scan falls inside the period, so it takes the shortcut…
+    quick, _ = _scan_early(db, early_stop_profile, full_sweep_every_days=7)
+    assert quick.stopped_early
+    assert early_stop_profile.last_full_sweep_at == swept_at
+
+    # …and the one after the period has passed does not
+    early_stop_profile.last_full_sweep_at = datetime.now(UTC) - timedelta(days=8)
+    db.commit()
+    swept, _ = _scan_early(db, early_stop_profile, full_sweep_every_days=7)
+
+    assert not swept.stopped_early
+    assert swept.pages_fetched == EARLY_STOP_PAGES
+    assert early_stop_profile.last_full_sweep_at > swept_at
+
+
+def test_a_blocked_sweep_does_not_count_as_a_complete_reading(db, portal, early_stop_profile):
+    """Or a fortnight of blocks would read as a fortnight of full sweeps, and
+    the sweep that matters would never come round."""
+    _baseline(db, portal, early_stop_profile)
+    swept_at = early_stop_profile.last_full_sweep_at
+    portal.serve_json("/api-next/search-list/listings/", {"detail": "blocked"}, status=403)
+    portal.serve(EARLY_STOP_SEARCH, "<html><body>Access is restricted</body></html>", status=403)
+
+    _scan_early(db, early_stop_profile, full_sweep=True)
+
+    assert early_stop_profile.last_run_status == "blocked"
+    assert early_stop_profile.last_full_sweep_at == swept_at
+
+
+def test_a_quick_scan_says_it_was_one_rather_than_reading_as_complete(
+    db, portal, early_stop_profile
+):
+    """A partial reading reported in the words of a complete one is the one sort
+    of wrong the user has no way of detecting. So the search's own line names
+    the shortcut and where it stopped, and the journal records which of the two
+    kinds of scan produced the numbers beside it."""
+    _baseline(db, portal, early_stop_profile)
+    assert "quick scan" not in early_stop_profile.last_run_detail
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+
+    result, _ = _scan_early(db, early_stop_profile)
+
+    detail = early_stop_profile.last_run_detail
+    assert "a quick scan" in detail
+    assert "stopped after 1 page" in detail
+    assert "not a full reading" in detail
+    # …and it is not dressed up as the other kind of incomplete answer
+    assert "page limit" not in detail
+    assert scanner._stop_reason(result) == (
+        "a whole page held nothing this search had not already seen"
+    )
+
+
+def test_stopping_early_is_a_speed_setting_and_never_a_behaviour_one(
+    db, portal, early_stop_profile
+):
+    """Run back to back over the same corpus, the shortcut and the full sweep
+    leave the same database: the early stop decides how many pages are read, and
+    the pages it skips are by construction pages with nothing on them to write."""
+    _baseline(db, portal, early_stop_profile)
+    _serve_early_stop(portal, [_early_flat(i) for i in range(EARLY_STOP_CORPUS + 1)])
+
+    _scan_early(db, early_stop_profile)
+    after_quick = _property_rows(db)
+
+    _scan_early(db, early_stop_profile, full_sweep=True)
+    after_sweep = _property_rows(db)
+
+    assert after_quick == after_sweep
+
+
+def test_turning_the_shortcut_off_reads_every_page_it_is_allowed_to(db, portal, early_stop_profile):
+    """One setting, for someone who would rather spend the requests than have a
+    price change on page 5 wait for the next sweep."""
+    _baseline(db, portal, early_stop_profile)
+    _serve_early_stop(portal, [_early_flat(i) for i in range(1, EARLY_STOP_CORPUS + 1)])
+
+    result, _ = _scan_early(db, early_stop_profile, stop_when_nothing_new=False)
+
+    assert not result.stopped_early
+    assert result.pages_fetched == EARLY_STOP_PAGES

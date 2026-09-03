@@ -16,7 +16,7 @@ from urllib.parse import urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, RawListing
+from .base import BaseScraper, KnownListing, RawListing
 from .html_cards import extract_json_ld_blocks, find_card_container
 from .parsing import parse_price, parse_rooms, parse_sqm, plausible_price, to_float, to_int
 
@@ -53,7 +53,7 @@ class IdealistaScraper(BaseScraper):
         except Exception:
             logger.warning("idealista: unable to warm up session")
 
-    def scrape(self, search_url: str):
+    def scrape(self, search_url: str, known: KnownListing | None = None):
         self.warm_session()
         # Newest first, unless the pasted URL already said how to rank. A
         # relevance ranking is re-ordered continuously, so the pages the cap
@@ -64,7 +64,7 @@ class IdealistaScraper(BaseScraper):
         # path alone, so the ordering rides along to /lista-N.htm.
         from ..services.search_builder import with_newest_first
 
-        return super().scrape(with_newest_first(search_url, self.portal))
+        return super().scrape(with_newest_first(search_url, self.portal), known)
 
     @staticmethod
     def _city_from_url(page_url: str) -> str:

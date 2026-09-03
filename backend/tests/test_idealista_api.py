@@ -342,8 +342,9 @@ def _scraper_with_html_fallback(monkeypatch, marker="fallback-ran"):
     scraper = IdealistaApiScraper()
     seen: dict = {}
 
-    def fake_super_scrape(url):
+    def fake_super_scrape(url, known=None):
         seen["url"] = url
+        seen["known"] = known
         from app.scrapers.base import ScrapeResult
 
         return ScrapeResult(strategy_used=marker)

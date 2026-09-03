@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, RawListing, ScrapeResult
+from .base import BaseScraper, KnownListing, RawListing, ScrapeResult
 from .html_cards import extract_json_ld_blocks, find_card_container
 from .parsing import (
     detect_contract,
@@ -508,7 +508,9 @@ class ImmobiliareScraper(BaseScraper):
                 "treating it as a block rather than as an empty market"
             )
 
-    def _api_search(self, search_url: str, result: ScrapeResult) -> None:
+    def _api_search(
+        self, search_url: str, result: ScrapeResult, known: KnownListing | None = None
+    ) -> None:
         result.page_limit = self.max_pages
         params = self._api_params(search_url)
         if params is None:
@@ -529,8 +531,11 @@ class ImmobiliareScraper(BaseScraper):
             return
 
         referer = urlunparse(urlparse(search_url)._replace(query=""))
-        known: set[str] = set()
+        seen_urls: set[str] = set()
         max_pages = self.max_pages
+        # See `BaseScraper.scrape`: the largest page this search has yielded, so
+        # a page that came back short is never allowed to end the walk.
+        page_size = 0
 
         for page in range(1, self.max_pages + 1):
             self.report_progress(phase="fetching", page=page)
@@ -592,20 +597,32 @@ class ImmobiliareScraper(BaseScraper):
             page_listings = []
             for entry in data["results"]:
                 listing = self._entry_to_listing(entry)
-                if listing and listing.url not in known:
+                if listing and listing.url not in seen_urls:
                     listing.strategy = "api-next"
-                    known.add(listing.url)
+                    seen_urls.add(listing.url)
                     page_listings.append(listing)
 
             if not page_listings:
                 if page == 1:
                     self._classify_empty_first_page(data, result)
                 break
+            nothing_new = (
+                known is not None
+                and len(page_listings) >= page_size
+                and all(known(listing) for listing in page_listings)
+            )
+            page_size = max(page_size, len(page_listings))
             result.listings.extend(page_listings)
             result.pages_fetched += 1
             result.strategy_used = "api-next"
             self.report_progress(page=page, listings=len(result.listings))
 
+            if nothing_new:
+                # A full page of ads this search already holds at these prices.
+                # The results are pinned newest-first, so there is nothing older
+                # on the pages after it either — see `BaseScraper.scrape`.
+                result.stopped_early = True
+                break
             if page >= max_pages:
                 # `max_pages` is the smaller of the cap and the portal's own
                 # page count, so the two reasons for stopping here are told
@@ -618,7 +635,7 @@ class ImmobiliareScraper(BaseScraper):
             self.polite_sleep()
 
     # ------------------------------------------------------------------
-    def scrape(self, search_url: str) -> ScrapeResult:
+    def scrape(self, search_url: str, known: KnownListing | None = None) -> ScrapeResult:
         # `super().scrape()` sets self.contract, but the API path runs first and
         # needs it (rent vs sale price bounds), so resolve it up front.
         self.contract = detect_contract(search_url)
@@ -628,7 +645,7 @@ class ImmobiliareScraper(BaseScraper):
         # guaranteed-blocked HTML request (and its TLS rotations) on every scan.
         primary = ScrapeResult()
         try:
-            self._api_search(search_url, primary)
+            self._api_search(search_url, primary, known)
         except BlockedError as e:
             primary.blocked = True
             primary.error = str(e)
@@ -656,7 +673,7 @@ class ImmobiliareScraper(BaseScraper):
         from ..services.search_builder import with_newest_first
 
         logger.info("immobiliare: api-next unusable, falling back to HTML strategies")
-        html = super().scrape(with_newest_first(search_url, self.portal))
+        html = super().scrape(with_newest_first(search_url, self.portal), known)
         if html.listings:
             return html
         # no path succeeded: keep the most informative signal

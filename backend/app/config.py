@@ -305,6 +305,22 @@ DEFAULT_SETTINGS = {
     # the same database. Off is for a machine that must make one request at a
     # time, whatever it is talking to.
     "scan_portals_concurrently": True,
+    # Stop paging a search as soon as a whole page holds nothing it has not
+    # already seen at the same price. The results are pinned newest-first, so
+    # the arrivals are on page 1 and the tenth scan of an unchanged search spent
+    # about a minute of deliberate waiting to re-read listings it already had; a
+    # routine scan now costs two page-fetches instead of ten. It is the only
+    # speed-up in this app that *also* makes a block less likely, because the
+    # saving is requests not made. Off is for a scan that must re-read every
+    # permitted page every time.
+    "stop_when_nothing_new": True,
+    # …and how often a search reads to the page cap regardless, because an early
+    # stop cannot see a price change on page 6. Counted per search from the last
+    # sweep that got through (`SearchProfile.last_full_sweep_at`); 0 turns the
+    # shortcut off as surely as the switch above. A user-triggered scan can ask
+    # for one at any time (`POST /api/scrapers/trigger?full=true`), and the
+    # first scan of a search is always a full sweep.
+    "full_sweep_every_days": 7,
     # Scraper health alerting: notify after this many *consecutive* failed
     # scans of the same profile. A single blocked scan is a transient
     # DataDome 403, not a broken scraper — alerting on it trains the user to

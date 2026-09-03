@@ -72,6 +72,25 @@ class RawListing:
                 setattr(self, f, getattr(other, f))
 
 
+def listing_key(url: str) -> str:
+    """The identity two sightings of one ad are matched on.
+
+    The path without the query string, which portals append per session and per
+    referrer. `parse_page` merges a page's strategies on it, `merge_scrapes`
+    merges a split search's parts on it, and the scanner recognises an ad it
+    already holds by it — one definition rather than three copies, because three
+    copies of "is this the same ad" drift into three different answers.
+    """
+    return url.split("?")[0].rstrip("/")
+
+
+# "Does this search already hold this ad, unchanged?" — supplied by the caller,
+# because the answer lives in the database and the scrape does not: the scanner
+# reads it once on the thread that owns the session and hands the fetching
+# thread a closure over a frozen copy (`scanner._recognises`).
+KnownListing = typing.Callable[[RawListing], bool]
+
+
 @dataclass
 class ScrapeResult:
     listings: list[RawListing] = field(default_factory=list)
@@ -99,6 +118,17 @@ class ScrapeResult:
     # It is also the only thing that can clear `truncated_by`: a search that came
     # back in parts covered what a single walk could not.
     parts: int = 0
+    # True when the walk stopped because a whole page held nothing this search
+    # had not already seen, at the same price. With the ordering pinned
+    # newest-first the arrivals are on page 1, so the tenth scan of an unchanged
+    # search spent about a minute of deliberate waiting to re-read listings it
+    # already had — and the saving here is requests *not made*, which is the one
+    # kind of speed-up that also makes a block less likely.
+    #
+    # Recorded because it is a shortcut: a scrape that stopped here has not read
+    # the whole result set and may never be reported as though it had
+    # (`scanner._quick_scan_note`, `_stop_reason`).
+    stopped_early: bool = False
 
     @property
     def truncated(self) -> bool:
@@ -178,7 +208,7 @@ def merge_scrapes(results: list[ScrapeResult]) -> ScrapeResult:
         merged.error = merged.error or result.error
         merged.strategy_used = merged.strategy_used or result.strategy_used
         for listing in result.listings:
-            key = listing.url.split("?")[0].rstrip("/")
+            key = listing_key(listing.url)
             if key not in known:
                 known.add(key)
                 merged.listings.append(listing)
@@ -433,7 +463,7 @@ class BaseScraper:
                 used.append(name)
                 for item in found:
                     item.strategy = item.strategy or name
-                    key = item.url.split("?")[0].rstrip("/")
+                    key = listing_key(item.url)
                     if key in merged:
                         merged[key].merge_missing(item)
                     else:
@@ -443,10 +473,27 @@ class BaseScraper:
                 break
         return list(merged.values()), "+".join(used)
 
-    def scrape(self, search_url: str) -> ScrapeResult:
+    def scrape(self, search_url: str, known: KnownListing | None = None) -> ScrapeResult:
+        """Walk this search's pages, up to `max_pages`.
+
+        `known` shortens the walk: given a way to ask "does the caller already
+        hold this ad, unchanged?", the loop stops on the first *full* page where
+        the answer is yes for every listing on it. Its correctness rests
+        entirely on the ordering being pinned newest-first — on a relevance
+        ranking, "everything on this page is known" says nothing whatsoever
+        about the next one. Left `None` (a full sweep) the walk is exactly what
+        it always was.
+        """
         self.contract = detect_contract(search_url)
         result = ScrapeResult(page_limit=self.max_pages)
         url = search_url
+        # The most listings any page of this search has yielded, which is the
+        # only reading of "a full page" available here: no portal publishes its
+        # page size, so the pages themselves are the measure. A page that comes
+        # back shorter than that parsed incompletely — and an incomplete parse
+        # must never end the walk, because reading a parse failure as "nothing
+        # new" is how the app would go blind while reporting success.
+        page_size = 0
         for page in range(1, self.max_pages + 1):
             self.report_progress(phase="fetching", page=page)
             try:
@@ -486,11 +533,27 @@ class BaseScraper:
                         "structure change, check logs"
                     )
                 break
+            # Judged before this page is folded in, and on the page size the
+            # pages *before* it established, so a short page is measured against
+            # a full one rather than against itself.
+            nothing_new = (
+                known is not None
+                and len(listings) >= page_size
+                and all(known(listing) for listing in listings)
+            )
+            page_size = max(page_size, len(listings))
             before = len(result.listings)
-            known = {l.url for l in result.listings}
-            result.listings.extend(l for l in listings if l.url not in known)
+            seen = {l.url for l in result.listings}
+            result.listings.extend(l for l in listings if l.url not in seen)
             self.report_progress(page=page, listings=len(result.listings))
             if len(result.listings) == before:  # page with only duplicates: stop
+                break
+            if nothing_new:
+                # Recorded *after* the page was kept, so the ads on it still get
+                # their `last_seen_at` refreshed and any price change on them is
+                # still collected: this stops the walk, it does not discard the
+                # page that stopped it.
+                result.stopped_early = True
                 break
             next_url = self.next_page_url(search_url, page + 1)
             if not next_url:

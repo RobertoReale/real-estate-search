@@ -44,13 +44,24 @@ def scraper_health_endpoint(
 
 
 @router.post("/api/scrapers/trigger")
-def trigger_scan(profile_id: int | None = None):
+def trigger_scan(profile_id: int | None = None, full: bool = False):
+    """Start a scan now. `full=true` asks for a full sweep.
+
+    An ordinary scan stops paging a search as soon as a page holds nothing new,
+    which is fast and is partial; `full` is how the user demands the complete
+    reading without waiting for `full_sweep_every_days` to come round. The scan
+    surface being rebuilt (plan D.8) is where this belongs as a control — until
+    then the query parameter is the whole of it.
+    """
     if scan_state["running"]:
         return {"status": "already_running"}
     # a user-triggered scan is explicit intent: it runs even while automatic
     # scanning is paused (scanner.run_scan's `manual` flag)
     thread = threading.Thread(
-        target=run_scan, args=(profile_id,), kwargs={"manual": True}, daemon=True
+        target=run_scan,
+        args=(profile_id,),
+        kwargs={"manual": True, "full_sweep": full},
+        daemon=True,
     )
     thread.start()
     return {"status": "started"}

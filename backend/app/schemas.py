@@ -295,6 +295,10 @@ class ScanJournalEntryOut(BaseModel):
     detail: str = ""
     transport: str = ""
     stopped_because: str = ""
+    # full | quick — which kind of scan this was. A quick scan stops as soon as
+    # a page holds nothing new, so it is fast and it is *partial*; recording
+    # which one ran is what keeps the two from being read as the same thing.
+    mode: str = "full"
 
 
 class ScraperStatusOut(BaseModel):
@@ -441,6 +445,8 @@ class SettingsIn(BaseModel):
     max_pages_per_search: int | None = None
     split_large_searches: bool | None = None
     scan_portals_concurrently: bool | None = None
+    stop_when_nothing_new: bool | None = None
+    full_sweep_every_days: int | None = None
     health_alert_after_failures: int | None = None
     proxy_url: str | None = None
     proxy_urls: list[str] | None = None
