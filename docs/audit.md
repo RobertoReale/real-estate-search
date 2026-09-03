@@ -44,7 +44,7 @@ cd frontend && npm test
 cd frontend && npm run e2e
 ```
 
-Expected today: **967 passed + 1 skipped** (968 collected; the skip needs the optional
+Expected today: **970 passed + 1 skipped** (971 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
 and **35 browser tests** (15 journeys, then 20 that hold the run to the control inventory).
 The last of those prints the two numbers worth reading: **222 interactive elements, 230
@@ -87,7 +87,7 @@ least one regression test. To audit an invariant:
 |---|---|---|---|
 | 1 | Conservative dedup (±5%, location proof) | `services/deduplicator.py` `_matches_property` | `test_deduplicator.py` |
 | 2 | Scrapers never use CSS classes | `scrapers/html_cards.py` `find_card_container` | `test_scrapers.py` |
-| 3 | First scan = zero notifications (`baseline_done`) | `services/scanner.py` `_scan_profile` | `test_scanner.py` |
+| 3 | First scan = zero notifications (`baseline_done`) | `services/scanner.py` `_record_scrape` | `test_scanner.py` |
 | 4 | Keywords on word boundaries | `services/filter_engine.py` | `test_filter_engine.py` |
 | 5 | `hidden`/`sold` are sacred (scan never reverts) | `services/scanner.py`, `routers/properties.py` DELETE route | `test_scanner.py`, `test_dashboard_management.py` |
 | 6 | `price_changed` = minimum-price change | `services/deduplicator.py` `_refresh_min_price` | `test_deduplicator.py` |

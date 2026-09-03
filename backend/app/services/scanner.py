@@ -3,7 +3,9 @@ deduplicates, filters by keywords, and sends Telegram notifications."""
 
 import logging
 import threading
+import typing
 from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import partial
@@ -72,8 +74,10 @@ scan_state = {
 # exactly one word. The app already does this properly elsewhere — the
 # availability check keeps `_prop_check_progress` and drives a real bar off it —
 # and the shape here is deliberately that one: a module-level dict written by
-# the scanning thread, copied out on read by whoever polls, and never a database
-# write per page.
+# the scanning threads, copied out on read by whoever polls, and never a database
+# write per page. Threads, plural, since the portals are read at the same time as
+# each other: `_SearchProgress` is how one slot still only ever holds one
+# search's facts.
 #
 # Two things, because "is it working?" and "did it work?" are different
 # questions asked at different moments. The progress dict answers the first and
@@ -192,47 +196,54 @@ def _set_progress(*, reset: bool = False, **facts) -> None:
         logger.exception("scan: progress could not be recorded")
 
 
-def _scrape_progress(scraper, settings: dict, **facts) -> None:
-    """The scrapers' end of the same dict: their page facts, plus the transport.
+class _SearchProgress:
+    """One search's own progress, published whole into the dict above.
 
-    The transport is re-read on every call rather than once per profile because
-    a fully blocked local ladder escalates to the paid API *mid-scrape*
-    (`base.fetch`), and watching that happen is exactly what a user wants to see
-    when a scan starts going wrong.
+    Two hosts are read at the same time now, and there is one slot to say so in.
+    A write carrying only what changed would leave the rest of the sentence
+    belonging to the other portal — "Roma on idealista: reading page 2 of 4",
+    where the 4 was Immobiliare's page count — and a number attributed to the
+    wrong search is worse than no number at all.
+
+    So each search keeps its own state and publishes it complete: whichever host
+    wrote last, what a watcher reads is one portal's honest snapshot instead of
+    a blend of two. One instance per search, written only by the thread fetching
+    it and by the writer thread once that has finished, so it needs no lock of
+    its own — the shared dict's is inside `_set_progress`.
     """
-    try:
-        facts["transport"] = transport_policy.transport_used(scraper, settings)
-    except Exception:
-        logger.exception("scan: the transport in use could not be named")
-    _set_progress(**facts)
+
+    def __init__(self, search: "_SearchToRun") -> None:
+        self.state: dict = dict(_IDLE_PROGRESS)
+        self.set(
+            active=True,
+            phase="starting",
+            profile=search.name,
+            portal=search.portal,
+            profile_index=search.index,
+            profile_total=search.total,
+        )
+
+    def set(self, **facts) -> None:
+        self.state.update(facts)
+        _set_progress(**self.state)
+
+    def scraped(self, scraper, settings: dict, **facts) -> None:
+        """The scrapers' end of the same dict: their page facts, plus the transport.
+
+        The transport is re-read on every call rather than once per profile
+        because a fully blocked local ladder escalates to the paid API
+        *mid-scrape* (`base.fetch`), and watching that happen is exactly what a
+        user wants to see when a scan starts going wrong.
+        """
+        try:
+            facts["transport"] = transport_policy.transport_used(scraper, settings)
+        except Exception:
+            logger.exception("scan: the transport in use could not be named")
+        self.set(**facts)
 
 
 def _begin_scan() -> None:
     _set_progress(reset=True, active=True, phase="starting")
-
-
-def _begin_profile(profile: SearchProfile, index: int, total: int) -> None:
-    """Move to the next search, clearing what belonged to the previous one.
-
-    Every per-page field resets here. Carrying a page count or a page total
-    across profiles would attribute one search's progress to the next, which is
-    the sort of wrong number that is worse than no number.
-    """
-    _set_progress(
-        phase="starting",
-        profile=profile.name,
-        portal=profile.portal,
-        profile_index=index,
-        profile_total=total,
-        part=0,
-        part_total=0,
-        page=0,
-        total_pages=None,
-        listings=0,
-        total_listings=None,
-        transport="",
-        waiting_seconds=0.0,
-    )
 
 
 def _end_scan() -> None:
@@ -276,8 +287,8 @@ def _stop_reason(result: ScrapeResult | None) -> str:
 
 def _record_journal(
     profile: SearchProfile,
+    fetched: "_Fetched",
     result: ScrapeResult | None,
-    started_at: datetime,
     settings: dict,
 ) -> None:
     """Close one profile's line in the journal. Never raises into the scan.
@@ -286,10 +297,15 @@ def _record_journal(
     why a crashed profile still earns an entry: `run_scan` has stamped `error`
     on it by then, and a search that blew up is precisely one the user wants to
     find afterwards.
+
+    The transport comes off this search's own progress rather than off the
+    shared dict, which now holds whichever host reported last: reading it there
+    would file Idealista's transport under an Immobiliare search whenever the
+    two overlapped.
     """
     try:
-        with _progress_lock:
-            transport = _scan_progress.get("transport") or ""
+        started_at = fetched.started_at
+        transport = fetched.progress.state.get("transport") or ""
         _journal.append(
             {
                 "profile_id": profile.id,
@@ -309,6 +325,146 @@ def _record_journal(
         )
     except Exception:
         logger.exception("scan: journal entry could not be recorded")
+
+
+@dataclass(frozen=True)
+class _SearchToRun:
+    """What reading one search off a portal needs, copied out of the ORM object.
+
+    A `SearchProfile` belongs to the session that loaded it, and the writing
+    thread commits between profiles — which expires every instance, so an
+    attribute read from a fetching thread would send a second thread back into
+    a `Session` that is not its own. Copying the handful of fields the portal
+    half actually uses is what makes the two halves independent, and it is also
+    the line between them: nothing on the fetching side can touch the database,
+    because it holds nothing that could.
+    """
+
+    id: int
+    index: int
+    total: int
+    name: str
+    portal: str
+    search_url: str
+    consecutive_failures: int
+
+
+@dataclass
+class _Fetched:
+    """One search, as it came back off its portal. No database in sight."""
+
+    search: _SearchToRun
+    progress: _SearchProgress
+    started_at: datetime
+    scraper: typing.Any = None
+    result: ScrapeResult | None = None
+    # Whatever the fetch raised, carried rather than thrown: a portal that blew
+    # up on one host must not cancel the other, so the failure travels back to
+    # the writing thread as a value and is raised there, inside the per-profile
+    # `try` that has always contained it.
+    error: Exception | None = None
+
+
+def _searches_to_run(profiles: list[SearchProfile]) -> list[_SearchToRun]:
+    return [
+        _SearchToRun(
+            id=profile.id,
+            index=index,
+            total=len(profiles),
+            name=profile.name,
+            portal=profile.portal,
+            search_url=profile.search_url,
+            consecutive_failures=profile.consecutive_failures or 0,
+        )
+        for index, profile in enumerate(profiles, start=1)
+    ]
+
+
+def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iterator[_Fetched]:
+    """Every search, read off its portal — the hosts at the same time.
+
+    Every delay in this app is owed to *one* host: `polite_sleep` spends six
+    seconds so that Immobiliare is not asked too often, and Idealista's floor
+    exists for Idealista. Read strictly one after another, those seconds were
+    also spent not talking to the other portal, so most of a scan was the app
+    waiting for a host it was not addressing. One worker per host spends them
+    where they are owed and nowhere else: the rate at either portal is exactly
+    what it was, and a two-portal scan costs the longer half instead of the sum.
+
+    The shape is deliberate on all three counts:
+
+    - **per host, not per profile.** One single-worker pool per portal, so two
+      Immobiliare searches stay as serial with respect to each other as they
+      have always been. The concurrency is between hosts and nowhere else.
+    - **fetching is concurrent, writing is not.** This yields; the caller
+      writes. Nothing here holds a session, and `_SearchToRun` is what
+      guarantees it.
+    - **in the order they were asked for**, not the order they finish. The
+      writes are what the database ends up holding, so their order cannot
+      depend on which portal happened to answer first — that is the difference
+      between a performance switch and a behaviour switch.
+    """
+    if len({search.portal for search in searches}) < 2 or not settings.get(
+        "scan_portals_concurrently", True
+    ):
+        # One host, or the user turned it off: no pool, no threads, and the
+        # path the scan took before this existed, unchanged.
+        for search in searches:
+            yield _fetch_search(search, settings)
+        return
+
+    pools: dict[str, ThreadPoolExecutor] = {}
+    try:
+        pending: list[Future[_Fetched]] = []
+        for search in searches:
+            pool = pools.get(search.portal)
+            if pool is None:
+                pool = pools[search.portal] = ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix=f"scan-{search.portal}"
+                )
+            pending.append(pool.submit(_fetch_search, search, settings))
+        for future in pending:
+            yield future.result()
+    finally:
+        for pool in pools.values():
+            pool.shutdown(wait=True, cancel_futures=True)
+
+
+def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
+    """Read one search off its portal. Never raises, never touches the database.
+
+    A scraper instance is built *here*, per search, and never shared: it holds a
+    `curl_cffi` session, an impersonation index, the proxy it is exiting
+    through and a warmed flag, and `_rotate_session` mutates all four. One
+    instance seen by two threads would rotate under the other's feet.
+    """
+    logger.info("Scanning profile '%s' (%s)", search.name, search.portal)
+    fetched = _Fetched(
+        search=search, progress=_SearchProgress(search), started_at=datetime.now(UTC)
+    )
+    try:
+        scraper = get_scraper(search.portal)
+        scraper.delay_seconds = float(settings.get("request_delay_seconds", 6.0))
+        scraper.max_pages = int(settings.get("max_pages_per_search", 10))
+        # health-driven transport choice: with scrape_api_mode=
+        # "fallback" the scan starts on the free local path and only spends the
+        # paid API when this profile's failure streak says local is down; the
+        # default "always" keeps a configured key routing everything as before.
+        decision = transport_policy.decide(search.consecutive_failures, settings)
+        scraper.use_scrape_api = decision.start_on_api
+        # live reporting, for the minutes this next line takes
+        scraper.on_progress = partial(fetched.progress.scraped, scraper, settings)
+        fetched.scraper = scraper
+
+        result = scraper.scrape(search.search_url)
+        if result.truncated:
+            # More listings than one search can carry. Ask the portal again in
+            # narrower pieces rather than report the first ten pages of it.
+            result = _split_the_search(scraper, search, result, fetched.progress, settings)
+        fetched.result = result
+    except Exception as e:
+        fetched.error = e
+    return fetched
 
 
 def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
@@ -366,26 +522,32 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
             if profile_id:
                 query = select(SearchProfile).where(SearchProfile.id == profile_id)
             profiles = list(db.scalars(query))
-            for index, profile in enumerate(profiles, start=1):
-                _begin_profile(profile, index, len(profiles))
-                profile_started_at = datetime.now(UTC)
-                result = None
+            by_id = {profile.id: profile for profile in profiles}
+            # The portals are read on their own threads; everything below this
+            # loop is this one. `_fetch_searches` hands the results back in the
+            # order the profiles were listed, so what the database ends up
+            # holding does not depend on which host answered first.
+            for fetched in _fetch_searches(_searches_to_run(profiles), settings):
+                profile = by_id[fetched.search.id]
+                result = fetched.result
                 try:
-                    result = _scan_profile(db, profile, settings, summary)
+                    if fetched.error is not None:
+                        raise fetched.error
+                    result = _record_scrape(db, profile, fetched, settings, summary)
                 except Exception as e:
                     # a broken profile must not prevent scanning the others
                     db.rollback()
                     logger.exception("Profile '%s' failed", profile.name)
                     summary["errors"].append(f"{profile.name}: {e}")
                     # an unhandled exception is a failure like any other:
-                    # _scan_profile never got to record it, so record it here
-                    # or the health streak would silently reset to zero
+                    # nothing got to record it, so record it here or the health
+                    # streak would silently reset to zero
                     profile.last_run_at = datetime.now(UTC)
                     profile.last_run_status = "error"
                     profile.last_run_detail = str(e)[:300]
                 # after the branch above, so the entry reads the status this
                 # profile actually ended on, crash included
-                _record_journal(profile, result, profile_started_at, settings)
+                _record_journal(profile, fetched, result, settings)
                 _update_profile_health(profile, settings, summary)
                 db.commit()
             _locate_scanned_properties(db, settings, started_at, summary)
@@ -737,7 +899,11 @@ def _parts_cover_the_whole(whole: ScrapeResult, parts: list[ScrapeResult]) -> bo
 
 
 def _split_the_search(
-    scraper, profile: SearchProfile, whole: ScrapeResult, settings: dict
+    scraper,
+    search: _SearchToRun,
+    whole: ScrapeResult,
+    progress: _SearchProgress,
+    settings: dict,
 ) -> ScrapeResult:
     """Run a truncated search again as several narrower ones, and merge them.
 
@@ -762,34 +928,34 @@ def _split_the_search(
         logger.info(
             "Profile '%s': %s pages would take %d parts, past the %d allowed — "
             "leaving the search truncated rather than spending the requests",
-            profile.name,
+            search.name,
             whole.total_pages,
             needed,
             MAX_SEARCH_PARTS,
         )
         return whole
-    urls = segment_search(profile.search_url, profile.portal, needed)
+    urls = segment_search(search.search_url, search.portal, needed)
     if not urls:
         logger.info(
             "Profile '%s': no axis splits this search into %d parts that provably cover it",
-            profile.name,
+            search.name,
             needed,
         )
         return whole
 
     logger.info(
         "Profile '%s': %s pages do not fit in %d — running it as %d narrower searches",
-        profile.name,
+        search.name,
         whole.total_pages,
         whole.page_limit,
         len(urls),
     )
     parts: list[ScrapeResult] = []
     for index, url in enumerate(urls, start=1):
-        # Reset what belonged to the previous part for the same reason
-        # `_begin_profile` does between searches: a page number carried over
-        # attributes one part's progress to the next.
-        _set_progress(
+        # Reset what belonged to the previous part for the same reason a new
+        # search starts from nothing: a page number carried over attributes one
+        # part's progress to the next.
+        progress.set(
             phase="starting",
             part=index,
             part_total=len(urls),
@@ -813,7 +979,7 @@ def _split_the_search(
         # read on its first page and would otherwise add up perfectly.
         logger.info(
             "Profile '%s': %d of the %d parts did not finish — keeping the truncation notice",
-            profile.name,
+            search.name,
             len(unfinished),
             len(urls),
         )
@@ -823,7 +989,7 @@ def _split_the_search(
             "Profile '%s': the %d parts declare %s results between them against the portal's "
             "%s for the whole search — the split is not provably total, so it is not reported "
             "as complete",
-            profile.name,
+            search.name,
             len(urls),
             sum(p.total_listings or 0 for p in parts),
             whole.total_listings,
@@ -834,36 +1000,39 @@ def _split_the_search(
 
 
 def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> ScrapeResult:
-    """Scan one search and record what it established on the profile.
+    """One search, read and then recorded, both on this thread.
 
-    Returns the scrape it ran on, so the caller can journal how it went without
-    a second reading of anything: the pages, the listings and the reason it
-    stopped exist only here.
+    The scan itself no longer goes through here — it reads the portals on their
+    own threads and writes on one (`_fetch_searches` and `_record_scrape`
+    below). This is the two halves back to back, which is what a caller holding
+    a session and wanting one search scanned means by it.
     """
-    logger.info("Scanning profile '%s' (%s)", profile.name, profile.portal)
+    fetched = _fetch_search(_searches_to_run([profile])[0], settings)
+    if fetched.error is not None:
+        raise fetched.error
+    return _record_scrape(db, profile, fetched, settings, summary)
+
+
+def _record_scrape(
+    db, profile: SearchProfile, fetched: _Fetched, settings: dict, summary: dict
+) -> ScrapeResult:
+    """Write down what one search brought back, and what it established.
+
+    Every database write a scan performs is here, and this runs on one thread:
+    the portals are read at the same time as each other, but what came back is
+    written down one search after another, in the order they were listed.
+    Returns the scrape it recorded, so the caller can journal how it went
+    without a second reading of anything.
+    """
+    result = fetched.result
+    assert result is not None  # `_fetch_searches` yields an error or a result
+    scraper = fetched.scraper
     # `last_run_at` alone is not a safe proxy for "first scan": a blocked/error
     # attempt with zero listings still stamps it further down, but never
     # builds a baseline, so `baseline_done` is what actually gates silence.
     is_first_run = not profile.baseline_done
 
-    scraper = get_scraper(profile.portal)
-    scraper.delay_seconds = float(settings.get("request_delay_seconds", 6.0))
-    scraper.max_pages = int(settings.get("max_pages_per_search", 10))
-    # health-driven transport choice: with scrape_api_mode=
-    # "fallback" the scan starts on the free local path and only spends the
-    # paid API when this profile's failure streak says local is down; the
-    # default "always" keeps a configured key routing everything as before.
-    decision = transport_policy.decide(profile.consecutive_failures or 0, settings)
-    scraper.use_scrape_api = decision.start_on_api
-    # live reporting, for the minutes this next line takes
-    scraper.on_progress = partial(_scrape_progress, scraper, settings)
-
-    result = scraper.scrape(profile.search_url)
-    if result.truncated:
-        # More listings than one search can carry. Ask the portal again in
-        # narrower pieces rather than report the first ten pages of it.
-        result = _split_the_search(scraper, profile, result, settings)
-    _set_progress(phase="saving")
+    fetched.progress.set(phase="saving")
     profile.last_run_at = datetime.now(UTC)
     # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local

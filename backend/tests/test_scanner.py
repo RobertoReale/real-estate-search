@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 from app import config
 from app.database import Base
-from app.models import Property, SearchProfile
+from app.models import Listing, Property, SearchProfile
 from app.scrapers.base import RawListing, ScrapeResult
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.services import scanner
@@ -1873,3 +1873,223 @@ def test_a_split_search_says_which_part_it_is_on_while_it_runs(scan_db, portal, 
     assert seen[3]["detail"] == "Milano on immobiliare, part 2 of 3: reading page 1"
     # and the ordinary case says nothing about parts it does not have
     assert seen[0]["detail"] == "Milano on immobiliare: reading page 1"
+
+
+# --- two portals are two different hosts ------------------------------------
+#
+# Every delay in this app is owed to one host: the six seconds between
+# Immobiliare's pages exist so that Immobiliare is not asked too often. Read
+# strictly one search after another, they were also spent not talking to
+# Idealista — so most of a two-portal scan was the app waiting for a portal it
+# was not addressing.
+#
+# These drive `run_scan` against the loopback sandbox and then read the *portal's
+# own* arrival times, because the claim is about what each host experienced: the
+# same request rate as before, and the two of them overlapping in time. A
+# measurement taken at the client could only ever describe the client.
+
+CONCURRENT_IMMOBILIARE = "/vendita-case/torino/"
+# Its own prefix, so a request can be attributed to a host by path: this
+# sandbox serves both portals from one port, which is the one thing about it
+# that is not like the real world.
+CONCURRENT_IDEALISTA = "/idealista/vendita-case/torino-torino/"
+API_LISTINGS = "/api-next/search-list/listings/"
+# Short enough to keep the suite quick, long enough that the gaps it produces
+# are unmistakably the pause and not the loopback round trip (a millisecond).
+CONCURRENT_DELAY = 0.3
+CONCURRENT_PAGES = 4
+
+
+def _portal_flats(portal_name: str, page: int) -> list[Flat]:
+    """Two flats per page, and deliberately sixteen different apartments.
+
+    Nothing here is about deduplication: the fingerprint is city, rooms and
+    surface, and two flats sharing one would make the property count depend on
+    the deduplicator rather than on the scan. So every flat has a surface of its
+    own, and the two portals' price ranges are far enough apart that invariant
+    1's ±5% cannot reach across them either.
+    """
+    first = 100 if portal_name == "immobiliare" else 200
+    base = 250_000 if portal_name == "immobiliare" else 480_000
+    return [
+        Flat(
+            # numeric: Idealista's parser finds a card by its /immobile/<id>/
+            # link, and the id in that path is digits
+            ad_id=f"{first + 2 * page + i}",
+            title=f"Trilocale {portal_name} {page}-{i}",
+            price=base + 1_000 * (2 * page + i),
+            rooms=2 + (2 * page + i) % 3,
+            sqm=first + 10 * (2 * page + i),
+            city="Torino",
+            latitude=45.07,
+            longitude=7.68,
+        )
+        for i in range(2)
+    ]
+
+
+def _serve_both_portals(portal, *, pages: int = CONCURRENT_PAGES) -> None:
+    """One paginated search per portal, on their own paths.
+
+    Immobiliare answers on api-next and paginates in the query (`pag`);
+    Idealista answers in HTML and paginates in the path (`/lista-N.htm`), so
+    each of its pages is its own entry.
+    """
+    portal.serve_json_pages(
+        API_LISTINGS,
+        lambda page: mock_portal.immobiliare_api_page(
+            _portal_flats("immobiliare", page), max_pages=pages, count=2 * pages
+        ),
+    )
+    portal.serve(
+        CONCURRENT_IDEALISTA, mock_portal.idealista_results_page(_portal_flats("idealista", 1))
+    )
+    for page in range(2, pages + 1):
+        portal.serve(
+            f"{CONCURRENT_IDEALISTA}lista-{page}.htm",
+            mock_portal.idealista_results_page(_portal_flats("idealista", page)),
+        )
+
+
+def _watch_both_portals(session, portal) -> None:
+    _watch(session, portal, "Torino", "immobiliare", CONCURRENT_IMMOBILIARE)
+    _watch(session, portal, "Torino altrove", "idealista", CONCURRENT_IDEALISTA)
+
+
+def _search_arrivals(portal, prefix: str) -> list[float]:
+    """When the portal received each *search* request of one host.
+
+    The warm-up and the geography lookup are deliberately out: they are not
+    paced, so including them would report a gap of zero where the politeness is
+    exactly what is under assertion.
+    """
+    return [when for when, path in portal.arrivals if urlparse(path).path.startswith(prefix)]
+
+
+def test_the_two_portals_are_read_at_once_and_neither_is_asked_faster(scan_db, portal, live_scan):
+    """The acceptance. Two searches on two hosts: the pages of each stay as far
+    apart as they always were, and the two sets of requests overlap in time —
+    which is the whole of the claim, since the rate limit was always per host
+    and only ever spent as though it were global."""
+    _serve_both_portals(portal)
+    _watch_both_portals(scan_db, portal)
+    live_scan(max_pages_per_search=CONCURRENT_PAGES, request_delay_seconds=CONCURRENT_DELAY)
+
+    scanner.run_scan(manual=True)
+
+    immobiliare = _search_arrivals(portal, API_LISTINGS)
+    idealista = _search_arrivals(portal, CONCURRENT_IDEALISTA)
+    assert len(immobiliare) == CONCURRENT_PAGES and len(idealista) == CONCURRENT_PAGES
+
+    # Politeness, per host and unchanged: `polite_sleep` spends
+    # request_delay_seconds * uniform(0.7, 1.4) between one page and the next,
+    # so 0.7x is the floor a host may ever see.
+    floor = CONCURRENT_DELAY * 0.7
+    for host, pages in (("immobiliare", immobiliare), ("idealista", idealista)):
+        gaps = [b - a for a, b in zip(pages, pages[1:], strict=False)]
+        assert min(gaps) >= floor, f"{host} was asked faster than the delay allows: {gaps}"
+
+    # The two hosts were being read at the same time. Serially this is
+    # impossible: one portal's requests would all land before the other's began.
+    assert immobiliare[0] < idealista[-1] and idealista[0] < immobiliare[-1], (
+        "the two portals' request windows never overlapped, so the scan was serial"
+    )
+
+    # And the wall clock, off the same timestamps: what the whole scan spent
+    # against what the two hosts spent between them, which is what it used to
+    # cost when their pauses were taken one after the other.
+    whole = portal.arrivals[-1][0] - portal.arrivals[0][0]
+    serial = (immobiliare[-1] - immobiliare[0]) + (idealista[-1] - idealista[0])
+    assert whole < serial * 0.75, f"the scan took {whole:.2f}s against a serial {serial:.2f}s"
+
+
+def test_a_blocked_portal_leaves_the_other_ones_half_running(scan_db, portal, live_scan):
+    """A block is the normal weather on these portals, and it is about one host.
+    Immobiliare refusing every request must leave the Idealista half reading,
+    recorded and on the dashboard — the per-profile `try` has always promised
+    that, and running the two at once is exactly where it would quietly stop
+    being true."""
+    _serve_both_portals(portal)
+    # api-next refuses, and so does the HTML safety net behind it, so the
+    # verdict under assertion is a block and not a 404 picked up on the way past
+    portal.serve_json(API_LISTINGS, {"detail": "blocked"}, status=403)
+    portal.serve(
+        CONCURRENT_IMMOBILIARE,
+        "<html><body>Access is temporarily restricted</body></html>",
+        status=403,
+    )
+    _watch_both_portals(scan_db, portal)
+    live_scan(max_pages_per_search=CONCURRENT_PAGES, request_delay_seconds=0)
+
+    summary = scanner.run_scan(manual=True)
+
+    blocked, running = scan_db.query(SearchProfile).order_by(SearchProfile.id).all()
+    assert blocked.last_run_status == "blocked"
+    assert summary["blocked_portals"] == ["immobiliare"]
+    assert running.last_run_status == "ok"
+    assert f"{2 * CONCURRENT_PAGES} listings" in running.last_run_detail
+    # and the listings it read are in the database, which is the half that would
+    # have been lost had one host's failure cancelled the other
+    titles = {p.title for p in scan_db.query(Property).all()}
+    assert len(titles) == 2 * CONCURRENT_PAGES
+    assert all("idealista" in title for title in titles)
+
+
+def _scan_into_a_fresh_database(portal, monkeypatch, **settings) -> list[tuple]:
+    """One whole scan against the sandbox, and everything it wrote down.
+
+    The rows carry their ids, so this compares the order the database was
+    written in and not only its contents: "the same listings, inserted in the
+    same sequence" is the claim, and dropping the ids would let two runs that
+    disagreed about the order still look identical.
+    """
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine, expire_on_commit=False)()
+    try:
+        monkeypatch.setattr(scanner, "SessionLocal", lambda: session)
+        monkeypatch.setattr(scanner, "load_settings", lambda: {**PROGRESS_SETTINGS, **settings})
+        _watch_both_portals(session, portal)
+
+        scanner.run_scan(manual=True)
+
+        return [
+            (p.id, p.fingerprint, p.title, p.city, p.contract, p.current_min_price, p.status)
+            for p in session.query(Property).order_by(Property.id)
+        ] + [
+            (listing.id, listing.property_id, listing.portal, listing.portal_id, listing.url)
+            for listing in session.query(Listing).order_by(Listing.id)
+        ]
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_reading_the_portals_at_once_is_a_speed_setting_and_never_a_behaviour_one(
+    portal, monkeypatch
+):
+    """Off and on must end in the same database, row for row and id for id.
+    They do because the concurrency is only in the reading: the results come
+    back in the order the searches were listed and are written by one thread, so
+    which portal answered first cannot decide what gets stored or when."""
+    portal.install(monkeypatch)
+    portal.serve_json("/api-next/geography/autocomplete/", mock_portal.immobiliare_geography())
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    _serve_both_portals(portal)
+
+    together = _scan_into_a_fresh_database(
+        portal, monkeypatch, max_pages_per_search=CONCURRENT_PAGES
+    )
+    one_at_a_time = _scan_into_a_fresh_database(
+        portal,
+        monkeypatch,
+        max_pages_per_search=CONCURRENT_PAGES,
+        scan_portals_concurrently=False,
+    )
+
+    assert together == one_at_a_time
+    # two portals, two flats a page, and a listing row for every property
+    assert len(together) == 4 * 2 * CONCURRENT_PAGES
