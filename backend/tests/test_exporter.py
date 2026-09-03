@@ -171,6 +171,40 @@ def test_csv_neutralizes_formula_injection():
     assert "'=HYPERLINK" in row
 
 
+def test_html_dossier_will_not_link_a_scripted_url():
+    """Regression: a listing's URL is portal-supplied text too — the scrapers
+    read it off an `href` or out of the page's own JSON (`seo.url`) — and the
+    dossier turned it into `<a href="…">`. Escaping keeps it inside the
+    attribute and does nothing about the scheme, so `javascript:` was a live
+    link in a file the user opens from their own disk. Only http(s) is a URL a
+    portal listing can honestly have; anything else renders as no link."""
+    p = _prop()
+    p.listings = [
+        Listing(portal="immobiliare", portal_id="1", url="javascript:alert(document.cookie)")
+    ]
+    p.image_url = "javascript:alert(1)"
+    html = properties_to_html([p], "Dossier")
+    assert "javascript:" not in html
+    assert "<a href" not in html  # the one listing had nothing linkable
+    assert "<img" not in html
+
+    # ...and an ordinary listing is untouched
+    p.listings = [Listing(portal="immobiliare", portal_id="1", url="https://x.example/annunci/1/")]
+    assert 'href="https://x.example/annunci/1/"' in properties_to_html([p], "Dossier")
+
+
+def test_print_dossier_gallery_drops_a_scripted_image_url():
+    """The gallery is the print report's only URL in an attribute, and it comes
+    from the same untrusted place."""
+    p = _prop(image="javascript:alert(1)")
+    p.listings = [
+        Listing(portal="idealista", portal_id="2", url="u2", image_url="https://x.example/a.jpg")
+    ]
+    html = properties_to_print_html([p], "D")
+    assert "javascript:" not in html
+    assert 'src="https://x.example/a.jpg"' in html
+
+
 # --- print dossier (the "save as PDF" path) ----------------------------------
 
 

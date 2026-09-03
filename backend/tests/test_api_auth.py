@@ -1,7 +1,13 @@
-"""Optional shared-secret API token (invariant 14 relaxed to "bind address OR
-token"). The middleware is driven directly with a fake request/call_next: a
-TestClient would start the real scheduler via the app lifespan, which the rest
-of the suite avoids for the same reason."""
+"""Invariant 14's two guards in `main.py`, which answer different halves of it.
+
+`require_api_token` is the optional shared-secret token — the rule relaxed to
+"bind address OR token", and what makes a wider bind safe to expose.
+`reject_cross_site_writes` is the request the bind address cannot refuse at all,
+because the browser forging it is itself on loopback.
+
+Both are driven directly with a fake request/call_next: a TestClient would start
+the real scheduler via the app lifespan, which the rest of the suite avoids for
+the same reason."""
 
 import asyncio
 
@@ -108,3 +114,82 @@ def test_cors_preflight_is_never_blocked(monkeypatch):
     _set_token(monkeypatch, "s3cret")
     # browsers send OPTIONS preflight without the Authorization header
     assert _run("/api/settings", method="OPTIONS") == "PASSED_THROUGH"
+
+
+# --- The other half of invariant 14: the request the bind address cannot stop ---
+#
+# A cross-site form post is the one attack the loopback bind is no defence
+# against, because the browser making it is itself on loopback. These drive
+# `reject_cross_site_writes` the same way the token tests drive its neighbour.
+
+APP_HOST = "127.0.0.1:8000"
+
+
+def _origin(path, origin=None, method="POST", host=APP_HOST):
+    headers = {"Host": host}
+    if origin is not None:
+        headers["Origin"] = origin
+    return asyncio.run(main.reject_cross_site_writes(_request(path, headers, method), _ok))
+
+
+def test_a_page_on_another_site_cannot_reset_the_database():
+    """The finding this guard exists for. `POST /api/maintenance/reset/factory`
+    takes no body, so a `<form>` on any site the user has open submits it as a
+    simple request — no preflight, nothing for `allow_origins` to refuse — and
+    the whole dashboard is gone. The response being unreadable cross-origin
+    never mattered: the deletion had already happened."""
+    resp = _origin("/api/maintenance/reset/factory", "https://evil.example")
+    assert resp.status_code == 403
+    # and the same for the two other routes that spend something real: the
+    # user's residential IP, and the whole database
+    assert _origin("/api/scrapers/trigger", "https://evil.example").status_code == 403
+    assert (
+        _origin(
+            "/api/maintenance/backups/case-20260101-000000.db/restore", "https://evil.example"
+        ).status_code
+        == 403
+    )
+
+
+def test_the_dashboard_on_this_machine_is_unaffected():
+    """Every legitimate client is same-origin or loopback: the packaged app and
+    the phone load the SPA from the API's own origin, the Vite dev server sits
+    on 5173, and the browser suite's `vite preview` proxies from 127.0.0.1."""
+    assert _origin("/api/scrapers/trigger", f"http://{APP_HOST}") == "PASSED_THROUGH"
+    assert _origin("/api/scrapers/trigger", "http://localhost:5173") == "PASSED_THROUGH"
+    assert _origin("/api/scrapers/trigger", "http://127.0.0.1:4173") == "PASSED_THROUGH"
+
+
+def test_a_phone_on_the_tailscale_bind_is_unaffected():
+    """`serve.bat` binds a Tailscale address and serves the SPA from it, so the
+    phone's origin is not loopback — it is the API's own. Same-origin is what
+    lets this rule coexist with the one sanctioned wide bind (invariant 14)."""
+    tailscale = "100.64.1.2:8000"
+    assert (
+        _origin("/api/scrapers/trigger", f"http://{tailscale}", host=tailscale) == "PASSED_THROUGH"
+    )
+    # ...and a stranger on that same network still cannot drive it from a page
+    assert (
+        _origin("/api/scrapers/trigger", "http://evil.example", host=tailscale).status_code == 403
+    )
+
+
+def test_a_client_that_states_no_origin_is_left_alone():
+    """curl, a script, the test client. A browser always sends `Origin` on these
+    methods, so an absent header is not the case being guarded — and refusing it
+    would break every non-browser caller to prevent nothing."""
+    assert _origin("/api/scrapers/trigger", None) == "PASSED_THROUGH"
+
+
+def test_reads_and_preflight_are_untouched():
+    """Only the methods a form can send cross-site are guarded. A GET changes
+    nothing and its response is unreadable cross-origin anyway, and blocking the
+    preflight would break the Vite dev server's own requests."""
+    assert _origin("/api/properties", "https://evil.example", method="GET") == "PASSED_THROUGH"
+    assert _origin("/api/settings", "https://evil.example", method="OPTIONS") == "PASSED_THROUGH"
+
+
+def test_the_spa_itself_is_not_guarded():
+    """The static mount is not /api and serves no state change; the guard has no
+    business there (invariant 13 keeps it last, and this keeps it open)."""
+    assert _origin("/index.html", "https://evil.example") == "PASSED_THROUGH"

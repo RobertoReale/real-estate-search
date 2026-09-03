@@ -174,7 +174,7 @@ progetto/
 │   │       └── cookie_harvester.py # optional Playwright DataDome cookie grab
 │   ├── alembic/                  # migration harness (baseline + future non-additive changes)
 │   ├── alembic.ini
-│   ├── tests/                    # 1000 tests (incl. hypothesis property tests);
+│   ├── tests/                    # 1008 tests (incl. hypothesis property tests);
 │   │                             # mock_portal.py is the offline sandbox — the
 │   │                             # portals and the mail server on loopback
 
@@ -207,6 +207,8 @@ progetto/
 ├── scripts/
 │   ├── build_frontend.py         # rebuilds frontend/dist when it is stale
 │   ├── build_release.py          # the shippable payload; --package freezes the app
+│   ├── measure_backend.py        # requests/queries per scan and per request; the
+│   │                             # instrument docs/audit.md §7 runs (asserts nothing)
 │   ├── open_dashboard.py         # waits for the port, then opens the browser
 │   ├── windows/                  # start (one window) / dev (two windows) / serve /
 │   │                             # install-service/uninstall-service/restart-services/
@@ -235,7 +237,7 @@ Two listings are merged only if **all** of these conditions hold true:
 
 ## 7. Verification Plan
 
-### Automated Tests (1000, `pytest`)
+### Automated Tests (1008, `pytest`)
 ```bash
 cd backend
 .venv\Scripts\python -m pytest tests

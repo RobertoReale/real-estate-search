@@ -11,6 +11,7 @@ import hmac
 import logging
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,6 +77,67 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Methods a page on another site can send here without the browser asking
+# permission first. A plain `<form method="post">` submits as
+# `application/x-www-form-urlencoded`, which is a "simple request": no preflight,
+# so the `allow_origins` list above never gets a say, and the response being
+# unreadable cross-origin does not stop the *request* from happening. Every /api
+# route that takes no body was therefore reachable from any page the user
+# happened to have open — `POST /api/maintenance/reset/factory` empties the
+# dashboard, `POST /api/scrapers/trigger` spends the user's own residential IP on
+# the portals. The bind address cannot answer this one (invariant 14): the
+# browser making the request is on the loopback interface.
+_CROSS_SITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+# Every origin this app is legitimately driven from is on this machine. The
+# packaged app, `serve.bat` and the phone all load the SPA from the API's own
+# origin (invariant 13), and the two Vite servers — dev on 5173, `vite preview`
+# proxying the browser suite — are loopback. A page on the public web can be
+# neither, and `Origin` is set by the browser itself, so a script cannot claim
+# otherwise.
+_LOCAL_ORIGIN_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_same_site(request: Request) -> bool:
+    """May this request change something?
+
+    An absent `Origin` is allowed on purpose: curl, a script, the test client.
+    What is being guarded here is a *browser* forging a request in the user's
+    session, and a browser always states its origin on the methods above — so no
+    header at all is not the case this exists for, and refusing it would break
+    every non-browser client for no gain.
+    """
+    origin = request.headers.get("origin", "")
+    if not origin:
+        return True
+    parsed = urlparse(origin)
+    if parsed.netloc and parsed.netloc == request.headers.get("host", ""):
+        return True
+    return parsed.hostname in _LOCAL_ORIGIN_HOSTS
+
+
+@app.middleware("http")
+async def reject_cross_site_writes(request: Request, call_next):
+    """Refuse a state-changing /api call that came from another site.
+
+    One header, checked before the route ever runs. It costs the legitimate
+    clients nothing — they are all same-origin or loopback — and it is the only
+    thing standing between "the API answers only on loopback" and a web page
+    quietly factory-resetting the database of anyone who visits it while the app
+    is running.
+    """
+    if request.method in _CROSS_SITE_METHODS and request.url.path.startswith("/api/"):
+        if not _is_same_site(request):
+            return JSONResponse(
+                {
+                    "detail": "This request came from another site and was refused. "
+                    "Use the dashboard on this machine."
+                },
+                status_code=403,
+            )
+    return await call_next(request)
 
 
 @app.middleware("http")

@@ -465,8 +465,10 @@ def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iter
     """Every search, read off its portal — the hosts at the same time.
 
     Every delay in this app is owed to *one* host: `polite_sleep` spends six
-    seconds so that Immobiliare is not asked too often, and Idealista's floor
-    exists for Idealista. Read strictly one after another, those seconds were
+    seconds so that Immobiliare is not asked too often, and Idealista's own
+    floor exists for Idealista — though the scan does not currently apply that
+    floor, which is a finding of its own (`docs/roadmap.md`) and not this
+    function's to fix. Read strictly one after another, those seconds were
     also spent not talking to the other portal, so most of a scan was the app
     waiting for a host it was not addressing. One worker per host spends them
     where they are owed and nowhere else: the rate at either portal is exactly
