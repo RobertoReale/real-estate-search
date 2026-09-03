@@ -14,9 +14,9 @@ from sqlalchemy import select
 
 from ..config import SECRET_SETTINGS, load_settings
 from ..database import SessionLocal
-from ..models import Property, SearchProfile
+from ..models import Listing, ListingProfile, Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
-from ..scrapers.base import RawListing, ScrapeResult, merge_scrapes
+from ..scrapers.base import KnownListing, RawListing, ScrapeResult, listing_key, merge_scrapes
 from . import (
     deal_score,
     geo_filter,
@@ -275,6 +275,8 @@ def _stop_reason(result: ScrapeResult | None) -> str:
         return "the portal refused the request"
     if result.error:
         return "the search ran into an error"
+    if result.stopped_early:
+        return "a whole page held nothing this search had not already seen"
     if result.truncated:
         pages = "page" if result.page_limit == 1 else "pages"
         return f"the page limit of {result.page_limit} {pages}"
@@ -321,6 +323,11 @@ def _record_journal(
                 "detail": _without_secrets(profile.last_run_detail or "", settings),
                 "transport": transport,
                 "stopped_because": _stop_reason(result),
+                # Which kind of scan this was, taken from what was asked for
+                # rather than from how it ended: a quick scan that happened to
+                # read every page is still the scan the user was given, and the
+                # line beside it already says where it stopped and why.
+                "mode": "full" if fetched.search.seen is None else "quick",
             }
         )
     except Exception:
@@ -347,6 +354,12 @@ class _SearchToRun:
     portal: str
     search_url: str
     consecutive_failures: int
+    # Every ad this search already holds, as (listing key, price) pairs — or
+    # `None`, which means "read to the cap whatever you recognise": a full
+    # sweep. Copied out with the rest and for the same reason. Recognising a
+    # page is a database question, and the thread that fetches the page holds
+    # nothing it could ask one with.
+    seen: frozenset[tuple[str, float | None]] | None = None
 
 
 @dataclass
@@ -365,7 +378,70 @@ class _Fetched:
     error: Exception | None = None
 
 
-def _searches_to_run(profiles: list[SearchProfile]) -> list[_SearchToRun]:
+def _already_seen(db, profile_id: int) -> frozenset[tuple[str, float | None]]:
+    """Every ad this search has brought back before, and what it cost then.
+
+    Read here, on the thread that owns the session, and handed to the fetching
+    thread as a frozen value — the same rule `_SearchToRun` exists to enforce.
+
+    The price is half the key on purpose. An ad this search already holds *at a
+    different price* is news: it is exactly what `upsert_listing` reports as a
+    price change and what the user is notified about. So a page carrying one is
+    not a page with nothing new on it, and the walk goes on.
+    """
+    return frozenset(
+        (listing_key(url), price)
+        for url, price in db.execute(
+            select(Listing.url, Listing.price)
+            .join(ListingProfile, ListingProfile.listing_id == Listing.id)
+            .where(ListingProfile.profile_id == profile_id)
+        )
+    )
+
+
+def _sweeps_to_the_cap(profile: SearchProfile, settings: dict, full_sweep: bool) -> bool:
+    """Does this search read every page it is allowed to, or stop as soon as it
+    stops recognising anything new?
+
+    The early stop is a shortcut and never the only path, because it cannot see
+    a price change on page 6. So a full sweep runs: when the user asks for one;
+    on the **first scan of a search**, where `baseline_done` is already the flag
+    for exactly this (invariant 3) and where there is nothing to recognise
+    anyway; and once every `full_sweep_every_days` after that, counted from the
+    last sweep that got through. Either the switch or a period of zero turns the
+    shortcut off entirely, which is the setting for someone who would rather
+    spend the requests.
+    """
+    if full_sweep or not settings.get("stop_when_nothing_new", True):
+        return True
+    if not profile.baseline_done:
+        return True
+    every = int(settings.get("full_sweep_every_days", 7) or 0)
+    if every <= 0:
+        return True
+    last = profile.last_full_sweep_at
+    return last is None or datetime.now(UTC) - as_utc(last) >= timedelta(days=every)
+
+
+def _recognises(seen: frozenset[tuple[str, float | None]] | None) -> KnownListing | None:
+    """The scrape's end of `_already_seen`: a predicate over one listing.
+
+    `None` for a full sweep, which is what `BaseScraper.scrape` reads as "walk
+    every page you are allowed to" — the behaviour that existed before any of
+    this, unchanged.
+    """
+    if seen is None:
+        return None
+
+    def known(listing: RawListing) -> bool:
+        return (listing_key(listing.url), listing.price) in seen
+
+    return known
+
+
+def _searches_to_run(
+    db, profiles: list[SearchProfile], settings: dict, full_sweep: bool = False
+) -> list[_SearchToRun]:
     return [
         _SearchToRun(
             id=profile.id,
@@ -375,6 +451,11 @@ def _searches_to_run(profiles: list[SearchProfile]) -> list[_SearchToRun]:
             portal=profile.portal,
             search_url=profile.search_url,
             consecutive_failures=profile.consecutive_failures or 0,
+            seen=(
+                None
+                if _sweeps_to_the_cap(profile, settings, full_sweep)
+                else _already_seen(db, profile.id)
+            ),
         )
         for index, profile in enumerate(profiles, start=1)
     ]
@@ -456,7 +537,7 @@ def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
         scraper.on_progress = partial(fetched.progress.scraped, scraper, settings)
         fetched.scraper = scraper
 
-        result = scraper.scrape(search.search_url)
+        result = scraper.scrape(search.search_url, known=_recognises(search.seen))
         if result.truncated:
             # More listings than one search can carry. Ask the portal again in
             # narrower pieces rather than report the first ten pages of it.
@@ -467,14 +548,20 @@ def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
     return fetched
 
 
-def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
+def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bool = False) -> dict:
     """Executes the scan of active profiles (or just one).
     Thread-safe: only one scan running at any given time.
 
     `manual=True` marks a scan the user explicitly asked for ("Scan now"),
     which bypasses the global `scanning_paused` switch: the pause is meant to
     stop the *scheduler* from touching the portals on its own, not to veto an
-    explicit request. Scheduled runs call this with the default `manual=False`."""
+    explicit request. Scheduled runs call this with the default `manual=False`.
+
+    `full_sweep=True` is the other explicit request: read every page the cap
+    allows, whatever is already recognised. It is the on-demand half of the rule
+    that the early stop is a shortcut and never the only path — the scheduled
+    half is `full_sweep_every_days`, which `_sweeps_to_the_cap` applies per
+    search without needing a job of its own."""
     if not manual and load_settings().get("scanning_paused"):
         logger.info("Automatic scan skipped: scanning is paused")
         return {"status": "paused"}
@@ -527,7 +614,8 @@ def run_scan(profile_id: int | None = None, manual: bool = False) -> dict:
             # loop is this one. `_fetch_searches` hands the results back in the
             # order the profiles were listed, so what the database ends up
             # holding does not depend on which host answered first.
-            for fetched in _fetch_searches(_searches_to_run(profiles), settings):
+            searches = _searches_to_run(db, profiles, settings, full_sweep)
+            for fetched in _fetch_searches(searches, settings):
                 profile = by_id[fetched.search.id]
                 result = fetched.result
                 try:
@@ -860,6 +948,26 @@ def _split_note(result: ScrapeResult) -> str:
     return f" — searched in {result.parts} parts, which between them covered the whole result set"
 
 
+def _quick_scan_note(result: ScrapeResult) -> str:
+    """What a search that stopped as soon as it recognised everything owes the user.
+
+    The saving is real — a routine scan drops from ten page-fetches to two — and
+    so is what it costs: the pages this walk never reached could hold a price
+    change, and nothing here can say they do not. So the line says which of the
+    two kinds of scan this was, for the same reason `_truncation_note` exists. A
+    partial reading reported in the words of a complete one is the one sort of
+    wrong the user has no way of detecting for themselves, and it is why a
+    completeness claim is only ever made about a walk that was not cut short.
+    """
+    if not result.stopped_early:
+        return ""
+    pages = "page" if result.pages_fetched == 1 else "pages"
+    return (
+        f" — a quick scan: it stopped after {result.pages_fetched} {pages}, where nothing "
+        "was new, so this is not a full reading of the search"
+    )
+
+
 def _parts_needed(result: ScrapeResult) -> int:
     """How many narrower searches this one would have to become to fit.
 
@@ -999,7 +1107,9 @@ def _split_the_search(
     return merged
 
 
-def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> ScrapeResult:
+def _scan_profile(
+    db, profile: SearchProfile, settings: dict, summary: dict, full_sweep: bool = False
+) -> ScrapeResult:
     """One search, read and then recorded, both on this thread.
 
     The scan itself no longer goes through here — it reads the portals on their
@@ -1007,7 +1117,7 @@ def _scan_profile(db, profile: SearchProfile, settings: dict, summary: dict) -> 
     below). This is the two halves back to back, which is what a caller holding
     a session and wanting one search scanned means by it.
     """
-    fetched = _fetch_search(_searches_to_run([profile])[0], settings)
+    fetched = _fetch_search(_searches_to_run(db, [profile], settings, full_sweep)[0], settings)
     if fetched.error is not None:
         raise fetched.error
     return _record_scrape(db, profile, fetched, settings, summary)
@@ -1053,6 +1163,13 @@ def _record_scrape(
         profile.last_run_detail = result.error[:300]
         summary["errors"].append(result.error)
         return result
+
+    if fetched.search.seen is None and not result.blocked:
+        # This search read every page it was allowed to, and got through. That
+        # is what the next sweep is counted from — and only a scan that got
+        # through may stamp it, or a fortnight of blocks would read as a
+        # fortnight of complete readings and the sweep would never come round.
+        profile.last_full_sweep_at = datetime.now(UTC)
 
     # profile keywords ADD to global keywords (the UI presents them as "extra"):
     # a profile must never lose base protection just because it added its own
@@ -1164,6 +1281,7 @@ def _record_scrape(
         )
         detail += _truncation_note(result)
         detail += _split_note(result)
+        detail += _quick_scan_note(result)
         # said on the profile's own line, because it is a fact about *this*
         # search: the portal was asked for an area and answered with something
         # else. Kept, not dropped — the count is how the user finds out.

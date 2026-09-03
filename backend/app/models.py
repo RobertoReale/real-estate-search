@@ -543,6 +543,14 @@ class SearchProfile(Base):
     # True once the user has actually been alerted about the current outage:
     # keeps a portal blocked for a week from sending one message per scan.
     health_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    # When this search last read every page it was allowed to, rather than
+    # stopping as soon as a page held nothing new. The routine scan is the quick
+    # one and cannot see a price change on page 6, so a full sweep is owed every
+    # `full_sweep_every_days`, and this is what that is counted from. Nullable
+    # and additive: never swept simply means the next scan sweeps. Stamped only
+    # by a sweep that got through — a fortnight of blocks must not read as a
+    # fortnight of complete readings (`scanner._record_scrape`).
+    last_full_sweep_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     # which listings this search has found (see ListingProfile). Deleting the

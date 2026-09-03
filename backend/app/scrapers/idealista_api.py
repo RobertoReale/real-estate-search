@@ -46,7 +46,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from .base import RawListing, ScrapeResult
+from .base import KnownListing, RawListing, ScrapeResult
 from .idealista import IdealistaScraper
 from .parsing import detect_contract, plausible_price, to_float, to_int
 
@@ -342,13 +342,18 @@ class IdealistaApiScraper(IdealistaScraper):
     # which engine actually served the day's scans.
     used_official_api = False
 
-    def scrape(self, search_url: str) -> ScrapeResult:
+    def scrape(self, search_url: str, known: KnownListing | None = None) -> ScrapeResult:
         result = self._scrape_via_api(search_url)
         if result is not None:
             self.used_official_api = True
             return result
         self.used_official_api = False
-        return super().scrape(search_url)
+        # `known` reaches the HTML scraper alone, and deliberately. The early
+        # stop buys requests-not-made, and this engine's budget is
+        # `idealista_api_max_pages` — **1** by default, so there is no second
+        # page to save and the constraint here is a per-key quota rather than a
+        # portal's patience.
+        return super().scrape(search_url, known)
 
     def _scrape_via_api(self, search_url: str) -> ScrapeResult | None:
         """The API path, or None when the HTML scraper should take this search.

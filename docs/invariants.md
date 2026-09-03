@@ -37,7 +37,11 @@ each invariant to its code home and its test file. See also
    §8.6). Gated by `SearchProfile.baseline_done`, not by `last_run_at is None`: an attempt that
    gets blocked/errored before fetching any listing still stamps `last_run_at` (scheduling
    needs it), but must not consume the silence — otherwise the next attempt, the first to
-   actually see real listings, notifies every one of them as "new".
+   actually see real listings, notifies every one of them as "new". The same flag now
+   also decides that a first scan **reads every page it is allowed to** rather than
+   stopping as soon as it recognises a page (`_sweeps_to_the_cap`): a search with no
+   baseline has nothing to recognise, and it is the one run where taking the whole window
+   is the entire point.
 
 4. **Keywords on word boundaries**, never substrings: "asta" (auction) ⊄ "Castanese"
    ([`implementation_plan.md`](../implementation_plan.md#8-deviations-from-original-plan)
