@@ -1,0 +1,10 @@
+{
+  "name": "api-types-generator",
+  "private": true,
+  "version": "1.0.0",
+  "description": "openapi-typescript, isolated from the frontend's toolchain. It is a compiler plugin in all but name: it links against the TypeScript compiler API, which its peer range still pins to 5.x, while the app is built with TypeScript 7. Installed into the frontend the two collapse onto one root copy and the tool dies on `ts.factory` being undefined, so it gets its own node_modules and its own lock. Driven only by scripts/gen_api_types.py.",
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -31,6 +31,22 @@ export interface UseSearchProfilesArgs {
   onChanged: () => void;
 }
 
+/** A URL pair this hook assembled itself, out of what a stored profile already
+ *  holds, rather than one the backend built.
+ *
+ *  The provenance fields go with it and they are not padding: only the backend
+ *  can say whether Idealista confirmed a zone slug or which filters its URL
+ *  grammar dropped, so a locally-assembled pair claims neither. `false` and the
+ *  empty lists are what "not verified" reads as in the form — the same thing it
+ *  showed before these fields were typed, now said out loud. `generate` replaces
+ *  it with the real answer the moment the user presses the button. */
+function unverifiedUrls(immobiliare: string, idealista: string): SearchBuilderUrls {
+  return {
+    immobiliare, idealista,
+    idealista_zone_page: false, idealista_unsupported: [], zone_warnings: [],
+  };
+}
+
 export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchProfilesArgs) {
   const t = useT();
   const [mode, setMode] = useState<
@@ -268,10 +284,10 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     if (p.params && (p.params.city || p.params.min_price || p.params.min_rooms || p.params.zone)) {
       const formParams = paramsFromProfile(p.params);
       setParams(formParams);
-      setBuilt({
-        immobiliare: p.portal === "immobiliare" ? p.search_url : "",
-        idealista: p.portal === "idealista" ? p.search_url : "",
-      });
+      setBuilt(unverifiedUrls(
+        p.portal === "immobiliare" ? p.search_url : "",
+        p.portal === "idealista" ? p.search_url : "",
+      ));
       setUsePortals({
         immobiliare: p.portal === "immobiliare",
         idealista: p.portal === "idealista",
@@ -282,6 +298,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       // of silently no-opping (createFromBuilder skips an empty built[portal])
       api.buildSearchUrls(formParams).then((urls) => {
         setBuilt((b) => b && {
+          ...urls,
           immobiliare: b.immobiliare || urls.immobiliare,
           idealista: b.idealista || urls.idealista,
         });
@@ -305,10 +322,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       setParams(formParams);
       const imm = group.profiles.find((p) => p.portal === "immobiliare");
       const ideal = group.profiles.find((p) => p.portal === "idealista");
-      setBuilt({
-        immobiliare: imm?.search_url || "",
-        idealista: ideal?.search_url || "",
-      });
+      setBuilt(unverifiedUrls(imm?.search_url || "", ideal?.search_url || ""));
       setUsePortals({
         immobiliare: Boolean(imm) || true,
         idealista: Boolean(ideal) || true,
@@ -316,6 +330,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       setMode("builder");
       api.buildSearchUrls(formParams).then((urls) => {
         setBuilt((b) => b && {
+          ...urls,
           immobiliare: b.immobiliare || urls.immobiliare,
           idealista: b.idealista || urls.idealista,
         });
@@ -341,10 +356,10 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     try {
       const extracted = await api.parseSearchUrl(url);
       setParams(paramsFromProfile(extracted));
-      setBuilt({
-        immobiliare: url.includes("immobiliare.it") ? url : "",
-        idealista: url.includes("idealista.it") ? url : "",
-      });
+      setBuilt(unverifiedUrls(
+        url.includes("immobiliare.it") ? url : "",
+        url.includes("idealista.it") ? url : "",
+      ));
       setUsePortals({
         immobiliare: url.includes("immobiliare.it"),
         idealista: url.includes("idealista.it"),

@@ -1,4 +1,12 @@
-"""Pydantic schemas for REST API input/output."""
+"""Pydantic schemas for REST API input/output.
+
+These are also the source of `frontend/src/types/api.ts`: the OpenAPI document
+FastAPI derives from them is what `scripts/gen_api_types.py` compiles into the
+browser's types. So a field described loosely here is described loosely there,
+and the frontend loses a check it used to have — which is why the models that go
+*out* say `Literal` where the value is a closed set, and why they inherit from
+`ApiOut` below.
+"""
 
 from datetime import date, datetime
 from typing import Literal
@@ -6,7 +14,43 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
 
-class ListingOut(BaseModel):
+class ApiOut(BaseModel):
+    """Base for every model this API sends.
+
+    It sets one thing: a field with a default is still **required** in the
+    serialized schema. That is simply the truth — Pydantic writes every field on
+    the way out, defaulted or not, so a response never omits one — but the
+    default JSON Schema marks it optional, and the generated TypeScript then
+    types half the payload as `field?: T | null`. Every reader downstream has to
+    handle an `undefined` that cannot occur, and the ones that mattered
+    (`deal_score`, `sqm_price_delta_pct`, every median) are exactly the numbers
+    the UI does arithmetic on.
+
+    Input models deliberately do **not** inherit this: there a default means the
+    field may genuinely be left out.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
+# The closed sets, written once and shared by every model that carries them.
+# Each mirrors a vocabulary the backend already fixes in code — the alternative
+# is `str` in the document and a hand-written union in the browser that nothing
+# keeps in step.
+Contract = Literal["sale", "rent"]
+# services/geocoder.py: SOURCE_PORTAL / SOURCE_ADDRESS / SOURCE_ZONE, plus "" for
+# a pin written before the column existed. There is deliberately no city-wide
+# value (see APPROXIMATE_SOURCES).
+CoordinateSource = Literal["", "portal", "address", "zone"]
+# invariant 19: "email" is historical (the retired inbox import) and upgrade-only
+PropertySource = Literal["scan", "email"]
+AreaScope = Literal["zone", "city"]
+DealLabel = Literal["undervalued", "fair", "overpriced"]
+BuilderFloor = Literal["", "ground", "middle", "top"]
+BuilderCondition = Literal["", "new", "good", "excellent", "to_renovate"]
+
+
+class ListingOut(ApiOut):
     """API response model representing a single portal ad linked to a Property."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -23,7 +67,7 @@ class ListingOut(BaseModel):
     last_seen_at: datetime
 
 
-class PriceHistoryOut(BaseModel):
+class PriceHistoryOut(ApiOut):
     """API response model recording a historical price variation of a Property."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -33,7 +77,7 @@ class PriceHistoryOut(BaseModel):
     changed_at: datetime
 
 
-class TagOut(BaseModel):
+class TagOut(ApiOut):
     """API response model for a user-defined tag. `count` (usage across
     properties) is populated only by GET /api/tags; when nested inside
     PropertyOut.tags it stays at its default and is not meaningful there."""
@@ -51,7 +95,7 @@ class TagCreate(BaseModel):
     name: str
 
 
-class ProfileRef(BaseModel):
+class ProfileRef(ApiOut):
     """A monitored search that found a property, as shown on its card: just the
     id (to link back to the search) and its name."""
 
@@ -59,7 +103,7 @@ class ProfileRef(BaseModel):
     name: str
 
 
-class CommuteOut(BaseModel):
+class CommuteOut(ApiOut):
     """One routed leg from a property to one of the user's saved places, as
     shown on its card. Distance and duration are OSRM's raw metres and seconds:
     the UI does the rounding, so a future "42 min" and "0.7 km" are one
@@ -67,12 +111,14 @@ class CommuteOut(BaseModel):
     precision."""
 
     name: str
-    mode: str  # car | foot | bike
+    # commute.points_from_settings clamps anything else to DEFAULT_MODE, so the
+    # set is closed by the time it reaches here
+    mode: Literal["car", "foot", "bike"]
     distance_m: float
     duration_s: float
 
 
-class PropertyOut(BaseModel):
+class PropertyOut(ApiOut):
     """Comprehensive API response model for a deduplicated physical property,
     including its associated listings, price changes, and transient market statistics."""
 
@@ -85,28 +131,29 @@ class PropertyOut(BaseModel):
     address: str
     latitude: float | None
     longitude: float | None
-    # where that pin came from: "portal" / "address" are the property's own
-    # location, "zone" / "city" are the middle of an area it is somewhere
-    # inside. Served rather than inferred on the client, because the difference
-    # is a fact the backend established and the map must not redraw as if the
-    # two were the same thing (services/geocoder.py).
-    coordinate_source: str = ""
+    # where that pin came from: "portal" and "address" are the property's own
+    # location, "zone" is the middle of the district it is somewhere inside, and
+    # "" is a pin from before this column existed. Served rather than inferred on
+    # the client, because the difference is a fact the backend established and
+    # the map must not redraw as if the two were the same thing
+    # (services/geocoder.py).
+    coordinate_source: CoordinateSource = ""
     rooms: int | None
     floor: str
     sqm: float | None
-    contract: str = "sale"
+    contract: Contract = "sale"
     current_min_price: float | None
     first_price: float | None
     image_url: str
     status: str
     filtered_reason: str
-    source: str = "scan"  # "scan" (monitored search) | "email" (inbox import)
+    source: PropertySource = "scan"  # monitored search | the retired inbox import
     is_favorite: bool = False
     notes: str = ""
     # market position vs local median €/sqm (computed per request,
     # see services/pricing_stats.py; None when not enough comparables)
     area_median_sqm_price: float | None = None
-    area_median_scope: str | None = None  # "zone" | "city"
+    area_median_scope: AreaScope | None = None
     sqm_price_delta_pct: float | None = None
     # The OMI band for the same zone (services/omi_benchmark.py): min/max €/sqm
     # from *recorded transactions*, and the semester they were recorded in. A
@@ -126,7 +173,7 @@ class PropertyOut(BaseModel):
     match_score: int | None = None
     # Deal Score: congruity vs fair value (positive = below market; None = no data)
     deal_score: int | None = None
-    deal_label: str | None = None
+    deal_label: DealLabel | None = None
     deal_reasons: list[str] | None = None
     expected_discount_pct: float | None = None
     target_price_low: float | None = None
@@ -158,7 +205,7 @@ class PropertyOut(BaseModel):
         return v or []
 
 
-class ListingAuditOut(BaseModel):
+class ListingAuditOut(ApiOut):
     """What the optional model read in one listing's text
     (services/listing_auditor.py).
 
@@ -173,8 +220,10 @@ class ListingAuditOut(BaseModel):
     """
 
     summary: str = ""
-    condition: str = "unknown"  # new | renovated | good | to_renovate | unknown
-    tenant: str = "unknown"  # yes | no | unknown — sold with a sitting tenant
+    # both clamped by listing_auditor._clean_audit before they are stored: a
+    # local model asked for one of five words can answer with a sentence
+    condition: Literal["new", "renovated", "good", "to_renovate", "unknown"] = "unknown"
+    tenant: Literal["yes", "no", "unknown"] = "unknown"  # sold with a sitting tenant
     costs: list[str] = []  # what the asking price does not include
     concerns: list[str] = []  # weak points the text admits to
     negotiation: list[str] = []  # facts usable when making an offer
@@ -184,7 +233,7 @@ class ListingAuditOut(BaseModel):
     stale: bool = False
 
 
-class PropertyPage(BaseModel):
+class PropertyPage(ApiOut):
     """One window of the filtered property set, plus the size of the whole.
 
     `total` is what the dashboard counts and what tells the infinite scroll
@@ -229,7 +278,7 @@ class PropertyBulkIn(BaseModel):
     tag_id: int | None = None
 
 
-class PricingTrendPoint(BaseModel):
+class PricingTrendPoint(ApiOut):
     """One dated median €/sqm reading for an area."""
 
     captured_on: date
@@ -237,25 +286,25 @@ class PricingTrendPoint(BaseModel):
     sample_count: int
 
 
-class PricingTrendOut(BaseModel):
+class PricingTrendOut(ApiOut):
     """Median €/sqm over time for one (city, zone, contract) area."""
 
     city: str
     zone: str
-    contract: str
+    contract: Contract
     points: list[PricingTrendPoint] = []
 
 
-class TrendAreaOut(BaseModel):
+class TrendAreaOut(ApiOut):
     """An area with enough snapshot history to plot (>= 2 points)."""
 
     city: str
     zone: str
-    contract: str
+    contract: Contract
     point_count: int
 
 
-class ScanProgressOut(BaseModel):
+class ScanProgressOut(ApiOut):
     """What the scan in flight is doing right now (`scanner.get_scan_progress`).
 
     `total_pages` and `total_listings` are `None` unless the portal itself
@@ -281,7 +330,7 @@ class ScanProgressOut(BaseModel):
     waiting_seconds: float = 0.0
 
 
-class ScanJournalEntryOut(BaseModel):
+class ScanJournalEntryOut(ApiOut):
     """One search's line in the scan journal (`scanner.get_scan_journal`)."""
 
     profile_id: int | None = None
@@ -301,7 +350,7 @@ class ScanJournalEntryOut(BaseModel):
     mode: str = "full"
 
 
-class ScraperStatusOut(BaseModel):
+class ScraperStatusOut(ApiOut):
     """The dashboard's poll: `scan_state`, the schedule, and the live progress."""
 
     running: bool = False
@@ -351,7 +400,7 @@ class SearchProfileBulkIn(SearchProfileIdsIn):
     delete_results: bool = False
 
 
-class SearchBuilderParamsOut(BaseModel):
+class SearchBuilderParamsOut(ApiOut):
     """Parameters extracted from or used to build a portal search URL."""
 
     city: str = ""
@@ -367,7 +416,7 @@ class SearchBuilderParamsOut(BaseModel):
     # edge one. A field the parser could not name shows its ids rather than
     # nothing — see search_builder.
     zone_ids: list[str] = []
-    contract: str = "sale"
+    contract: Contract = "sale"
     min_price: int | None = None
     max_price: int | None = None
     min_rooms: int | None = None
@@ -379,14 +428,16 @@ class SearchBuilderParamsOut(BaseModel):
     elevator: bool = False
     exclude_auctions: bool = False
     pool: bool = False
-    floor: str = ""  # ground | middle | top
-    # new | good | excellent | to_renovate — "excellent" is Immobiliare's stato=6
-    # and the one condition Idealista has no equivalent for, so it is the only
-    # value idealista_unsupported reports.
-    condition: str = ""
+    # both read off the portals' own fixed vocabularies (search_builder's
+    # IMMOBILIARE_FLOORS / IMMOBILIARE_CONDITION and their Idealista twins), so
+    # "" is the only other thing the parser can produce
+    floor: BuilderFloor = ""
+    # "excellent" is Immobiliare's stato=6 and the one condition Idealista has no
+    # equivalent for, so it is the only value idealista_unsupported reports.
+    condition: BuilderCondition = ""
 
 
-class SearchProfileOut(BaseModel):
+class SearchProfileOut(ApiOut):
     """API response model detailing a search profile along with its execution diagnostics."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -595,14 +646,14 @@ class AssistantQueryIn(BaseModel):
     query: str
 
 
-class AssistantParams(BaseModel):
+class AssistantParams(ApiOut):
     """What the parser understood: same shape as SearchBuilderIn, except
     `city` may be empty (the parser could not identify one)."""
 
     city: str = ""
     province: str = ""
     zone: str = ""
-    contract: str = "sale"
+    contract: Contract = "sale"
     min_price: int | None = None
     max_price: int | None = None
     min_rooms: int | None = None
@@ -610,7 +661,7 @@ class AssistantParams(BaseModel):
     min_sqm: int | None = None
 
 
-class SearchBuilderUrlsOut(BaseModel):
+class SearchBuilderUrlsOut(ApiOut):
     """What `search_builder.build_search_urls` actually returns: a URL per
     portal, plus the two pieces of provenance the form shows next to them.
 
@@ -635,7 +686,7 @@ class SearchBuilderUrlsOut(BaseModel):
     zone_warnings: list[str] = []
 
 
-class AssistantSearch(BaseModel):
+class AssistantSearch(ApiOut):
     """One search alternative the assistant understood. A query with
     disjunctions ("bilocale in zona X o trilocale in zona Y") yields one of
     these per alternative."""
@@ -650,25 +701,30 @@ class AssistantSearch(BaseModel):
     urls: SearchBuilderUrlsOut | None = None
 
 
-class AssistantOut(BaseModel):
+class AssistantOut(ApiOut):
     searches: list[AssistantSearch]
 
 
-class AreaVelocityOut(BaseModel):
+class AreaVelocityOut(ApiOut):
     """Aggregated market speed metrics for a specific neighborhood or city."""
 
     city: str
     zone: str
-    scope: str  # "zone" | "city"
+    scope: AreaScope
     sample: int
-    closed: int  # how many left the market ("gone")
+    closed: int  # how many left the market (inferred "gone" + confirmed "sold")
+    # of those, the ones the user confirmed sold. Declared, not inferred: the
+    # service has always computed it, and a field the response model does not
+    # name is a field the response model deletes.
+    sold: int = 0
     median_days_to_gone: float | None = None
+    median_days_to_sold: float | None = None  # the confirmed-sale subset
     median_days_listed: float | None = None
     sell_through_pct: float
     price_drop_pct: float
 
 
-class AgencyBehaviorOut(BaseModel):
+class AgencyBehaviorOut(ApiOut):
     """Aggregated pricing and discounting behavior metrics for a real estate agency."""
 
     agency: str
@@ -681,16 +737,408 @@ class AgencyBehaviorOut(BaseModel):
     median_days_to_gone: float | None = None
 
 
-class MarketVelocityOut(BaseModel):
+class MarketVelocityOut(ApiOut):
     """Comprehensive API response detailing area velocities and agency pricing signatures."""
 
-    contract: str
+    contract: Contract
     city: str
     generated_at: datetime
     min_sample: int
     total_properties: int
     closed_properties: int
+    sold_properties: int = 0  # confirmed sales within closed_properties
     # start of the observation window: no days-on-market value can exceed it
     tracking_since: datetime | None = None
     areas: list[AreaVelocityOut] = []
     agencies: list[AgencyBehaviorOut] = []
+
+
+# --- Answers that used to be anonymous dictionaries ---
+#
+# Everything below describes a response the routers already returned; declaring
+# it changes no payload. What it changes is that the shape now exists in the
+# OpenAPI document, which is where `frontend/src/types/api.ts` is generated
+# from — an undeclared route publishes an empty schema, and an empty schema is
+# what let the frontend keep a hand-written twin that nothing checked. Two of
+# them had already drifted (`sold_properties` above; `approximate` below).
+
+
+class OkOut(ApiOut):
+    """An action whose entire result is "it was done" — the cancels, the
+    notification tests, hiding a property. `ok` is always true: anything that
+    did not happen leaves as an HTTP error, never as `ok: false`."""
+
+    ok: bool = True
+
+
+class ClearedOut(ApiOut):
+    """How many cached rows a "forget these" action removed."""
+
+    cleared: int
+
+
+class BulkActionOut(ApiOut):
+    """A bulk action over selected properties: how many of the ids actually
+    existed. Missing ids are skipped, so `processed` is the honest count."""
+
+    ok: bool = True
+    processed: int
+
+
+class AvailabilityCheckSummaryOut(ApiOut):
+    """What one run of the availability check found.
+
+    `unknown` is the load-bearing one: a portal that refused to answer (a block,
+    a timeout) leaves the property untouched and lands here, never in `gone`
+    (invariant 16).
+    """
+
+    checked: int = 0
+    gone: int = 0
+    online: int = 0
+    unknown: int = 0
+    # the portal refused three times in a row and the batch stopped early
+    aborted: bool = False
+    # the per-run live-fetch budget ran out: re-run to continue where it stopped
+    capped: bool = False
+    # the user pressed Stop — distinct from `aborted`, so the UI does not show a
+    # block warning for a deliberate stop
+    cancelled: bool = False
+    last_error: str | None = None
+    # how many times a fresh DataDome cookie was grabbed mid-check to recover
+    cookie_refreshed: int = 0
+    # human-readable transport diagnostic: "fast requests (curl)",
+    # "chromium (visible window)", "browser off: no option enabled", …
+    transport: str = ""
+
+
+class AvailabilityCheckProgressOut(ApiOut):
+    """The running availability check, as the progress bar polls it."""
+
+    active: bool = False
+    done: int = 0
+    total: int = 0
+    gone: int = 0
+    online: int = 0
+    unknown: int = 0
+    last_error: str | None = None
+    transport: str = ""
+
+
+class PropertyCheckOut(ApiOut):
+    """One property probed on demand: the card as it now stands, and the same
+    summary the batch answers with."""
+
+    property: PropertyOut
+    summary: AvailabilityCheckSummaryOut
+
+
+class PropertyGeocodeOut(ApiOut):
+    """One property geocoded on demand. `located` is the whole answer: a lookup
+    the address was too vague to resolve is not an error (fail-open), so the
+    property comes back unchanged with `located: false`."""
+
+    property: PropertyOut
+    located: bool
+
+
+class GeocodeProgressOut(ApiOut):
+    """The running geocoding batch, as the progress bar polls it."""
+
+    active: bool = False
+    done: int = 0
+    total: int = 0
+    geocoded: int = 0
+    cached: int = 0
+    not_found: int = 0
+    remaining: int = 0
+    last_error: str | None = None
+
+
+class GeocodeSummaryOut(ApiOut):
+    """What one geocoding batch achieved."""
+
+    scanned: int = 0
+    geocoded: int = 0
+    # of those, how many landed on a district centre rather than a street.
+    # "40 properties placed" and "40 properties placed, 31 of them only to the
+    # district" are different answers, and only one of them is honest.
+    approximate: int = 0
+    cached: int = 0
+    not_found: int = 0
+    remaining: int = 0
+    cancelled: bool = False
+
+
+class CommuteProgressOut(ApiOut):
+    """The running commute batch, as the progress bar polls it."""
+
+    active: bool = False
+    done: int = 0
+    total: int = 0
+    routed: int = 0
+    cached: int = 0
+    unreachable: int = 0
+    remaining: int = 0
+    last_error: str | None = None
+
+
+class CommuteSummaryOut(ApiOut):
+    """What one commute batch achieved. `points` is how many saved places it
+    routed against, so a run that found nothing can say whether that is because
+    there was nowhere to route to."""
+
+    scanned: int = 0
+    routed: int = 0
+    cached: int = 0
+    unreachable: int = 0
+    remaining: int = 0
+    points: int = 0
+    cancelled: bool = False
+
+
+class ScraperHealthDayOut(ApiOut):
+    """One day's scraping counters for one portal."""
+
+    date: str  # ISO date
+    attempts: int = 0
+    successes: int = 0
+    blocked: int = 0
+    errors: int = 0
+
+
+class ScraperHealthPortalOut(ApiOut):
+    """One portal over the window: its daily series and the totals behind the
+    block rate."""
+
+    portal: str
+    days: list[ScraperHealthDayOut] = []
+    last_transport: str = ""
+    attempts: int = 0
+    failures: int = 0
+    block_rate: float = 0.0  # 0..1 over the window
+
+
+class ScraperHealthProfileOut(ApiOut):
+    """One active search's live failure streak (invariant 11's counter)."""
+
+    profile_id: int
+    name: str
+    portal: str
+    consecutive_failures: int = 0
+    last_run_status: str = ""
+
+
+class ScraperHealthOut(ApiOut):
+    """The scraping-health panel: per-portal history, per-search streaks, and
+    the transport the next scan would start on."""
+
+    window_days: int
+    portals: list[ScraperHealthPortalOut] = []
+    profiles: list[ScraperHealthProfileOut] = []
+    transport: str = ""
+
+
+class ScanTriggerOut(ApiOut):
+    """Whether the manual trigger started a scan or found one already running."""
+
+    status: str  # started | already_running
+
+
+class ProfileResultsOut(ApiOut):
+    """What a set of searches has produced in the dashboard, and what deleting
+    them would take with it. `tracked` counts only properties whose provenance
+    is recorded: cards from before that tracking existed are not attributable
+    and stay (invariant 20)."""
+
+    tracked: int
+    deletable: int
+    kept_shared: int  # also found by a search outside the selection
+    kept_curated: int  # favourited or annotated by hand: never deleted in bulk
+
+
+class ProfileDeletedResultsOut(ProfileResultsOut):
+    """The same classification, after the delete ran, plus how many portal ads
+    went with the properties."""
+
+    listings: int
+
+
+class ProfileBulkOut(ApiOut):
+    """A bulk action over selected searches. `results` is filled only by the
+    "delete" action, and only when the results were deleted too."""
+
+    ok: bool = True
+    processed: int
+    results: ProfileDeletedResultsOut | None = None
+
+
+class BackupFileOut(ApiOut):
+    """One copy of the database in the backups folder.
+
+    `kind` is what the copy is there for, and it decides what the row says:
+    `daily` is one of the fourteen rotating copies, `pre-upgrade` is the state a
+    version change left behind (kept indefinitely), `imported` is a database
+    brought in from another install. `revision` is the schema it holds — null
+    when the file is too damaged to say, which is exactly when the user needs to
+    see the row rather than a gap.
+    """
+
+    name: str
+    kind: Literal["daily", "pre-upgrade", "imported"]
+    size_bytes: int
+    taken_at: str
+    revision: str | None = None
+
+
+class BackupListOut(ApiOut):
+    """The copies on disk, newest first, and the folder holding them — a real
+    path on the user's machine, which is what makes them usable outside this
+    app."""
+
+    folder: str
+    backups: list[BackupFileOut] = []
+
+
+class BackupRestoreOut(ApiOut):
+    """A completed restore: which copy went live, and the copy of the *previous*
+    state taken first, so restoring the wrong file is recoverable."""
+
+    restored: str
+    backup: str | None = None
+
+
+class ResetOut(ApiOut):
+    """A scoped data reset: what was cleared, and how many rows of each. Only
+    the factory reset takes a snapshot first, so only it fills `backup`."""
+
+    scope: str  # dashboard | pricing-snapshots | factory
+    deleted: dict[str, int] = {}
+    backup: str | None = None
+
+
+class RestartOut(ApiOut):
+    """`reload` says which path the restart took: true = the file watcher owns
+    the respawn, false = the process re-exec'd itself."""
+
+    ok: bool = True
+    reload: bool
+
+
+class LogTailOut(ApiOut):
+    """The tail of the backend's own log, and where that file lives."""
+
+    lines: list[str] = []
+    path: str
+
+
+class DatadomeRefreshOut(ApiOut):
+    """A cookie grab that succeeded. Only the first characters of the cookie
+    come back: the value itself is a credential and never leaves the backend."""
+
+    ok: bool = True
+    portal: str
+    updated_at: str
+    cookie_preview: str
+
+
+class InstallOut(ApiOut):
+    """One of the optional-browser installers, with the line to show the user."""
+
+    ok: bool = True
+    message: str
+
+
+class CommutePointOut(ApiOut):
+    """A place the user commutes to, as stored in the settings: either an
+    address (geocoded once, then remembered) or an explicit pin."""
+
+    name: str = ""
+    address: str = ""
+    lat: float | None = None
+    lng: float | None = None
+    mode: str = "car"  # car | foot | bike
+
+
+class SettingsOut(ApiOut):
+    """`settings.json` as the dashboard reads it back.
+
+    Every secret is masked here and answered with a `*_set` boolean beside it,
+    so the UI can say "configured" without ever holding the value — and so a
+    form posting the mask straight back means "keep the stored one" rather than
+    "erase it" (see `routers/settings.py`). The two `*_available` flags are not
+    stored at all: they are what the backend detected about this machine, so the
+    UI offers "install it for me" instead of a field the user cannot fill.
+
+    The fields themselves are `config.DEFAULT_SETTINGS`, and each one's reason
+    for existing is written there rather than repeated here.
+    """
+
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_enabled: bool = False
+    telegram_actions_enabled: bool = True
+    telegram_token_set: bool = False
+    email_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_password_set: bool = False
+    email_from: str = ""
+    email_to: str = ""
+    scan_interval_minutes: int = 60
+    scanning_paused: bool = False
+    match_score_enabled: bool = False
+    dream_max_price: int = 0
+    dream_min_rooms: int = 0
+    dream_min_sqm: int = 0
+    dream_min_floor: int = 0
+    dream_keywords: list[str] = []
+    dream_zones: list[str] = []
+    nominatim_url: str = ""
+    geocode_after_scan: bool = True
+    commute_enabled: bool = False
+    commute_points: list[CommutePointOut] = []
+    osrm_url: str = ""
+    nl_parser_backend: str = "deterministic"
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_api_key_set: bool = False
+    llm_model: str = ""
+    listing_audit_enabled: bool = False
+    excluded_keywords: list[str] = []
+    request_delay_seconds: float = 6.0
+    max_pages_per_search: int = 10
+    split_large_searches: bool = True
+    scan_portals_concurrently: bool = True
+    stop_when_nothing_new: bool = True
+    full_sweep_every_days: int = 7
+    health_alert_after_failures: int = 3
+    proxy_url: str = ""
+    proxy_urls: list[str] = []
+    scrape_api_provider: str = "scrapfly"
+    scrape_api_key: str = ""
+    scrape_api_key_set: bool = False
+    scrape_api_mode: str = "fallback"
+    transport_escalate_after_failures: int = 2
+    idealista_api_key: str = ""
+    idealista_api_key_set: bool = False
+    idealista_api_secret: str = ""
+    idealista_api_secret_set: bool = False
+    idealista_api_max_pages: int = 1
+    tls_impersonations: list[str] = []
+    datadome_cookie: str = ""
+    datadome_cookie_set: bool = False
+    datadome_auto_refresh: bool = False
+    datadome_cookie_updated_at: str = ""
+    datadome_cookie_ttl_minutes: int = 50
+    datadome_harvester_available: bool = False
+    availability_browser_first: bool = False
+    availability_browser_headful: bool = False
+    browser_engine: str = "auto"
+    camoufox_available: bool = False
+    browser_humanize: bool = True
+    repair_agency_prefixes: list[str] = []
+    omi_input_dir: str = ""
+    api_auth_token: str = ""

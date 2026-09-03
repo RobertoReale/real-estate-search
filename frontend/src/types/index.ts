@@ -1,186 +1,116 @@
-/** Core TypeScript data definitions matching backend REST API payloads and Pydantic schemas. */
+/** The application's type vocabulary.
+ *
+ *  Two halves, and the split is the point. Everything the **backend** describes
+ *  is an alias onto `api.ts`, which is generated from the OpenAPI document
+ *  (`python scripts/gen_api_types.py`) — so a field renamed in `schemas.py`
+ *  fails the build here instead of becoming an `undefined` in the browser. This
+ *  file used to be a 583-line hand-written twin of that document, and nothing
+ *  made the two agree.
+ *
+ *  Everything the **browser** owns and the backend has never heard of — form
+ *  state, the shapes the UI groups things into, the view mode — is declared
+ *  below, by hand, because there is nothing to generate it from.
+ *
+ *  The names are ours, not the wire's: `Property`, not `PropertyOut`. One line
+ *  of aliasing keeps every call site reading like the product rather than like
+ *  a Pydantic module.
+ */
+import type { components } from "./api";
+
+type Schemas = components["schemas"];
+
+// --- What the backend describes ---
 
 /** Tail of the backend's own app.log, for the in-app log viewer. */
-export interface LogTail {
-  lines: string[];
-  path: string;
-}
-
+export type LogTail = Schemas["LogTailOut"];
 /** Single portal ad associated with a deduplicated Property. */
-export interface Listing {
-  id: number;
-  portal: "immobiliare" | "idealista";
-  portal_id: string;
-  url: string;
-  price: number | null;
-  agency: string;
-  description: string;
-  image_url: string;
-  first_seen_at: string;
-  last_seen_at: string;
-}
-
+export type Listing = Schemas["ListingOut"];
 /** Record of a historical price variation on a Property. */
-export interface PricePoint {
-  old_price: number | null;
-  new_price: number;
-  changed_at: string;
-}
-
+export type PricePoint = Schemas["PriceHistoryOut"];
 /** A user-defined free-form category ("senza ascensore", "con giardino", ...).
- *  `count` (usage across properties) is only meaningful on the list returned
- *  by GET /api/tags, not on the copies nested in Property.tags. */
-export interface Tag {
-  id: number;
-  name: string;
-  count?: number;
-}
-
+ *  `count` (usage across properties) is only meaningful on the list returned by
+ *  GET /api/tags, not on the copies nested in Property.tags. */
+export type Tag = Schemas["TagOut"];
 /** Deduplicated physical property merging identical ads across portals/agencies. */
-export interface Property {
-  id: number;
-  title: string;
-  city: string;
-  zone: string;
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
-  /** Where the pin came from. "portal" and "address" are this property's own
-   *  location; "zone" is the middle of the district it is somewhere inside, and
-   *  the map has to say so rather than draw the two alike. "" is a pin from
-   *  before the backend recorded this. */
-  coordinate_source: "" | "portal" | "address" | "zone";
-  rooms: number | null;
-  floor: string;
-  sqm: number | null;
-  contract: "sale" | "rent";
-  current_min_price: number | null;
-  first_price: number | null;
-  image_url: string;
-  status: string;
-  filtered_reason: string;
-  source: "scan" | "email";  // how it entered the dashboard
-  is_favorite: boolean;
-  notes: string;
-  // market position vs the local median €/sqm (null = not enough comparables)
-  area_median_sqm_price: number | null;
-  area_median_scope: "zone" | "city" | null;
-  sqm_price_delta_pct: number | null;
-  // the OMI band for the same micro-zone: min/max €/sqm the tax authority
-  // records *transactions* at, and the semester it recorded them in. Shown
-  // beside the median above, never merged into it — one is what sellers ask,
-  // the other what deeds say. All null when no OMI data covers this property.
-  omi_min_sqm_price: number | null;
-  omi_max_sqm_price: number | null;
-  omi_semester: string | null;
-  // whether that semester is old enough to stop being current (the backend
-  // owns the threshold, so screen and print dossier age the band together)
-  omi_stale: boolean;
-  omi_zone_code: string;
-  match_score: number | null;
-  deal_score: number | null;
-  deal_label: "undervalued" | "fair" | "overpriced" | null;
-  deal_reasons: string[] | null;
-  expected_discount_pct: number | null;
-  target_price_low: number | null;
-  target_price_high: number | null;
-  first_seen_at: string;
-  last_seen_at: string;
-  sold_at: string | null;  // set when the user marked it sold
-  listings: Listing[];
-  price_history: PricePoint[];
-  tags: Tag[];
-  // monitored searches that have found this property (provenance); empty for an
-  // email import never re-found by a scan
-  found_by: ProfileRef[];
-  // travel time to the user's saved places; empty when the feature is off, when
-  // the property has no pin, or when the leg has not been routed yet
-  commutes: Commute[];
-}
-
-/** One routed leg from a property to a saved place. Raw metres and seconds:
- *  the formatting ("12 min", "3.2 km") is this layer's job. */
-export interface Commute {
-  name: string;
-  mode: CommuteMode;
-  distance_m: number;
-  duration_s: number;
-}
-
-export type CommuteMode = "car" | "foot" | "bike";
-
+export type Property = Schemas["PropertyOut"];
+/** One routed leg from a property to a saved place. Raw metres and seconds: the
+ *  formatting ("12 min", "3.2 km") is this layer's job. */
+export type Commute = Schemas["CommuteOut"];
+export type CommuteMode = Commute["mode"];
 /** A place the user commutes to, as stored in the settings. Either an address
  *  (geocoded once, then remembered) or an explicit pin. */
-export interface CommutePoint {
-  name: string;
-  address?: string;
-  lat?: number | null;
-  lng?: number | null;
-  mode: CommuteMode;
-}
-
-/** What the optional model read in one listing's text — mirrors
- *  `schemas.ListingAuditOut`. Deliberately not part of `Property`: it exists
- *  only for the properties the user asked about, and the detail modal fetches
- *  it on its own. `cached` = answered from the stored row rather than the
- *  model; `stale` = the ad has been rewritten since it was read. */
-export interface ListingAudit {
-  summary: string;
-  condition: "new" | "renovated" | "good" | "to_renovate" | "unknown";
-  tenant: "yes" | "no" | "unknown";
-  costs: string[];
-  concerns: string[];
-  negotiation: string[];
-  model: string;
-  created_at: string;
-  cached: boolean;
-  stale: boolean;
-}
-
+export type CommutePoint = Schemas["CommutePointOut"];
+/** What the optional model read in one listing's text. Deliberately not part of
+ *  `Property`: it exists only for the properties the user asked about, and the
+ *  detail view fetches it on its own. */
+export type ListingAudit = Schemas["ListingAuditOut"];
 /** A monitored search that found a property, shown on its card. */
-export interface ProfileRef {
-  id: number;
-  name: string;
-}
-
+export type ProfileRef = Schemas["ProfileRef"];
 /** Extracted or computed criteria from a search profile's URL. */
-export interface SearchProfileParams {
-  city: string;
-  province: string;
-  zone: string;
-  contract: "sale" | "rent";
-  min_price: number | null;
-  max_price: number | null;
-  min_rooms: number | null;
-  max_rooms: number | null;
-  min_sqm: number | null;
-  balcony?: boolean;
-  garden?: boolean;
-  parking?: boolean;
-  elevator?: boolean;
-  exclude_auctions?: boolean;
-  pool?: boolean;
-  floor?: string;
-  condition?: string;
-}
-
+export type SearchProfileParams = Schemas["SearchBuilderParamsOut"];
 /** Monitored search profile running scheduled or manual portal scrapes. */
-export interface SearchProfile {
-  id: number;
-  name: string;
-  portal: string;
-  search_url: string;
-  excluded_keywords: string;
-  notify_channels: string;
-  is_active: boolean;
-  last_run_at: string | null;
-  last_run_status: string;
-  last_run_detail: string;
-  consecutive_failures: number;
-  params?: SearchProfileParams;
-}
+export type SearchProfile = Schemas["SearchProfileOut"];
+/** What a search has produced in the dashboard, and what deleting it would take
+ *  with it. */
+export type ProfileResults = Schemas["ProfileResultsOut"];
+export type ProfileBulkResult = Schemas["ProfileBulkOut"];
+/** User-configurable application preferences persisted in settings.json. */
+export type Settings = Schemas["SettingsOut"];
+/** Status and timing details of background scan execution, plus the live
+ *  progress of the scan in flight. */
+export type ScanStatus = Schemas["ScraperStatusOut"];
+/** What the scan in flight is doing right now. `total_pages`/`total_listings`
+ *  are null unless the portal declared them — a proportion may only be drawn
+ *  against a real total. */
+export type ScanProgress = Schemas["ScanProgressOut"];
+/** One search's line in the scan journal. */
+export type ScanJournalEntry = Schemas["ScanJournalEntryOut"];
+/** One window of the filtered property set. `total` sizes the whole filtered
+ *  set, not `items`. */
+export type PropertyPage = Schemas["PropertyPage"];
+/** Portal URLs generated by the native search builder. */
+export type SearchBuilderUrls = Schemas["SearchBuilderUrlsOut"];
+/** One search alternative the assistant understood ("bilocale in zona X o
+ *  trilocale in zona Y" yields two of these). */
+export type AssistantSearch = Schemas["AssistantSearch"];
+/** What the natural-language assistant understood, before anything is saved. */
+export type AssistantResult = Schemas["AssistantOut"];
+/** Outcome of probing dashboard properties against the portals. `unknown` counts
+ *  the ones the portal would not answer for (a block, a timeout): not gone. */
+export type AvailabilityCheckSummary = Schemas["AvailabilityCheckSummaryOut"];
+export type AvailabilityCheckProgress = Schemas["AvailabilityCheckProgressOut"];
+export type AreaVelocity = Schemas["AreaVelocityOut"];
+export type AgencyBehavior = Schemas["AgencyBehaviorOut"];
+export type MarketVelocity = Schemas["MarketVelocityOut"];
+export type ScraperHealthDay = Schemas["ScraperHealthDayOut"];
+export type ScraperHealthPortal = Schemas["ScraperHealthPortalOut"];
+export type ScraperHealthProfileStreak = Schemas["ScraperHealthProfileOut"];
+export type ScraperHealth = Schemas["ScraperHealthOut"];
+export type PricingTrendPoint = Schemas["PricingTrendPoint"];
+export type PricingTrend = Schemas["PricingTrendOut"];
+export type TrendArea = Schemas["TrendAreaOut"];
+export type GeocodeProgress = Schemas["GeocodeProgressOut"];
+export type GeocodeSummary = Schemas["GeocodeSummaryOut"];
+export type CommuteProgress = Schemas["CommuteProgressOut"];
+export type CommuteSummary = Schemas["CommuteSummaryOut"];
+/** One copy of the database in the backups folder. `kind` decides what the row
+ *  says: `daily` is one of the fourteen rotating copies, `pre-upgrade` is the
+ *  state a version change left behind, `imported` came from another install. */
+export type BackupFile = Schemas["BackupFileOut"];
 
-/** A grouped/unified search containing one or more SearchProfiles (e.g. Immobiliare + Idealista). */
+/** The fields a settings form may send back. Deliberately the *input* model and
+ *  not `Partial<Settings>`: the response carries the `*_set` booleans and the
+ *  `*_available` flags, which are things the backend reports and nothing may
+ *  post — and posting a masked secret back is how a stored key gets overwritten
+ *  with three asterisks. */
+export type SettingsPatch = Schemas["SettingsIn"];
+
+// --- What only the browser has ---
+
+/** A grouped/unified search containing one or more SearchProfiles (e.g.
+ *  Immobiliare + Idealista). Assembled in the client from the flat list the API
+ *  returns: the pairing is a presentation decision, and the backend stores each
+ *  portal's search as its own profile. */
 export interface GroupedSearchProfile {
   baseName: string;
   profiles: SearchProfile[];
@@ -194,129 +124,12 @@ export interface GroupedSearchProfile {
   excluded_keywords: string;
 }
 
-/** What a search has produced in the dashboard, and what deleting it would
- *  take with it. `tracked` counts only properties whose provenance is recorded
- *  (see the backend's ListingProfile): cards from before that tracking existed,
- *  and any the search has not re-found since, are not attributable and stay. */
-export interface ProfileResults {
-  tracked: number;
-  deletable: number;
-  /** also found by a search outside the selection: it still covers them */
-  kept_shared: number;
-  /** favorited or annotated by hand: never deleted in bulk */
-  kept_curated: number;
-}
-
-export interface ProfileBulkResult {
-  ok: boolean;
-  processed: number;
-  /** only on the "delete" action, and only when the results were deleted too */
-  results?: (ProfileResults & { listings: number }) | null;
-}
-
-/** User-configurable application preferences persisted in settings.json. */
-export interface Settings {
-  telegram_bot_token: string;
-  telegram_chat_id: string;
-  telegram_enabled: boolean;
-  telegram_actions_enabled?: boolean;
-  telegram_token_set?: boolean;
-  email_enabled: boolean;
-  smtp_host: string;
-  smtp_port: number;
-  smtp_user: string;
-  smtp_password: string;
-  smtp_password_set?: boolean;
-  email_from: string;
-  email_to: string;
-  scan_interval_minutes: number;
-  scanning_paused?: boolean;
-  match_score_enabled?: boolean;
-  dream_max_price?: number;
-  dream_min_rooms?: number;
-  dream_min_sqm?: number;
-  dream_min_floor?: number;
-  dream_keywords?: string[];
-  dream_zones?: string[];
-  excluded_keywords: string[];
-  // commute times to the user's saved places (off by default; osrm_url points
-  // at the public demo router unless self-hosted)
-  commute_enabled?: boolean;
-  commute_points?: CommutePoint[];
-  osrm_url?: string;
-  nl_parser_backend?: string;
-  llm_base_url?: string;
-  llm_api_key?: string;
-  llm_api_key_set?: boolean;
-  llm_model?: string;
-  // opt-in reading of a listing's text by that same model, one card at a time
-  listing_audit_enabled?: boolean;
-  request_delay_seconds: number;
-  max_pages_per_search: number;
-  health_alert_after_failures: number;
-  proxy_url: string;
-  // residential proxy pool: proxy_url is the one-element shorthand, this list
-  // adds rotate-on-block IP diversity
-  proxy_urls?: string[];
-  scrape_api_provider?: string;
-  scrape_api_key?: string;
-  scrape_api_key_set?: boolean;
-  // "fallback" (default) = free path first, paid API only on block/streak;
-  // "always" = a set key routes every fetch through the provider
-  scrape_api_mode?: string;
-  transport_escalate_after_failures?: number;
-  // Idealista's official Search API: both halves set = a second engine that
-  // asks the portal for its own data, falling back to the scraper for any
-  // search it cannot express faithfully
-  idealista_api_key?: string;
-  idealista_api_key_set?: boolean;
-  idealista_api_secret?: string;
-  idealista_api_secret_set?: boolean;
-  // search requests one profile scan may spend on it; the per-key ceiling is
-  // agreed when the key is issued and published nowhere, hence a default of 1
-  idealista_api_max_pages?: number;
-  repair_agency_prefixes?: string[];
-  datadome_cookie: string;
-  datadome_cookie_set?: boolean;
-  datadome_auto_refresh?: boolean;
-  availability_browser_first?: boolean;
-  availability_browser_headful?: boolean;
-  datadome_cookie_ttl_minutes?: number;
-  datadome_cookie_updated_at?: string;
-  datadome_harvester_available?: boolean;
-  // "auto" | "chromium" | "camoufox" — which browser engine the optional
-  // browser paths use; auto prefers Camoufox when installed
-  browser_engine?: string;
-  camoufox_available?: boolean;
-  // human-like mouse movement + scroll on browser-path pages (default on)
-  browser_humanize?: boolean;
-  api_auth_token?: string;
-}
-
-/** Status and timing details of background scan execution. */
-export interface ScanStatus {
-  running: boolean;
-  last_started_at: string | null;
-  last_finished_at: string | null;
-  last_summary: string;
-  next_auto_run: string | null;
-  paused?: boolean;
-  /** Fingerprint of the property set (main._properties_version). The dashboard
-   *  polls this cheap endpoint and refetches the grid only when it moves,
-   *  instead of re-downloading every annotated property every few seconds. */
-  data_version?: string;
-}
-
-/** One window of the filtered property set — mirrors `schemas.PropertyPage`.
- *  `total` sizes the whole filtered set, not `items`. */
-export interface PropertyPage {
-  items: Property[];
-  total: number;
-  limit: number | null;
-  offset: number;
-}
-
-/** User-selected filter state for querying properties in the UI. */
+/** User-selected filter state for querying properties in the UI.
+ *
+ *  Strings throughout, including the numeric fields: this is what the inputs
+ *  hold and what goes into the querystring, so an empty field is "" rather than
+ *  a number that has to mean "unset". The backend's own parameters are typed on
+ *  the query side of `api.ts`. */
 export interface PropertyFilters {
   status: string;
   contract: "sale" | "rent";
@@ -360,7 +173,10 @@ export interface GeoFilter {
   poly: string;
 }
 
-/** Structured parameters used to synthesize portal search URLs. */
+/** Structured parameters used to synthesize portal search URLs.
+ *
+ *  The builder *form*, not the wire payload: every numeric field is the string
+ *  its input holds, and `api.buildSearchUrls` converts them on the way out. */
 export interface SearchBuilderParams {
   city: string;
   province: string;
@@ -380,225 +196,6 @@ export interface SearchBuilderParams {
   floor: "" | "ground" | "middle" | "top";
   /** "excellent" is the one condition Idealista cannot express (stato=6). */
   condition: "" | "new" | "good" | "excellent" | "to_renovate";
-}
-
-/** Portal URLs generated by the native search builder. */
-export interface SearchBuilderUrls {
-  immobiliare: string;
-  idealista: string;
-  /** Whether the Idealista URL is its precise zone page (the portal confirmed
-   *  the slug) rather than the broader free-text search. */
-  idealista_zone_page?: boolean;
-  /** Requested filters Idealista's URL grammar cannot express, so its half of
-   *  the pair is the wider search. */
-  idealista_unsupported?: string[];
-}
-
-/** One search alternative the assistant understood ("bilocale in zona X o
- *  trilocale in zona Y" yields two of these). */
-export interface AssistantSearch {
-  params: {
-    city: string;
-    province: string;
-    zone: string;
-    contract: "sale" | "rent";
-    min_price: number | null;
-    max_price: number | null;
-    min_rooms: number | null;
-    max_rooms: number | null;
-    min_sqm: number | null;
-  };
-  interpretation: string[];
-  notes: string[];
-  warnings: string[];
-  // null when no city was recognised: URLs without one search all of Italy
-  urls: SearchBuilderUrls | null;
-}
-
-/** What the natural-language assistant understood, before anything is saved. */
-export interface AssistantResult {
-  searches: AssistantSearch[];
-}
-
-/** Outcome of probing dashboard properties against the portals. `unknown` counts the
- *  ones the portal would not answer for (a block, a timeout): not gone. */
-export interface AvailabilityCheckSummary {
-  checked: number;
-  gone: number;
-  online: number;
-  unknown: number;
-  // the portal refused three times in a row and the batch stopped early
-  aborted: boolean;
-  // the per-run live-fetch budget ran out: re-run to continue where it left off
-  capped?: boolean;
-  // the user clicked "Stop": distinct from `aborted` (portal blocked the
-  // batch) so the UI does not show a block warning for a deliberate stop
-  cancelled?: boolean;
-  last_error?: string | null;
-  // how many times a fresh DataDome cookie was grabbed mid-check to recover
-  // from a block (only when automatic cookie refresh is enabled)
-  cookie_refreshed?: number;
-  // human-readable transport diagnostic: "fast requests (curl)",
-  // "chromium (visible window)", "browser off: no option enabled", …
-  transport?: string;
-}
-
-export interface AvailabilityCheckProgress {
-  active: boolean;
-  done: number;
-  total: number;
-  gone: number;
-  online?: number;
-  unknown?: number;
-  last_error?: string | null;
-  transport?: string;
-}
-
-export interface AreaVelocity {
-  city: string;
-  zone: string;
-  scope: "zone" | "city";
-  sample: number;
-  closed: number;
-  sold: number;  // of the closed, how many the user confirmed sold
-  median_days_to_gone: number | null;
-  median_days_to_sold: number | null;  // confirmed-sale subset
-  median_days_listed: number | null;
-  sell_through_pct: number;
-  price_drop_pct: number;
-}
-
-export interface AgencyBehavior {
-  agency: string;
-  sample: number;
-  price_drop_pct: number;
-  median_drop_pct: number | null;
-  // positive = lists above the local median €/sqm
-  median_sqm_price_delta_pct: number | null;
-  priced_sample: number;
-  median_days_to_gone: number | null;
-}
-
-export interface MarketVelocity {
-  contract: "sale" | "rent";
-  city: string;
-  generated_at: string;
-  min_sample: number;
-  total_properties: number;
-  closed_properties: number;
-  sold_properties: number;  // confirmed sales within closed_properties
-  tracking_since: string | null;
-  areas: AreaVelocity[];
-  agencies: AgencyBehavior[];
-}
-
-export interface ScraperHealthDay {
-  date: string; // ISO date
-  attempts: number;
-  successes: number;
-  blocked: number;
-  errors: number;
-}
-
-export interface ScraperHealthPortal {
-  portal: string;
-  days: ScraperHealthDay[];
-  last_transport: string;
-  attempts: number;
-  failures: number;
-  block_rate: number; // 0..1 over the window
-}
-
-export interface ScraperHealthProfileStreak {
-  profile_id: number;
-  name: string;
-  portal: string;
-  consecutive_failures: number;
-  last_run_status: string;
-}
-
-export interface ScraperHealth {
-  window_days: number;
-  portals: ScraperHealthPortal[];
-  profiles: ScraperHealthProfileStreak[];
-  transport: string; // the transport the next scan would start on
-}
-
-export interface PricingTrendPoint {
-  captured_on: string; // ISO date
-  median_sqm_price: number;
-  sample_count: number;
-}
-
-export interface PricingTrend {
-  city: string;
-  zone: string;
-  contract: string;
-  points: PricingTrendPoint[];
-}
-
-export interface TrendArea {
-  city: string;
-  zone: string;
-  contract: string;
-  point_count: number;
-}
-
-export interface GeocodeProgress {
-  active: boolean;
-  done: number;
-  total: number;
-  geocoded: number;
-  cached: number;
-  not_found: number;
-  remaining: number;
-  last_error?: string | null;
-}
-
-export interface GeocodeSummary {
-  scanned: number;
-  geocoded: number;
-  cached: number;
-  not_found: number;
-  remaining: number;
-  cancelled?: boolean;
-}
-
-export interface CommuteProgress {
-  active: boolean;
-  done: number;
-  total: number;
-  routed: number;
-  cached: number;
-  unreachable: number;
-  remaining: number;
-  last_error?: string | null;
-}
-
-export interface CommuteSummary {
-  scanned: number;
-  routed: number;
-  cached: number;
-  unreachable: number;
-  remaining: number;
-  points: number;
-  cancelled?: boolean;
-}
-
-/** One copy of the database in the backups folder.
- *
- *  `kind` is what the copy is there for, and it decides what the row says:
- *  `daily` is one of the fourteen rotating copies, `pre-upgrade` is the state a
- *  version change left behind (kept indefinitely), `imported` is a database
- *  brought in from another install. `revision` is the schema it holds — null
- *  when the file is too damaged to say, which is exactly when the user needs
- *  to see the row rather than a gap. */
-export interface BackupFile {
-  name: string;
-  kind: "daily" | "pre-upgrade" | "imported";
-  size_bytes: number;
-  taken_at: string;
-  revision: string | null;
 }
 
 export type ViewMode = "grid" | "map";

@@ -285,6 +285,21 @@ cd frontend
 npm ci
 ```
 
+There is a second, much smaller npm project at `scripts/apitypes/`, locked and
+installed the same way. It holds nothing the application ships — only
+`openapi-typescript`, which `scripts/gen_api_types.py` uses to compile the
+backend's OpenAPI document into `frontend/src/types/api.ts`. It lives apart
+because that tool links against the TypeScript compiler API and still pins it to
+5.x, while the app is built with TypeScript 7; npm resolves a peer dependency at
+the root of a tree and refuses to nest one, so installed beside the frontend the
+generator would load the app's compiler and fail. Its own tree lets each have
+exactly the version it needs.
+
+```bash
+cd scripts/apitypes
+npm ci
+```
+
 Regenerating that lock is the one step with a trap in it: delete `node_modules`
 **and** `package-lock.json`, then run a plain `npm install`. Never
 `npm install --package-lock-only` — with no materialised tree npm resolves a

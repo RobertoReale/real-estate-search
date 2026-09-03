@@ -19,7 +19,7 @@ from ..services import notifier, scheduler
 router = APIRouter()
 
 
-@router.get("/api/settings")
+@router.get("/api/settings", response_model=schemas.SettingsOut)
 def get_settings():
     settings = load_settings()
     if settings.get("telegram_bot_token"):
@@ -52,7 +52,7 @@ def get_settings():
     return settings
 
 
-@router.put("/api/settings")
+@router.put("/api/settings", response_model=schemas.SettingsOut)
 def update_settings(data: schemas.SettingsIn):
     values = data.model_dump(exclude_none=True)
     # do not overwrite secrets with their masked versions
@@ -76,7 +76,7 @@ def update_settings(data: schemas.SettingsIn):
     return get_settings()
 
 
-@router.post("/api/settings/datadome-refresh")
+@router.post("/api/settings/datadome-refresh", response_model=schemas.DatadomeRefreshOut)
 def datadome_refresh(
     portal: str = Query("immobiliare", pattern="^(immobiliare|idealista)$"),
 ):
@@ -97,7 +97,7 @@ def datadome_refresh(
     return result
 
 
-@router.post("/api/settings/datadome-refresh/cancel")
+@router.post("/api/settings/datadome-refresh/cancel", response_model=schemas.OkOut)
 def cancel_datadome_refresh():
     """Stops a running "Grab a fresh cookie now" at its next poll (a hard
     block page with no solvable widget otherwise polls for the full headful
@@ -130,7 +130,7 @@ def _require_loopback(request: Request) -> None:
         )
 
 
-@router.post("/api/settings/install-harvester")
+@router.post("/api/settings/install-harvester", response_model=schemas.InstallOut)
 def install_harvester(request: Request):
     """Install Playwright package and download Chromium binary into the active virtual environment."""
     import os
@@ -190,7 +190,7 @@ def install_harvester(request: Request):
         raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}") from e
 
 
-@router.post("/api/settings/install-camoufox")
+@router.post("/api/settings/install-camoufox", response_model=schemas.InstallOut)
 def install_camoufox(request: Request):
     """Install Camoufox (stealth Firefox) and fetch its browser binary into the
     active virtual environment. Optional upgrade over Chromium: it hides the
@@ -223,7 +223,7 @@ def install_camoufox(request: Request):
         raise HTTPException(500, f"Installation failed: {type(e).__name__}: {e}") from e
 
 
-@router.post("/api/settings/telegram-test")
+@router.post("/api/settings/telegram-test", response_model=schemas.OkOut)
 def telegram_test():
     ok = notifier.send_test_message("telegram")
     if not ok:
@@ -234,7 +234,7 @@ def telegram_test():
     return {"ok": True}
 
 
-@router.post("/api/settings/email-test")
+@router.post("/api/settings/email-test", response_model=schemas.OkOut)
 def email_test():
     ok = notifier.send_test_message("email")
     if not ok:

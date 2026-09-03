@@ -206,7 +206,7 @@ def export_properties(
     )
 
 
-@router.get("/api/properties/check-progress")
+@router.get("/api/properties/check-progress", response_model=schemas.AvailabilityCheckProgressOut)
 def properties_check_progress():
     """Live progress of the ongoing dashboard properties availability check.
 
@@ -246,7 +246,7 @@ def patch_property(property_id: int, data: schemas.PropertyPatch, db: Session = 
     return prop
 
 
-@router.delete("/api/properties/{property_id}")
+@router.delete("/api/properties/{property_id}", response_model=schemas.OkOut)
 def hide_property(property_id: int, db: Session = Depends(get_db)):
     """Hides the property instead of physically deleting it: a real DELETE would
     be undone by the next scan, which would find the listing on the portal again
@@ -261,7 +261,7 @@ def hide_property(property_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/api/properties/{property_id}/restore")
+@router.post("/api/properties/{property_id}/restore", response_model=schemas.OkOut)
 def restore_property(property_id: int, db: Session = Depends(get_db)):
     """Restores a manually hidden property back to active status.
 
@@ -280,7 +280,7 @@ def restore_property(property_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/api/properties/{property_id}/sold")
+@router.post("/api/properties/{property_id}/sold", response_model=schemas.OkOut)
 def mark_property_sold(property_id: int, db: Session = Depends(get_db)):
     """Marks the property as sold/rented out.
 
@@ -301,7 +301,7 @@ def mark_property_sold(property_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/api/properties/bulk")
+@router.post("/api/properties/bulk", response_model=schemas.BulkActionOut)
 def bulk_properties(data: schemas.PropertyBulkIn, db: Session = Depends(get_db)):
     """Apply hide/restore/favorite/unfavorite to many properties at once.
 
@@ -376,7 +376,7 @@ def create_tag(data: schemas.TagCreate, db: Session = Depends(get_db)):
     return schemas.TagOut(id=tag.id, name=tag.name)
 
 
-@router.delete("/api/tags/{tag_id}")
+@router.delete("/api/tags/{tag_id}", response_model=schemas.OkOut)
 def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     """Deletes a tag globally, detaching it from every property that carried
     it (the properties themselves are untouched). SQLite here has no FK
@@ -391,7 +391,7 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/api/properties/check")
+@router.post("/api/properties/check", response_model=schemas.AvailabilityCheckSummaryOut)
 def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db)):
     """Runs live availability check (`AdProbe`) across multiple dashboard properties.
 
@@ -409,7 +409,7 @@ def properties_check(data: schemas.PropertyCheckIn, db: Session = Depends(get_db
         raise HTTPException(400, str(e)) from e
 
 
-@router.post("/api/properties/check/cancel")
+@router.post("/api/properties/check/cancel", response_model=schemas.OkOut)
 def cancel_properties_check():
     """Stops the running batch after its current property (invariant 16's
     pacing means each one can take several seconds, so this is not instant).
@@ -418,7 +418,7 @@ def cancel_properties_check():
     return {"ok": True}
 
 
-@router.post("/api/properties/{property_id}/check")
+@router.post("/api/properties/{property_id}/check", response_model=schemas.PropertyCheckOut)
 def check_single_property(property_id: int, db: Session = Depends(get_db)):
     """Runs AdProbe live availability check on a single property."""
     prop = db.get(Property, property_id)
@@ -477,7 +477,7 @@ def audit_property_listing(
         raise HTTPException(400, str(e)) from e
 
 
-@router.post("/api/properties/{property_id}/geocode")
+@router.post("/api/properties/{property_id}/geocode", response_model=schemas.PropertyGeocodeOut)
 def geocode_single_property(property_id: int, db: Session = Depends(get_db)):
     """On-demand geocoding for one property, backing the card's "View on map"
     when the pin is still missing. Reuses the cached, paced Nominatim path
