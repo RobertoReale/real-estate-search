@@ -28,6 +28,7 @@ import json
 import socket
 import socketserver
 import threading
+import time
 import typing
 from dataclasses import dataclass
 from email.header import decode_header, make_header
@@ -298,13 +299,15 @@ class _PortalHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
     pages: dict[str, "Page | typing.Callable[[dict[str, list[str]]], Page]"]
-    requested: list[str]
+    # (when it landed, what was asked for). The clock is `time.monotonic`,
+    # because what these are ever compared against is each other.
+    arrivals: list[tuple[float, str]]
 
 
 class _PortalHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         server = typing.cast(_PortalHTTPServer, self.server)
-        server.requested.append(self.path)
+        server.arrivals.append((time.monotonic(), self.path))
         parsed = urlparse(self.path)
         entry = server.pages.get(parsed.path)
         if callable(entry):
@@ -327,7 +330,7 @@ class MockPortalServer:
     def __init__(self) -> None:
         httpd = _PortalHTTPServer(("127.0.0.1", 0), _PortalHandler)
         httpd.pages = {}
-        httpd.requested = []
+        httpd.arrivals = []
         self._httpd = httpd
         self._thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         self._thread.start()
@@ -400,7 +403,18 @@ class MockPortalServer:
         a scraper that had gone to the real portal instead would simply be
         missing from it.
         """
-        return list(self._httpd.requested)
+        return [path for _, path in self._httpd.arrivals]
+
+    @property
+    def arrivals(self) -> list[tuple[float, str]]:
+        """The same requests, each with the moment the portal received it.
+
+        Timed at *this* end rather than at the client's, which is the only way
+        to say anything about what the portal experienced: how often it was
+        asked, and whether two hosts were being read at the same time. A client
+        that measured its own calls could only report on itself.
+        """
+        return list(self._httpd.arrivals)
 
     def install(self, monkeypatch: typing.Any) -> None:
         """Repoint every portal URL the scrapers request at this server."""

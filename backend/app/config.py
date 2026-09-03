@@ -294,6 +294,17 @@ DEFAULT_SETTINGS = {
     # had. Off is for a scan that must stay at exactly one request per page, at
     # the cost of the truncation coming back.
     "split_large_searches": True,
+    # Whether the portals are read at the same time as each other. Every delay
+    # above is owed to one host — `request_delay_seconds` between Immobiliare's
+    # pages exists so Immobiliare is not asked too often — and read strictly in
+    # turn those seconds were also spent not talking to the other portal. One
+    # worker per host asks each of them at exactly the rate it always did, and a
+    # two-portal scan costs the longer half instead of the sum. It is a
+    # performance switch and never a behaviour switch: the results are written
+    # on one thread, in the order the searches were listed, so off and on end in
+    # the same database. Off is for a machine that must make one request at a
+    # time, whatever it is talking to.
+    "scan_portals_concurrently": True,
     # Scraper health alerting: notify after this many *consecutive* failed
     # scans of the same profile. A single blocked scan is a transient
     # DataDome 403, not a broken scraper — alerting on it trains the user to
