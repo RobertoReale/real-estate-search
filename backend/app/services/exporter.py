@@ -55,6 +55,7 @@ def _gallery_urls(p: Property, limit: int = 6) -> list[str]:
     """
     urls: list[str] = []
     for candidate in (p.image_url, *(l.image_url for l in p.listings)):
+        candidate = _safe_url(candidate)
         if candidate and candidate not in urls:
             urls.append(candidate)
         if len(urls) >= limit:
@@ -102,6 +103,20 @@ def _md(value: str) -> str:
 def _csv_text(value: str) -> str:
     s = value or ""
     return f"'{s}" if s[:1] in ("=", "+", "-", "@") else s
+
+
+# A listing's URL is a portal-supplied string too — the scrapers take it from an
+# `href` or from a `seo.url` field in the page's own JSON — and the HTML dossier
+# turns it into a link the user clicks in a file saved on their disk. Escaping
+# keeps it inside the attribute; it does not stop `javascript:` from being a
+# perfectly valid scheme in there. Only the two schemes a portal listing can
+# honestly have survive, and anything else renders as no link at all rather than
+# as a live one.
+_LINKABLE_SCHEMES = ("http://", "https://")
+
+
+def _safe_url(value: str) -> str:
+    return value if (value or "").lower().startswith(_LINKABLE_SCHEMES) else ""
 
 
 def properties_to_csv(props: list[Property]) -> str:
@@ -237,7 +252,8 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 def _card_html(p: Property) -> str:
     esc = html_lib.escape
     sqm_price = _sqm_price(p)
-    img = f'<img src="{esc(p.image_url)}" alt="" loading="lazy">' if p.image_url else ""
+    cover = _safe_url(p.image_url)
+    img = f'<img src="{esc(cover)}" alt="" loading="lazy">' if cover else ""
     badges = []
     deal = getattr(p, "deal_score", None)
     if deal is not None and getattr(p, "deal_label", None) != "fair":
@@ -267,8 +283,9 @@ def _card_html(p: Property) -> str:
         parts = " → ".join(_fmt_price(h.new_price, p.contract) for h in p.price_history)
         hist = f'<div class="hist">📉 {_fmt_price(p.first_price, p.contract)} → {parts}</div>'
     links = "".join(
-        f'<a href="{html_lib.escape(l.url)}" target="_blank" rel="noreferrer">{esc(l.portal)} ↗</a>'
+        f'<a href="{esc(link)}" target="_blank" rel="noreferrer">{esc(l.portal)} ↗</a>'
         for l in p.listings
+        if (link := _safe_url(l.url))
     )
     target = ""
     low = getattr(p, "target_price_low", None)

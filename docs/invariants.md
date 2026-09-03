@@ -160,6 +160,24 @@ each invariant to its code home and its test file. See also
     and a route that can overwrite the database must never become the argument for widening
     either (`test_api_auth.py` asserts they answer 401 without the token).
 
+    **The bind address cannot refuse one kind of request, and that one is guarded
+    separately.** A page on any site the user has open can submit a `<form method="post">`
+    at `http://127.0.0.1:8000/api/...`; the browser sending it *is* on the loopback
+    interface, so the bind is no answer, and a form post is a "simple request" — no
+    preflight, so `allow_origins` never gets a say, and the response being unreadable
+    cross-origin does not stop the request from happening. Every `/api` route that takes no
+    body was reachable that way, `POST /api/maintenance/reset/factory` (the whole dashboard)
+    and `POST /api/scrapers/trigger` (the user's residential IP, spent on the portals)
+    included. `reject_cross_site_writes` in `main.py` refuses POST/PUT/PATCH/DELETE under
+    `/api` unless the request is same-origin with its own `Host` header, comes from a
+    loopback origin, or states no `Origin` at all — a browser always states one on those
+    methods, so an absent header is a non-browser client and not the case being guarded.
+    The three exemptions are exactly the legitimate clients and nothing else: the packaged
+    app and the phone load the SPA from the API's own origin (invariant 13), the Vite dev
+    server is on 5173, and the browser suite's `vite preview` proxies from 127.0.0.1. Never
+    widen it to a named external origin — that is the same mistake as widening the bind,
+    made in a different file.
+
 15. **RETIRED as written** — *`email_import_scan` is a sync `def` endpoint on purpose.*
     Its subject went with the inbox import; the number is kept rather than renumbering
     16-21. **The rule it encoded still binds the availability check**, which is the last

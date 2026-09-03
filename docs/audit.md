@@ -44,7 +44,7 @@ cd frontend && npm test
 cd frontend && npm run e2e
 ```
 
-Expected today: **1000 passed + 1 skipped** (1001 collected; the skip needs the optional
+Expected today: **1008 passed + 1 skipped** (1009 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
 and **35 browser tests** (15 journeys, then 20 that hold the run to the control inventory).
 The last of those prints the two numbers worth reading: **222 interactive elements, 230
@@ -98,7 +98,7 @@ least one regression test. To audit an invariant:
 | 11 | Health alert fires on a streak, once | `services/scanner.py` `_update_profile_health` | `test_scanner.py` |
 | 12 | *retired with the inbox import (see [`invariants.md`](invariants.md))* | — | — |
 | 13 | StaticFiles mount stays last in `main.py` | `main.py` (bottom: after every `include_router`) | `test_static_frontend.py` |
-| 14 | Unauthenticated API → bind address is the control | `run.py`; `services/telegram_bot.py` (polls, never a webhook) | `test_api_auth.py`, `test_telegram_actions.py` |
+| 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook) | `test_api_auth.py`, `test_telegram_actions.py` |
 | 15 | *retired as written; the sync-`def` + module-lock rule now binds the availability check* | `services/availability_check.py`, `routers/properties.py` | `test_availability_check.py` |
 | 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_availability_check.py`, `test_scrapers.py` |
 | 17 | Settings tests must not read real `settings.json` | `tests/conftest.py` | (all tests) |
@@ -197,3 +197,138 @@ enforces it:
 
 Record anything that failed these as a fix in the same session, with a test when it is a
 code fix.
+
+---
+
+## 6. Security pass
+
+§1–§5 ask whether the code does what its tests say. This asks what somebody who wants
+something from it would try. It is a separate walk because the questions are different:
+correctness is read module by module, and this is read surface by surface.
+
+**Write the threat model down first**, or a security pass degenerates into a checklist of
+things that do not apply here. What this program actually is:
+
+> A local, unauthenticated HTTP API whose access control is the loopback bind
+> (invariant 14). It holds portal, Telegram, SMTP and LLM credentials in a plaintext
+> `settings.json`. It writes files the user later opens in a browser. And it parses
+> attacker-controllable HTML and JSON from two public portals, stores it, and renders it
+> back.
+
+The adversary worth modelling is therefore **not** somebody on the network — the bind
+already answers that — but a **web page the user has open in another tab**, and a
+**portal listing crafted to be parsed**. Both reach this app through a door the bind
+address does not cover.
+
+### 6.1 The surfaces, and what to check on each
+
+Walk them in this order. Each row names what "still true" looks like, so the answer is a
+check rather than an opinion.
+
+| Surface | The question | Where it is answered today |
+|---|---|---|
+| **Secrets at rest** | Is every secret masked on the way out, and does the mask never come back in as a value? | `routers/settings.py` — one `*_set` boolean and a `"***"` per secret in `get_settings`, one `pop` per secret in `update_settings`. `api_auth_token` is the deliberate exception and says so in `config.py`: it is returned in clear to a caller who already holds it, because Settings has to be able to show and clear it |
+| | Does a secret ever reach a log, an export, or the scan journal? | `grep` the logger calls for the secret names (nothing logs a *value* today); `scanner._without_secrets` redacts every stored credential out of journal text by value, not by shape, so a message nobody has written yet is covered too |
+| **The loopback assumption** | Can a page on another site drive this API? | `main.py` `reject_cross_site_writes` (invariant 14). This is the surface the bind cannot cover, and the one to re-check after every new route |
+| | Does a widened bind expose more than the token covers? | `run.py` (the default), `main.py` `require_api_token`, and the two install endpoints, which run `pip install` and therefore insist on loopback *in addition* (`routers/settings.py` `_require_loopback`) |
+| **Untrusted portal input** | Every scraped string that reaches a document: escaped as text, *and* filtered by scheme where it lands in an attribute? | `services/exporter.py` — `_md`, `_csv_text`, `_safe_url`. Escaping a URL keeps it inside the `href` and does nothing about `javascript:` being valid there |
+| | Does any scraped value reach a shell, a path, or a query? | It does not, and that is the check: no `subprocess` call takes portal data, no filename is derived from a listing, no SQL is built by concatenation |
+| **Paths** | Can a name from a request escape the folder it belongs to? | `services/backup.py` `find` — the copy is located by *listing* the folder and matching a name, never by joining, so `../../settings.json` is simply not in the list. `_read_only` builds its URI with `as_uri()` so a `?` in a folder name cannot become a query string |
+| | Is a destructive file operation validated before anything live is touched? | `backup.validate` (header, `PRAGMA quick_check`, the three tables that have existed since the first release) runs before `restore` copies anything, and `restore` takes a forced snapshot of the current database first |
+| **Queries** | Any SQL built by string concatenation? | None. Everything is SQLAlchemy expressions. The one f-string SQL is `database.py`'s additive-column backfill, whose interpolated values are `table.name`/`column.name` off the ORM metadata — not input |
+| **Dependencies** | Anything known-vulnerable in what actually ships? | `cd backend && .venv\Scripts\python -m pip_audit -r requirements.txt`, plus `npm audit` in `frontend/`. Neither is a gate, and neither should silently become one: say per finding whether it is reachable in a loopback desktop app |
+
+### 6.2 What this pass does **not** cover
+
+Say it out loud, because a security document that reads as complete when it is not is worse
+than none. As of the cycle-3 backend review (task H.5) the following did not exist yet and
+were **not** examined:
+
+- **the assembled frontend** — it is being replaced wholesale by phases B–E, and reading
+  code scheduled for deletion is the waste that ordering exists to avoid;
+- **the credential form** (D.7) and the secrets it will write;
+- **the packaged build** and what it ships — no `.env`, no `case.db`, no `settings.json`,
+  no fixture carrying a real address;
+- **`npm audit`**, for the same reason as the frontend.
+
+Task F.7 owns all four, and re-runs this section over the whole product rather than over
+the backend alone. Two live items are waiting for it and are named in
+[`roadmap.md`](roadmap.md): a scraped URL is rendered by the *frontend* as well, where the
+same scheme rule has not been applied, and the ingestion path stores whatever scheme the
+portal sent.
+
+### 6.3 Expected result
+
+Clean means: every row in §6.1 traced to the code that answers it and a test that fails
+without it; nothing in §6.2 quietly described as checked; every `pip-audit`/`npm audit`
+finding either fixed or written down with why it is not reachable here.
+
+---
+
+## 7. Efficiency pass
+
+The question is not "is it fast" but "is what the finished code does done well". It comes
+with one rule, and the rule is the whole of it:
+
+> **A change needs a number, not an instinct.** An efficiency change is made only where a
+> measurement shows it matters, and the before and after go in the commit message.
+> Everything else is written down as a candidate in [`roadmap.md`](roadmap.md), not done.
+
+### 7.1 The instrument
+
+```bash
+cd backend && .venv\Scripts\python ..\scripts\measure_backend.py
+```
+
+It prints numbers and asserts nothing, on purpose: a wall clock is not a gate — it would
+fail on a busy laptop and teach everyone to re-run it — but a claim that something got
+faster needs a before and an after from the same instrument. It redirects settings and the
+database to a temporary directory and blocks the network exactly as the suite does, so it
+is safe to run against a working install. `--only scan` and `--only queries` run half of it.
+
+The scan half drives `run_scan` against `tests/mock_portal.py`, which is the only honest
+offline stand-in for a portal: real HTTP on loopback, real pagination, and a record of when
+each request arrived. Read its three lines **against each other and never on their own** —
+the sandbox answers in microseconds where a portal takes a second, so the absolute seconds
+say nothing about a real run.
+
+### 7.2 Expected numbers
+
+Measured 2026-09-03, at the end of phase H, on the settings the script pins (5 pages per
+portal, 0.4 s between pages, two portals, 80-property demo corpus):
+
+| Measurement | Then | What it says |
+|---|---|---|
+| full sweep, one host at a time | 13 requests, ~3.9 s | the baseline the two phases before this were measured against |
+| full sweep, both hosts at once | 13 requests, ~2.2 s | **H.3 pays**: same requests, ~45 % less wall clock. Nearly all of a scan is the deliberate pause between pages, and the pause is owed to one host — spending it on two at once is the only way to shorten a scan without asking a portal for more |
+| quick scan, nothing new | 5 requests, ~0.1 s | **H.4 pays**: −62 % requests against the full sweep. Requests *not made* is the one kind of speed-up that also makes a block less likely |
+| the grid, one page (`limit=50`) | 9 queries | |
+| the grid, unbounded (`limit=0`, the map and "select all") | 9 queries | **the number that matters**: it does not move with the size of the result set. `selectinload` batches the three relationships and every annotation is one set-wide query, so there is no N+1 to find |
+| one property's card | 8 queries | |
+| the poll (`/api/scrapers/status`, every 4 s during a scan) | 2 queries | two aggregates, which is what makes polling it cheap enough to be the "did anything change?" channel |
+| market velocity / scraper health / searches | 3 / 2 / 1 queries | |
+
+The plans, for the statements the grid page issues: `SCAN properties` twice — the grid's own
+selection and the market-position median — and `SEARCH … USING INDEX` everywhere a
+per-property lookup happens (`ix_listings_property_id`, `ix_price_history_property_id`, the
+`property_tags` and `listing_profiles` covering indexes). **The two scans are expected**:
+half the grid's filters cannot be expressed in SQL (floor band, €/sqm, price drops,
+merged-only, the drawn polygon, `sort=match`), so `select_properties` loads the filtered set
+and finishes the work in Python, and `routers/selection.py` explains why a `LIMIT` in the
+statement would page over the wrong population. A scan of `listings` or `price_history`
+would be the finding — that is the N+1 shape, and the query counts above would show it first.
+
+### 7.3 How to read a re-run
+
+- **A count that moved is the finding**, not a second that moved. Queries per request and
+  requests per scan are deterministic; the seconds are not.
+- A new endpoint whose query count rises with the corpus size is an N+1: seed a larger
+  corpus (`scripts/seed_demo.py --count`) and compare, rather than reading the SQL.
+- If concurrency ever stops paying, remove it. It is complexity carried for a number, and
+  a number that has gone is the argument for taking it out.
+
+### 7.4 What this pass does not cover
+
+The frontend: bundle size per route, the cost of rendering the grid at corpus size, and the
+API payloads measured against what the grid actually needs. All four belong to F.7, which
+runs after the interface exists.
