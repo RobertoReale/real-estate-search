@@ -9,12 +9,17 @@ Every URL below is a *string* — the grammar is what is under test, so nothing
 here fetches a page or needs a portal to be reachable.
 """
 
+import logging
+
+import pytest
+
 from app import schemas
 from app.services.search_builder import (
     MAX_SEARCH_PARTS,
     bands_are_total,
     build_idealista_url,
     build_immobiliare_url,
+    parse_drawn_area,
     parse_search_url,
     price_bands,
     segment_search,
@@ -362,3 +367,117 @@ def test_a_search_no_axis_can_divide_is_not_split_at_all():
     )
     # and "one part" is not a split
     assert segment_search(MULTI_ZONE_URL, "immobiliare", 1) == []
+
+
+# --- the area a map URL states outright ------------------------------------
+#
+# Immobiliare's map tools say where to look far more exactly than a zone list
+# can: `vrt` is a perimeter, `centro`+`raggio` is a circle, and the isochrone
+# behind "ten minutes by car" arrives as a `vrt` polygon like any other. All
+# three were already *searched* correctly — api-next is handed the query string
+# whole — and none of them was ever read back, so the one search that stated its
+# area exactly was the one nothing could be checked against.
+
+# A square around the Navigli, in the portal's own spelling: "lat,lng" pairs
+# joined by semicolons, which is the format `geo_filter.parse_polygon` parses.
+DRAWN_SQUARE = "45.44,9.16;45.46,9.16;45.46,9.19;45.44,9.19"
+DRAWN_URL = (
+    f"https://www.immobiliare.it/search-list/?idContratto=1&idCategoria=1&vrt={DRAWN_SQUARE}"
+)
+RADIUS_URL = (
+    "https://www.immobiliare.it/search-list/"
+    "?idContratto=1&idCategoria=1&centro=45.4500,9.1750&raggio=1500"
+)
+
+
+def test_a_drawn_polygon_is_read_back_out_of_the_url():
+    parsed = parse_search_url(DRAWN_URL)
+
+    assert parsed["drawn_polygon"] == [
+        (45.44, 9.16),
+        (45.46, 9.16),
+        (45.46, 9.19),
+        (45.44, 9.19),
+    ]
+    assert parsed["drawn_circle"] is None
+    # /search-list/ names no comune and no district, which is exactly why the
+    # geometry matters: without it this URL states no area at all.
+    assert parsed["city"] == "" and parsed["zone_ids"] == []
+
+
+def test_a_radius_search_is_read_back_as_a_circle():
+    """`centro` and `raggio` need no translation: metres are what
+    `geo_filter.point_in_any` already measures a circle in."""
+    parsed = parse_search_url(RADIUS_URL)
+
+    assert parsed["drawn_circle"] == (45.45, 9.175, 1500.0)
+    assert parsed["drawn_polygon"] is None
+
+
+def test_an_ordinary_url_draws_nothing():
+    """The common case stays quiet — no geometry, and no complaint about its
+    absence."""
+    parsed = parse_search_url(MULTI_ZONE_URL)
+
+    assert parsed["drawn_polygon"] is None and parsed["drawn_circle"] is None
+    # every portal answers the same dict shape, so a caller reads one of them
+    idealista = parse_search_url("https://www.idealista.it/vendita-case/milano-milano/")
+    assert idealista["drawn_polygon"] is None and idealista["drawn_circle"] is None
+    assert parse_search_url("u")["drawn_polygon"] is None
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "vrt=45.44,9.16;45.46",  # two vertices short of a polygon
+        "vrt=45.44,9.16,7;45.46,9.16;45.46,9.19",  # three numbers in a vertex
+        "vrt=nord-ovest;45.46,9.16;45.46,9.19",  # not numbers at all
+        "vrt=145.44,9.16;45.46,9.16;45.46,9.19",  # a latitude that cannot exist
+        "centro=45.45,9.17",  # a centre with no radius
+        "raggio=1500",  # a radius with no centre
+        "centro=45.45,9.17&raggio=molto",  # a radius that is not a number
+        "centro=45.45,9.17&raggio=0",  # a circle containing nothing
+    ],
+)
+def test_an_unreadable_area_is_refused_and_not_read_as_no_area(query):
+    """The reader raises rather than shrugging, because both ways of shrugging
+    are worse. "No area" makes the check give up on the most exact search there
+    is; an *empty* area makes it accuse every listing that came back."""
+    with pytest.raises(ValueError):
+        parse_drawn_area(query)
+
+
+def test_an_unreadable_area_is_logged_and_never_becomes_an_empty_one(caplog):
+    """What the refusal above means one level up. `parse_search_url` feeds the
+    profile list and the builder form, so it may not raise — but it may not
+    quietly answer "empty" either: `polygon` and `circle` come back None, which
+    the scan reads as "cannot tell"."""
+    broken = "https://www.immobiliare.it/search-list/?idContratto=1&vrt=45.44,9.16"
+
+    with caplog.at_level(logging.ERROR):
+        parsed = parse_search_url(broken)
+
+    assert parsed["drawn_polygon"] is None and parsed["drawn_circle"] is None
+    assert parsed["contract"] == "sale"  # the rest of the URL still parses
+    assert "cannot be read" in caplog.text
+
+
+def test_reading_the_area_does_not_change_what_the_portal_is_asked():
+    """The whole task is a check, added beside a search that already works. A
+    /search-list/ URL is handed to api-next as it arrived — geometry included,
+    because the portal owns the geometry — and this must not have touched a
+    single parameter of it."""
+    from app.scrapers.immobiliare import ImmobiliareScraper
+
+    params = ImmobiliareScraper()._api_params(DRAWN_URL)
+
+    assert params is not None
+    assert params["vrt"] == DRAWN_SQUARE
+    assert params["idContratto"] == "1"
+    assert params["idCategoria"] == "1"
+    assert params["path"] == "/search-list/"
+
+    radius = ImmobiliareScraper()._api_params(RADIUS_URL)
+    assert radius is not None
+    assert radius["centro"] == "45.4500,9.1750"
+    assert radius["raggio"] == "1500"

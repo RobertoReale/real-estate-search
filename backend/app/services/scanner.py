@@ -825,22 +825,42 @@ class RequestedArea:
     size-scaled radius, the very area `is_plausible_coordinate` measures a pin
     against — so the area a scan is judged against and the area a pin is
     believed in are one definition, not two.
+
+    `drawn` is the other kind of area entirely: the geometry an Immobiliare map
+    URL states outright — a hand-drawn perimeter, an isochrone the portal
+    computed, or a centre and a radius. Where the comune circle is a gazetteer
+    guess at the shape of a town, this *is* the boundary the user asked for, so
+    it is kept apart rather than merged into `circle` and is the evidence
+    `_outside_requested_area` reaches for first.
     """
 
     city: str = ""
     zones: tuple[str, ...] = ()
     zone_ids: tuple[str, ...] = ()
     circle: geo_filter.Circle | None = None
+    drawn: tuple[geo_filter.Area, ...] = ()
 
 
 def requested_area(search_url: str) -> RequestedArea:
     params = parse_search_url(search_url)
     city = (params.get("city") or "").strip()
+
+    # A polygon and a radius are a union, not a contradiction: `point_in_any`
+    # answers "inside any of these", which is the generous direction and so the
+    # one that cannot invent a disagreement out of a URL carrying both.
+    drawn: list[geo_filter.Area] = []
+    if params.get("drawn_polygon"):
+        perimeter: geo_filter.Perimeter = {"outer": list(params["drawn_polygon"])}
+        drawn.append(perimeter)
+    if params.get("drawn_circle"):
+        drawn.append(params["drawn_circle"])
+
     return RequestedArea(
         city=city,
         zones=tuple(zone_names(params.get("zone") or "", params.get("zones"))),
         zone_ids=tuple(params.get("zone_ids") or ()),
         circle=geo_reference.city_search_area(city) if city else None,
+        drawn=tuple(drawn),
     )
 
 
@@ -857,30 +877,49 @@ def _outside_requested_area(area: RequestedArea, raw: RawListing, prop: Property
 
     The evidence, strongest first:
 
-    1. **the comune, by name.** A listing whose city is a different comune is
+    1. **the boundary the search drew.** A perimeter or a radius out of the
+       URL's own map params, and the only piece of evidence here that is exact:
+       the user drew it, or the portal computed it, and either way it is the
+       question rather than an approximation of it. So it decides alone — a
+       comune name or a district text cannot overrule a line on a map, and a
+       perimeter deliberately drawn across a comune border would otherwise be
+       reported as disagreeing with itself.
+    2. **the comune, by name.** A listing whose city is a different comune is
        outside whatever the search asked for, zones or no zones.
-    2. **the comune, by coordinates.** The pin against the comune's own circle,
+    3. **the comune, by coordinates.** The pin against the comune's own circle,
        which is what catches a listing filed under the right city name and
        plainly somewhere else.
-    3. **the zones, by name.** The requested zone names against the listing's
+    4. **the zones, by name.** The requested zone names against the listing's
        own zone text, word-bound and accent-insensitive — `find_excluded_keyword`
        is exactly that matcher, and a second copy of it here would be a second
        set of rules for "does this text name this place".
 
-    Zone *ids* are deliberately absent from step 3. Immobiliare's `idMZona[]`
+    An exactly known area does not abolish the third answer. A listing the
+    portal sent with no coordinates cannot be placed against a polygon at all,
+    and "the boundary is exact" is not a licence to have an opinion about a
+    listing that is not on the map: it falls through to the evidence below,
+    which for a pure map URL names no comune and so answers None.
+
+    Zone *ids* are deliberately absent from step 4. Immobiliare's `idMZona[]`
     values are opaque numbers the portal alone can resolve, and a listing's zone
     text can never match one, so a search that carries ids and no names is
     judged on the comune alone. Reading "no name matched" out of ids nobody can
     name would flag every listing of a perfectly good multi-zone search.
     """
+    lat = raw.latitude if raw.latitude is not None else prop.latitude
+    lng = raw.longitude if raw.longitude is not None else prop.longitude
+
+    if area.drawn and lat is not None and lng is not None:
+        return not geo_filter.point_in_any(lat, lng, area.drawn)
+
     if not area.city:
         # A search with no readable location asks for nothing this can check —
-        # a URL from an unknown portal, or one whose location is an opaque id.
+        # a URL from an unknown portal, or one whose location is an opaque id,
+        # or a map URL whose geometry could not be read (search_builder logs
+        # that one). A drawn area that placed nothing lands here too.
         return None
 
     city = (raw.city or prop.city or "").strip()
-    lat = raw.latitude if raw.latitude is not None else prop.latitude
-    lng = raw.longitude if raw.longitude is not None else prop.longitude
     placed = False
 
     if city:

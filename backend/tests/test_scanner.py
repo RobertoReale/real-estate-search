@@ -890,6 +890,170 @@ def test_a_wider_search_clears_the_flag_its_narrower_sibling_set(db, monkeypatch
     assert _by_title(db)["Zona accanto"].outside_requested_area is False
 
 
+# --- an area the search drew, checked against the drawing -------------------
+#
+# The section above judges a search by the names in its URL, which is all a zone
+# search gives it. Immobiliare's map tools give something better: `vrt` is a
+# perimeter — drawn by hand, or an isochrone the portal computed — and
+# `centro`+`raggio` is a circle. Both were already searched correctly and
+# neither was ever read, so `requested_area` answered "nothing was asked for"
+# for the one kind of search that says exactly where to look, and the check
+# above was silent precisely where it could have been certain.
+#
+# A square around the Navigli, and a kilometre and a half from its middle.
+DRAWN_SQUARE = "45.44,9.16;45.46,9.16;45.46,9.19;45.44,9.19"
+DRAWN_URL = (
+    f"https://www.immobiliare.it/search-list/?idContratto=1&idCategoria=1&vrt={DRAWN_SQUARE}"
+)
+RADIUS_URL = (
+    "https://www.immobiliare.it/search-list/"
+    "?idContratto=1&idCategoria=1&centro=45.4500,9.1750&raggio=1500"
+)
+# North-east of both: outside the square's top edge, and ~2.2 km from the
+# circle's centre. Still Milano — which is the point, since the comune is what
+# the old check had to fall back on and it cannot see this at all.
+OUTSIDE_THE_DRAWING = (45.4700, 9.2000)
+
+
+@pytest.mark.parametrize("url", [DRAWN_URL, RADIUS_URL])
+def test_a_listing_inside_the_drawn_area_is_reported_inside(db, monkeypatch, url):
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        url,
+        [_listing("1", 90.0, title="Dentro", latitude=IN_MILANO[0], longitude=IN_MILANO[1])],
+    )
+
+    assert summary["outside_area"] == 0
+    assert _by_title(db)["Dentro"].outside_requested_area is False
+
+
+@pytest.mark.parametrize("url", [DRAWN_URL, RADIUS_URL])
+def test_a_listing_outside_the_drawn_area_is_counted_as_outside(db, monkeypatch, url):
+    """The answer this task exists for. Before it, a `/search-list/` URL parsed
+    to city "" and the check declined to have an opinion about anything the
+    portal sent back."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        url,
+        [
+            _listing("1", 90.0, title="Dentro", latitude=IN_MILANO[0], longitude=IN_MILANO[1]),
+            _listing(
+                "2",
+                70.0,
+                title="Fuori dal disegno",
+                latitude=OUTSIDE_THE_DRAWING[0],
+                longitude=OUTSIDE_THE_DRAWING[1],
+            ),
+        ],
+    )
+
+    assert summary["outside_area"] == 1
+    props = _by_title(db)
+    assert props["Fuori dal disegno"].outside_requested_area is True
+    assert props["Dentro"].outside_requested_area is False
+
+
+def test_a_listing_the_drawn_area_cannot_place_stays_unknown(db, monkeypatch):
+    """An area known exactly is not a licence to guess about a listing that is
+    not on the map. The portal sends coordinates when it feels like it, and
+    "somewhere in a polygon I cannot test it against" is the third answer, not
+    a verdict."""
+    area = scanner.requested_area(DRAWN_URL)
+    unplaced = _listing("1", 90.0, title="Senza pin")
+
+    assert area.drawn  # the area itself was read
+    assert scanner._outside_requested_area(area, unplaced, Property()) is None
+
+    # and through a whole scan: nothing counted, nothing accused
+    _, summary = _scan_area(db, monkeypatch, DRAWN_URL, [unplaced])
+    assert summary["outside_area"] == 0
+    assert _by_title(db)["Senza pin"].outside_requested_area is False
+
+
+def test_the_drawing_outranks_the_comune_it_crosses(db, monkeypatch):
+    """A perimeter is exact where a comune is a gazetteer centroid and a scaled
+    radius, so the drawing decides alone. Someone who drew across a municipal
+    border meant to: reporting that listing as out of area would be the app
+    disagreeing with the line the user drew."""
+    across = "https://www.immobiliare.it/vendita-case/milano/?vrt=" + DRAWN_SQUARE
+
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        across,
+        [
+            _listing(
+                "1",
+                90.0,
+                title="Dentro il disegno, altro comune",
+                city="Monza",
+                zone="Centro",
+                latitude=IN_MILANO[0],
+                longitude=IN_MILANO[1],
+            )
+        ],
+    )
+
+    assert summary["outside_area"] == 0
+    assert _by_title(db)["Dentro il disegno, altro comune"].outside_requested_area is False
+
+
+def test_an_out_of_area_listing_from_a_drawn_search_is_kept_too(db, monkeypatch):
+    """G.3's rule does not bend for a more exact area: the listing is counted
+    and reported, never dropped. The user asked the portal for that shape; that
+    the portal answered differently is a fact to show, not one to hide."""
+    _scan_area(
+        db,
+        monkeypatch,
+        DRAWN_URL,
+        [
+            _listing(
+                "1",
+                70.0,
+                title="Fuori dal disegno",
+                latitude=OUTSIDE_THE_DRAWING[0],
+                longitude=OUTSIDE_THE_DRAWING[1],
+            )
+        ],
+    )
+
+    props = _by_title(db)
+    assert len(props) == 1
+    assert props["Fuori dal disegno"].status == "active"
+
+
+def test_an_area_that_cannot_be_read_judges_nothing(db, monkeypatch):
+    """The failure mode worth being careful about. An unreadable `vrt` must not
+    become an area of zero size — that would flag every single listing the
+    search returned. `search_builder` refuses to read it, logs it, and the check
+    is left with a URL that states no area."""
+    broken = "https://www.immobiliare.it/search-list/?idContratto=1&vrt=45.44,9.16"
+
+    area = scanner.requested_area(broken)
+    assert area.drawn == ()
+
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        broken,
+        [
+            _listing("1", 90.0, title="Dentro", latitude=IN_MILANO[0], longitude=IN_MILANO[1]),
+            _listing(
+                "2",
+                70.0,
+                title="Lontano",
+                latitude=IN_ROMA[0],
+                longitude=IN_ROMA[1],
+            ),
+        ],
+    )
+
+    assert summary["outside_area"] == 0
+    assert {p.outside_requested_area for p in _by_title(db).values()} == {False}
+
+
 # --- coordinates on the first run ------------------------------------------
 #
 # The map was emptiest on the run where it matters most. Coordinates arrive only
