@@ -21,10 +21,15 @@ The UI always shows the generated URL with an "open in browser" link before
 saving: if a portal changes its URL grammar, the user sees it immediately.
 """
 
+import logging
 import re
 import unicodedata
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+from . import geo_filter
+
+logger = logging.getLogger(__name__)
 
 # Idealista encodes room counts as named segments with a numeric suffix
 # ("con-trilocali/" is a 404 — verified live on 2026-07-09, along with every
@@ -46,6 +51,24 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 IMMOBILIARE_ZONE_ID_RE = re.compile(r"^idMZona(\[\d*\])?$")
 # The one spelling this module *writes*, out of the several it reads.
 IMMOBILIARE_ZONE_ID_PARAM = "idMZona[]"
+
+# A zone list is the *coarsest* way an Immobiliare URL can state where to look.
+# Its map tools state an area exactly, and they do it in two query params:
+#
+# - `vrt` carries a perimeter as "lat,lng;lat,lng;…" — the polygon drawn by
+#   hand, and also the isochrone the portal computes for "ten minutes by car",
+#   which it hands back as an ordinary polygon like any other;
+# - `centro` (a "lat,lng" pair) with `raggio` (a radius **in metres**) carries a
+#   circle.
+#
+# Both are read verbatim: `vrt`'s spelling is the very format
+# `geo_filter.parse_polygon` already parses for the dashboard's own map filter,
+# and a centre plus a radius in metres is already what `geo_filter.point_in_any`
+# measures a circle in. Nothing here is converted, so there is no unit to get
+# wrong.
+IMMOBILIARE_POLYGON_PARAM = "vrt"
+IMMOBILIARE_CENTRE_PARAM = "centro"
+IMMOBILIARE_RADIUS_PARAM = "raggio"
 
 IDEALISTA_ROOMS = {
     1: "monolocali-1",
@@ -755,6 +778,63 @@ def _unslug_zone(slug: str) -> str:
     return text.replace("-", " ").strip().title()
 
 
+def _parse_centre_and_radius(centre: str, radius: str) -> geo_filter.Circle:
+    """ "centro=45.4500,9.1750" + "raggio=1500" → (lat, lng, radius_m).
+
+    One without the other is half a statement. The portal always sends the
+    pair, so a lone `raggio` is a URL that lost something on its way here, and
+    guessing the missing half is how a search for one kilometre becomes a search
+    for the planet.
+    """
+    if not centre or not radius:
+        raise ValueError("a radius search needs both a centre and a radius")
+    parts = centre.split(",")
+    if len(parts) != 2:
+        raise ValueError(f"malformed centre: {centre!r}")
+    try:
+        lat = float(parts[0])
+        lng = float(parts[1])
+        radius_m = float(radius)
+    except ValueError as exc:
+        raise ValueError(f"non-numeric radius search: {centre!r} / {radius!r}") from exc
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
+        raise ValueError(f"centre out of range: {centre!r}")
+    if radius_m <= 0:
+        raise ValueError(f"radius must be positive: {radius!r}")
+    return (lat, lng, radius_m)
+
+
+def parse_drawn_area(
+    query: str,
+) -> tuple[list[tuple[float, float]] | None, geo_filter.Circle | None]:
+    """The area an Immobiliare URL states geometrically: (polygon, circle).
+
+    `(None, None)` means the URL drew nothing — the ordinary case, and the only
+    one that may be answered quietly.
+
+    Anything malformed **raises** instead, because the two ways of shrugging at
+    it are both worse than a refusal. Read as *no* area, a truncated `vrt` makes
+    the containment check give up on precisely the search that stated its area
+    most exactly. Read as an *empty* area, it accuses every listing that came
+    back of being outside it. So the reader states the problem and the caller
+    decides what to do about it, which is already how `parse_polygon` behaves
+    for the dashboard's own `poly` filter.
+    """
+    qs = parse_qs(query or "")
+
+    def _first(param: str) -> str:
+        return next((v.strip() for v in qs.get(param, []) if v.strip()), "")
+
+    raw_polygon = _first(IMMOBILIARE_POLYGON_PARAM)
+    polygon = geo_filter.parse_polygon(raw_polygon) if raw_polygon else None
+
+    centre = _first(IMMOBILIARE_CENTRE_PARAM)
+    radius = _first(IMMOBILIARE_RADIUS_PARAM)
+    circle = _parse_centre_and_radius(centre, radius) if centre or radius else None
+
+    return polygon, circle
+
+
 def parse_immobiliare_url(url: str) -> dict[str, Any]:
     parsed = urlparse((url or "").strip())
     segments = [s for s in parsed.path.split("/") if s]
@@ -817,12 +897,33 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         if seg in segs:
             condition = name
 
+    polygon: list[tuple[float, float]] | None = None
+    circle: geo_filter.Circle | None = None
+    try:
+        polygon, circle = parse_drawn_area(parsed.query)
+    except ValueError as exc:
+        # Loud, and then out of the way. This function feeds the profile list
+        # and the builder form, so raising would take a whole dashboard down
+        # over one unreadable URL. But the area it could not read is the most
+        # exact thing that URL said, so it is logged at error level and reported
+        # as *unknown* rather than as empty: `scanner._outside_requested_area`
+        # then declines to judge, instead of flagging every listing the search
+        # returned as being outside an area of zero size.
+        logger.error("search URL states an area that cannot be read: %s", exc)
+
     return {
         "city": city,
         "province": "",
         "zone": zone,
         "zones": zone_names(zone),
         "zone_ids": _immobiliare_zone_ids(qs),
+        # The geometry, when the URL carries any: exact where a zone list is a
+        # selection of the portal's own buckets, and the strongest evidence
+        # `_outside_requested_area` can be given. Named "drawn" because the
+        # comune is a circle too, and the two must never be mistaken for each
+        # other — one is a boundary, the other a gazetteer's guess at a town.
+        "drawn_polygon": polygon,
+        "drawn_circle": circle,
         "contract": contract,
         "min_price": _safe_int(qs.get("prezzoMinimo", [None])[0]),
         "max_price": _safe_int(qs.get("prezzoMassimo", [None])[0]),
@@ -979,6 +1080,11 @@ def _idealista_params(
         "zone": zone,
         "zones": zone_names(zone),
         "zone_ids": zone_id_list(zone_ids),
+        # Idealista states a drawn area as an encoded shape under /aree/, which
+        # is neither of the two formats read here. Present and always empty, so
+        # every caller reads one dict shape whichever portal produced it.
+        "drawn_polygon": None,
+        "drawn_circle": None,
         "contract": contract,
         "min_price": min_price,
         "max_price": max_price,
@@ -1009,6 +1115,8 @@ def parse_search_url(url: str) -> dict[str, Any]:
         "zone": "",
         "zones": [],
         "zone_ids": [],
+        "drawn_polygon": None,
+        "drawn_circle": None,
         "contract": "sale",
         "min_price": None,
         "max_price": None,
