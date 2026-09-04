@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useProgressPoll } from "../hooks/useProgressPoll";
 import { useT } from "../i18n";
+import {
+  useCancelGeocode, useClearGeocodeCache, useGeocodeMissing, useGeocodeProgress,
+} from "../queries/maintenance";
 import { api, authToken, AuthError, fetchExport } from "../services/api";
-import type { GeocodeProgress, GeocodeSummary, PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
+import type { PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
 import { ProgressBar } from "./ProgressBar";
 
@@ -29,13 +31,25 @@ export default function FiltersBar({
   onReset,
 }: Props) {
   const t = useT();
-  const [geocoding, setGeocoding] = useState(false);
-  const [geocodeResult, setGeocodeResult] = useState<GeocodeSummary | null>(null);
-  const [geocodeError, setGeocodeError] = useState<string | null>(null);
-  const [geocodeProgress, setGeocodeProgress] = useState<GeocodeProgress | null>(null);
+  // The two maintenance sweeps and the one that stops them. What each of them
+  // is doing, whether it failed and what it answered are the mutation's own
+  // state now, so there is no `finally` left that can forget to clear a flag.
+  const geocode = useGeocodeMissing();
+  const clearCache = useClearGeocodeCache();
+  const cancelGeocode = useCancelGeocode();
   const [stoppingGeocode, setStoppingGeocode] = useState(false);
-  const [clearingCache, setClearingCache] = useState(false);
-  const [cacheCleared, setCacheCleared] = useState<number | null>(null);
+  const geocoding = geocode.isPending;
+  const geocodeProgress = useGeocodeProgress(geocoding);
+  const geocodeResult = geocode.data ?? null;
+  const cacheCleared = clearCache.data?.cleared ?? null;
+  // A backend older than these routes answers 404, and "update the backend"
+  // is a far more useful thing to read than "Error 404".
+  const failure = geocode.error ?? clearCache.error;
+  const geocodeError = !failure
+    ? null
+    : /Error 404|Not Found/i.test(failure.message)
+      ? t("filters.backendTooOld")
+      : failure.message;
   // only used on the authenticated export path, which is a fetch rather than a
   // navigation and so has a wait and a failure the UI has to show
   const [exporting, setExporting] = useState<string | null>(null);
@@ -48,15 +62,6 @@ export default function FiltersBar({
     (filters.deal ? 1 : 0) + (filters.min_sqm_price ? 1 : 0) +
     (filters.max_sqm_price ? 1 : 0) + (filters.merged_only ? 1 : 0);
   const [advOpen, setAdvOpen] = useState(advActiveCount > 0);
-
-  useProgressPoll(
-    geocoding,
-    api.geocodeProgress,
-    (prog) => {
-      if (prog.active) setGeocodeProgress(prog);
-    },
-    800,
-  );
 
   const set = (patch: Partial<PropertyFilters>) =>
     onChange({ ...filters, ...patch });
@@ -448,54 +453,30 @@ export default function FiltersBar({
             }`}
             disabled={geocoding}
             title={t("filters.findCoordsTitle")}
-            onClick={async () => {
-              setGeocoding(true);
-              setGeocodeResult(null);
-              setGeocodeError(null);
-              setGeocodeProgress(null);
+            onClick={() => {
+              // Both notices belong to one press, so the other one's answer
+              // goes with it: a "2 addresses forgotten" left under a fresh
+              // sweep reads as something this run just did.
+              clearCache.reset();
               setStoppingGeocode(false);
-              try {
-                const res = await api.geocodeMissing();
-                setGeocodeResult(res);
-                onChange({ ...filters });
-              } catch (e) {
-                const raw = e instanceof Error ? e.message : String(e);
-                setGeocodeError(
-                  /Error 404|Not Found/i.test(raw) ? t("filters.backendTooOld") : raw,
-                );
-              } finally {
-                setGeocoding(false);
-                setGeocodeProgress(null);
-                setStoppingGeocode(false);
-              }
+              // The grid carries the coordinates, so the mutation re-reads it.
+              geocode.mutate(undefined, { onSettled: () => setStoppingGeocode(false) });
             }}>
             {geocoding ? t("filters.locating") : t("filters.findCoords")}
           </button>
           <button data-action="maintenance.clearGeocodeCache"
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
-              clearingCache
+              clearCache.isPending
                 ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
                 : "bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-300 border-slate-500/30"
             }`}
-            disabled={clearingCache || geocoding}
+            disabled={clearCache.isPending || geocoding}
             title={t("filters.retryFailedTitle")}
-            onClick={async () => {
-              setClearingCache(true);
-              setCacheCleared(null);
-              setGeocodeError(null);
-              try {
-                const res = await api.clearGeocodeCache();
-                setCacheCleared(res.cleared);
-              } catch (e) {
-                const raw = e instanceof Error ? e.message : String(e);
-                setGeocodeError(
-                  /Error 404|Not Found/i.test(raw) ? t("filters.backendTooOld") : raw,
-                );
-              } finally {
-                setClearingCache(false);
-              }
+            onClick={() => {
+              geocode.reset();
+              clearCache.mutate();
             }}>
-            {clearingCache ? t("filters.clearing") : t("filters.retryFailed")}
+            {clearCache.isPending ? t("filters.clearing") : t("filters.retryFailed")}
           </button>
         </div>
         {/* Export the filtered set as a shareable offline file (no server, no
@@ -567,13 +548,12 @@ export default function FiltersBar({
             <button data-action="maintenance.geocode.stop"
               className="btn py-1 px-2.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
               disabled={stoppingGeocode}
-              onClick={async () => {
+              onClick={() => {
+                // Held until the sweep itself ends rather than until this
+                // request answers: the button says "stopping", and the sweep
+                // only stops at its next poll.
                 setStoppingGeocode(true);
-                try {
-                  await api.cancelGeocode();
-                } catch {
-                  // ignore
-                }
+                cancelGeocode.mutate(undefined, { onError: () => {} });
               }}>
               {stoppingGeocode ? t("app.stopping") : t("app.stop")}
             </button>
@@ -623,7 +603,7 @@ export default function FiltersBar({
           <p className="text-rose-700 dark:text-rose-300">❌ {geocodeError}</p>
           <button data-action="maintenance.error.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => setGeocodeError(null)}
+            onClick={() => { geocode.reset(); clearCache.reset(); }}
             title={t("common.close")}>
             ✕
           </button>
@@ -641,7 +621,7 @@ export default function FiltersBar({
           </p>
           <button data-action="maintenance.cacheCleared.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => setCacheCleared(null)}
+            onClick={() => clearCache.reset()}
             title={t("common.close")}>
             ✕
           </button>
@@ -677,7 +657,7 @@ export default function FiltersBar({
           </div>
           <button data-action="maintenance.result.dismiss"
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => setGeocodeResult(null)}
+            onClick={() => geocode.reset()}
             title={t("common.close")}>
             ✕
           </button>

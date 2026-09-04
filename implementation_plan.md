@@ -199,7 +199,13 @@ progetto/
 │       │                         # (AssistantPanel, MultiPanel, UrlForm,
 │       │                         # BuilderForm, BulkToolbar, ProfileList,
 │       │                         # DeleteDialog) + its constants and helpers
-│       ├── hooks/useSearchProfiles.ts  # the search panel's state machine and mutations
+│       ├── hooks/                  # useSearchProfiles (the search panel's state
+│       │                           # machine), useDebounced, useOnReveal
+│       ├── queries/                # the data layer: keys.ts names every piece of
+│       │                           # server state, then one module per area
+│       │                           # (properties, dashboard, settings, insights,
+│       │                           # maintenance, searchProfiles). No component
+│       │                           # calls services/api.ts directly
 │       ├── services/api.ts
 │       └── types/index.ts
 ├── packaging/                    # tray_app.py (frozen entry point), the PyInstaller

@@ -46,6 +46,21 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **The frontend talks to the backend ONLY via the Vite proxy** `/api` →
   `127.0.0.1:8000` (`vite.config.ts`): no absolute URLs in `api.ts`.
 
+- **No component calls `api.*` directly.** Every read is a keyed query and every
+  write a mutation, declared in `frontend/src/queries/` and used through its hook;
+  `services/api.ts` stays the one place that knows about HTTP, and the two
+  functions it exports that are *not* fetches (`exportUrl`, `backupUrl` build a
+  URL for the browser to navigate to) are the only things a component imports
+  from it. The rule buys three things that were each hand-rolled per component
+  before, and each of which was a bug once: a slow answer for a filter the user
+  has moved off cannot reach the screen, because a response belongs to the key it
+  was asked for; a write says what it changed by naming a key prefix rather than
+  by calling a `refresh()` its caller happened to own; and "loading" and "failed"
+  are read off the query instead of being two more `useState` flags with a
+  `finally` that can forget to clear them. Add the key to `queries/keys.ts` — a
+  key spelled two ways is two caches that never hear about each other, which
+  presents as a panel that silently stops refreshing.
+
 - **Windows-only code carries a targeted type-check suppression.** `ctypes.windll` and
   friends do not exist off Windows, and the types are checked on Linux as well — CI runs
   there, because the Raspberry Pi is a real target — so a Windows-only call site needs a
@@ -111,7 +126,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (69 in fourteen files: vitest +
+- **The frontend has unit tests too** (70 in fourteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -137,8 +152,9 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
   offers a focusable, named way into the listing *without* itself becoming a control that
   contains controls (`PropertyCard.test.tsx`), that a dialog whose data fails to
-  load still renders something dismissable (`SettingsModal.test.tsx`), that an effect's
-  abandoned request cannot repaint the screen (`LogViewer.test.tsx`), and that the OMI band
+  load still renders something dismissable (`SettingsModal.test.tsx`), that a refresh on a
+  timer never has two requests for the same thing in the air at once, since the older one
+  answering last is the older one winning (`LogViewer.test.tsx`), and that the OMI band
   never reaches the screen undated, unmarked when out of date, or uncredited
   (`PropertyModal.test.tsx` — the attribution is a licence obligation, so a refactor that
   drops the line is a legal defect and not a cosmetic one, and the figures around it would

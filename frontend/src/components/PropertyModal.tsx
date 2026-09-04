@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatDate, formatNumber, useT } from "../i18n";
-import { api, formatPrice, safeHref } from "../services/api";
-import type { ListingAudit, Property, Tag } from "../types";
+import {
+  useAuditProperty, useCheckSingleProperty, useGeocodeProperty, useHideProperty,
+  useListingAudit, useMarkPropertySold, useRestoreProperty, useSaveNotes,
+} from "../queries/properties";
+import { formatPrice, safeHref } from "../services/api";
+import type { Property, Tag } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
 import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
@@ -139,14 +143,9 @@ export default function PropertyModal({
   const t = useT();
   const history = [...p.price_history].reverse();
   const [notes, setNotes] = useState(p.notes);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [checkingOnline, setCheckingOnline] = useState(false);
   const [checkResult, setCheckResult] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [imgBroken, setImgBroken] = useState(false);
-  const [audit, setAudit] = useState<ListingAudit | null>(null);
-  const [auditing, setAuditing] = useState(false);
   const notesDirty = notes !== p.notes;
   const hasCoords = p.latitude !== null && p.longitude !== null;
   const hasDescription = p.listings.some((l) => l.description);
@@ -154,24 +153,26 @@ export default function PropertyModal({
   // A reading already paid for shows up on its own; producing one never does.
   // The GET reads the stored row and nothing else, so opening a card cannot
   // spend a model request — same split as the commute annotation.
-  useEffect(() => {
-    if (!auditEnabled) return;
-    let cancelled = false;
-    api.getPropertyAudit(p.id)
-      .then((stored) => { if (!cancelled) setAudit(stored); })
-      .catch(() => { /* nothing stored is the common case, not an error */ });
-    return () => { cancelled = true; };
-  }, [p.id, auditEnabled]);
+  const audit = useListingAudit(p.id, auditEnabled).data ?? null;
+  const readAudit = useAuditProperty();
+  const locate = useGeocodeProperty();
+  const checkOnline = useCheckSingleProperty();
+  const saveNotesTo = useSaveNotes();
+  const restore = useRestoreProperty();
+  const markSold = useMarkPropertySold();
+  const hide = useHideProperty();
+
+  const auditing = readAudit.isPending;
+  const locating = locate.isPending;
+  const checkingOnline = checkOnline.isPending;
+  const savingNotes = saveNotesTo.isPending;
 
   async function readListing(force = false) {
-    setAuditing(true);
     setError("");
     try {
-      setAudit(await api.auditProperty(p.id, force));
+      await readAudit.mutateAsync({ id: p.id, force });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("audit.failed"));
-    } finally {
-      setAuditing(false);
     }
   }
 
@@ -184,10 +185,9 @@ export default function PropertyModal({
     // No coordinates yet — resolve them on demand (portals omit them ~70% of
     // the time), then show the map. Fail-open: an address too vague to place
     // is not an error, it just leaves the property off the map.
-    setLocating(true);
     setError("");
     try {
-      const { property: updated, located } = await api.geocodeProperty(p.id);
+      const { property: updated, located } = await locate.mutateAsync(p.id);
       onNotesSaved(updated); // updated coords flow into the grid + map state
       if (located) {
         onShowOnMap(updated);
@@ -196,17 +196,14 @@ export default function PropertyModal({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("modal.locateError"));
-    } finally {
-      setLocating(false);
     }
   }
 
   async function checkIfOnline() {
-    setCheckingOnline(true);
     setCheckResult(null);
     setError("");
     try {
-      const { property: updated, summary } = await api.checkSingleProperty(p.id);
+      const { property: updated, summary } = await checkOnline.mutateAsync(p.id);
       onNotesSaved(updated);
       if (summary.gone > 0) {
         setCheckResult(t("modal.checkGone"));
@@ -217,22 +214,17 @@ export default function PropertyModal({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("modal.checkError"));
-    } finally {
-      setCheckingOnline(false);
     }
   }
 
   async function saveNotes() {
-    setSavingNotes(true);
     try {
-      const updated = await api.updateProperty(p.id, { notes });
+      const updated = await saveNotesTo.mutateAsync({ id: p.id, notes });
       onNotesSaved(updated);
       setError("");
     } catch (e) {
       // the unsaved text stays in the textarea, so a retry costs one click
       setError(e instanceof Error ? e.message : t("modal.notesError"));
-    } finally {
-      setSavingNotes(false);
     }
   }
 
@@ -547,8 +539,8 @@ export default function PropertyModal({
                   );
                   if (confirm(msg)) {
                     try {
-                      await api.restoreProperty(p.id);
-                      onDeleted(); // refresh the parent state
+                      await restore.mutateAsync(p.id);
+                      onDeleted(); // the grid re-reads itself; this closes the card
                     } catch (e) {
                       setError(e instanceof Error ? e.message : t("modal.restoreFailed"));
                     }
@@ -570,7 +562,7 @@ export default function PropertyModal({
                     );
                     if (confirm(msg)) {
                       try {
-                        await api.markPropertySold(p.id);
+                        await markSold.mutateAsync(p.id);
                         onDeleted();
                       } catch (e) {
                         setError(e instanceof Error ? e.message : t("modal.markSoldFailed"));
@@ -586,7 +578,7 @@ export default function PropertyModal({
                     // subsequent scans do not re-insert or notify it as new
                     if (confirm(t("app.confirmHideOne"))) {
                       try {
-                        await api.deleteProperty(p.id);
+                        await hide.mutateAsync(p.id);
                         onDeleted();
                       } catch (e) {
                         setError(e instanceof Error ? e.message : t("modal.hideFailed"));

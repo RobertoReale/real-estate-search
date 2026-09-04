@@ -200,7 +200,10 @@ and for how to tell a stale TLS profile from an address that has gone bad.
 * **Resilient Scrapers**: Built on 4 fallback strategies (JSON-LD Schema → Embedded `__NEXT_DATA__` state → Heuristic class-free HTML parsing → Internal API fallback). 
 * **Residential IP Scraping**: Designed to run locally or on home networks. Cloud server IPs are heavily blocked by DataDome, whereas your home internet IP is trusted, ensuring reliable scans.
 * **Deduplication Engine**: Listings are merged only if they contain geographical proof (coordinates within 60 meters **OR** exact same street and house number) plus compatible price, rooms, floor, and square meters.
-* **Frontend**: React / Vite / TypeScript / Tailwind CSS, bilingual (English /
+* **Frontend**: React / Vite / TypeScript / Tailwind CSS, with TanStack Query as
+  the data layer — every read is a keyed query and every write a mutation, so a
+  slow answer for a filter you have moved off cannot reach the screen and a scan
+  finishing does not lose your place in the results. Bilingual (English /
   Italian) through a small dependency-free dictionary — no i18n library, and a
   key present in one language but missing in the other fails the build.
 

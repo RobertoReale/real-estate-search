@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
-import { api } from "../services/api";
+import { useLogTail } from "../queries/maintenance";
 
 interface Props {
   onClose: () => void;
@@ -23,42 +23,25 @@ function levelClass(line: string): string {
  *  inside the app instead of requiring a text editor and a file path. */
 export default function LogViewer({ onClose }: Props) {
   const t = useT();
-  const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [error, setError] = useState("");
-  const [path, setPath] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await api.logsTail(500);
-        if (cancelled) return;
-        setLines(res.lines);
-        setPath(res.path);
-        setError("");
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : t("logs.loadFailed"));
-      }
-    };
-    load();
-    // The early return used to sit above the cleanup, so with auto-refresh off
-    // the effect registered none at all: closing the viewer (or switching
-    // language, which re-runs this) left the in-flight tail free to land and
-    // write into a component that no longer exists. `cancelled` is the guard
-    // and it only works if the cleanup is always returned.
-    const timer = autoRefresh ? setInterval(load, 3000) : null;
-    return () => {
-      cancelled = true;
-      if (timer !== null) clearInterval(timer);
-    };
-  }, [autoRefresh, t]);
+  // One key, so one tail is ever in flight: an abandoned request cannot land on
+  // top of a newer one, which on a backend slow enough to make anyone open this
+  // viewer used to mean the older tail winning.
+  const { data, error: failure } = useLogTail(500, autoRefresh);
+  const lines = data?.lines ?? [];
+  const path = data?.path ?? "";
+  const error = failure
+    ? (failure instanceof Error ? failure.message : t("logs.loadFailed"))
+    : "";
 
+  // On the answer rather than on `lines`: a fresh `[]` fallback every render
+  // would scroll on every render, and the tail is what moves the view.
   useEffect(() => {
     if (autoRefresh) bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [lines, autoRefresh]);
+  }, [data, autoRefresh]);
 
   const visible = filter
     ? lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))

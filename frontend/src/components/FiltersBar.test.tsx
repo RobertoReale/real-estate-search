@@ -12,6 +12,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import FiltersBar from "./FiltersBar";
 import { en } from "../i18n/en";
+import { WithQuery } from "../test/withQuery";
 import type { PropertyFilters } from "../types";
 
 const FILTERS: PropertyFilters = {
@@ -26,17 +27,19 @@ const FILTERS: PropertyFilters = {
 
 function renderBar() {
   render(
-    <FiltersBar
-      filters={FILTERS}
-      onChange={vi.fn()}
-      count={0}
-      view="grid"
-      onViewChange={vi.fn()}
-      profiles={[]}
-      tags={[]}
-      matchEnabled={false}
-      onReset={vi.fn()}
-    />,
+    <WithQuery>
+      <FiltersBar
+        filters={FILTERS}
+        onChange={vi.fn()}
+        count={0}
+        view="grid"
+        onViewChange={vi.fn()}
+        profiles={[]}
+        tags={[]}
+        matchEnabled={false}
+        onReset={vi.fn()}
+      />
+    </WithQuery>,
   );
 }
 
@@ -74,17 +77,19 @@ describe("FiltersBar labelling", () => {
 
   it("names the advanced filters once the panel is open", () => {
     render(
-      <FiltersBar
-        filters={{ ...FILTERS, portal: "idealista" }}  // opens the panel
-        onChange={vi.fn()}
-        count={0}
-        view="grid"
-        onViewChange={vi.fn()}
-        profiles={[]}
-        tags={[]}
-        matchEnabled={false}
-        onReset={vi.fn()}
-      />,
+      <WithQuery>
+        <FiltersBar
+          filters={{ ...FILTERS, portal: "idealista" }}  // opens the panel
+          onChange={vi.fn()}
+          count={0}
+          view="grid"
+          onViewChange={vi.fn()}
+          profiles={[]}
+          tags={[]}
+          matchEnabled={false}
+          onReset={vi.fn()}
+        />
+      </WithQuery>,
     );
     for (const key of ["filters.portal", "filters.agency", "filters.deal",
                        "filters.minSqmPrice", "filters.maxSqmPrice"] as const) {

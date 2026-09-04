@@ -14,9 +14,12 @@
 
 import { useState } from "react";
 import { useT } from "../i18n";
-import { api } from "../services/api";
+import {
+  useAskAssistant, useBulkProfiles, useBuildSearchUrls, useParseSearchUrl,
+  useProfileResults, useRenameProfiles, useSaveProfiles, type ProfileWrite,
+} from "../queries/searchProfiles";
 import type {
-  AssistantSearch, ProfileResults, SearchBuilderParams, SearchBuilderUrls,
+  AssistantSearch, SearchBuilderParams, SearchBuilderUrls,
   GroupedSearchProfile, SearchProfile, Settings,
 } from "../types";
 import { getBaseName, groupSearchProfiles } from "../utils/searchProfiles";
@@ -56,7 +59,6 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   const [url, setUrl] = useState("");
   const [keywords, setKeywords] = useState("");
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
   // set while editing an existing profile via the "url" form, so submitUrl
   // knows whether to PUT over it instead of POSTing a new one
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -65,13 +67,11 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   // builder state
   const [params, setParams] = useState<SearchBuilderParams>(EMPTY_BUILDER);
   const [built, setBuilt] = useState<SearchBuilderUrls | null>(null);
-  const [generating, setGenerating] = useState(false);
   const [usePortals, setUsePortals] = useState({ immobiliare: true, idealista: true });
 
   // assistant state: the parsed read-back stays visible in the builder, so
   // the user can see what the sentence was understood to mean
   const [query, setQuery] = useState("");
-  const [asking, setAsking] = useState(false);
   const [assistant, setAssistant] = useState<AssistantSearch | null>(null);
   // a query with "o"/"oppure" yields several alternatives, reviewed as a list
   const [multi, setMulti] = useState<AssistantSearch[]>([]);
@@ -81,14 +81,38 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   // set as a whole, since "kept: another search covers it" only counts searches
   // that survive the delete
   const [deleting, setDeleting] = useState<SearchProfile[] | null>(null);
-  const [results, setResults] = useState<ProfileResults | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const [deleteFailure, setDeleteFailure] = useState("");
 
   // bulk selection: acting on every search one row at a time is the tedium this
   // exists to remove (pausing them all before a holiday, muting a noisy set…)
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const bulkProfiles = useBulkProfiles();
+  const renameProfiles = useRenameProfiles();
+  const saveProfiles = useSaveProfiles();
+  // Two instances of the same mutation, and the split is deliberate: the
+  // button's "Generating…" belongs to the press, not to the silent re-derivation
+  // that fills the other portal's slot when an existing search is opened.
+  const buildUrls = useBuildSearchUrls();
+  const prefillUrls = useBuildSearchUrls();
+  const parseUrl = useParseSearchUrl();
+  const askAssistant = useAskAssistant();
+  // The counts arrive after the dialog does (`results === null` is the loading
+  // state): the question is worth asking even while they load.
+  const deleteResults = useProfileResults(deleting?.map((p) => p.id) ?? null);
+  const results = deleteResults.data ?? null;
+  // Merging, separating and a bulk action all write the same rows, so one flag
+  // over the three of them is what keeps a second press out while any is in
+  // flight.
+  const bulkBusy = bulkProfiles.isPending || renameProfiles.isPending;
+  const deleteBusy = bulkProfiles.isPending;
+  const saving = saveProfiles.isPending;
+  const generating = buildUrls.isPending;
+  const asking = askAssistant.isPending;
+  // The dialog reports two different failures in one line: the counts it could
+  // not fetch, and the delete it could not carry out.
+  const deleteError = deleteFailure
+    || (deleteResults.error ? String(deleteResults.error.message) : "");
 
   const ready = channelReadiness(settings);
   const channelOptions = [
@@ -151,36 +175,13 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     action: "activate" | "pause" | "notify",
     notifyChannels?: string,
   ) {
-    setBulkBusy(true);
     setError("");
     try {
-      await api.bulkProfiles(ids, action, { notifyChannels });
+      await bulkProfiles.mutateAsync({ ids, action, notifyChannels });
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBulkBusy(false);
     }
-  }
-
-  /** Renames a search, keeping everything else exactly as it was.
-   *
-   *  The rename goes through the same PUT as editing, and that route takes a
-   *  whole search rather than a patch (`SearchProfileIn`: `name` and
-   *  `search_url` are both required, and the URL is validated). Sent as a bare
-   *  `{ name }`, every rename came back 422 — so Merge and Separate below have
-   *  never done anything at all, silently, and the only sign was an error line
-   *  under whichever form happened to be open. Resending the URL unchanged also
-   *  keeps `update_profile` from treating this as a new search and re-arming
-   *  the baseline (invariant 3). */
-  function rename(p: SearchProfile, name: string) {
-    return api.updateProfile(p.id, {
-      name,
-      search_url: p.search_url,
-      excluded_keywords: p.excluded_keywords ?? "",
-      notify_channels: p.notify_channels ?? "",
-      is_active: p.is_active,
-    });
   }
 
   async function groupSelected(targets: SearchProfile[]) {
@@ -189,25 +190,20 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     const newBaseName = window.prompt(t("profiles.mergePrompt"), defaultName);
     if (!newBaseName || !newBaseName.trim()) return;
     const cleaned = getBaseName(newBaseName.trim());
-    setBulkBusy(true);
     setError("");
     try {
-      for (const p of targets) {
-        await rename(p, `${cleaned} (${p.portal})`);
-      }
+      await renameProfiles.mutateAsync(
+        targets.map((p) => ({ profile: p, name: `${cleaned} (${p.portal})` })));
       setSelected(new Set());
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBulkBusy(false);
     }
   }
 
   async function separateGroup(group: GroupedSearchProfile) {
     if (group.profiles.length < 2) return;
     if (!window.confirm(t("profiles.separateConfirm", { name: group.baseName }))) return;
-    setBulkBusy(true);
     setError("");
     try {
       // A plain space before the portal, and this is the whole point of the
@@ -216,14 +212,11 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       // the `<base> - PORTAL` this used to write was stripped straight back off
       // and the two rows folded together again the moment they were separated.
       // Separating has to produce names the grouping will not undo.
-      for (const p of group.profiles) {
-        await rename(p, `${group.baseName} ${p.portal}`);
-      }
+      await renameProfiles.mutateAsync(
+        group.profiles.map((p) => ({ profile: p, name: `${group.baseName} ${p.portal}` })));
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBulkBusy(false);
     }
   }
 
@@ -235,33 +228,27 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     setAssistant((a) => (a && a.warnings.length ? { ...a, warnings: [] } : a));
   };
 
-  /** Opens the delete dialog and asks the backend what these searches' results
-   *  amount to. The counts arrive after the dialog does (`results === null` is
-   *  the loading state): the question is worth asking even while they load. */
-  async function askDelete(targets: SearchProfile[]) {
+  /** Opens the delete dialog. Naming the searches is what starts the query for
+   *  what their results amount to, so the dialog is on screen while it loads. */
+  function askDelete(targets: SearchProfile[]) {
+    setDeleteFailure("");
     setDeleting(targets);
-    setResults(null);
-    setDeleteError("");
-    try {
-      setResults(await api.getProfilesResults(targets.map((p) => p.id)));
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : String(e));
-    }
   }
 
-  async function confirmDelete(deleteResults: boolean) {
+  async function confirmDelete(alsoDeleteResults: boolean) {
     if (!deleting) return;
-    setDeleteBusy(true);
-    setDeleteError("");
+    setDeleteFailure("");
     try {
-      await api.bulkProfiles(deleting.map((p) => p.id), "delete", { deleteResults });
+      await bulkProfiles.mutateAsync({
+        ids: deleting.map((p) => p.id),
+        action: "delete",
+        deleteResults: alsoDeleteResults,
+      });
       setDeleting(null);
       setSelected(new Set());
       onChanged();
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeleteBusy(false);
+      setDeleteFailure(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -296,13 +283,16 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       // the profile only carries its own portal's URL; fill in the other
       // portal's slot too, so ticking its checkbox has a URL to save instead
       // of silently no-opping (createFromBuilder skips an empty built[portal])
-      api.buildSearchUrls(formParams).then((urls) => {
-        setBuilt((b) => b && {
+      prefillUrls.mutate({ params: formParams, verify: false }, {
+        onSuccess: (urls) => setBuilt((b) => b && {
           ...urls,
           immobiliare: b.immobiliare || urls.immobiliare,
           idealista: b.idealista || urls.idealista,
-        });
-      }).catch(() => {});
+        }),
+        // a URL we could not re-derive simply leaves that portal's slot as the
+        // stored one; there is nothing for the user to do about it
+        onError: () => {},
+      });
     } else {
       setMode("url");
     }
@@ -328,13 +318,16 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
         idealista: Boolean(ideal) || true,
       });
       setMode("builder");
-      api.buildSearchUrls(formParams).then((urls) => {
-        setBuilt((b) => b && {
+      prefillUrls.mutate({ params: formParams, verify: false }, {
+        onSuccess: (urls) => setBuilt((b) => b && {
           ...urls,
           immobiliare: b.immobiliare || urls.immobiliare,
           idealista: b.idealista || urls.idealista,
-        });
-      }).catch(() => {});
+        }),
+        // a URL we could not re-derive simply leaves that portal's slot as the
+        // stored one; there is nothing for the user to do about it
+        onError: () => {},
+      });
     } else {
       setMode("url");
     }
@@ -354,7 +347,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     if (!url.trim()) return;
     setError("");
     try {
-      const extracted = await api.parseSearchUrl(url);
+      const extracted = await parseUrl.mutateAsync(url);
       setParams(paramsFromProfile(extracted));
       setBuilt(unverifiedUrls(
         url.includes("immobiliare.it") ? url : "",
@@ -372,10 +365,9 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
 
   async function ask() {
     if (!query.trim()) return;
-    setAsking(true);
     setError("");
     try {
-      const result = await api.askAssistant(query);
+      const result = await askAssistant.mutateAsync(query);
       // The backend answers `{"searches": []}` for a query that splits into
       // nothing but separators (";", "x o", …): `parse_query` skips every blank
       // segment and has nothing left to describe. `searches[0]` was then
@@ -392,8 +384,6 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.unknownError"));
-    } finally {
-      setAsking(false);
     }
   }
 
@@ -430,160 +420,161 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     });
   }
 
-  async function createFromMulti() {
-    setSaving(true);
-    setError("");
-    let addedCount = 0;
-    try {
-      for (const search of multi) {
-        if (!search.urls) continue; // no city recognised: cannot build URLs
-        for (const portal of ["immobiliare", "idealista"] as const) {
-          if (!usePortals[portal]) continue;
-          if (findDuplicateProfile(search.urls[portal], keywords)) continue;
-          await api.createProfile({
-            name: `${searchLabel(search, t)} (${portal})`,
-            search_url: search.urls[portal],
-            excluded_keywords: keywords,
-            is_active: true,
-          });
-          addedCount++;
-        }
-      }
-      if (addedCount === 0 && multi.some(s => s.urls)) {
-        setError(t("profiles.allAlreadyPresent"));
-      } else {
-        resetForm();
-        onChanged();
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
-    } finally {
-      setSaving(false);
+  /** Saves a set of rows as one act, or reports why there was nothing to save.
+   *
+   *  The writes are worked out first and sent second, deliberately: a builder
+   *  save can cover two portals, and deciding halfway through that the second
+   *  one is a duplicate would leave the pair half-written. */
+  async function commit(writes: ProfileWrite[], nothingToDo: string) {
+    if (writes.length === 0) {
+      setError(nothingToDo);
+      return;
     }
-  }
-
-  async function submitUrl() {
-    setSaving(true);
     setError("");
     try {
-      const dup = findDuplicateProfile(url, keywords, editingId !== null ? editingId : undefined);
-      if (dup) {
-        setError(t("profiles.duplicateExists", { name: dup.name }));
-        setSaving(false);
-        return;
-      }
-      if (editingId !== null) {
-        const current = profiles.find((p) => p.id === editingId);
-        await api.updateProfile(editingId, {
-          name: name || t("profiles.untitled"),
-          search_url: url,
-          excluded_keywords: keywords,
-          notify_channels: current?.notify_channels ?? "",
-          is_active: current?.is_active ?? true,
-        });
-      } else {
-        await api.createProfile({
-          name: name || t("profiles.untitled"),
-          search_url: url,
-          excluded_keywords: keywords,
-          is_active: true,
-        });
-      }
+      await saveProfiles.mutateAsync(writes);
       resetForm();
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.unknownError"));
-    } finally {
-      setSaving(false);
     }
+  }
+
+  async function createFromMulti() {
+    const writes: ProfileWrite[] = [];
+    for (const search of multi) {
+      if (!search.urls) continue; // no city recognised: cannot build URLs
+      for (const portal of ["immobiliare", "idealista"] as const) {
+        if (!usePortals[portal]) continue;
+        if (findDuplicateProfile(search.urls[portal], keywords)) continue;
+        writes.push({
+          id: null,
+          data: {
+            name: `${searchLabel(search, t)} (${portal})`,
+            search_url: search.urls[portal],
+            excluded_keywords: keywords,
+            is_active: true,
+          },
+        });
+      }
+    }
+    if (writes.length === 0 && !multi.some((s) => s.urls)) {
+      // nothing to save and nothing to complain about: no search in the answer
+      // carried URLs at all
+      resetForm();
+      onChanged();
+      return;
+    }
+    await commit(writes, t("profiles.allAlreadyPresent"));
+  }
+
+  async function submitUrl() {
+    const dup = findDuplicateProfile(url, keywords, editingId !== null ? editingId : undefined);
+    if (dup) {
+      setError(t("profiles.duplicateExists", { name: dup.name }));
+      return;
+    }
+    const current = editingId !== null
+      ? profiles.find((p) => p.id === editingId)
+      : undefined;
+    await commit([{
+      id: editingId,
+      data: {
+        name: name || t("profiles.untitled"),
+        search_url: url,
+        excluded_keywords: keywords,
+        ...(editingId !== null
+          ? {
+              notify_channels: current?.notify_channels ?? "",
+              is_active: current?.is_active ?? true,
+            }
+          : { is_active: true }),
+      },
+    }], t("common.unknownError"));
   }
 
   async function generate() {
     setError("");
-    setGenerating(true);
     try {
       // verify=true: with a zone this asks Idealista once whether it knows the
       // slug, so the URL we save is the precise zone page when one exists
-      setBuilt(await api.buildSearchUrls(params, true));
+      setBuilt(await buildUrls.mutateAsync({ params, verify: true }));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.unknownError"));
-    } finally {
-      setGenerating(false);
     }
   }
 
   async function createFromBuilder() {
     if (!built) return;
-    setSaving(true);
-    setError("");
     const label = name || [
       t(params.contract === "rent" ? "profiles.labelRent" : "profiles.labelBuy"),
       params.city,
       params.zone,
     ].filter(Boolean).join(" · ");
-    try {
-      if (editingId !== null || editingGroupIds.length > 0) {
-        const targetIds = editingGroupIds.length > 0 ? editingGroupIds : (editingId !== null ? [editingId] : []);
-        const groupProfiles = profiles.filter((p) => targetIds.includes(p.id));
-        const firstCurrent = groupProfiles[0] || profiles.find((p) => p.id === editingId);
-        if (firstCurrent) {
-          for (const portal of ["immobiliare", "idealista"] as const) {
-            if (!usePortals[portal]) continue;
-            const targetUrl = built[portal];
-            if (!targetUrl) continue;
-            const existingForPortal = groupProfiles.find((p) => p.portal === portal);
-            if (existingForPortal) {
-              const dup = findDuplicateProfile(targetUrl, keywords, existingForPortal.id);
-              if (dup && !targetIds.includes(dup.id)) {
-                setError(t("profiles.duplicateExists", { name: dup.name }));
-                setSaving(false);
-                return;
-              }
-              await api.updateProfile(existingForPortal.id, {
+    const writes: ProfileWrite[] = [];
+
+    if (editingId !== null || editingGroupIds.length > 0) {
+      const targetIds = editingGroupIds.length > 0 ? editingGroupIds : (editingId !== null ? [editingId] : []);
+      const groupProfiles = profiles.filter((p) => targetIds.includes(p.id));
+      const firstCurrent = groupProfiles[0] || profiles.find((p) => p.id === editingId);
+      if (firstCurrent) {
+        for (const portal of ["immobiliare", "idealista"] as const) {
+          if (!usePortals[portal]) continue;
+          const targetUrl = built[portal];
+          if (!targetUrl) continue;
+          const existingForPortal = groupProfiles.find((p) => p.portal === portal);
+          if (existingForPortal) {
+            const dup = findDuplicateProfile(targetUrl, keywords, existingForPortal.id);
+            if (dup && !targetIds.includes(dup.id)) {
+              setError(t("profiles.duplicateExists", { name: dup.name }));
+              return;
+            }
+            writes.push({
+              id: existingForPortal.id,
+              data: {
                 name: `${name || label} (${portal})`,
                 search_url: targetUrl,
                 excluded_keywords: keywords,
                 notify_channels: existingForPortal.notify_channels ?? firstCurrent.notify_channels ?? "",
                 is_active: existingForPortal.is_active ?? firstCurrent.is_active ?? true,
-              });
-            } else {
-              if (!findDuplicateProfile(targetUrl, keywords)) {
-                await api.createProfile({
-                  name: `${name || label} (${portal})`,
-                  search_url: targetUrl,
-                  excluded_keywords: keywords,
-                  is_active: true,
-                });
-              }
-            }
+              },
+            });
+          } else if (!findDuplicateProfile(targetUrl, keywords)) {
+            writes.push({
+              id: null,
+              data: {
+                name: `${name || label} (${portal})`,
+                search_url: targetUrl,
+                excluded_keywords: keywords,
+                is_active: true,
+              },
+            });
           }
         }
-      } else {
-        let addedCount = 0;
-        for (const portal of ["immobiliare", "idealista"] as const) {
-          if (!usePortals[portal]) continue;
-          if (findDuplicateProfile(built[portal], keywords)) continue;
-          await api.createProfile({
+      }
+      // An edit that resolves to no write is not a duplicate: every portal it
+      // covers is already exactly what was asked for.
+      if (writes.length === 0) {
+        resetForm();
+        onChanged();
+        return;
+      }
+    } else {
+      for (const portal of ["immobiliare", "idealista"] as const) {
+        if (!usePortals[portal]) continue;
+        if (findDuplicateProfile(built[portal], keywords)) continue;
+        writes.push({
+          id: null,
+          data: {
             name: `${label} (${portal})`,
             search_url: built[portal],
             excluded_keywords: keywords,
             is_active: true,
-          });
-          addedCount++;
-        }
-        if (addedCount === 0) {
-          setError(t("profiles.duplicateParams"));
-          setSaving(false);
-          return;
-        }
+          },
+        });
       }
-      resetForm();
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
-    } finally {
-      setSaving(false);
     }
+    await commit(writes, t("profiles.duplicateParams"));
   }
 
   const groupedProfiles = groupSearchProfiles(profiles);

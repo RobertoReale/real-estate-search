@@ -13,6 +13,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import PropertyModal from "./PropertyModal";
 import { I18nProvider, STORAGE_KEY } from "../i18n";
+import { WithQuery } from "../test/withQuery";
 import type { Property } from "../types";
 
 // Pinned rather than left to the default: thousands separators are locale-bound
@@ -51,9 +52,11 @@ const noop = () => {};
 function show(property: Property): string {
   const { container } = render(
     <I18nProvider>
-      <PropertyModal property={property} onClose={noop} onDeleted={noop}
-        onToggleFavorite={noop} onNotesSaved={noop} onShowOnMap={noop}
-        allTags={[]} onAddTag={noop} onRemoveTag={noop} auditEnabled={false} />
+      <WithQuery>
+        <PropertyModal property={property} onClose={noop} onDeleted={noop}
+          onToggleFavorite={noop} onNotesSaved={noop} onShowOnMap={noop}
+          allTags={[]} onAddTag={noop} onRemoveTag={noop} auditEnabled={false} />
+      </WithQuery>
     </I18nProvider>,
   );
   return container.textContent ?? "";
@@ -87,10 +90,12 @@ describe("the OMI half of the benchmark panel", () => {
   it("explains the staleness rather than only flagging it", () => {
     render(
       <I18nProvider>
-        <PropertyModal property={withBand("2022/2", true)} onClose={noop}
-          onDeleted={noop} onToggleFavorite={noop} onNotesSaved={noop}
-          onShowOnMap={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop}
-          auditEnabled={false} />
+        <WithQuery>
+          <PropertyModal property={withBand("2022/2", true)} onClose={noop}
+            onDeleted={noop} onToggleFavorite={noop} onNotesSaved={noop}
+            onShowOnMap={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop}
+            auditEnabled={false} />
+        </WithQuery>
       </I18nProvider>,
     );
     expect(screen.getByTitle(/more than 18 months old/i)).toBeTruthy();

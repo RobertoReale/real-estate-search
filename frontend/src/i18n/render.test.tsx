@@ -25,6 +25,7 @@ import { en } from "./en";
 import { it as itDict } from "./it";
 import FiltersBar from "../components/FiltersBar";
 import PropertyCard from "../components/PropertyCard";
+import { WithQuery } from "../test/withQuery";
 import type { Property, PropertyFilters } from "../types";
 
 const FILTERS: PropertyFilters = {
@@ -69,10 +70,12 @@ function screenTextIn(lang: "en" | "it"): string {
   localStorage.setItem(STORAGE_KEY, lang);
   const { container } = render(
     <I18nProvider>
-      <FiltersBar filters={FILTERS} onChange={noop} count={7} view="grid"
-        onViewChange={noop} profiles={[]} tags={[]} matchEnabled onReset={noop} />
-      <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
-        onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
+      <WithQuery>
+        <FiltersBar filters={FILTERS} onChange={noop} count={7} view="grid"
+          onViewChange={noop} profiles={[]} tags={[]} matchEnabled onReset={noop} />
+        <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
+          onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
+      </WithQuery>
     </I18nProvider>,
   );
   return (container.textContent ?? "").replace(/\p{Zs}/gu, " ");
