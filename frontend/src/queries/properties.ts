@@ -74,6 +74,20 @@ export function usePropertySet(filters: PropertyFilters, enabled: boolean) {
   });
 }
 
+/** One property, read on its own — the query behind a link to it.
+ *
+ *  Enabled only when the grid cannot answer. A property opened from a card is
+ *  already on screen, so the click costs no request; a property opened from a
+ *  pasted URL, or one that has left the filtered set while its detail was open,
+ *  is not in the grid at all and this is what puts it there. */
+export function useProperty(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.property(id),
+    queryFn: () => api.getProperty(id),
+    enabled,
+  });
+}
+
 /** Reads the whole filtered set once, on demand — what "select all" presses.
  *
  *  Through the cache rather than around it: the map may already hold this exact

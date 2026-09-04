@@ -1,11 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
-import App from "./App";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { I18nProvider } from "./i18n";
 import { createQueryClient } from "./queries/client";
+import AppRoutes from "./routes/router";
 import "./index.css";
 
 // One client for the process. Built here rather than at module scope in
@@ -23,8 +23,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           else so the answer is not fetched twice. */}
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
+          {/* Inside the gate: until a token is proved there is no dashboard to
+              address, and the prompt is the same page whatever URL was asked
+              for — which is also what lets a link survive being opened by
+              someone who has to sign in first. */}
           <AuthGate>
-            <App />
+            <AppRoutes />
           </AuthGate>
         </ErrorBoundary>
       </QueryClientProvider>

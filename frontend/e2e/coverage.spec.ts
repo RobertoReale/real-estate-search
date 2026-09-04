@@ -1296,10 +1296,12 @@ test("the backups and the resets", async ({ page }) => {
 
   // Restarting asks, waits for the process to answer again and then reloads the
   // page — so the page coming back is the signal, not the button re-enabling.
+  // It comes back *into Settings*: the dialog is an address now, and a reload
+  // lands where it left. Reopening it would only find its own backdrop.
   await press(page, "settings.system.restart");
   await expect(control(page, "settings.save")).toBeHidden({ timeout: 60_000 });
+  await expect(control(page, "settings.save")).toBeVisible({ timeout: 60_000 });
   await waitForResults(page);
-  await openSettings(page);
 
   // A snapshot, then the two things that can be done with one.
   await press(page, "settings.system.backupNow");
@@ -1320,10 +1322,12 @@ test("the backups and the resets", async ({ page }) => {
   await expect(page.getByText(/Restored|Ripristinat/i)).toBeVisible();
   await expect(control(page, "settings.save")).toBeHidden({ timeout: 20_000 });
 
-  // The three resets, smallest first. Each reloads the page when it lands.
+  // The three resets, smallest first. Each reloads the page when it lands, and
+  // the page comes back into Settings on its own — so the dialog returning is
+  // what is waited for here, rather than reopened.
   for (const reset of ["settings.system.resetTrends", "settings.system.resetDashboard",
     "settings.system.resetFactory"] as const) {
-    await openSettings(page);
+    await expect(control(page, "settings.save")).toBeVisible({ timeout: 60_000 });
     await press(page, reset);
     await expect(control(page, "settings.save")).toBeHidden({ timeout: 20_000 });
   }

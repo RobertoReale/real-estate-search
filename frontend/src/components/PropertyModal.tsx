@@ -125,7 +125,6 @@ interface Props {
   onClose: () => void;
   onDeleted: () => void;
   onToggleFavorite: () => void;
-  onNotesSaved: (updated: Property) => void;
   onShowOnMap: (property: Property) => void;
   allTags: Tag[];
   onAddTag: (name: string) => void;
@@ -137,7 +136,7 @@ interface Props {
 }
 
 export default function PropertyModal({
-  property: p, onClose, onDeleted, onToggleFavorite, onNotesSaved, onShowOnMap,
+  property: p, onClose, onDeleted, onToggleFavorite, onShowOnMap,
   allTags, onAddTag, onRemoveTag, auditEnabled,
 }: Props) {
   const t = useT();
@@ -187,10 +186,11 @@ export default function PropertyModal({
     // is not an error, it just leaves the property off the map.
     setError("");
     try {
-      const { property: updated, located } = await locate.mutateAsync(p.id);
-      onNotesSaved(updated); // updated coords flow into the grid + map state
+      // The mutation invalidates the grid, so the new pin is in the set the map
+      // reads by the time it renders — nothing has to be handed upwards.
+      const { located } = await locate.mutateAsync(p.id);
       if (located) {
-        onShowOnMap(updated);
+        onShowOnMap(p);
       } else {
         setError(t("modal.locateFailed"));
       }
@@ -203,8 +203,7 @@ export default function PropertyModal({
     setCheckResult(null);
     setError("");
     try {
-      const { property: updated, summary } = await checkOnline.mutateAsync(p.id);
-      onNotesSaved(updated);
+      const { summary } = await checkOnline.mutateAsync(p.id);
       if (summary.gone > 0) {
         setCheckResult(t("modal.checkGone"));
       } else if (summary.online > 0) {
@@ -219,8 +218,7 @@ export default function PropertyModal({
 
   async function saveNotes() {
     try {
-      const updated = await saveNotesTo.mutateAsync({ id: p.id, notes });
-      onNotesSaved(updated);
+      await saveNotesTo.mutateAsync({ id: p.id, notes });
       setError("");
     } catch (e) {
       // the unsaved text stays in the textarea, so a retry costs one click

@@ -116,6 +116,15 @@ export const api = {
     return request(`/properties?${params}`);
   },
 
+  /** Fetch one property by id, whatever the grid is currently filtered to.
+   *
+   *  What an address opens: a link pasted into a fresh tab has no grid behind it
+   *  to read the row from, and the property it names may well be one the
+   *  recipient's own filters exclude. */
+  getProperty(id: number): Promise<Property> {
+    return request(`/properties/${id}`);
+  },
+
   /** Direct URL to download the filtered shortlist as a dossier. Not fetched
    *  as JSON: it returns a file (Content-Disposition attachment), so the caller
    *  navigates to it to trigger the browser download. `pdf` is the exception —

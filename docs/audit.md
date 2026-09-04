@@ -48,9 +48,9 @@ cd frontend && npm run e2e
 python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/api.ts
 ```
 
-Expected today: **1008 passed + 1 skipped** (1009 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **70 frontend tests**,
-**38 browser tests** (18 journeys, then 20 that hold the run to the control inventory),
+Expected today: **1015 passed + 1 skipped** (1016 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **81 frontend tests**,
+**43 browser tests** (23 journeys, then 20 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **222 interactive elements, 230 inventoried actions**, of which **228 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not

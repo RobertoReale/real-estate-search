@@ -131,7 +131,17 @@ each invariant to its code home and its test file. See also
     into `app.router.routes` (FastAPI keeps one opaque entry per router and descends into
     it when matching), so `test_static_frontend.py` walks back in through
     `original_router` — without that it would find zero `/api` paths and pass vacuously,
-    which is the same silent green the file exists to prevent. The mount is conditional on
+    which is the same silent green the file exists to prevent. **The mount now falls back
+    to `index.html`** (`SpaFiles`), because the dashboard routes on the URL and
+    `/listings/123` is a real address a user reloads, bookmarks or is sent — and that
+    fallback is a second way to swallow the API, one the ordering rule above cannot see.
+    Two kinds of 404 stay 404s: anything under `/api`, or a mistyped route reaches the
+    client as a JSON parse error instead of a 404 it already handles; and anything with a
+    file extension, or a missing asset surfaces in the browser's module loader, where the
+    message names neither the file nor the cause. Both are asserted, and the `/api` guard
+    is easy to get wrong — the mount hands the path down already normalised for the local
+    filesystem, so on Windows it arrives with backslashes and a `startswith("api/")` test
+    written for a URL silently never matches. The mount is conditional on
     `frontend/dist` existing, because the dev flow (`dev.bat`) has Vite serve the app
     instead — so a missing `dist` is normal, not a failure. `start.bat` is the user flow and
     builds `dist` before starting, so there the mount is always live. Serving the built app

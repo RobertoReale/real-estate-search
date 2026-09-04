@@ -14,6 +14,13 @@ import { StrictMode, useState } from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Statically, unlike the reader below: `App` pulls in the router and the whole
+// component tree, and paying for that inside an `it` counts the import against
+// the test's own five-second timeout — which is a test that fails on a busy
+// machine and says nothing about the function it is testing. `pruneSelection`
+// is pure and needs no fresh copy, so it is imported once, here.
+import { pruneSelection } from "./App";
+
 const KEY = "propertiesSeenBefore";
 
 /** A fresh copy of the module, since the memo lives at module scope. */
@@ -30,22 +37,19 @@ function Probe({ read }: { read: () => string | null }) {
 describe("pruneSelection", () => {
   const loaded = (...ids: number[]) => ids.map((id) => ({ id }));
 
-  it("keeps a whole-set selection intact when only a window was refetched", async () => {
+  it("keeps a whole-set selection intact when only a window was refetched", () => {
     // "Select all" holds 300 ids; the grid holds the first 60. Pruning against
     // those 60 would leave "Hide selected (60)" under a bar promising 300.
-    const { pruneSelection } = await import("./App");
     const selected = new Set([1, 2, 3, 99]);
     expect(pruneSelection(selected, loaded(1, 2, 3), 300)).toBe(selected);
   });
 
-  it("drops what has left the set once the whole set is in hand", async () => {
-    const { pruneSelection } = await import("./App");
+  it("drops what has left the set once the whole set is in hand", () => {
     // 2 was hidden by another device, or fell outside the filters
     expect([...pruneSelection(new Set([1, 2, 3]), loaded(1, 3), 2)]).toEqual([1, 3]);
   });
 
-  it("leaves an empty selection alone", async () => {
-    const { pruneSelection } = await import("./App");
+  it("leaves an empty selection alone", () => {
     const empty = new Set<number>();
     expect(pruneSelection(empty, loaded(1), 1)).toBe(empty);
   });
