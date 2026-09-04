@@ -54,7 +54,7 @@ function show(property: Property): string {
     <I18nProvider>
       <WithQuery>
         <PropertyModal property={property} onClose={noop} onDeleted={noop}
-          onToggleFavorite={noop} onNotesSaved={noop} onShowOnMap={noop}
+          onToggleFavorite={noop} onShowOnMap={noop}
           allTags={[]} onAddTag={noop} onRemoveTag={noop} auditEnabled={false} />
       </WithQuery>
     </I18nProvider>,
@@ -92,7 +92,7 @@ describe("the OMI half of the benchmark panel", () => {
       <I18nProvider>
         <WithQuery>
           <PropertyModal property={withBand("2022/2", true)} onClose={noop}
-            onDeleted={noop} onToggleFavorite={noop} onNotesSaved={noop}
+            onDeleted={noop} onToggleFavorite={noop}
             onShowOnMap={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop}
             auditEnabled={false} />
         </WithQuery>

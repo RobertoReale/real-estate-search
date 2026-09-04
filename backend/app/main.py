@@ -11,12 +11,19 @@ import hmac
 import logging
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+# Starlette's, not FastAPI's: `StaticFiles` raises the base class for a missing
+# file, and catching the subclass FastAPI re-exports would never see it.
+from starlette.exceptions import HTTPException
+from starlette.responses import Response
+from starlette.types import Scope
 
 from .config import FRONTEND_DIST, LOG_PATH, load_settings
 from .database import init_db
@@ -185,6 +192,63 @@ app.include_router(settings.router)
 app.include_router(system.router)
 
 
+def _is_spa_route(path: str, scope: Scope) -> bool:
+    """Is this a missing path the dashboard should be given a chance to answer?
+
+    Two kinds of 404 must stay 404s, and both are far worse disguised as a page:
+
+    - **anything under /api.** Only unknown API paths ever reach the mount —
+      invariant 13 keeps the real ones registered ahead of it — and answering one
+      with the dashboard's HTML would turn a mistyped route into a JSON parse
+      error in the client, which is a bug report about the wrong component.
+    - **anything that looks like a file.** A hashed asset that is genuinely
+      missing means a stale `index.html` or a half-copied build. Returning HTML
+      where a `.js` was asked for moves that failure into the browser's module
+      loader, where the message names neither the file nor the cause.
+
+    `path` arrives from the mount already stripped of its leading slash and
+    normalised for the local filesystem — which on Windows means backslashes, so
+    it is put back into URL form before anything is read off it. Left as it came,
+    the `api/` test below silently never matched and every unknown API path was
+    answered with the dashboard.
+    """
+    if scope.get("method") not in ("GET", "HEAD"):
+        return False
+    url_path = path.replace("\\", "/")
+    if url_path == "api" or url_path.startswith("api/"):
+        return False
+    return "." not in url_path.rsplit("/", 1)[-1]
+
+
+class SpaFiles(StaticFiles):
+    """The built dashboard, served so that an address survives a cold load.
+
+    The frontend routes on the URL, so `/listings/123` is a real place a user
+    can bookmark, reload, or be sent a link to — and every one of those asks
+    *this* server for a path no file matches. Falling back to `index.html` hands
+    the app the URL and lets it decide, which is what makes a property linkable
+    at all.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except HTTPException as exc:
+            if exc.status_code != 404 or not _is_spa_route(path, scope):
+                raise
+            return await super().get_response("index.html", scope)
+
+
+def mount_frontend(app: FastAPI, directory: Path) -> None:
+    """Serve the built dashboard at "/", as the very last thing the app does.
+
+    A function so the tests can assemble the same mount over a directory of
+    their own; the call below is still the last statement in this module, which
+    is what invariant 13 is about.
+    """
+    app.mount("/", SpaFiles(directory=directory, html=True), name="frontend")
+
+
 # --- Static frontend (must stay last) ---
 #
 # Mounting at "/" makes this a catch-all, so it has to be declared after every
@@ -198,7 +262,7 @@ app.include_router(system.router)
 # `npm run build`: in the dev flow Vite serves the app itself and the backend
 # is API-only. A missing dist is therefore normal, not an error.
 if FRONTEND_DIST.is_dir():
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    mount_frontend(app, FRONTEND_DIST)
 else:
     logging.getLogger(__name__).info(
         "frontend/dist not found: serving API only. Run `npm run build` in "

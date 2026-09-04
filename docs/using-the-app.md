@@ -100,6 +100,23 @@
      compromise — hidden listings never come back on their own, and it is fully
      reversible from the **Discarded** status filter if you change your mind.
 
+## Sharing what you are looking at
+
+The address bar holds the dashboard's state, so anything on screen can be sent
+to somebody else or kept for later:
+
+- **A property has its own address** (`/listings/123`). Copy it out of the
+  address bar and it opens on that property in any browser on the machine —
+  including one where the filters would otherwise have hidden it.
+- **The filters travel with it.** Whatever you narrowed to is on the link, so
+  the person opening it lands on the grid you were reading rather than on the
+  default one. Only what you actually changed is written down, which is why a
+  clean dashboard is just `/listings`.
+- **Back and Forward work.** Each filter you set is one step back, and typing a
+  price counts as one step rather than one per digit.
+- **A reload lands where you left.** The filters, the sort and the grid/map
+  choice all survive it, and survive being bookmarked.
+
 ## Deleting a search: what happens to its listings
 
 Clicking **🗑** on a monitored search asks whether its results should go with

@@ -111,7 +111,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 
 ## Testing
 
-- **1008 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
+- **1015 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
   SQLite): no network, so always reproducible. `test_property_based.py` adds `hypothesis`
   property tests for the pure helpers (the dedup ±tolerance gate, haversine, the
   price/sqm/floor parsers): the laws they must obey for *any* input, complementing the
@@ -126,11 +126,15 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (70 in fourteen files: vitest +
+- **The frontend has unit tests too** (81 in fifteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
-  with nothing failing; then `humanizeFloor`, and the i18n core (`i18n/i18n.test.ts`): key
+  with nothing failing; then `routes/params.test.ts`, which is the same hazard aimed at the
+  user rather than at the backend, since every assertion in it is about a link somebody
+  sent to somebody else (a default that leaks makes an unreadable URL out of an untouched
+  dashboard; a default dropped on the way back in hands the recipient a different grid);
+  then `humanizeFloor`, and the i18n core (`i18n/i18n.test.ts`): key
   parity between `en`/`it`, **matching `{placeholder}` sets per key** (a dropped `{count}`
   leaves a hole in one language only), no empty translation, interpolation, and the startup
   language resolution. `components/settings/sections.test.ts` is the same hazard one level

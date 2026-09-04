@@ -22,6 +22,10 @@ export const keys = {
   /** The whole filtered set (`limit: 0`): what the map needs — a pin per
    *  property — and what "select all" has to mean. */
   propertySet: (filters: PropertyFilters) => ["properties", "set", filters] as const,
+  /** One property, by id: what an address opens when the grid has no such row.
+   *  Under the same prefix as the grid on purpose — a favourite or a note
+   *  written from the detail view invalidates both in one call. */
+  property: (id: number) => ["properties", "one", id] as const,
 
   /** Outside the `properties` prefix on purpose: a reading already paid for must
    *  not be re-requested every time a card is favourited. */

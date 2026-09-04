@@ -1,24 +1,24 @@
 /** Root application dashboard component orchestrating global layout and state.
  *  Manages live property listings, search filters, view modes (Grid / Map),
- *  search profile diagnostics, and modal dialogues.
+ *  search profile diagnostics, and the overlays the URL opens over it.
  *
  *  It reads and writes nothing itself: every fetch on this screen is a keyed
- *  query or a mutation in `src/queries/`, and what is left here is the two
- *  things that are genuinely this component's — which filters are applied, and
- *  which properties are selected. */
+ *  query or a mutation in `src/queries/`, and the filters, the sort, the view
+ *  and the open property are held in the address bar (`routes/params.ts`). What
+ *  is left in this component is the one thing neither the server nor the URL
+ *  owns — which properties are ticked for a batch action, which is a choice in
+ *  progress rather than a place. */
 import { useMemo, useRef, useState } from "react";
+import { Outlet } from "react-router-dom";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
-import LogViewer from "./components/LogViewer";
 import Navbar from "./components/Navbar";
 import PriceTrends from "./components/PriceTrends";
 import ScraperHealthPanel from "./components/ScraperHealth";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
-import PropertyModal from "./components/PropertyModal";
 import SearchProfiles from "./components/SearchProfiles";
-import SettingsModal from "./components/SettingsModal";
 import { useDebounced } from "./hooks/useDebounced";
 import { useOnReveal } from "./hooks/useOnReveal";
 import {
@@ -32,7 +32,10 @@ import {
 } from "./queries/properties";
 import { useSettings } from "./queries/settings";
 import { useT } from "./i18n";
-import type { Property, PropertyFilters, ViewMode } from "./types";
+import type { DashboardContext } from "./routes/context";
+import { DEFAULT_FILTERS } from "./routes/params";
+import { useDashboardUrl } from "./routes/useDashboardUrl";
+import type { Property, ViewMode } from "./types";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
  *  as new for the rest of this browser session, even if a scan completes while
@@ -93,29 +96,21 @@ export function pruneSelection(
   return kept;
 }
 
-const DEFAULT_FILTERS: PropertyFilters = {
-  status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
-  profile_id: "", tag: "", min_price: "", max_price: "", min_sqm: "",
-  max_sqm: "", floor_band: "", rooms: "",
-  portal: "", agency: "", deal: "", min_sqm_price: "", max_sqm_price: "",
-  merged_only: false,
-  geo_mode: "", center_lat: "", center_lng: "", radius_m: "", poly: "",
-  only_price_drops: false, only_favorites: false, sort: "newest",
-};
-
 export default function App() {
   const t = useT();
-  const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
-  const [view, setView] = useState<ViewMode>("grid");
+  // The filters, the sort, the view and the open property are the URL's, so
+  // they survive a reload, move under Back and Forward, and can be sent to
+  // somebody else. Everything below is state that genuinely is not a place.
+  const {
+    filters, setFilters, view, setView, openPropertyId,
+    openProperty, openSettings, openLogs, close, openMap,
+  } = useDashboardUrl();
   // set by a card's "View on map" jump so MapView centers on that property;
   // cleared on any manual view switch so the map fits the whole set again
   const [mapFocusId, setMapFocusId] = useState<number | null>(null);
-  const [selected, setSelected] = useState<Property | null>(null);
   const [rawSelection, setRawSelection] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
   const [actionError, setActionError] = useState("");
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -187,13 +182,6 @@ export default function App() {
     [rawSelection, properties, total],
   );
 
-  // The open property, read from the grid so notes, tags and a favourite
-  // toggled elsewhere show through. If it has left the filtered set, the copy
-  // it was opened with stays on screen until the user closes it.
-  const openProperty = selected
-    ? properties.find((p) => p.id === selected.id) ?? selected
-    : null;
-
   // Fetch the next page as the sentinel below the grid scrolls into view.
   useOnReveal(
     loadMoreRef,
@@ -232,7 +220,7 @@ export default function App() {
     }
     return runAction(async () => {
       await hideProperty.mutateAsync(p.id);
-      if (selected?.id === p.id) setSelected(null);
+      if (openPropertyId === p.id) close();
     });
   }
 
@@ -251,13 +239,15 @@ export default function App() {
     return runAction(() => removeTagFrom.mutateAsync({ property: p, tagId }));
   }
 
-  // "View on map" from a card: focus the map on this property and switch view.
-  // The property is already in the current grid, so it is on the map too (the
-  // modal geocodes it first when it had no pin, updating the shared state).
+  // "View on map" from the property detail: focus the map on this property and
+  // switch view. The property is already in the current grid, so it is on the
+  // map too (the detail geocodes it first when it had no pin, and the grid
+  // re-reads).
+  // One navigation, not two: closing the detail and switching the view are the
+  // same step, and `openMap` is what makes them one address.
   function showOnMap(p: Property) {
     setMapFocusId(p.id);
-    setView("map");
-    setSelected(null);
+    openMap();
   }
 
   // Any manual view switch drops the "View on map" focus, so the map goes back
@@ -339,13 +329,21 @@ export default function App() {
   const checkingBatch = checkBatch.isPending;
   const batchSummary = checkBatch.data ?? null;
 
+  // What an overlay is handed: the rows already in hand, and the writes that
+  // belong to this screen. A detail view opened from a card therefore costs no
+  // request, and a favourite toggled inside it is the same act as one toggled on
+  // the card behind it rather than a second implementation of it.
+  const dashboard: DashboardContext = {
+    properties, tags, settings, toggleFavorite, addTag, removeTag, showOnMap, close,
+  };
+
   return (
     <div className="min-h-screen">
       <Navbar
         scanStatus={scanStatus}
         onScanNow={scanNow}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenLogs={() => setShowLogs(true)}
+        onOpenSettings={openSettings}
+        onOpenLogs={openLogs}
       />
 
       <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -372,7 +370,7 @@ export default function App() {
 
         {hasProfiles && (
           <PriceTrends contract={filters.contract} city={filters.city}
-            onOpenProperty={setSelected} />
+            onOpenProperty={(p) => openProperty(p.id)} />
         )}
 
         {/* the whole filtered set, not the pages loaded so far */}
@@ -573,7 +571,7 @@ export default function App() {
           properties.length > 0 && (
             <MapView
               properties={properties}
-              onSelect={setSelected}
+              onSelect={(p) => openProperty(p.id)}
               focusId={mapFocusId}
               geo={{
                 geo_mode: filters.geo_mode,
@@ -598,7 +596,7 @@ export default function App() {
                 onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
                 onClick={() => {
                   if (selectionMode) toggleOne(p.id);
-                  else setSelected(p);
+                  else openProperty(p.id);
                 }}
                 onQuickHide={() => quickHide(p)}
                 onToggleFavorite={() => toggleFavorite(p)}
@@ -631,22 +629,11 @@ export default function App() {
         )}
       </main>
 
-      {openProperty && (
-        <PropertyModal
-          property={openProperty}
-          onClose={() => setSelected(null)}
-          onDeleted={() => setSelected(null)}
-          onToggleFavorite={() => toggleFavorite(openProperty)}
-          onNotesSaved={setSelected}
-          onShowOnMap={showOnMap}
-          allTags={tags}
-          onAddTag={(name) => addTag(openProperty, name)}
-          onRemoveTag={(tagId) => removeTag(openProperty, tagId)}
-          auditEnabled={settings?.listing_audit_enabled ?? false}
-        />
-      )}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showLogs && <LogViewer onClose={() => setShowLogs(false)} />}
+      {/* Whatever the URL has open over the dashboard: a property, the settings,
+          the log. Rendered last, as the modals it replaced were — a dialog
+          appended after the grid is one the Tab key reaches by going forward,
+          which is the order a screen reader announces it in too. */}
+      <Outlet context={dashboard} />
     </div>
   );
 }
