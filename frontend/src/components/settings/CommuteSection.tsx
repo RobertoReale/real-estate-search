@@ -1,6 +1,6 @@
 import { useT } from "../../i18n";
-import { api } from "../../services/api";
-import type { CommuteMode, CommutePoint, Settings } from "../../types";
+import { useComputeCommutes } from "../../queries/maintenance";
+import type { CommuteMode, CommutePoint, CommuteSummary, Settings } from "../../types";
 import { Result, SectionHeading } from "./controls";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
@@ -43,6 +43,7 @@ export function CommuteSection(
 ) {
   const t = useT();
   const { values, set } = section;
+  const compute = useComputeCommutes();
 
   function update(index: number, patch: Partial<CommutePoint>) {
     set("points", values.points.map((p, i) => (i === index ? { ...p, ...patch } : p)));
@@ -107,9 +108,9 @@ export function CommuteSection(
           <button data-action="settings.commute.compute" className="btn-primary w-full sm:w-auto" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest(
               "commute",
-              () => api.computeCommutes(),
+              () => compute.mutateAsync(),
               (r) => {
-                const s = r as Awaited<ReturnType<typeof api.computeCommutes>>;
+                const s = r as CommuteSummary;
                 return t("settings.commuteComputed", {
                   routed: s.routed, scanned: s.scanned,
                 }) + (s.remaining > 0 ? t("settings.commuteRemaining", { count: s.remaining }) : "");

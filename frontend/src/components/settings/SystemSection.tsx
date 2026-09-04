@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRef, type ChangeEvent } from "react";
 import { formatDateTime, formatNumber, useT } from "../../i18n";
+import {
+  useBackups, useCreateBackup, useImportBackup, useResetData, useRestartBackend,
+  useRestoreBackup,
+} from "../../queries/maintenance";
 import { api, authToken, AuthError, fetchBackup } from "../../services/api";
 import type { BackupFile, Settings } from "../../types";
 import { Result, SecretStatus, SectionHeading } from "./controls";
@@ -46,64 +50,42 @@ export function SystemSection(
 ) {
   const t = useT();
   const { values, set } = section;
-  const [restarting, setRestarting] = useState(false);
-  const [backups, setBackups] = useState<BackupFile[] | null>(null);
-  const [folder, setFolder] = useState("");
-  const [listError, setListError] = useState("");
   const filePicker = useRef<HTMLInputElement>(null);
 
-  const loadBackups = useCallback(async () => {
-    try {
-      const r = await api.listBackups();
-      setFolder(r.folder);
-      setBackups(r.backups);
-      setListError("");
-    } catch (e) {
-      // A backend older than these routes answers 404, which is a perfectly
-      // ordinary thing to meet after pulling an update without restarting.
-      setBackups([]);
-      setListError(errorText(e));
-    }
-  }, []);
+  const list = useBackups();
+  const createBackup = useCreateBackup();
+  const importBackup = useImportBackup();
+  const restoreBackup = useRestoreBackup();
+  const resetData = useResetData();
+  const restart = useRestartBackend();
 
-  useEffect(() => { void loadBackups(); }, [loadBackups]);
+  const backups: BackupFile[] | null = list.data ? list.data.backups : list.isError ? [] : null;
+  const folder = list.data?.folder ?? "";
+  // A backend older than these routes answers 404, which is a perfectly
+  // ordinary thing to meet after pulling an update without restarting.
+  const listError = list.isError ? errorText(list.error) : "";
+  const restarting = restart.isPending;
 
   /** Restart the backend and wait for it to come back, then reload the page so
    *  the whole UI is talking to the fresh process. Used after pulling a code
-   *  update so the user need not hunt for the terminal window. */
+   *  update so the user need not hunt for the terminal window.
+   *
+   *  The waiting is inside the mutation, because the request itself does not
+   *  return — the socket drops as the process goes down — so a resolved
+   *  mutation here means the restart did *not* complete. */
   async function restartBackend() {
     if (!window.confirm(t("settings.restartConfirm"))) return;
-    setRestarting(true);
     shell.setFeedback(null);
     try {
-      await api.restartBackend();
+      const outcome = await restart.mutateAsync();
+      shell.setFeedback({
+        where: "global",
+        ok: false,
+        text: t(outcome === "too-old" ? "settings.restartTooOld" : "settings.restartNoReturn"),
+      });
     } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e);
-      // A 404/405 means THIS backend predates the restart route, so it cannot
-      // restart itself — the classic bootstrap trap. Say so plainly instead of
-      // polling (the process never went down) and pretending it worked.
-      if (/Method Not Allowed|Not Found|Error 40[45]/i.test(raw)) {
-        setRestarting(false);
-        shell.setFeedback({ where: "global", ok: false, text: t("settings.restartTooOld") });
-        return;
-      }
-      // Otherwise the socket dropped as the process went down — that is the
-      // expected path; the poll below is the real "did it come back?" signal.
+      shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
     }
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    await sleep(1500); // give it a moment to actually go down first
-    const deadline = Date.now() + 40000;
-    while (Date.now() < deadline) {
-      try {
-        await api.getScanStatus();
-        window.location.reload();
-        return;
-      } catch {
-        await sleep(1000);
-      }
-    }
-    setRestarting(false);
-    shell.setFeedback({ where: "global", ok: false, text: t("settings.restartNoReturn") });
   }
 
   /** Copy the database right now, whatever the daily throttle thinks — the
@@ -112,8 +94,7 @@ export function SystemSection(
     shell.setBusy("backups");
     shell.setFeedback(null);
     try {
-      const made = await api.createBackup();
-      await loadBackups();
+      const made = await createBackup.mutateAsync();
       shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupTaken", { name: made.name }) });
     } catch (e) {
       shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
@@ -158,8 +139,7 @@ export function SystemSection(
     shell.setBusy("backups");
     shell.setFeedback(null);
     try {
-      const added = await api.importBackup(file);
-      await loadBackups();
+      const added = await importBackup.mutateAsync(file);
       shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupImported", { name: added.name }) });
     } catch (e) {
       shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
@@ -180,7 +160,7 @@ export function SystemSection(
     shell.setBusy("backups");
     shell.setFeedback(null);
     try {
-      const r = await api.restoreBackup(file.name);
+      const r = await restoreBackup.mutateAsync(file.name);
       shell.setFeedback({
         where: "backups",
         ok: true,
@@ -209,7 +189,7 @@ export function SystemSection(
     shell.setBusy("data");
     shell.setFeedback(null);
     try {
-      const r = await api.resetData(scope);
+      const r = await resetData.mutateAsync(scope);
       const removed = Object.entries(r.deleted)
         .map(([k, v]) => `${v} ${k.replace(/_/g, " ")}`).join(", ");
       shell.setFeedback({

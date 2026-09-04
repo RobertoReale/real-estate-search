@@ -453,11 +453,36 @@ test("the card's own controls", async ({ page }) => {
   await choose(page, "filters.status", "all");
   await expect.poll(() => cards(page).count()).toBe(30);
   await expect(control(page, "grid.loadMore")).toBeVisible();
+
+  // The second page is held open for the rest of this section, and that is what
+  // makes the walk below deterministic. Scrolling to the button is what puts
+  // the sentinel beside it in view, so reaching it by keyboard *is* what starts
+  // the fetch — with the answer released immediately the grid would complete
+  // and the button would be gone before Tab arrived, and the test would be
+  // measuring a race rather than the tab order.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(
+    (url) => url.pathname === "/api/properties" && url.searchParams.get("offset") === "30",
+    async (route) => {
+      await held;
+      try {
+        await route.continue();
+      } catch {
+        // the page went away while this was in the air
+      }
+    },
+  );
+
   // Anchored on the wrapper the button sits in: it is the last thing in the
   // grid, and a walk to it from the top of the page is thirty cards of nothing.
   await reachableByKeyboard(page, "the end of the grid", ["grid.loadMore"],
     page.locator("[data-action='grid.loadMore']").locator(".."));
+  // Pressed while that page is still on its way, which is the state a user
+  // meets too: the button must take the press rather than have gone inert
+  // under it. Both askers get the one request.
   await press(page, "grid.loadMore");
+  release();
   await expect.poll(() => cards(page).count()).toBeGreaterThan(30);
 });
 

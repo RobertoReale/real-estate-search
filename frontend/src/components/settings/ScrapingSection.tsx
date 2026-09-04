@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useT } from "../../i18n";
-import { api } from "../../services/api";
+import {
+  useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser,
+} from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
 import { errorText, useSectionState, type Section, type SettingsShell } from "./state";
@@ -77,27 +79,27 @@ export function ScrapingSection(
 ) {
   const t = useT();
   const { values, set } = section;
-  const [grabbing, setGrabbing] = useState(false);
   const [stoppingGrab, setStoppingGrab] = useState(false);
-  const [installingHarvester, setInstallingHarvester] = useState(false);
-  const [installingCamoufox, setInstallingCamoufox] = useState(false);
+  const [installing, setInstalling] = useState<"harvester" | "camoufox" | null>(null);
+  const grab = useDatadomeRefresh();
+  const cancelGrab = useCancelDatadomeRefresh();
+  const installBrowser = useInstallBrowser();
+  const grabbing = grab.isPending;
 
   /** Opens a local browser to grab a fresh cookie. Headful on the server side,
    * so a CAPTCHA (if any) can be solved once — hence the "a window may open"
    * hint. Re-hydrates so the saved-timestamp and placeholder update. */
   async function grabCookie() {
-    setGrabbing(true);
     setStoppingGrab(false);
     shell.setFeedback(null);
     try {
-      const r = await api.datadomeRefresh("immobiliare");
+      const r = await grab.mutateAsync("immobiliare");
       await shell.reload();
       shell.setFeedback({ where: "global", ok: true,
         text: t("settings.cookieGrabbed", { preview: r.cookie_preview }) });
     } catch (e) {
       shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
-      setGrabbing(false);
       setStoppingGrab(false);
     }
   }
@@ -109,26 +111,23 @@ export function ScrapingSection(
   // availability check's Stop button.
   function stopGrabbingCookie() {
     setStoppingGrab(true);
-    api.cancelDatadomeRefresh().catch(() => {});
+    // best-effort: a refused cancel just leaves the grab running to its own end
+    cancelGrab.mutate(undefined, { onError: () => {} });
   }
 
   /** Installs an optional browser stack from the UI, then re-reads the settings
    *  so the newly reported availability flips the panel below. */
-  async function install(
-    run: () => Promise<{ message?: string }>,
-    fallbackMessage: string,
-    setBusy: (b: boolean) => void,
-  ) {
-    setBusy(true);
+  async function install(which: "harvester" | "camoufox", fallbackMessage: string) {
+    setInstalling(which);
     shell.setFeedback(null);
     try {
-      const r = await run();
+      const r = await installBrowser.mutateAsync(which);
       await shell.reload();
       shell.setFeedback({ where: "global", ok: true, text: r.message || fallbackMessage });
     } catch (e) {
       shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
     } finally {
-      setBusy(false);
+      setInstalling(null);
     }
   }
 
@@ -307,10 +306,9 @@ export function ScrapingSection(
                 </p>
                 {!settings.camoufox_available && (
                   <button data-action="settings.scraping.installCamoufox" className="btn-ghost text-xs w-full sm:w-auto"
-                    onClick={() => install(api.installCamoufox,
-                      t("settings.camoufoxInstalledMsg"), setInstallingCamoufox)}
-                    disabled={installingCamoufox || shell.anyBusy}>
-                    {installingCamoufox
+                    onClick={() => install("camoufox", t("settings.camoufoxInstalledMsg"))}
+                    disabled={installing !== null || shell.anyBusy}>
+                    {installing === "camoufox"
                       ? t("settings.installingCamoufox")
                       : t("settings.installCamoufox")}
                   </button>
@@ -321,10 +319,9 @@ export function ScrapingSection(
             <div className="space-y-2.5 pt-1">
               <p className="text-xs t-dim">{t("settings.harvesterMissing")}</p>
               <button data-action="settings.scraping.installHarvester" className="btn-ghost text-xs w-full sm:w-auto"
-                onClick={() => install(api.installHarvester,
-                  t("settings.harvesterInstalledMsg"), setInstallingHarvester)}
-                disabled={installingHarvester || shell.anyBusy}>
-                {installingHarvester
+                onClick={() => install("harvester", t("settings.harvesterInstalledMsg"))}
+                disabled={installing !== null || shell.anyBusy}>
+                {installing === "harvester"
                   ? t("settings.installingHarvester")
                   : t("settings.installHarvester")}
               </button>

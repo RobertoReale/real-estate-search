@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
-import { api } from "../services/api";
+import { useVerifyToken } from "../queries/settings";
 import { authToken, setAuthRequiredHandler } from "../services/api";
 
 /** Shows a token prompt whenever the backend answers 401 (optional API auth is
@@ -10,8 +10,8 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const t = useT();
   const [needAuth, setNeedAuth] = useState(false);
   const [token, setToken] = useState("");
-  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const verify = useVerifyToken();
 
   useEffect(() => {
     setAuthRequiredHandler(() => setNeedAuth(true));
@@ -19,16 +19,14 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setChecking(true);
     setError("");
     authToken.set(token.trim());
     try {
-      await api.getSettings(); // 200 proves the token is accepted
+      await verify.mutateAsync(); // a 200 proves the token is accepted
       window.location.reload(); // reload so every data load re-runs authenticated
     } catch {
       authToken.clear();
       setError(t("auth.rejected"));
-      setChecking(false);
     }
   }
 
@@ -52,8 +50,8 @@ export default function AuthGate({ children }: { children: ReactNode }) {
               </p>
             )}
             <button className="btn-primary w-full" type="submit"
-              disabled={checking || !token.trim()}>
-              {checking ? t("auth.checking") : t("auth.unlock")}
+              disabled={verify.isPending || !token.trim()}>
+              {verify.isPending ? t("auth.checking") : t("auth.unlock")}
             </button>
           </form>
         </div>

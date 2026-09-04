@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
-import { api, authToken } from "../services/api";
+import { useSaveSettings, useSettingsForm } from "../queries/settings";
+import { authToken } from "../services/api";
 import type { Settings } from "../types";
 import { AssistantSection, useAssistantSection } from "./settings/AssistantSection";
 import { CommuteSection, useCommuteSection } from "./settings/CommuteSection";
@@ -49,13 +50,20 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
 export default function SettingsModal({ onClose }: Props) {
   const t = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
-  // Why the load needs its own error state: the dialog cannot render a single
-  // field until `getSettings` answers, so a backend that is down or 500s used
-  // to leave `settings` null for ever — the gear button opened nothing at all,
-  // with not even a close button, and the rejection went unhandled.
-  const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<SectionName | null>(null);
+  // Re-read every time the dialog opens: a form seeded from a cached copy is a
+  // form editing a snapshot, and the first save writes it back over whatever
+  // else has changed since.
+  const loaded = useSettingsForm();
+  const saveSettings = useSaveSettings();
+  // Why the failure is rendered instead of the form, even with a cached copy in
+  // hand: the dialog is the one place the *saved* settings are authoritative,
+  // and offering fields over a load that did not happen invites a save that
+  // overwrites the ones on disk with a stale reading of them.
+  const loadError = loaded.isError
+    ? errorText(loaded.error)
+    : "";
 
   const telegram = useTelegramSection();
   const email = useEmailSection();
@@ -71,20 +79,13 @@ export default function SettingsModal({ onClose }: Props) {
   const sections: { reset: (s: Settings) => void; payload: () => Partial<Settings> }[] =
     [telegram, email, scanning, match, commute, assistant, scraping, system];
 
-  // Bumped by the retry button. `hydrate` closes over the eight section hooks
-  // and so has a new identity every render; a counter is what re-runs the load
-  // without making the effect depend on it.
-  const [attempt, setAttempt] = useState(0);
-
+  // Seeds the form from whatever the query last delivered. `hydrate` closes
+  // over the eight section hooks and so has a new identity every render, which
+  // is why the effect turns on the answer rather than on the function.
   useEffect(() => {
-    let cancelled = false;
-    setLoadError("");
-    api.getSettings()
-      .then((s) => { if (!cancelled) hydrate(s); })
-      .catch((e) => { if (!cancelled) setLoadError(errorText(e)); });
-    return () => { cancelled = true; };
+    if (loaded.data) hydrate(loaded.data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt]);
+  }, [loaded.data]);
 
   function hydrate(s: Settings) {
     setSettings(s);
@@ -102,11 +103,14 @@ export default function SettingsModal({ onClose }: Props) {
     const token = system.values.apiToken.trim();
     if (token) authToken.set(token);
     else authToken.clear();
-    hydrate(await api.updateSettings(payload));
+    // The server's answer is what masks the secrets back out, so it — not the
+    // payload — is what the form is re-seeded from.
+    hydrate(await saveSettings.mutateAsync(payload));
   }
 
   async function reload() {
-    hydrate(await api.getSettings());
+    const { data } = await loaded.refetch();
+    if (data) hydrate(data);
   }
 
   async function save() {
@@ -154,7 +158,7 @@ export default function SettingsModal({ onClose }: Props) {
         </p>
         <div className="flex justify-end gap-2 mt-6">
           <button data-action="settings.loadError.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-          <button data-action="settings.loadError.retry" className="btn-primary" onClick={() => setAttempt((n) => n + 1)}>
+          <button data-action="settings.loadError.retry" className="btn-primary" onClick={() => void loaded.refetch()}>
             {t("common.retry")}
           </button>
         </div>

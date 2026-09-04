@@ -1,9 +1,12 @@
 /** Root application dashboard component orchestrating global layout and state.
  *  Manages live property listings, search filters, view modes (Grid / Map),
  *  search profile diagnostics, and modal dialogues.
- *  Uses a monotonic sequence ref (`refreshSeq`) to prevent race conditions during rapid filter keystrokes. */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useProgressPoll } from "./hooks/useProgressPoll";
+ *
+ *  It reads and writes nothing itself: every fetch on this screen is a keyed
+ *  query or a mutation in `src/queries/`, and what is left here is the two
+ *  things that are genuinely this component's — which filters are applied, and
+ *  which properties are selected. */
+import { useMemo, useRef, useState } from "react";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
 import MarketVelocityPanel from "./components/MarketVelocity";
@@ -16,12 +19,20 @@ import PropertyCard from "./components/PropertyCard";
 import PropertyModal from "./components/PropertyModal";
 import SearchProfiles from "./components/SearchProfiles";
 import SettingsModal from "./components/SettingsModal";
-import { api } from "./services/api";
+import { useDebounced } from "./hooks/useDebounced";
+import { useOnReveal } from "./hooks/useOnReveal";
+import {
+  useDataVersionSync, useProfiles, useScanStatus, useTags, useTriggerScan,
+} from "./queries/dashboard";
+import { useGeocodeMissing } from "./queries/maintenance";
+import {
+  useAddTag, useAvailabilityProgress, useBulkProperties, useCancelPropertiesCheck,
+  useCheckProperties, useFetchPropertySet, useHideProperty, usePropertyPages,
+  usePropertySet, useRemoveTag, useRefreshDashboard, useToggleFavorite,
+} from "./queries/properties";
+import { useSettings } from "./queries/settings";
 import { useT } from "./i18n";
-import type {
-  AvailabilityCheckProgress, AvailabilityCheckSummary, Property, PropertyFilters,
-  ScanStatus, SearchProfile, Settings, Tag, ViewMode,
-} from "./types";
+import type { Property, PropertyFilters, ViewMode } from "./types";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
  *  as new for the rest of this browser session, even if a scan completes while
@@ -52,7 +63,7 @@ export function readSeenThreshold(): string | null {
 }
 
 /** Drop from the selection the properties that have left the filtered set — but
- *  only when this fetch actually saw all of it.
+ *  only when what is in hand is all of it.
  *
  *  "Select all" means the whole filtered set and asks the backend for it
  *  (`limit: 0`), while the grid keeps holding one window. Intersecting the
@@ -62,7 +73,10 @@ export function readSeenThreshold(): string | null {
  *  action underneath quietly shrank to a fifth of what its label promised.
  *
  *  When the window is the whole set, the intersection is exactly right and is
- *  what keeps a hidden or filtered-out card from staying selected.
+ *  what keeps a hidden or filtered-out card from staying selected. Applied on
+ *  the way out rather than written back into the selection: the raw set is what
+ *  the user picked, and pruning it in place would make an unlucky refresh
+ *  destroy a choice they could not have known was fragile.
  */
 export function pruneSelection(
   selected: Set<number>,
@@ -91,206 +105,105 @@ const DEFAULT_FILTERS: PropertyFilters = {
 
 export default function App() {
   const t = useT();
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [profiles, setProfiles] = useState<SearchProfile[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(DEFAULT_FILTERS);
   const [view, setView] = useState<ViewMode>("grid");
-  // Real pagination: `properties` holds the pages fetched so far, `total` the
-  // size of the whole filtered set. The grid used to download all of it — every
-  // property with its market position, deal score and provenance computed — and
-  // re-poll it every 30s, every 4s during a scan. Now it asks for a page and
-  // extends as the user scrolls.
-  //
-  // The map is the exception and asks for everything (`limit: 0`): a map missing
-  // every pin past the first page is not a map. So is "select all". Both are
-  // one-off user actions, which is what makes them affordable — the poll was the
-  // problem, not the occasional full read.
-  const GRID_PAGE = 60;
-  const [total, setTotal] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  // read inside refreshProperties without making it depend on `properties` —
-  // that dependency would rebuild the callback on every fetch, and the effect
-  // below would fire it again, forever
-  const loadedCount = useRef(0);
   // set by a card's "View on map" jump so MapView centers on that property;
   // cleared on any manual view switch so the map fits the whole set again
   const [mapFocusId, setMapFocusId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Property | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [rawSelection, setRawSelection] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
-  const [checkingBatch, setCheckingBatch] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<AvailabilityCheckProgress | null>(null);
-  const [batchSummary, setBatchSummary] = useState<AvailabilityCheckSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
-  // a flag, not a message: the text is translated at render time, so switching
-  // language repaints the banner without refetching the whole grid
-  const [loadFailed, setLoadFailed] = useState(false);
   const [actionError, setActionError] = useState("");
-  // monotonic id per refresh: typing in a filter fires overlapping requests,
-  // and without this guard a slow older response would land after the newer
-  // one and overwrite the grid with stale results
-  const refreshSeq = useRef(0);
-  // last `data_version` seen from the status endpoint; the poll refetches the
-  // grid only when it differs. null = never read one yet.
-  const dataVersion = useRef<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Captured through a lazy initializer (not an effect) so the very first
   // render already has it — an effect would flash the grid without badges for
   // one frame. See `readSeenThreshold` for why the read is memoised.
   const [newSinceThreshold] = useState<string | null>(readSeenThreshold);
 
-  // Only the property list depends on the filters, so it is the one thing the
-  // per-keystroke path must refetch. Kept separate from the reference data
-  // (profiles/settings/tags) below, which changes rarely — reloading all four
-  // on every letter typed in a filter was pure waste.
-  const refreshProperties = useCallback(async () => {
-    const seq = ++refreshSeq.current;
-    try {
-      // The map needs every pin. The grid re-reads the pages it already has, so
-      // a refresh triggered by a scan does not snap a scrolled-down user back
-      // to the first page.
-      const limit = view === "map" ? 0 : Math.max(GRID_PAGE, loadedCount.current);
-      const page = await api.getProperties(filters, { limit, offset: 0 });
-      if (seq !== refreshSeq.current) return; // a newer refresh superseded this one
-      const props = page.items;
-      loadedCount.current = props.length;
-      setProperties(props);
-      setTotal(page.total);
-      setSelectedIds((prev) => pruneSelection(prev, props, page.total));
-      setLoadFailed(false);
-      // keep the open modal in sync with fresh data (e.g. after saving
-      // notes or toggling favorite); if the property left the current
-      // filter set, keep showing the stale copy until the user closes it
-      setSelected((prev) =>
-        prev ? props.find((p) => p.id === prev.id) ?? prev : prev
-      );
-    } catch (e) {
-      if (seq !== refreshSeq.current) return;
-      setLoadFailed(true);
-    }
-  }, [filters, view]);
+  // The key the grid is read by, one step behind the form. Only the property
+  // list depends on the filters, so it is the one thing a keystroke can cost a
+  // request — and debouncing the key means the intermediate queries are never
+  // created rather than created and discarded.
+  const query = useDebounced(filters, 250);
+  const onMap = view === "map";
 
-  /** Append the next page. Guarded against the refresh running underneath it:
-   *  if a newer refresh has started, its result is the truth and this page is
-   *  dropped rather than concatenated onto a set it no longer belongs to. */
-  const loadMore = useCallback(async () => {
-    if (loadingMore) return;
-    const seq = refreshSeq.current;
-    setLoadingMore(true);
-    try {
-      const page = await api.getProperties(filters, {
-        limit: GRID_PAGE,
-        offset: loadedCount.current,
-      });
-      if (seq !== refreshSeq.current) return;
-      setProperties((prev) => {
-        const next = [...prev, ...page.items];
-        loadedCount.current = next.length;
-        return next;
-      });
-      setTotal(page.total);
-    } catch {
-      // leave the grid as it is; the sentinel stays and the user can retry
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [filters, loadingMore]);
+  // The grid holds a window; the map holds every pin, because a map missing
+  // everything past the first page is not a map. Two queries rather than one
+  // with a variable limit: they are different reads and they are cached apart.
+  const grid = usePropertyPages(query, !onMap);
+  const wholeSet = usePropertySet(query, onMap);
 
-  // Reference data, independent of the filters: profiles, settings, tags and
-  // scan status. A failure here must not clobber the "backend unreachable"
-  // banner or blank the panels — the property fetch owns that error.
-  const refreshMeta = useCallback(async () => {
-    try {
-      const [profs, status, sett, tagList] = await Promise.all([
-        api.getProfiles(),
-        api.getScanStatus(),
-        api.getSettings(),
-        api.getTags(),
-      ]);
-      setProfiles(profs);
-      setScanStatus(status);
-      setSettings(sett);
-      setTags(tagList);
-      // keep the poll's baseline in step: this call has just read the current
-      // state, so the next tick must not mistake it for a change
-      if (status.data_version) dataVersion.current = status.data_version;
-    } catch {
-      // best-effort: keep the last-known panels rather than emptying them
-    }
-  }, []);
+  const answered = useMemo<Property[]>(
+    () => (onMap
+      ? wholeSet.data?.items ?? []
+      : grid.data?.pages.flatMap((page) => page.items) ?? []),
+    [onMap, wholeSet.data, grid.data],
+  );
+  // The size of the whole filtered set, not of what is loaded: the count above
+  // the grid, "select all", and the export all mean this number.
+  const answeredTotal = (onMap ? wholeSet.data?.total : grid.data?.pages[0]?.total) ?? 0;
+  const loadFailed = onMap ? wholeSet.isError : grid.isError;
 
-  const refresh = useCallback(async () => {
-    await Promise.all([refreshProperties(), refreshMeta()]);
-  }, [refreshProperties, refreshMeta]);
+  // A refused refresh must not blank the grid. The answer that did arrive is
+  // still the best thing on offer, and the banner above it says it is stale —
+  // whereas an empty page cannot be told apart from "nothing matches", which is
+  // the one reading that would send the user to change their filters. Written
+  // on every render that produced an answer, so it is always the newest one.
+  const lastAnswer = useRef({ items: [] as Property[], total: 0 });
+  if (!loadFailed) lastAnswer.current = { items: answered, total: answeredTotal };
+  const properties = loadFailed ? lastAnswer.current.items : answered;
+  const total = loadFailed ? lastAnswer.current.total : answeredTotal;
 
-  // small debounce: `refreshProperties` changes on every keystroke in the
-  // City/price filters, and only the list depends on them
-  useEffect(() => {
-    const t = window.setTimeout(refreshProperties, 250);
-    return () => window.clearTimeout(t);
-  }, [refreshProperties]);
+  const profiles = useProfiles().data ?? [];
+  const tags = useTags().data ?? [];
+  const settings = useSettings().data ?? null;
+  const scanStatus = useScanStatus().data ?? null;
+  // The grid is re-read when the backend's fingerprint of the property set
+  // moves, and only then.
+  useDataVersionSync(scanStatus ?? undefined);
 
-  // load the reference data once on mount (the filter effect above never does)
-  useEffect(() => {
-    refreshMeta();
-  }, [refreshMeta]);
+  const refresh = useRefreshDashboard();
+  const fetchWholeSet = useFetchPropertySet();
+  const triggerScan = useTriggerScan();
+  const geocodeMissing = useGeocodeMissing();
+  const hideProperty = useHideProperty();
+  const toggleFavoriteOn = useToggleFavorite();
+  const addTagTo = useAddTag();
+  const removeTagFrom = useRemoveTag();
+  const bulk = useBulkProperties();
+  const checkBatch = useCheckProperties();
+  const cancelBatch = useCancelPropertiesCheck();
+  const batchProgress = useAvailabilityProgress(checkBatch.isPending);
 
-  // Polling asks "did anything change?", not "give me everything again".
-  //
-  // The scan status is a cheap endpoint that touches two small aggregates, and
-  // it carries a `data_version` fingerprint of the property set. Only when that
-  // moves is the grid refetched. Before this, every tick re-downloaded the whole
-  // filtered set with market position, match score, deal score and provenance
-  // computed for each — every 4 seconds for as long as a scan ran.
-  useEffect(() => {
-    const ms = scanStatus?.running ? 4000 : 30000;
-    const t = window.setInterval(async () => {
-      try {
-        const status = await api.getScanStatus();
-        setScanStatus(status);
-        if (status.data_version && status.data_version !== dataVersion.current) {
-          // first poll of the session has nothing to compare against: adopt the
-          // value rather than treating it as a change and refetching for nothing
-          const known = dataVersion.current !== null;
-          dataVersion.current = status.data_version;
-          if (known) {
-            refreshProperties();
-            refreshMeta();
-          }
-        }
-      } catch {
-        // keep the last-known status; the property fetch owns the error banner
-      }
-    }, ms);
-    return () => window.clearInterval(t);
-  }, [scanStatus?.running, refreshProperties, refreshMeta]);
+  // What the selection means right now. Derived rather than stored, so a
+  // background refresh can never quietly shrink what the batch bar promises —
+  // see `pruneSelection` for the version of this that did.
+  const selectedIds = useMemo(
+    () => pruneSelection(rawSelection, properties, total),
+    [rawSelection, properties, total],
+  );
 
-  // Fetch the next page as the sentinel below the grid scrolls into view. The
-  // rootMargin pre-loads it before it is reached, so scrolling feels seamless
-  // rather than paged.
-  useEffect(() => {
-    if (view !== "grid") return;
-    const el = loadMoreRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) loadMore();
-      },
-      { rootMargin: "800px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [view, loadMore]);
+  // The open property, read from the grid so notes, tags and a favourite
+  // toggled elsewhere show through. If it has left the filtered set, the copy
+  // it was opened with stays on screen until the user closes it.
+  const openProperty = selected
+    ? properties.find((p) => p.id === selected.id) ?? selected
+    : null;
+
+  // Fetch the next page as the sentinel below the grid scrolls into view.
+  useOnReveal(
+    loadMoreRef,
+    !onMap && grid.hasNextPage && !grid.isFetchingNextPage,
+    () => { void grid.fetchNextPage(); },
+  );
 
   // a failed click must say so: without this wrapper the rejection is
   // unhandled and the button silently does nothing, which reads as "broken"
-  async function runAction(fn: () => Promise<void>) {
+  async function runAction(fn: () => Promise<unknown>) {
     try {
       setActionError("");
       await fn();
@@ -301,26 +214,13 @@ export default function App() {
 
   // "Find coordinates" from the map's zone-filter banner: the batch geocoder
   // backfills pins for the properties a geographic filter would otherwise drop.
-  const [geocoding, setGeocoding] = useState(false);
   function findCoordinates() {
-    if (geocoding) return;
-    return runAction(async () => {
-      setGeocoding(true);
-      try {
-        await api.geocodeMissing();
-      } finally {
-        setGeocoding(false);
-      }
-      await refresh();
-    });
+    if (geocodeMissing.isPending) return;
+    return runAction(() => geocodeMissing.mutateAsync());
   }
 
   function scanNow() {
-    return runAction(async () => {
-      await api.triggerScan();
-      setScanStatus((s) => (s ? { ...s, running: true } : s));
-      setTimeout(refresh, 1500);
-    });
+    return runAction(() => triggerScan.mutateAsync());
   }
 
   function quickHide(p: Property) {
@@ -331,47 +231,24 @@ export default function App() {
       return;
     }
     return runAction(async () => {
-      await api.deleteProperty(p.id);
-      setProperties((list) => list.filter((x) => x.id !== p.id));
+      await hideProperty.mutateAsync(p.id);
       if (selected?.id === p.id) setSelected(null);
     });
   }
 
   function toggleFavorite(p: Property) {
-    return runAction(async () => {
-      const updated = await api.updateProperty(p.id, { is_favorite: !p.is_favorite });
-      setProperties((list) =>
-        // When the ⭐ Favorites filter is on and we just un-favorited it, the
-        // card no longer belongs in the view: drop it now instead of leaving a
-        // stale card with an empty star until the next background refresh.
-        filters.only_favorites && !updated.is_favorite
-          ? list.filter((x) => x.id !== p.id)
-          : list.map((x) => (x.id === p.id ? updated : x))
-      );
-      setSelected((prev) => (prev?.id === p.id ? updated : prev));
-    });
+    // The ⭐ Favorites filter is part of the query, so a card that no longer
+    // belongs in the view leaves it with the refetch rather than being spliced
+    // out of a local list.
+    return runAction(() => toggleFavoriteOn.mutateAsync(p));
   }
 
   function addTag(p: Property, name: string) {
-    return runAction(async () => {
-      // idempotent: reuses a case-insensitive match instead of creating a
-      // near-duplicate, so the client never needs to pre-check existence
-      const tag = await api.createTag(name);
-      setTags((list) => (list.some((t) => t.id === tag.id) ? list : [...list, tag]));
-      const tagIds = [...new Set([...p.tags.map((t) => t.id), tag.id])];
-      const updated = await api.updateProperty(p.id, { tag_ids: tagIds });
-      setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
-      setSelected((prev) => (prev?.id === p.id ? updated : prev));
-    });
+    return runAction(() => addTagTo.mutateAsync({ property: p, name }));
   }
 
   function removeTag(p: Property, tagId: number) {
-    return runAction(async () => {
-      const tagIds = p.tags.map((t) => t.id).filter((id) => id !== tagId);
-      const updated = await api.updateProperty(p.id, { tag_ids: tagIds });
-      setProperties((list) => list.map((x) => (x.id === p.id ? updated : x)));
-      setSelected((prev) => (prev?.id === p.id ? updated : prev));
-    });
+    return runAction(() => removeTagFrom.mutateAsync({ property: p, tagId }));
   }
 
   // "View on map" from a card: focus the map on this property and switch view.
@@ -390,31 +267,30 @@ export default function App() {
     setView(v);
   }
 
-  useProgressPoll(
-    checkingBatch,
-    api.propertiesCheckProgress,
-    (prog) => {
-      if (prog.active) setBatchProgress(prog);
-    },
-    800,
-  );
-
   /** "Select all" means the whole filtered set, not the pages on screen.
    *
    *  With the grid paginated, selecting only what is loaded would silently turn
    *  "hide all 300 results" into "hide the first 60" — the kind of quiet
    *  mismatch between the label and the action that this codebase avoids
-   *  elsewhere by sharing one selection path. So it asks the backend for the
-   *  full set (`limit: 0`), which is affordable precisely because it is a
-   *  deliberate click and not the poll. */
+   *  elsewhere by sharing one selection path. So it reads the full set
+   *  (`limit: 0`), which is affordable precisely because it is a deliberate
+   *  click and not the poll. */
   function toggleSelectAll() {
     if (selectedIds.size === total && total > 0) {
-      setSelectedIds(new Set());
+      setRawSelection(new Set());
       return;
     }
     return runAction(async () => {
-      const page = await api.getProperties(filters, { limit: 0 });
-      setSelectedIds(new Set(page.items.map((p) => p.id)));
+      const page = await fetchWholeSet(query);
+      setRawSelection(new Set(page.items.map((p) => p.id)));
+    });
+  }
+
+  function toggleOne(id: number) {
+    setRawSelection((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
     });
   }
 
@@ -424,31 +300,23 @@ export default function App() {
     if (action === "hide" && !confirm(t("app.confirmHideMany", { count: ids.length }))) return;
     if (action === "sold" && !confirm(t("app.confirmSoldMany", { count: ids.length }))) return;
     return runAction(async () => {
-      await api.bulkProperties(ids, action);
-      setSelectedIds(new Set());
+      await bulk.mutateAsync({ ids, action });
+      setRawSelection(new Set());
       setSelectionMode(false);
-      await refresh();
     });
   }
 
   async function checkSelectedProperties() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    setCheckingBatch(true);
     setCancellingBatch(false);
-    setBatchSummary(null);
-    setBatchProgress(null);
     setActionError("");
     try {
-      const summary = await api.checkProperties(ids);
-      setBatchSummary(summary);
-      await refresh();
+      await checkBatch.mutateAsync(ids);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : t("app.batchCheckFailed"));
     } finally {
-      setCheckingBatch(false);
       setCancellingBatch(false);
-      setBatchProgress(null);
     }
   }
 
@@ -456,17 +324,20 @@ export default function App() {
   // can only ask it to stop after the property currently in flight -- there
   // is no way to cancel a live socket call from here. `cancellingBatch` just
   // disables the button so a second click can't fire a redundant request
-  // while the batch (still `checkingBatch`) winds down.
+  // while the batch (still pending) winds down.
   function stopCheckingProperties() {
     setCancellingBatch(true);
-    api.cancelPropertiesCheck().catch(() => {
-      // best-effort: if this request itself fails, the batch simply keeps
-      // running to completion, same as if the button had never been clicked
+    cancelBatch.mutate(undefined, {
+      onError: () => {
+        // best-effort: if this request itself fails, the batch simply keeps
+        // running to completion, same as if the button had never been clicked
+      },
     });
   }
 
   const hasProfiles = profiles.length > 0;
-
+  const checkingBatch = checkBatch.isPending;
+  const batchSummary = checkBatch.data ?? null;
 
   return (
     <div className="min-h-screen">
@@ -555,7 +426,7 @@ export default function App() {
                   }`}
                   onClick={() => {
                     setSelectionMode(!selectionMode);
-                    if (selectionMode) setSelectedIds(new Set());
+                    if (selectionMode) setRawSelection(new Set());
                   }}>
                   {selectionMode ? t("app.closeMultiSelect") : t("app.selectMultiple")}
                 </button>
@@ -690,7 +561,7 @@ export default function App() {
                 <button data-action="selection.dismissSummary"
                   type="button"
                   className="btn-ghost text-xs py-0.5 px-2"
-                  onClick={() => setBatchSummary(null)}>
+                  onClick={() => checkBatch.reset()}>
                   ✕
                 </button>
               </div>
@@ -713,7 +584,7 @@ export default function App() {
               }}
               onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
               onFindCoordinates={findCoordinates}
-              geocoding={geocoding}
+              geocoding={geocodeMissing.isPending}
             />
           )
         ) : (
@@ -724,28 +595,10 @@ export default function App() {
                 property={p}
                 isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
                 selected={selectedIds.has(p.id)}
-                onToggleSelect={
-                  selectionMode
-                    ? () =>
-                        setSelectedIds((prev) => {
-                          const n = new Set(prev);
-                          if (n.has(p.id)) n.delete(p.id);
-                          else n.add(p.id);
-                          return n;
-                        })
-                    : undefined
-                }
+                onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
                 onClick={() => {
-                  if (selectionMode) {
-                    setSelectedIds((prev) => {
-                      const n = new Set(prev);
-                      if (n.has(p.id)) n.delete(p.id);
-                      else n.add(p.id);
-                      return n;
-                    });
-                  } else {
-                    setSelected(p);
-                  }
+                  if (selectionMode) toggleOne(p.id);
+                  else setSelected(p);
                 }}
                 onQuickHide={() => quickHide(p)}
                 onToggleFavorite={() => toggleFavorite(p)}
@@ -754,16 +607,21 @@ export default function App() {
                 onRemoveTag={(tagId) => removeTag(p, tagId)}
               />
             ))}
-            {/* Fetches the next page as it scrolls into view (see the observer
+            {/* Fetches the next page as it scrolls into view (see `useOnReveal`
                 above); the button is the no-observer fallback and a manual
-                nudge. Spans the whole grid row. */}
-            {properties.length < total && (
+                nudge. Spans the whole grid row.
+                It stays mounted and operable while that page is on its way:
+                a control that disables itself under the focus that just
+                reached it is one a keyboard user cannot press at all, and a
+                second press costs nothing — the query answers both with the
+                request already in flight. */}
+            {(grid.hasNextPage || grid.isFetchingNextPage) && (
               <div ref={loadMoreRef}
                 className="col-span-full flex justify-center py-4">
                 <button data-action="grid.loadMore" type="button" className="btn-ghost text-sm"
-                  disabled={loadingMore}
-                  onClick={() => loadMore()}>
-                  {loadingMore
+                  aria-busy={grid.isFetchingNextPage}
+                  onClick={() => grid.fetchNextPage()}>
+                  {grid.isFetchingNextPage
                     ? t("common.loading")
                     : t("app.showMoreCount", { count: total - properties.length })}
                 </button>
@@ -773,36 +631,21 @@ export default function App() {
         )}
       </main>
 
-      {selected && (
+      {openProperty && (
         <PropertyModal
-          property={selected}
+          property={openProperty}
           onClose={() => setSelected(null)}
-          onDeleted={() => {
-            setSelected(null);
-            refresh();
-          }}
-          onToggleFavorite={() => toggleFavorite(selected)}
-          onNotesSaved={(updated) => {
-            setProperties((list) =>
-              list.map((x) => (x.id === updated.id ? updated : x))
-            );
-            setSelected(updated);
-          }}
+          onDeleted={() => setSelected(null)}
+          onToggleFavorite={() => toggleFavorite(openProperty)}
+          onNotesSaved={setSelected}
           onShowOnMap={showOnMap}
           allTags={tags}
-          onAddTag={(name) => addTag(selected, name)}
-          onRemoveTag={(tagId) => removeTag(selected, tagId)}
+          onAddTag={(name) => addTag(openProperty, name)}
+          onRemoveTag={(tagId) => removeTag(openProperty, tagId)}
           auditEnabled={settings?.listing_audit_enabled ?? false}
         />
       )}
-      {showSettings && (
-        <SettingsModal
-          onClose={() => {
-            setShowSettings(false);
-            refresh(); // channel warnings depend on the freshly saved settings
-          }}
-        />
-      )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showLogs && <LogViewer onClose={() => setShowLogs(false)} />}
     </div>
   );

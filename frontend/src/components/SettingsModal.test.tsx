@@ -12,6 +12,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsModal from "./SettingsModal";
 import { api } from "../services/api";
+import { WithQuery } from "../test/withQuery";
 
 describe("SettingsModal when the settings cannot be loaded", () => {
   beforeEach(() => {
@@ -22,7 +23,7 @@ describe("SettingsModal when the settings cannot be loaded", () => {
     vi.spyOn(api, "getSettings").mockRejectedValue(new Error("Connection refused"));
     const onClose = vi.fn();
 
-    render(<SettingsModal onClose={onClose} />);
+    render(<WithQuery><SettingsModal onClose={onClose} /></WithQuery>);
 
     // the message names the underlying failure rather than swallowing it
     const status = await screen.findByRole("status");
@@ -41,7 +42,7 @@ describe("SettingsModal when the settings cannot be loaded", () => {
       .mockRejectedValueOnce(new Error("Connection refused"))
       .mockResolvedValueOnce(settings);
 
-    render(<SettingsModal onClose={vi.fn()} />);
+    render(<WithQuery><SettingsModal onClose={vi.fn()} /></WithQuery>);
     (await screen.findByRole("button", { name: /try again|riprova/i })).click();
 
     await waitFor(() => expect(getSettings).toHaveBeenCalledTimes(2));

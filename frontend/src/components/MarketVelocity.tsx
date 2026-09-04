@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { formatDate, translateCurrent, useT } from "../i18n";
-import { api } from "../services/api";
-import type { MarketVelocity as Velocity } from "../types";
+import { useDebounced } from "../hooks/useDebounced";
+import { useMarketVelocity } from "../queries/insights";
 
 interface Props {
   contract: "sale" | "rent";
@@ -27,39 +27,14 @@ function SqmDelta({ value }: { value: number | null }) {
 export default function MarketVelocityPanel({ contract, city }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<Velocity | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // monotonic id per request (like App.tsx's refreshSeq): `city` updates on
-  // every keystroke, and a slow response for "M" landing after the one for
-  // "Milano" would repaint the panel with stale statistics
-  const loadSeq = useRef(0);
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    try {
-      const res = await api.getMarketVelocity(contract, city);
-      if (seq !== loadSeq.current) return;
-      setData(res);
-      setError("");
-    } catch (e) {
-      if (seq !== loadSeq.current) return;
-      setError(e instanceof Error ? e.message : translateCurrent("velocity.loadFailed"));
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, [contract, city]);
-
-  // fetched only while the panel is open: these are aggregate queries over
-  // the whole table, and the dashboard already polls every 30 seconds.
-  // Debounced like App.tsx's refresh, so typing a city fires one request
-  // when the typing pauses instead of one per letter.
-  useEffect(() => {
-    if (!open) return;
-    const t = window.setTimeout(load, 250);
-    return () => window.clearTimeout(t);
-  }, [open, load]);
+  // Debounced so typing a city costs one request when the typing pauses rather
+  // than one per letter; which answer reaches the panel is settled by the key,
+  // so the request id this used to keep is gone with the mechanism.
+  const settledCity = useDebounced(city, 250);
+  const { data, isError, error, isPending } = useMarketVelocity(contract, settledCity, open);
+  const message = isError
+    ? (error instanceof Error ? error.message : translateCurrent("velocity.loadFailed"))
+    : "";
 
   const empty = data && data.areas.length === 0 && data.agencies.length === 0;
 
@@ -79,8 +54,8 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
 
       {open && (
         <div className="mt-4 space-y-5">
-          {loading && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {error && <p className="accent-bad text-sm">⚠️ {error}</p>}
+          {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
+          {message && <p className="accent-bad text-sm">⚠️ {message}</p>}
 
           {data && (
             <p className="text-xs t-muted">

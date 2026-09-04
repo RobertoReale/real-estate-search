@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { translateCurrent, useT } from "../i18n";
-import { api } from "../services/api";
-import type { ScraperHealth, ScraperHealthDay } from "../types";
+import { useScraperHealth } from "../queries/insights";
+import type { ScraperHealthDay } from "../types";
 
 /** Scraper Health panel: the anti-bot pipeline degrades
  *  silently — a blocked scraper looks exactly like a quiet market — so this
@@ -48,33 +48,12 @@ function dayCells(days: ScraperHealthDay[]): DayCell[] {
 export default function ScraperHealthPanel() {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<ScraperHealth | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const loadSeq = useRef(0);
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    try {
-      const res = await api.getScraperHealth();
-      if (seq !== loadSeq.current) return;
-      setData(res);
-      setError("");
-    } catch (e) {
-      if (seq !== loadSeq.current) return;
-      setError(e instanceof Error ? e.message : translateCurrent("health.loadFailed"));
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, []);
-
   // fetched only while open, like MarketVelocity: an aggregate query the
   // dashboard does not need while the panel is collapsed
-  useEffect(() => {
-    if (!open) return;
-    load();
-  }, [open, load]);
+  const { data, isError, error, isPending } = useScraperHealth(open);
+  const message = isError
+    ? (error instanceof Error ? error.message : translateCurrent("health.loadFailed"))
+    : "";
 
   const failingProfiles = data?.profiles.filter((p) => p.consecutive_failures > 0) ?? [];
   const empty = data && data.portals.length === 0;
@@ -93,8 +72,8 @@ export default function ScraperHealthPanel() {
 
       {open && (
         <div className="mt-4 space-y-5">
-          {loading && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {error && <p className="accent-bad text-sm">⚠️ {error}</p>}
+          {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
+          {message && <p className="accent-bad text-sm">⚠️ {message}</p>}
 
           {data && (
             <p className="text-xs t-muted">

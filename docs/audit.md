@@ -49,8 +49,8 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 ```
 
 Expected today: **1008 passed + 1 skipped** (1009 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
-**35 browser tests** (15 journeys, then 20 that hold the run to the control inventory),
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **70 frontend tests**,
+**38 browser tests** (18 journeys, then 20 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **222 interactive elements, 230 inventoried actions**, of which **228 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
@@ -146,8 +146,12 @@ logic that contradicts an invariant, and that its tests still exercise the trick
    `response_model` publishes an empty schema), `main.py` (middleware + registration
    order; mount last, invariant 13).
 5. **Frontend** — the wire types are generated and gated, so what is left to review by
-   hand is `types/index.ts`'s aliases and the browser-only shapes below them; phone-first
-   responsive rules ([`conventions.md`](conventions.md#writing-code)).
+   hand is `types/index.ts`'s aliases and the browser-only shapes below them; then
+   `queries/`, which is where every read and every write now lives (read `keys.ts` first:
+   the nesting *is* the invalidation plan, and a mutation that names the wrong prefix
+   leaves a screen quietly stale); then the components, against the phone-first
+   responsive rules ([`conventions.md`](conventions.md#writing-code)). A component that
+   calls `api.*` for anything but a URL to navigate to is the finding.
 
 ---
 

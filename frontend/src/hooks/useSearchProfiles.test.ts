@@ -12,10 +12,12 @@ import { describe, expect, it, vi } from "vitest";
 import { useSearchProfiles } from "./useSearchProfiles";
 import { en } from "../i18n/en";
 import { api } from "../services/api";
+import { WithQuery } from "../test/withQuery";
 
 function setUp() {
-  return renderHook(() =>
-    useSearchProfiles({ profiles: [], settings: null, onChanged: vi.fn() }),
+  return renderHook(
+    () => useSearchProfiles({ profiles: [], settings: null, onChanged: vi.fn() }),
+    { wrapper: WithQuery },
   );
 }
 

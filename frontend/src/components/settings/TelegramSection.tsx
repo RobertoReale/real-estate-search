@@ -1,5 +1,5 @@
 import { useT } from "../../i18n";
-import { api } from "../../services/api";
+import { useTelegramTest } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Result, SecretStatus, SectionHeading } from "./controls";
 import { useSectionState, type Section, type SettingsShell } from "./state";
@@ -40,6 +40,7 @@ export function TelegramSection(
 ) {
   const t = useT();
   const { values, set } = section;
+  const test = useTelegramTest();
 
   return (
     <>
@@ -79,7 +80,7 @@ export function TelegramSection(
             {t("settings.enableTelegram")}
           </label>
           <button data-action="settings.telegram.test" className="btn-ghost" disabled={shell.anyBusy}
-            onClick={() => shell.saveAndTest("telegram", api.telegramTest,
+            onClick={() => shell.saveAndTest("telegram", () => test.mutateAsync(),
               () => t("settings.telegramTestSent"))}>
             {shell.busy === "telegram" ? t("settings.sending") : t("settings.saveAndTest")}
           </button>

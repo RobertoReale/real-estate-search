@@ -1,5 +1,5 @@
 import { useT } from "../../i18n";
-import { api } from "../../services/api";
+import { useEmailTest } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Link, Result, SecretStatus, SectionHeading } from "./controls";
 import { useSectionState, type Section, type SettingsShell } from "./state";
@@ -49,6 +49,7 @@ export function EmailSection(
 ) {
   const t = useT();
   const { values, set } = section;
+  const test = useEmailTest();
 
   return (
     <>
@@ -111,7 +112,7 @@ export function EmailSection(
             {t("settings.enableEmail")}
           </label>
           <button data-action="settings.email.test" className="btn-ghost" disabled={shell.anyBusy}
-            onClick={() => shell.saveAndTest("email", api.emailTest,
+            onClick={() => shell.saveAndTest("email", () => test.mutateAsync(),
               () => t("settings.emailTestSent", {
                 to: values.to || t("settings.theRecipient"),
               }))}>

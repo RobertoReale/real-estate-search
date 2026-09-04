@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDate, formatNumber, translateCurrent, useT } from "../i18n";
-import { api, formatPrice } from "../services/api";
-import type { PricingTrend, Property, TrendArea } from "../types";
+import { useTrend, useTrendAreas, useTrendComparables } from "../queries/insights";
+import { formatPrice } from "../services/api";
+import type { PricingTrend, Property } from "../types";
 
 interface Props {
   contract: "sale" | "rent";
@@ -72,100 +73,47 @@ function TrendChart({ points }: { points: PricingTrend["points"] }) {
 export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [areas, setAreas] = useState<TrendArea[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [trend, setTrend] = useState<PricingTrend | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  // The listings behind the current median, revealed on demand. Reset whenever
-  // the selected area changes, so the list never lags behind the chart above it.
-  const [comps, setComps] = useState<Property[] | null>(null);
-  const [compsOpen, setCompsOpen] = useState(false);
-  const [compsLoading, setCompsLoading] = useState(false);
-  const compsSeq = useRef(0);
+  // What the user picked, if they picked anything. The area actually plotted is
+  // derived below, so an areas list that arrives (or changes with the contract)
+  // never leaves the chart pointing at something that is no longer offered.
+  const [picked, setPicked] = useState("");
+  // The area the comparables were revealed for. Holding the key rather than a
+  // boolean is what closes the list when the chart moves to another area: the
+  // listings behind one median say nothing about another's.
+  const [revealedFor, setRevealedFor] = useState<string | null>(null);
 
-  // monotonic ids per request (like App.tsx's refreshSeq): `city` changes on
-  // every keystroke, so a slow older response must never overwrite the state
-  // set by a newer one
-  const areasSeq = useRef(0);
-  const trendSeq = useRef(0);
+  const areasQuery = useTrendAreas(contract, open);
+  const areas = useMemo(() => areasQuery.data ?? [], [areasQuery.data]);
 
-  const loadAreas = useCallback(async () => {
-    const seq = ++areasSeq.current;
-    setLoading(true);
-    try {
-      const list = await api.getTrendAreas(contract);
-      if (seq !== areasSeq.current) return;
-      setAreas(list);
-      setError("");
-      // Prefer the whole-city aggregate of the city currently filtered, else
-      // fall back to the first (most-observed) area.
-      const wanted = city.trim().toLowerCase();
-      const match = list.find((a) => a.zone === "" && a.city === wanted)
-        ?? list[0];
-      setSelected(match ? areaKey(match) : "");
-    } catch (e) {
-      if (seq !== areasSeq.current) return;
-      setError(e instanceof Error ? e.message : translateCurrent("trends.areasFailed"));
-    } finally {
-      if (seq === areasSeq.current) setLoading(false);
-    }
-  }, [contract, city]);
+  // Prefer the whole-city aggregate of the city currently filtered, else fall
+  // back to the first (most-observed) area.
+  const selected = useMemo(() => {
+    if (areas.some((a) => areaKey(a) === picked)) return picked;
+    const wanted = city.trim().toLowerCase();
+    const match = areas.find((a) => a.zone === "" && a.city === wanted) ?? areas[0];
+    return match ? areaKey(match) : "";
+  }, [areas, picked, city]);
+  const area = areas.find((a) => areaKey(a) === selected);
 
-  // debounced like App.tsx's refresh: one request when typing pauses
-  useEffect(() => {
-    if (!open) return;
-    const timer = window.setTimeout(loadAreas, 250);
-    return () => window.clearTimeout(timer);
-  }, [open, loadAreas]);
+  const trendQuery = useTrend(contract, area);
+  const trend = trendQuery.data;
+  const compsOpen = revealedFor !== null && revealedFor === selected;
+  const compsQuery = useTrendComparables(contract, area, compsOpen);
+  const comps = compsOpen ? compsQuery.data : undefined;
 
-  useEffect(() => {
-    if (!open || !selected) {
-      setTrend(null);
-      return;
-    }
-    const area = areas.find((a) => areaKey(a) === selected);
-    if (!area) return;
-    const seq = ++trendSeq.current;
-    api.getPricingTrends(contract, area.city, area.zone)
-      .then((res) => {
-        if (seq === trendSeq.current) setTrend(res);
-      })
-      .catch((e) => {
-        if (seq === trendSeq.current) {
-          setError(e instanceof Error ? e.message : translateCurrent("trends.trendFailed"));
-        }
-      });
-  }, [open, selected, areas, contract]);
-
-  // A new area (or contract) invalidates any revealed comparable list.
-  useEffect(() => {
-    setComps(null);
-    setCompsOpen(false);
-  }, [selected, contract]);
-
-  async function toggleComparables() {
-    if (compsOpen) {
-      setCompsOpen(false);
-      return;
-    }
-    setCompsOpen(true);
-    if (comps) return; // already loaded for this area
-    const area = areas.find((a) => areaKey(a) === selected);
-    if (!area) return;
-    const seq = ++compsSeq.current;
-    setCompsLoading(true);
-    try {
-      const list = await api.getPricingTrendComparables(contract, area.city, area.zone);
-      if (seq === compsSeq.current) setComps(list);
-    } catch (e) {
-      if (seq === compsSeq.current) {
-        setError(e instanceof Error ? e.message : t("trends.listingsFailed"));
-      }
-    } finally {
-      if (seq === compsSeq.current) setCompsLoading(false);
-    }
-  }
+  // One line for whichever of the three refused, in the order the panel reads
+  // them, and each with its own fallback: "the areas could not be listed" and
+  // "the chart could not be drawn" are different failures to the reader.
+  const [failed, fallback] = areasQuery.error
+    ? [areasQuery.error, "trends.areasFailed" as const]
+    : trendQuery.error
+      ? [trendQuery.error, "trends.trendFailed" as const]
+      : [compsQuery.error, "trends.listingsFailed" as const];
+  const error = !failed
+    ? ""
+    : failed instanceof Error && failed.message
+      ? failed.message
+      : translateCurrent(fallback);
 
   const stats = useMemo(() => {
     if (!trend || trend.points.length < 2) return null;
@@ -188,10 +136,12 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
 
       {open && (
         <div className="mt-4 space-y-4">
-          {loading && !areas.length && <p className="text-sm t-muted">{t("common.loading")}</p>}
+          {areasQuery.isPending && !areas.length && (
+            <p className="text-sm t-muted">{t("common.loading")}</p>
+          )}
           {error && <p className="accent-bad text-sm">⚠️ {error}</p>}
 
-          {!loading && !error && areas.length === 0 && (
+          {!areasQuery.isPending && !error && areas.length === 0 && (
             <div className="panel rounded-xl p-6 text-center text-sm t-muted">
               <p className="text-2xl mb-2">⏳</p>
               {t("trends.empty")}
@@ -201,7 +151,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
           {areas.length > 0 && (
             <>
               <select data-action="trends.area" className="input w-full sm:w-72"
-                value={selected} onChange={(e) => setSelected(e.target.value)}>
+                value={selected} onChange={(e) => setPicked(e.target.value)}>
                 {areas.map((a) => (
                   <option key={areaKey(a)} value={areaKey(a)}>
                     {t("trends.areaOption", { label: areaLabel(a), days: a.point_count })}
@@ -246,13 +196,13 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                 <div className="pt-1">
                   <button data-action="trends.comparables"
                     className="text-sm accent-link hover:underline"
-                    onClick={toggleComparables}>
+                    onClick={() => setRevealedFor(compsOpen ? null : selected)}>
                     {t(compsOpen ? "trends.hideComparables" : "trends.showComparables")}
                   </button>
 
                   {compsOpen && (
                     <div className="mt-2">
-                      {compsLoading && <p className="text-sm t-muted">{t("common.loading")}</p>}
+                      {compsQuery.isPending && <p className="text-sm t-muted">{t("common.loading")}</p>}
                       {comps && comps.length === 0 && (
                         <p className="text-sm t-muted">{t("trends.comparablesEmpty")}</p>
                       )}
