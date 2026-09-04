@@ -72,6 +72,32 @@ async function openSettings(page: Page): Promise<void> {
   await expect(control(page, "settings.save")).toBeVisible();
 }
 
+/** Runs something that ends in a full page reload, and returns once the app is
+ *  back and ready to be pressed again.
+ *
+ *  The signal is the browser's own `load`, armed *before* the action so the
+ *  event cannot arrive before there is anything listening for it. The obvious
+ *  alternative — wait for a control to disappear — is not a signal at all but a
+ *  race: it asks to observe the gap between the old document and the new one,
+ *  and nothing entitles a test to see that gap. Settings is an address now, so
+ *  the page comes back into the same dialog with the same buttons, and on a
+ *  quick machine they are re-rendered before the next poll looks. It cost a run:
+ *  the same commit passed at 21:57 and failed at 22:11 with nothing edited in
+ *  between, on a `toBeHidden` that had simply blinked past. A gate that depends
+ *  on how busy the machine is teaches everyone to press re-run, which is worse
+ *  than one that is honestly red.
+ *
+ *  Every reload in this app is triggered from inside Settings, so the dialog's
+ *  own Save is the postcondition: it is the last thing to render, after the
+ *  settings have been fetched afresh from the process that came back.
+ */
+async function throughAReload(page: Page, act: () => Promise<void>): Promise<void> {
+  const reloaded = page.waitForEvent("load", { timeout: 60_000 });
+  await act();
+  await reloaded;
+  await expect(control(page, "settings.save")).toBeVisible({ timeout: 60_000 });
+}
+
 /** Answers whatever the browser asks. Several controls confirm before acting,
  *  and Playwright dismisses dialogs unless told otherwise — which makes those
  *  clicks silently do nothing. */
@@ -1298,9 +1324,7 @@ test("the backups and the resets", async ({ page }) => {
   // page — so the page coming back is the signal, not the button re-enabling.
   // It comes back *into Settings*: the dialog is an address now, and a reload
   // lands where it left. Reopening it would only find its own backdrop.
-  await press(page, "settings.system.restart");
-  await expect(control(page, "settings.save")).toBeHidden({ timeout: 60_000 });
-  await expect(control(page, "settings.save")).toBeVisible({ timeout: 60_000 });
+  await throughAReload(page, () => press(page, "settings.system.restart"));
   await waitForResults(page);
 
   // A snapshot, then the two things that can be done with one.
@@ -1316,20 +1340,20 @@ test("the backups and the resets", async ({ page }) => {
   await press(page, "settings.system.backupImport");
   await expect(page.getByText(/Added as|Aggiunt/i)).toBeVisible();
 
-  // Restoring reloads the page a moment after it lands, which is why the
-  // dialog going away is the signal rather than the message staying.
-  await press(page, "settings.system.backupRestore");
-  await expect(page.getByText(/Restored|Ripristinat/i)).toBeVisible();
-  await expect(control(page, "settings.save")).toBeHidden({ timeout: 20_000 });
+  // Restoring says so, and reloads the page a moment later onto the database it
+  // has just put back. Both halves are asserted: the message is what the user
+  // is told, the reload is what actually happened.
+  await throughAReload(page, async () => {
+    await press(page, "settings.system.backupRestore");
+    await expect(page.getByText(/Restored|Ripristinat/i)).toBeVisible();
+  });
 
   // The three resets, smallest first. Each reloads the page when it lands, and
-  // the page comes back into Settings on its own — so the dialog returning is
-  // what is waited for here, rather than reopened.
+  // the page comes back into Settings on its own — so the reload is waited for
+  // and the dialog is never reopened.
   for (const reset of ["settings.system.resetTrends", "settings.system.resetDashboard",
     "settings.system.resetFactory"] as const) {
-    await expect(control(page, "settings.save")).toBeVisible({ timeout: 60_000 });
-    await press(page, reset);
-    await expect(control(page, "settings.save")).toBeHidden({ timeout: 20_000 });
+    await throughAReload(page, () => press(page, reset));
   }
 });
 
