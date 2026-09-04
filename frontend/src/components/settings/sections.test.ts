@@ -66,25 +66,33 @@ const STORED: Settings = {
   dream_min_sqm: 80, dream_min_floor: 2,
   dream_keywords: ["terrazzo", "ascensore"], dream_zones: ["Navigli"],
   excluded_keywords: ["asta", "nuda proprietà"],
+  nominatim_url: "https://nominatim.openstreetmap.org", geocode_after_scan: true,
   commute_enabled: true, osrm_url: "http://localhost:5000",
   commute_points: [
-    { name: "Work", address: "Via Dante 5, Milano", mode: "car" },
-    { name: "Metro", address: "Cadorna, Milano", mode: "foot" },
+    { name: "Work", address: "Via Dante 5, Milano", lat: null, lng: null, mode: "car" },
+    { name: "Metro", address: "Cadorna, Milano", lat: null, lng: null, mode: "foot" },
   ],
   nl_parser_backend: "llm", llm_base_url: "http://localhost:11434/v1",
   llm_api_key: "", llm_api_key_set: true, llm_model: "llama3.1",
   listing_audit_enabled: true,
   request_delay_seconds: 3, max_pages_per_search: 5,
+  split_large_searches: true, scan_portals_concurrently: true,
+  stop_when_nothing_new: true, full_sweep_every_days: 7,
   health_alert_after_failures: 5,
   proxy_url: "http://one:8000", proxy_urls: ["http://a:8000", "http://b:8000"],
   scrape_api_provider: "zyte", scrape_api_key: "", scrape_api_key_set: true,
-  scrape_api_mode: "always",
+  scrape_api_mode: "always", transport_escalate_after_failures: 2,
   idealista_api_key: "", idealista_api_key_set: true,
   idealista_api_secret: "", idealista_api_secret_set: true,
   idealista_api_max_pages: 3,
+  tls_impersonations: ["safari184"],
   datadome_cookie: "", datadome_cookie_set: true, datadome_auto_refresh: true,
+  datadome_cookie_updated_at: "", datadome_cookie_ttl_minutes: 50,
+  datadome_harvester_available: false,
   availability_browser_first: true, availability_browser_headful: true,
-  browser_engine: "camoufox", browser_humanize: false,
+  browser_engine: "camoufox", camoufox_available: false, browser_humanize: false,
+  repair_agency_prefixes: ["gabetti"],
+  omi_input_dir: "",
   api_auth_token: "s3cret",
 };
 
@@ -171,9 +179,10 @@ describe("settings sections", () => {
     act(() => commute.current.reset(STORED));
     // what the button adds, and what the user gets for pressing it twice
     act(() => commute.current.set("points", [
-      ...STORED.commute_points!,
-      { name: "", address: "", mode: "car" },
-      { name: "Gym", address: "", mode: "bike" },  // labelled but nowhere to go
+      ...STORED.commute_points,
+      { name: "", address: "", lat: null, lng: null, mode: "car" },
+      // labelled but nowhere to go
+      { name: "Gym", address: "", lat: null, lng: null, mode: "bike" },
     ]));
     expect(commute.current.payload().commute_points).toEqual(STORED.commute_points);
   });

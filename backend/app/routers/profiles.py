@@ -85,7 +85,7 @@ def update_profile(profile_id: int, data: schemas.SearchProfileIn, db: Session =
     return profile
 
 
-@router.post("/api/search-profiles/results")
+@router.post("/api/search-profiles/results", response_model=schemas.ProfileResultsOut)
 def profile_results(data: schemas.SearchProfileIdsIn, db: Session = Depends(get_db)):
     """How many dashboard properties these searches produced, and how many of
     them deleting them would actually remove — the numbers the delete dialog
@@ -97,7 +97,7 @@ def profile_results(data: schemas.SearchProfileIdsIn, db: Session = Depends(get_
     return summary
 
 
-@router.post("/api/search-profiles/bulk")
+@router.post("/api/search-profiles/bulk", response_model=schemas.ProfileBulkOut)
 def bulk_profiles(data: schemas.SearchProfileBulkIn, db: Session = Depends(get_db)):
     """Apply activate/pause/notify/delete to several monitored searches at once.
 

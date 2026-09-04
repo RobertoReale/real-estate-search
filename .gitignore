@@ -31,6 +31,10 @@ nssm.exe
 # Environments and dependencies
 backend/.venv/
 frontend/node_modules/
+# The API-type generator's own toolchain (scripts/gen_api_types.py). Its
+# package.json and lock ARE tracked — what it installs is not, exactly like
+# frontend/node_modules above.
+scripts/apitypes/node_modules/
 __pycache__/
 .pytest_cache/
 

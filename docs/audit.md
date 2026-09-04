@@ -42,15 +42,24 @@ cd frontend && npm test
 # throwaway database, and every control in the app driven at least once
 # (`npm run e2e:browser` fetches Chromium the first time)
 cd frontend && npm run e2e
+
+# the committed API types still match the backend (needs scripts/apitypes/
+# installed once: cd scripts/apitypes && npm ci)
+python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/api.ts
 ```
 
 Expected today: **1008 passed + 1 skipped** (1009 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **69 frontend tests**,
-and **35 browser tests** (15 journeys, then 20 that hold the run to the control inventory).
-The last of those prints the two numbers worth reading: **222 interactive elements, 230
-inventoried actions**, of which **228 exercised and 2 declared unreachable with a written
-reason**. If a test number changed, that is not a failure — it is a documentation trigger
-(see §4).
+**35 browser tests** (15 journeys, then 20 that hold the run to the control inventory),
+and **no diff** from the type generator. The browser suite prints the two numbers worth
+reading: **222 interactive elements, 230 inventoried actions**, of which **228 exercised
+and 2 declared unreachable with a written reason**. If a test number changed, that is not
+a failure — it is a documentation trigger (see §4).
+
+The last gate is the cheap one and the easy one to skip, and it is the only thing standing
+between `schemas.py` and a frontend that compiles against a wire format the backend stopped
+sending. A diff there is never a bug in the generator: it means the commit changed what a
+route sends and did not regenerate.
 
 `ruff format --check` belongs in this list and is easy to forget: CI's lint step runs
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
@@ -129,13 +138,16 @@ logic that contradicts an invariant, and that its tests still exercise the trick
    `telegram_bot.py` (5, 10, 14), `availability_check.py` (15, 16), `cookie_harvester.py`
    (18), `search_validator.py`, `data_reset.py` (3, 5, 10, 20), `backup.py`,
    `scheduler.py`, `exporter.py`.
-4. **Edges** — `models.py` / `schemas.py` (keep aligned with `frontend/src/types/`),
-   `database.py` (additive + Alembic migrations — run `test_migrations.py`), `config.py`,
-   `routers/` (one module per route group; `selection.py` is the shared grid/map/export
-   query), `main.py` (middleware + registration order; mount last, invariant 13).
-5. **Frontend** — types match `schemas.py`; phone-first responsive rules
-   ([`conventions.md`](conventions.md#writing-code)). Not covered by automated tests: verify
-   via `scripts\windows\start.bat`.
+4. **Edges** — `models.py` / `schemas.py` (the frontend's types are *generated* from
+   these, so read them as a published interface: a response model that says `str` where
+   the value is a closed set hands the browser a `string`), `database.py` (additive +
+   Alembic migrations — run `test_migrations.py`), `config.py`, `routers/` (one module per
+   route group; `selection.py` is the shared grid/map/export query; a route with no
+   `response_model` publishes an empty schema), `main.py` (middleware + registration
+   order; mount last, invariant 13).
+5. **Frontend** — the wire types are generated and gated, so what is left to review by
+   hand is `types/index.ts`'s aliases and the browser-only shapes below them; phone-first
+   responsive rules ([`conventions.md`](conventions.md#writing-code)).
 
 ---
 

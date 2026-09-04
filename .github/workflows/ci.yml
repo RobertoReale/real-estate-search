@@ -140,6 +140,53 @@ jobs:
         working-directory: frontend
         run: npm test
 
+  # frontend/src/types/api.ts is generated from the backend's OpenAPI document
+  # and committed, so the browser builds without a backend running. Committed
+  # means it can go stale, and a stale wire type is the exact failure this whole
+  # arrangement exists to remove: a field renamed in schemas.py would otherwise
+  # be a silent `undefined` in production with every other gate green. So the
+  # file is regenerated here and compared. `git diff --exit-code` is the gate —
+  # if regenerating changes anything, the commit did not run the generator.
+  api-types:
+    name: generated API types
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # The runtime dependencies only: this builds the OpenAPI document by
+      # importing the app, which needs no dev tooling.
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install the backend from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: scripts/apitypes/package-lock.json
+
+      # openapi-typescript, in its own tree. It links against the TypeScript
+      # compiler API and pins that peer to 5.x, while the app is built with
+      # TypeScript 7 — installed beside the frontend it loads the app's compiler
+      # and dies, so it gets a node_modules of its own.
+      - name: Install the generator from its lockfile
+        working-directory: scripts/apitypes
+        run: npm ci
+
+      - name: Regenerate
+        run: backend/.venv/bin/python scripts/gen_api_types.py
+
+      - name: The committed types match the backend
+        run: git diff --exit-code -- frontend/src/types/api.ts
+
   # The browser suite (frontend/playwright.config.ts). It needs both toolchains
   # in one job — the harness starts the real backend against a throwaway
   # database seeded with the demo corpus, then serves the production build at

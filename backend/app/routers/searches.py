@@ -15,7 +15,7 @@ from ..services.search_builder import build_search_urls, parse_search_url
 router = APIRouter()
 
 
-@router.post("/api/search-builder")
+@router.post("/api/search-builder", response_model=schemas.SearchBuilderUrlsOut)
 def search_builder(data: schemas.SearchBuilderIn):
     """Generates ready-to-use search URLs for both portals from structured
     parameters, so the user does not have to copy/paste from the browser.

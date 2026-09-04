@@ -23,7 +23,7 @@ from ..services.scanner import get_scan_journal, get_scan_progress, run_scan, sc
 router = APIRouter()
 
 
-@router.get("/api/scraper-health")
+@router.get("/api/scraper-health", response_model=schemas.ScraperHealthOut)
 def scraper_health_endpoint(
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
@@ -43,7 +43,7 @@ def scraper_health_endpoint(
     return health
 
 
-@router.post("/api/scrapers/trigger")
+@router.post("/api/scrapers/trigger", response_model=schemas.ScanTriggerOut)
 def trigger_scan(profile_id: int | None = None, full: bool = False):
     """Start a scan now. `full=true` asks for a full sweep.
 

@@ -22,11 +22,21 @@ function activateLanguage(lang: "en" | "it") {
   render(<I18nProvider><span /></I18nProvider>);
 }
 
+/** The criteria the API derives from `search_url` and always sends alongside a
+ *  profile. Spelled out in full rather than left off: these tests are about how
+ *  searches are named and grouped, and the criteria only have to be present. */
+const NO_CRITERIA: SearchProfile["params"] = {
+  city: "", province: "", zone: "", zones: [], zone_ids: [], contract: "sale",
+  min_price: null, max_price: null, min_rooms: null, max_rooms: null, min_sqm: null,
+  balcony: false, garden: false, parking: false, elevator: false,
+  exclude_auctions: false, pool: false, floor: "", condition: "",
+};
+
 const profile = (over: Partial<SearchProfile>): SearchProfile => ({
   id: 1, name: "", portal: "immobiliare", search_url: "https://example.test",
   excluded_keywords: "", notify_channels: "", is_active: true,
   last_run_at: null, last_run_status: "ok", last_run_detail: "",
-  consecutive_failures: 0, ...over,
+  consecutive_failures: 0, params: NO_CRITERIA, ...over,
 });
 
 describe("getBaseName", () => {

@@ -13,8 +13,10 @@ interface Values {
 const MODES: CommuteMode[] = ["car", "foot", "bike"];
 
 /** A blank row, so "Add a place" gives the user something to type into rather
- *  than a second button to press first. */
-const EMPTY: CommutePoint = { name: "", address: "", mode: "car" };
+ *  than a second button to press first. The coordinates are explicitly null:
+ *  a new place has an address to be resolved, not a pin, and the backend sends
+ *  every one of these five keys on the way back. */
+const EMPTY: CommutePoint = { name: "", address: "", lat: null, lng: null, mode: "car" };
 
 export function useCommuteSection(): Section<Values> {
   return useSectionState<Values>(

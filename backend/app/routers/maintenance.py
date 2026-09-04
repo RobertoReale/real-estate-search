@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from .. import schemas
 from ..database import backups_dir, engine_db_path, get_db
 from ..services import backup, data_reset
 from ..services.scanner import scan_state
@@ -20,7 +21,7 @@ from ..services.scanner import scan_state
 router = APIRouter()
 
 
-@router.post("/api/maintenance/geocode-missing")
+@router.post("/api/maintenance/geocode-missing", response_model=schemas.GeocodeSummaryOut)
 def geocode_missing_endpoint(db: Session = Depends(get_db)):
     """Fills in map coordinates for properties that have an address/zone but no
     pin, via Nominatim (opt-in, batched, paced, cached). Fails open: a lookup
@@ -33,14 +34,14 @@ def geocode_missing_endpoint(db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/api/maintenance/geocode-progress")
+@router.get("/api/maintenance/geocode-progress", response_model=schemas.GeocodeProgressOut)
 def geocode_progress_endpoint():
     from ..services import geocoder
 
     return geocoder.get_geocode_progress()
 
 
-@router.post("/api/maintenance/geocode-cancel")
+@router.post("/api/maintenance/geocode-cancel", response_model=schemas.OkOut)
 def geocode_cancel_endpoint():
     from ..services import geocoder
 
@@ -48,7 +49,7 @@ def geocode_cancel_endpoint():
     return {"ok": True}
 
 
-@router.post("/api/maintenance/geocode-clear-cache")
+@router.post("/api/maintenance/geocode-clear-cache", response_model=schemas.ClearedOut)
 def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
     """Forget cached geocoding *misses* so the next "Find coordinates" retries
     them. A transient empty answer from Nominatim gets frozen as a permanent
@@ -61,7 +62,7 @@ def geocode_clear_cache_endpoint(db: Session = Depends(get_db)):
     return {"cleared": cleared}
 
 
-@router.post("/api/maintenance/commutes")
+@router.post("/api/maintenance/commutes", response_model=schemas.CommuteSummaryOut)
 def compute_commutes_endpoint(db: Session = Depends(get_db)):
     """Routes every property/saved-place pair that is not cached yet, via OSRM
     (opt-in, batched, paced, cached). Fails open: a leg that cannot be routed
@@ -80,14 +81,14 @@ def compute_commutes_endpoint(db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.get("/api/maintenance/commute-progress")
+@router.get("/api/maintenance/commute-progress", response_model=schemas.CommuteProgressOut)
 def commute_progress_endpoint():
     from ..services import commute
 
     return commute.get_commute_progress()
 
 
-@router.post("/api/maintenance/commute-cancel")
+@router.post("/api/maintenance/commute-cancel", response_model=schemas.OkOut)
 def commute_cancel_endpoint():
     from ..services import commute
 
@@ -95,7 +96,7 @@ def commute_cancel_endpoint():
     return {"ok": True}
 
 
-@router.post("/api/maintenance/commute-clear-cache")
+@router.post("/api/maintenance/commute-clear-cache", response_model=schemas.ClearedOut)
 def commute_clear_cache_endpoint(db: Session = Depends(get_db)):
     """Forget every routed leg so the next run recomputes them — what the user
     presses after moving a saved place, since the cached answer to the old pin
@@ -171,7 +172,7 @@ def omi_zones_resolve_endpoint(db: Session = Depends(get_db)):
 _RESET_SCOPES = ("dashboard", "pricing-snapshots", "factory")
 
 
-@router.post("/api/maintenance/reset/{scope}")
+@router.post("/api/maintenance/reset/{scope}", response_model=schemas.ResetOut)
 def maintenance_reset(scope: str, db: Session = Depends(get_db)):
     if scope not in _RESET_SCOPES:
         raise HTTPException(400, f"Unknown reset scope: {scope}")
@@ -220,7 +221,7 @@ def _live_database() -> tuple[Path, Path]:
     return db_path, backups_dir()
 
 
-@router.get("/api/maintenance/backups")
+@router.get("/api/maintenance/backups", response_model=schemas.BackupListOut)
 def list_backups_endpoint():
     """The copies on disk, newest first, each with its date, size and schema
     revision. The folder is reported too: it is a real path on the user's own
@@ -229,7 +230,7 @@ def list_backups_endpoint():
     return {"folder": str(folder), "backups": backup.list_copies(folder)}
 
 
-@router.post("/api/maintenance/backups")
+@router.post("/api/maintenance/backups", response_model=schemas.BackupFileOut)
 def create_backup_endpoint():
     """Take a copy now, ignoring the once-a-day throttle — the button pressed
     before doing something risky, where "there was already one this morning" is
@@ -244,7 +245,7 @@ def create_backup_endpoint():
     return backup.describe(path)
 
 
-@router.post("/api/maintenance/backups/import")
+@router.post("/api/maintenance/backups/import", response_model=schemas.BackupFileOut)
 async def import_backup_endpoint(request: Request):
     """Bring in a `case.db` carried from another install.
 
@@ -289,7 +290,7 @@ def download_backup_endpoint(name: str):
     return FileResponse(path, media_type="application/vnd.sqlite3", filename=path.name)
 
 
-@router.post("/api/maintenance/backups/{name}/restore")
+@router.post("/api/maintenance/backups/{name}/restore", response_model=schemas.BackupRestoreOut)
 def restore_backup_endpoint(name: str):
     """Replace the live database with one of the copies.
 

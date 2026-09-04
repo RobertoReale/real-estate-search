@@ -15,6 +15,7 @@ import threading
 
 from fastapi import APIRouter, HTTPException
 
+from .. import schemas
 from ..config import BASE_DIR, LOG_PATH
 from ..services.scanner import scan_state
 
@@ -42,7 +43,7 @@ def relaunch_argv(executable: str, argv: list[str]) -> list[str]:
     return [f'"{part}"' for part in parts]
 
 
-@router.post("/api/system/restart")
+@router.post("/api/system/restart", response_model=schemas.RestartOut)
 def system_restart():
     """Restart the backend process so a code update takes effect without hunting
     for the terminal window.
@@ -83,7 +84,7 @@ def system_restart():
     return {"ok": True, "reload": reload_on}
 
 
-@router.get("/api/logs/tail")
+@router.get("/api/logs/tail", response_model=schemas.LogTailOut)
 def logs_tail(lines: int = 200):
     """Last N lines of the running backend's own log file, for the dashboard's
     log viewer: without this, "is the check actually doing anything?" could
