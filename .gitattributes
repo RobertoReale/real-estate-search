@@ -1,0 +1,6 @@
+# scripts/gen_api_types.py writes this file with LF and the api-types gate compares
+# it byte for byte against the committed copy. Without this line, core.autocrlf=true
+# checks it out with CRLF on Windows, the generator rewrites it as LF, and the file
+# reads as modified in `git status` while `git diff` — which normalises — sees nothing.
+# A gate that is green on a tree git calls dirty stops an unattended run dead.
+frontend/src/types/api.ts text eol=lf
