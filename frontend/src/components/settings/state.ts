@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { translateCurrent } from "../../i18n";
 import type { Settings } from "../../types";
 
-/** Which section a success/error message belongs to, so it can render there. */
+/** Which section a message belongs to, so it can render there. */
 export type SectionName = "telegram" | "email" | "global" | "data" | "backups" | "commute";
 
+/** What a section reports about its own last action, in place, next to the
+ *  controls that did it — "saved", "the test message arrived", "8 rows purged".
+ *  Failures do not come through here: they go to the toast, which is the one
+ *  thing on screen that can also say what to do about them. */
 export interface Feedback {
   where: SectionName;
-  ok: boolean;
   text: string;
 }
 
@@ -81,15 +83,3 @@ export function splitList(text: string): string[] {
   return text.split(",").map((k) => k.trim()).filter(Boolean);
 }
 
-export function errorText(e: unknown): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  // Providers answer with protocol jargon; translate the two that a user can
-  // actually act on, and pass everything else through untouched.
-  if (/AUTHENTICATIONFAILED|Username and Password not accepted|535/i.test(raw)) {
-    return translateCurrent("settings.errCredentials", { error: raw });
-  }
-  if (/timed out|timeout|Connection refused|getaddrinfo|Name or service not known/i.test(raw)) {
-    return translateCurrent("settings.errNetwork", { error: raw });
-  }
-  return raw;
-}

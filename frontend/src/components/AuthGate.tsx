@@ -41,13 +41,17 @@ export default function AuthGate({ children }: { children: ReactNode }) {
               <h2 className="text-lg font-bold">{t("auth.title")}</h2>
               <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
             </div>
+            {/* The one failure that stays on the form rather than becoming a
+                message: it is about the field directly above it, the thing to
+                do about it is to type a different token, and the gate is drawn
+                over everything else — including the toasts. */}
             <input data-action="auth.token" className="input w-full" type="password" autoFocus
               placeholder={t("auth.placeholder")}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "auth-error" : undefined}
               value={token} onChange={(e) => setToken(e.target.value)} />
             {error && (
-              <p className="text-sm rounded-lg px-3 py-2 bg-rose-500/10 text-rose-700 dark:text-rose-300">
-                {error}
-              </p>
+              <p id="auth-error" role="alert" className="text-sm accent-bad">{error}</p>
             )}
             <button className="btn-primary w-full" type="submit"
               disabled={verify.isPending || !token.trim()}>

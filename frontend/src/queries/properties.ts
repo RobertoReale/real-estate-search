@@ -198,13 +198,15 @@ export function useCheckSingleProperty() {
 
 /* ────────────────────────── writing to many at once ────────────────────────── */
 
+/** What the dashboard asks of the bulk endpoint. `restore` is on no button: it
+ *  is what Undo sends to take back a hide or a "no longer on the market". */
+export type BulkAction = "hide" | "restore" | "favorite" | "unfavorite" | "sold";
+
 export function useBulkProperties() {
   const refresh = useRefreshDashboard();
   return useMutation({
-    mutationFn: ({ ids, action }: {
-      ids: number[];
-      action: "hide" | "favorite" | "unfavorite" | "sold";
-    }) => api.bulkProperties(ids, action),
+    mutationFn: ({ ids, action }: { ids: number[]; action: BulkAction }) =>
+      api.bulkProperties(ids, action),
     onSuccess: refresh,
   });
 }

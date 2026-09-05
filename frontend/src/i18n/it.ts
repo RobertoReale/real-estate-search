@@ -28,8 +28,6 @@ export const it: Dict = {
   "common.unknownError": "Errore sconosciuto",
   "common.optional": "facoltativo",
   "common.of": "di",
-  "common.dismissError": "Chiudi l'errore",
-  "common.actionFailed": "Operazione non riuscita",
   "common.copy": "Copia",
   "common.copied": "Copiato",
   "common.showMore": "Mostra altro",
@@ -209,9 +207,41 @@ export const it: Dict = {
   "nav.language": "Lingua",
   "nav.languageSwitchTo": "Passa a {language}",
 
+  // ── avvisi: cosa non ha funzionato e cosa fare ──────────────────────────
+  "toast.region": "Messaggi",
+  "toast.dismiss": "Chiudi questo messaggio",
+  "toast.undo": "Annulla",
+  "toast.adviceUnreachable":
+    "Il backend non risponde. Controlla che sia in esecuzione — start.bat — e riprova.",
+  "toast.adviceServer":
+    "Il backend ha avuto un problema. Riprova; se continua, il dettaglio è nel log.",
+  "toast.adviceRefused":
+    "Il backend ha rifiutato la richiesta. Cambia quello che hai chiesto e riprova.",
+  "toast.adviceRetry": "Riprova.",
+  "toast.gridFailed":
+    "Non è stato possibile aggiornare gli annunci — a schermo c'è l'ultima risposta arrivata.",
+  "toast.hidden": "Immobile nascosto.",
+  "toast.hiddenMany": "{count} immobili nascosti.",
+  "toast.sold": "Segnato come non più sul mercato.",
+  "toast.soldMany": "{count} segnati come non più sul mercato.",
+  "toast.favoritedMany": "{count} aggiunti ai preferiti.",
+  "toast.unfavoritedMany": "{count} rimossi dai preferiti.",
+  "toast.hideFailed": "Non è stato possibile nascondere l'immobile.",
+  "toast.bulkFailed": "Non è stato possibile aggiornare gli immobili selezionati.",
+  "toast.undoFailed": "Non è stato possibile annullare l'operazione.",
+  "toast.favoriteFailed": "Non è stato possibile aggiornare i preferiti.",
+  "toast.tagFailed": "Non è stato possibile aggiornare le etichette.",
+  "toast.scanFailed": "Non è stato possibile avviare la scansione.",
+  "toast.selectAllFailed": "Non è stato possibile selezionare tutti i risultati.",
+  "toast.exportFailed": "Non è stato possibile creare il dossier.",
+  "toast.geocodeFailed": "Non è stato possibile cercare le coordinate.",
+  "toast.settingsLoadFailed": "Non è stato possibile caricare le impostazioni.",
+  "toast.settingsSaveFailed": "Non è stato possibile salvare le impostazioni.",
+  "toast.searchSaveFailed": "Non è stato possibile salvare la ricerca.",
+  "toast.searchUpdateFailed": "Non è stato possibile aggiornare le ricerche.",
+  "toast.searchDeleteFailed": "Non è stato possibile eliminare le ricerche.",
+
   // ── struttura della dashboard ───────────────────────────────────────────
-  "app.backendUnreachable":
-    "Backend non raggiungibile su http://localhost:8000 — avvialo con start.bat",
   "app.noMatches": "Nessun immobile corrisponde ai filtri attuali.",
   "app.noMatchesHint":
     "Prova a cambiare Compra/Affitto o ad allentare i filtri.",
@@ -351,7 +381,6 @@ export const it: Dict = {
   "filters.exportFavorites": "Preferiti",
   "filters.exportRentals": "Affitti",
   "filters.exportProperties": "Immobili",
-  "filters.exportFailed": "Impossibile creare il dossier: {error}",
   "filters.exportIn": "{what} a {city}",
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
@@ -402,7 +431,6 @@ export const it: Dict = {
   "settings.secretLastSaved": "Ultimo salvataggio: {date}",
   "settings.secretNotSet": "○ Non impostato",
   "settings.saved": "Impostazioni salvate.",
-  "settings.saveFailed": "Impossibile salvare le impostazioni: {error}",
   "settings.loadFailed": "Impossibile caricare le impostazioni: {error}",
   "settings.save": "Salva le impostazioni",
   "settings.errCredentials":

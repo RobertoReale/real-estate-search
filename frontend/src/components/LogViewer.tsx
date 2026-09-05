@@ -75,9 +75,9 @@ export default function LogViewer({ onClose }: Props) {
           </span>
         </div>
 
-        {error && (
-          <div className="text-xs text-rose-600 dark:text-rose-400 mb-2">⚠️ {error}</div>
-        )}
+        {/* Above the empty console rather than in a toast: the failure is why
+            there are no lines, and it belongs where the lines would be. */}
+        {error && <div className="text-xs t-muted mb-2">{error}</div>}
 
         <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-slate-950 text-slate-200 p-3 font-mono text-[11px] leading-relaxed">
           {visible.length === 0 ? (

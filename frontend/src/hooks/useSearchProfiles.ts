@@ -23,6 +23,7 @@ import type {
   GroupedSearchProfile, SearchProfile, Settings,
 } from "../types";
 import { getBaseName, groupSearchProfiles } from "../utils/searchProfiles";
+import { useToasts } from "../components/Toast";
 import { EMPTY_BUILDER } from "../components/searchProfiles/constants";
 import {
   channelReadiness, paramsFromAssistant, paramsFromProfile, searchLabel,
@@ -52,12 +53,17 @@ function unverifiedUrls(immobiliare: string, idealista: string): SearchBuilderUr
 
 export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchProfilesArgs) {
   const t = useT();
+  const toasts = useToasts();
   const [mode, setMode] = useState<
     "closed" | "url" | "builder" | "assistant" | "multi"
   >("closed");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [keywords, setKeywords] = useState("");
+  // What is wrong with the form as filled in — a duplicate search, a query the
+  // assistant made nothing of, a save with nothing in it. It stays next to the
+  // fields, because that is what it is about; anything the backend refused goes
+  // to the toast instead, where the instruction can go with it.
   const [error, setError] = useState("");
   // set while editing an existing profile via the "url" form, so submitUrl
   // knows whether to PUT over it instead of POSTing a new one
@@ -81,7 +87,6 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   // set as a whole, since "kept: another search covers it" only counts searches
   // that survive the delete
   const [deleting, setDeleting] = useState<SearchProfile[] | null>(null);
-  const [deleteFailure, setDeleteFailure] = useState("");
 
   // bulk selection: acting on every search one row at a time is the tedium this
   // exists to remove (pausing them all before a holiday, muting a noisy set…)
@@ -109,10 +114,10 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   const saving = saveProfiles.isPending;
   const generating = buildUrls.isPending;
   const asking = askAssistant.isPending;
-  // The dialog reports two different failures in one line: the counts it could
-  // not fetch, and the delete it could not carry out.
-  const deleteError = deleteFailure
-    || (deleteResults.error ? String(deleteResults.error.message) : "");
+  // What the dialog could not tell the user before they decide: how much the
+  // delete would take with it. The delete's own failure is a toast, but this is
+  // missing information in the dialog itself, so it is shown in it.
+  const deleteError = deleteResults.error ? String(deleteResults.error.message) : "";
 
   const ready = channelReadiness(settings);
   const channelOptions = [
@@ -175,12 +180,14 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     action: "activate" | "pause" | "notify",
     notifyChannels?: string,
   ) {
-    setError("");
     try {
       await bulkProfiles.mutateAsync({ ids, action, notifyChannels });
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toasts.fail(e, {
+        doing: t("toast.searchUpdateFailed"),
+        retry: () => runBulk(ids, action, notifyChannels),
+      });
     }
   }
 
@@ -190,21 +197,19 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
     const newBaseName = window.prompt(t("profiles.mergePrompt"), defaultName);
     if (!newBaseName || !newBaseName.trim()) return;
     const cleaned = getBaseName(newBaseName.trim());
-    setError("");
     try {
       await renameProfiles.mutateAsync(
         targets.map((p) => ({ profile: p, name: `${cleaned} (${p.portal})` })));
       setSelected(new Set());
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toasts.fail(e, { doing: t("toast.searchUpdateFailed") });
     }
   }
 
   async function separateGroup(group: GroupedSearchProfile) {
     if (group.profiles.length < 2) return;
     if (!window.confirm(t("profiles.separateConfirm", { name: group.baseName }))) return;
-    setError("");
     try {
       // A plain space before the portal, and this is the whole point of the
       // button. `getBaseName` strips a trailing portal preceded by a bracket or
@@ -216,7 +221,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
         group.profiles.map((p) => ({ profile: p, name: `${group.baseName} ${p.portal}` })));
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toasts.fail(e, { doing: t("toast.searchUpdateFailed") });
     }
   }
 
@@ -231,13 +236,11 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   /** Opens the delete dialog. Naming the searches is what starts the query for
    *  what their results amount to, so the dialog is on screen while it loads. */
   function askDelete(targets: SearchProfile[]) {
-    setDeleteFailure("");
     setDeleting(targets);
   }
 
   async function confirmDelete(alsoDeleteResults: boolean) {
     if (!deleting) return;
-    setDeleteFailure("");
     try {
       await bulkProfiles.mutateAsync({
         ids: deleting.map((p) => p.id),
@@ -248,7 +251,12 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       setSelected(new Set());
       onChanged();
     } catch (e) {
-      setDeleteFailure(e instanceof Error ? e.message : String(e));
+      // The dialog stays open with the searches still named in it, so the retry
+      // sends exactly the same delete rather than reopening anything.
+      toasts.fail(e, {
+        doing: t("toast.searchDeleteFailed"),
+        retry: () => confirmDelete(alsoDeleteResults),
+      });
     }
   }
 
@@ -359,7 +367,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       });
       setMode("builder");
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
+      toasts.fail(e, { retry: () => extractParamsFromUrl() });
     }
   }
 
@@ -383,7 +391,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
         editInBuilder(first);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
+      toasts.fail(e, { retry: () => ask() });
     }
   }
 
@@ -436,7 +444,12 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       resetForm();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
+      // The form is still filled in — `resetForm` only runs on success — so the
+      // retry sends the same writes rather than asking the user to type again.
+      toasts.fail(e, {
+        doing: t("toast.searchSaveFailed"),
+        retry: () => commit(writes, nothingToDo),
+      });
     }
   }
 
@@ -500,7 +513,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
       // slug, so the URL we save is the precise zone page when one exists
       setBuilt(await buildUrls.mutateAsync({ params, verify: true }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("common.unknownError"));
+      toasts.fail(e, { retry: () => generate() });
     }
   }
 

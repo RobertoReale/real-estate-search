@@ -4,8 +4,9 @@ import {
   useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser,
 } from "../../queries/settings";
 import type { Settings } from "../../types";
+import { useToasts } from "../Toast";
 import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
-import { errorText, useSectionState, type Section, type SettingsShell } from "./state";
+import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
   proxyUrl: string;
@@ -78,6 +79,7 @@ export function ScrapingSection(
   { section, settings, shell }: { section: Section<Values>; settings: Settings; shell: SettingsShell },
 ) {
   const t = useT();
+  const toasts = useToasts();
   const { values, set } = section;
   const [stoppingGrab, setStoppingGrab] = useState(false);
   const [installing, setInstalling] = useState<"harvester" | "camoufox" | null>(null);
@@ -95,10 +97,10 @@ export function ScrapingSection(
     try {
       const r = await grab.mutateAsync("immobiliare");
       await shell.reload();
-      shell.setFeedback({ where: "global", ok: true,
+      shell.setFeedback({ where: "global",
         text: t("settings.cookieGrabbed", { preview: r.cookie_preview }) });
     } catch (e) {
-      shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
+      toasts.fail(e, { retry: () => grabCookie() });
     } finally {
       setStoppingGrab(false);
     }
@@ -123,9 +125,9 @@ export function ScrapingSection(
     try {
       const r = await installBrowser.mutateAsync(which);
       await shell.reload();
-      shell.setFeedback({ where: "global", ok: true, text: r.message || fallbackMessage });
+      shell.setFeedback({ where: "global", text: r.message || fallbackMessage });
     } catch (e) {
-      shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
+      toasts.fail(e, { retry: () => install(which, fallbackMessage) });
     } finally {
       setInstalling(null);
     }

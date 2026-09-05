@@ -363,9 +363,9 @@ test("the exports, the view switch and the maintenance actions", async ({ page, 
   await press(page, "maintenance.cacheCleared.dismiss");
   await expect(control(page, "maintenance.cacheCleared.dismiss")).toBeHidden();
 
-  // The two notices that only exist when something went wrong, and the Stop
-  // that only exists while the sweep runs. A sweep that never answers is what
-  // holds the progress bar open long enough to press it.
+  // The messages that only exist when something went wrong, and the Stop that
+  // only exists while the sweep runs. A sweep that never answers is what holds
+  // the progress bar open long enough to press it.
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => { release = resolve; });
   await page.unroute("**/api/maintenance/geocode-missing");
@@ -379,9 +379,9 @@ test("the exports, the view switch and the maintenance actions", async ({ page, 
   await expect(control(page, "maintenance.geocode.stop")).toBeVisible();
   await press(page, "maintenance.geocode.stop");
   release();
-  await expect(control(page, "maintenance.error.dismiss")).toBeVisible();
-  await press(page, "maintenance.error.dismiss");
-  await expect(control(page, "maintenance.error.dismiss")).toBeHidden();
+  await expect(control(page, "toast.dismiss")).toBeVisible();
+  await press(page, "toast.dismiss");
+  await expect(control(page, "toast.dismiss")).toBeHidden();
 
   // Exporting through a refused backend: the message says what failed, and the
   // filter bar is still usable underneath it.
@@ -394,9 +394,9 @@ test("the exports, the view switch and the maintenance actions", async ({ page, 
   await page.reload();
   await waitForResults(page);
   await press(page, "export.csv");
-  await expect(control(page, "export.error.dismiss")).toBeVisible();
-  await press(page, "export.error.dismiss");
-  await expect(control(page, "export.error.dismiss")).toBeHidden();
+  await expect(control(page, "toast.dismiss")).toBeVisible();
+  await press(page, "toast.dismiss");
+  await expect(control(page, "toast.dismiss")).toBeHidden();
   await expect(control(page, "filters.query")).toBeEnabled();
   await page.evaluate(() => localStorage.removeItem("apiToken"));
 });
@@ -1246,11 +1246,16 @@ test("the app stays usable when the backend refuses everything", async ({ page }
     await expect(page.locator("body")).not.toBeEmpty();
   }
 
+  // The sweep left a message behind for every refusal it collected. Clear them
+  // so what follows is about the one write it is actually testing.
+  const messages = page.locator('[data-action="toast.dismiss"]');
+  while (await messages.count()) await messages.first().click();
+
   // A failed write says so, and the message can be dismissed without a reload.
   await press(page, "property.favorite");
-  await expect(control(page, "app.error.dismiss")).toBeVisible();
-  await press(page, "app.error.dismiss");
-  await expect(control(page, "app.error.dismiss")).toBeHidden();
+  await expect(control(page, "toast.dismiss")).toBeVisible();
+  await press(page, "toast.dismiss");
+  await expect(control(page, "toast.dismiss")).toBeHidden();
 
   // Settings that cannot load must still be closable — the dialog used to open
   // on nothing at all, with not even a way out of it.
@@ -1260,6 +1265,40 @@ test("the app stays usable when the backend refuses everything", async ({ page }
   await expect(control(page, "settings.loadError.retry")).toBeVisible();
   await press(page, "settings.loadError.close");
   await expect(control(page, "settings.loadError.close")).toBeHidden();
+});
+
+test("a refused write says what to do, and the retry does it", async ({ page }) => {
+  await page.goto("/");
+  await waitForResults(page);
+
+  // Refused once and only once. That is what makes the retry a real assertion:
+  // the second attempt goes through, so a button that merely looked like a
+  // retry — or one that re-sent nothing — would leave the star unchanged.
+  let refuse = true;
+  await page.route("**/api/properties/*", async (route) => {
+    // The star is a PATCH on the property; everything else through this pattern
+    // is the grid re-reading itself and has to be let through.
+    if (!refuse || route.request().method() !== "PATCH") return route.fallback();
+    refuse = false;
+    await route.fulfill({ status: 500, json: { detail: "the database is locked" } });
+  });
+
+  // Scoped to one card rather than to the page: the grid re-reads itself after
+  // the write, and the assertion has to be about the property that was starred.
+  const star = control(cards(page).first(), "property.favorite");
+  const before = (await star.textContent()) ?? "";
+  await star.click();
+
+  // What happened, what to do about it, and the one-click way to do it.
+  const message = page.getByRole("alert").first();
+  await expect(message).toContainText(/database is locked/i);
+  await expect(message).toContainText(/backend|riprova|try again/i);
+  await expect(control(page, "toast.action")).toBeVisible();
+
+  await press(page, "toast.action");
+  // The message goes with the press, and the write it was about lands.
+  await expect(control(page, "toast.action")).toBeHidden();
+  await expect(star).not.toHaveText(before);
 });
 
 test("the token prompt, when the backend asks for one", async ({ page }) => {
