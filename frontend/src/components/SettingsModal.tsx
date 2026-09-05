@@ -25,7 +25,7 @@ interface Props {
 function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const t = useT();
   return (
-    <div data-action="settings.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="settings.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-overlay backdrop-blur-sm"
       onClick={onClose}>
       {/* dvh: `vh` on mobile spans behind the address bar, hiding the footer
           buttons ("Save settings") below the fold with no way to scroll to them */}

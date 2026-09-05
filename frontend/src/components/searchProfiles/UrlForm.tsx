@@ -14,7 +14,7 @@ export function UrlForm({ sp }: { sp: SearchProfilesState }) {
       {/* The one thing a new user must understand: pasting a URL is not a
           fallback, it is the most powerful way to search — every portal
           filter is honored, including the ones the builder cannot express. */}
-      <p className="text-xs rounded-lg px-3 py-2 chip-blue">{t("profiles.urlTip")}</p>
+      <p className="text-xs rounded-lg px-3 py-2 chip-accent">{t("profiles.urlTip")}</p>
       <div className="grid sm:grid-cols-2 gap-3">
         <input data-action="profiles.url.name" className="input w-full" placeholder={t("profiles.namePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />

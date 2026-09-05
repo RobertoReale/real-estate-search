@@ -86,7 +86,7 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="t-muted text-xs text-left">
-                    <tr className="border-b border-slate-200 dark:border-slate-700/50">
+                    <tr className="border-b border-line">
                       <th className="py-2 pr-3 font-medium">{t("velocity.colArea")}</th>
                       <th className="py-2 px-3 font-medium text-right">{t("velocity.colTracked")}</th>
                       <th className="py-2 px-3 font-medium text-right"
@@ -107,14 +107,14 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="tnum">
                     {data.areas.map((a) => (
                       <tr key={`${a.scope}-${a.city}-${a.zone}`}
-                        className="border-b border-slate-100 dark:border-slate-800/50">
+                        className="border-b border-line-subtle">
                         <td className="py-2 pr-3">
                           <span className="t-strong">{a.zone || a.city}</span>
                           {a.scope === "city" ? (
-                            <span className="ml-2 text-[10px] chip-blue px-1.5 py-0.5 rounded uppercase font-bold">
+                            <span className="ml-2 text-3xs chip-accent px-1.5 py-0.5 rounded uppercase font-bold">
                               {t("velocity.wholeCity")}
                             </span>
                           ) : (
@@ -151,7 +151,7 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="t-muted text-xs text-left">
-                    <tr className="border-b border-slate-200 dark:border-slate-700/50">
+                    <tr className="border-b border-line">
                       <th className="py-2 pr-3 font-medium">{t("velocity.colAgency")}</th>
                       <th className="py-2 px-3 font-medium text-right">{t("velocity.colListings")}</th>
                       <th className="py-2 px-3 font-medium text-right"
@@ -171,10 +171,10 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="tnum">
                     {data.agencies.map((a) => (
                       <tr key={a.agency}
-                        className="border-b border-slate-100 dark:border-slate-800/50">
+                        className="border-b border-line-subtle">
                         <td className="py-2 pr-3 t-strong truncate max-w-[16rem]"
                           title={a.agency}>
                           {a.agency}

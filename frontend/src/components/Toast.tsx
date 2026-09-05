@@ -216,13 +216,13 @@ function ToastCard({ toast, onDismiss }: {
       role={failed ? "alert" : "status"}
       className={`glass pointer-events-auto w-full max-w-md rounded-2xl p-3.5 shadow-lg
         animate-fade-in flex items-start gap-3 text-sm ${failed
-          ? "border-rose-500/50 bg-rose-500/10"
-          : "border-emerald-500/40 bg-emerald-500/10"}`}>
+          ? "border-negative-line bg-negative-tint"
+          : "border-positive-line bg-positive-tint"}`}>
       <span aria-hidden="true" className="shrink-0 leading-6">{failed ? "⚠️" : "✅"}</span>
       <div className="min-w-0 flex-1">
         <p className={`font-medium break-words ${failed
-          ? "text-rose-700 dark:text-rose-200"
-          : "text-emerald-800 dark:text-emerald-200"}`}>
+          ? "text-negative-ink-strong"
+          : "text-positive-ink"}`}>
           {toast.text}
         </p>
         {toast.hint && <p className="t-muted text-xs mt-1 break-words">{toast.hint}</p>}
@@ -230,7 +230,7 @@ function ToastCard({ toast, onDismiss }: {
           <button data-action="toast.action"
             type="button"
             className="btn-ghost text-xs mt-2 px-2.5 py-1 rounded-lg border
-              border-slate-300 dark:border-slate-600"
+              border-line-strong"
             onClick={() => {
               // Dismissed first: whatever the action does, this message is
               // about what already happened, and leaving it up while an Undo

@@ -1,38 +1,33 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
 /* the theme toggle stamps .dark on <html>; light is the default */
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
-}
-
 body {
-  @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-page text-ink antialiased;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(59 130 246 / 0.07), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 110%, rgb(168 85 247 / 0.05), transparent);
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--page-glow-a), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 110%, var(--page-glow-b), transparent);
   background-attachment: fixed;
   min-height: 100vh;
 }
 
-.dark body {
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(59 130 246 / 0.15), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 110%, rgb(168 85 247 / 0.08), transparent);
+/* The display face, and the only place it is applied. See the type note in
+   tokens.css for why it stops at h2. */
+h1,
+h2 {
+  font-family: var(--font-display);
 }
 
 .glass {
-  @apply bg-white/90 backdrop-blur-xl border border-slate-200 shadow-sm
-    dark:bg-slate-900/70 dark:border-slate-700/50 dark:shadow-none;
+  @apply bg-surface/90 backdrop-blur-xl border border-line shadow-e1;
 }
 
 .input {
-  @apply bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm
-    text-slate-900 placeholder-slate-400 outline-none
-    focus:border-blue-500/70 focus:ring-2 focus:ring-blue-500/20 transition
-    dark:bg-slate-800/80 dark:border-slate-600/60 dark:text-slate-100
-    dark:placeholder-slate-500;
+  @apply bg-surface border border-line-strong rounded-control px-3 py-2 text-sm
+    text-ink placeholder-ink-hint outline-none
+    focus:border-accent-line focus:ring-2 focus:ring-accent-tint transition;
 }
 
 /* iOS Safari zooms the whole page in when a focused field's text is below 16px,
@@ -59,78 +54,105 @@ input[type="checkbox"] {
    never loses track of the focused element. Defined before the classes that
    reuse its utilities: a class built with @apply cannot itself be @applied. */
 .btn-focus {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
-    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
-    dark:focus-visible:ring-offset-slate-950;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring
+    focus-visible:ring-offset-2 focus-visible:ring-offset-page;
 }
 
-/* `min-h-11` is the 44px touch target a finger needs; a mouse does not, and on
-   desktop the extra height only loosens dense rows, so it is dropped at `sm`.
-   inline-flex (rather than the default inline-block) is what keeps the label
-   centered once min-height makes the box taller than its line. */
-/* Hover goes darker, not lighter: the label is white, and blue-500 under it
-   measures 3.8:1 — the button became less readable exactly when the pointer was
-   on it. blue-700 and blue-800 keep the same two steps of feedback above 4.5:1. */
+/* `min-h-touch` is the 44px a finger needs; a mouse does not, and on desktop the
+   extra height only loosens dense rows, so it is dropped at `sm`. inline-flex
+   (rather than the default inline-block) is what keeps the label centered once
+   min-height makes the box taller than its line. */
+/* Hover goes darker, not lighter: the label is white, and the accent at its
+   base step measures 3.8:1 under it — the button became less readable exactly
+   when the pointer was on it. `--accent-hover` and `--accent-active` keep the
+   same two steps of feedback above 4.5:1. */
 .btn-primary {
   @apply inline-flex items-center justify-center
-    bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium
-    rounded-lg px-4 py-2 text-sm min-h-11 sm:min-h-0 transition disabled:opacity-50
-    disabled:cursor-not-allowed shadow-lg shadow-blue-600/20
-    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
-    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
-    dark:focus-visible:ring-offset-slate-950;
+    bg-accent hover:bg-accent-hover active:bg-accent-active text-on-solid font-medium
+    rounded-control px-4 py-2 text-sm min-h-touch sm:min-h-0 transition disabled:opacity-50
+    disabled:cursor-not-allowed shadow-accent
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring
+    focus-visible:ring-offset-2 focus-visible:ring-offset-page;
 }
 
 .btn-ghost {
   @apply inline-flex items-center justify-center
-    bg-white hover:bg-slate-100 border border-slate-300 text-slate-700
-    rounded-lg px-4 py-2 text-sm min-h-11 sm:min-h-0 transition
-    dark:bg-slate-800/60 dark:hover:bg-slate-700/80 dark:border-slate-600/50
-    dark:text-slate-200
-    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
-    focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100
-    dark:focus-visible:ring-offset-slate-950;
+    bg-surface hover:bg-sunken border border-line-strong text-ink-body
+    rounded-control px-4 py-2 text-sm min-h-touch sm:min-h-0 transition
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring
+    focus-visible:ring-offset-2 focus-visible:ring-offset-page;
 }
 
-/* Semantic helpers: the visual hierarchy inverts between themes
-   (in light mode darker = more prominent, in dark mode lighter = more
-   prominent), so components use these instead of raw slate shades.
-
-   The light values are pinned by contrast rather than by taste. Secondary text
-   lands on `.glass` and `.panel`, which resolve to slate-100 and slate-50, and
-   against those slate-400 measures 2.5:1 and slate-500 measures 4.3:1 — both
-   under the 4.5:1 the browser suite gates on. slate-600 is the first shade in
-   the stock ramp that clears it, so light mode currently has one step where it
-   wants two. Dark mode keeps both, because a dark background leaves room the
-   light one does not. */
-.t-muted { @apply text-slate-600 dark:text-slate-400; }
-.t-dim { @apply text-slate-500 dark:text-slate-500; }
-.t-body { @apply text-slate-700 dark:text-slate-300; }
-.t-strong { @apply text-slate-800 dark:text-slate-200; }
+/* Text hierarchy. These predate the token layer and now resolve through it;
+   they stay because they read better inline than `text-ink-muted` does and
+   because renaming 300 call sites buys nothing. `--ink-*` in tokens.css is
+   where the light and dark values are decided, and where the note on why the
+   light ramp has one step fewer than the dark one lives. */
+.t-muted {
+  @apply text-ink-muted;
+}
+.t-dim {
+  @apply text-ink-dim;
+}
+.t-body {
+  @apply text-ink-body;
+}
+.t-strong {
+  @apply text-ink-strong;
+}
 
 /* inner panels/rows inside a .glass container */
 .panel {
-  @apply bg-slate-50 border border-slate-200
-    dark:bg-slate-800/50 dark:border-slate-700/40;
+  @apply bg-sunken border border-line;
 }
 
-/* small colored badges (portal, status, market position, …) */
-.chip-blue { @apply bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300; }
-.chip-lime { @apply bg-lime-100 text-lime-700 dark:bg-lime-500/20 dark:text-lime-300; }
-.chip-teal { @apply bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300; }
-.chip-emerald { @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300; }
-.chip-amber { @apply bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300; }
-.chip-rose { @apply bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300; }
-.chip-slate { @apply bg-slate-200 text-slate-600 dark:bg-slate-500/20 dark:text-slate-300; }
-.chip-sky { @apply bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300; }
+/* Small badges. Named for what they say, never for the colour they say it in:
+   `chip-positive` survives a change of palette, `chip-emerald` becomes a lie
+   the moment the ramp moves. The three verdict chips are the semantic set; the
+   rest identify a thing (a portal, a tag, a contract) and carry no judgement. */
+.chip-accent {
+  @apply bg-accent-soft text-accent-ink;
+}
+.chip-positive {
+  @apply bg-positive-soft text-positive-ink;
+}
+.chip-caution {
+  @apply bg-caution-soft text-caution-ink;
+}
+.chip-negative {
+  @apply bg-negative-soft text-negative-ink;
+}
+.chip-info {
+  @apply bg-info-soft text-info-ink;
+}
+.chip-neutral {
+  @apply bg-neutral-soft text-neutral-ink;
+}
+.chip-tag {
+  @apply bg-tag-soft text-tag-ink;
+}
+.chip-rent {
+  @apply bg-rent-soft text-rent-ink;
+}
+.chip-portal-immobiliare {
+  @apply bg-portal-immobiliare-soft text-portal-immobiliare-ink;
+}
+.chip-portal-idealista {
+  @apply bg-portal-idealista-soft text-portal-idealista-ink;
+}
 
-.accent-price { @apply text-blue-700 dark:text-blue-300; }
-/* 700 rather than 600 in light, for the same reason as `.t-muted` above: these
-   carry a number's verdict ("12% over the median", "no longer available") on a
-   near-white panel, where emerald-600 measures 3.5:1 and rose-600 4.3:1. */
-.accent-good { @apply text-emerald-700 dark:text-emerald-400; }
-.accent-bad { @apply text-rose-700 dark:text-rose-400; }
-.accent-link { @apply text-blue-600 dark:text-blue-400; }
+.accent-price {
+  @apply text-accent-ink tnum;
+}
+.accent-good {
+  @apply text-positive-ink;
+}
+.accent-bad {
+  @apply text-negative-ink;
+}
+.accent-link {
+  @apply text-accent-link;
+}
 
 /* --- Leaflet (map view) ---------------------------------------------------
    Leaflet positions its panes and controls at z-index 400–800, which would
@@ -142,20 +164,24 @@ input[type="checkbox"] {
   isolation: isolate;
   position: relative;
   z-index: 0;
-  @apply bg-slate-200 dark:bg-slate-800 font-sans;
+  @apply bg-sunken-strong font-sans;
 }
 
 /* OSM ships light tiles only; inverting hue-rotated keeps roads legible and
-   the palette close to the dark theme instead of a photo negative. */
+   the palette close to the dark theme instead of a photo negative. This is the
+   one `dark:` selector left in the stylesheet, and it survives the token pass
+   because it is a filter on somebody else's raster, not a colour this app
+   chooses. */
 .dark .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9);
 }
 
 .leaflet-tooltip {
-  @apply bg-white text-slate-800 border-slate-300 shadow-lg text-xs
-    dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600;
+  @apply bg-raised text-ink-strong border-line-strong shadow-e2 text-xs;
 }
-.dark .leaflet-tooltip-top::before { border-top-color: rgb(71 85 105); }
+.dark .leaflet-tooltip-top::before {
+  border-top-color: var(--line-strong);
+}
 
 /* Leaflet's own attribution line ("Leaflet | © OpenStreetMap") sets its links
    apart by colour alone, inside a run of text. Colour alone is not a
@@ -168,9 +194,10 @@ input[type="checkbox"] {
 
 .leaflet-control-attribution,
 .leaflet-control-zoom a {
-  @apply bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200
-    dark:border-slate-600;
+  @apply bg-surface text-ink-body border-line;
 }
-/* the underlying utilities, not `@apply accent-link`: a custom class that is
+/* the underlying utility, not `@apply accent-link`: a custom class that is
    itself defined with @apply cannot be applied again */
-.leaflet-control-attribution a { @apply text-blue-600 dark:text-blue-400; }
+.leaflet-control-attribution a {
+  @apply text-accent-link;
+}

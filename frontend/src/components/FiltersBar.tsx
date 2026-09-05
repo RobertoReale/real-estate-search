@@ -184,12 +184,12 @@ export default function FiltersBar({
             is announced as nothing at all. */}
         <span className="text-xs t-muted">{t("filters.market")}</span>
         <div role="group" aria-label={t("filters.market")}
-          className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+          className="flex rounded-lg overflow-hidden border border-line-strong">
           <button data-action="filters.contract.sale"
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
               !isRent
-                ? "bg-blue-600 text-white"
-                : "bg-white text-slate-500 hover:text-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:text-slate-200"
+                ? "bg-accent text-on-solid"
+                : "bg-control text-ink-dim hover:text-ink-strong"
             }`}
             onClick={() => set({ contract: "sale" })}>
             {t("filters.buy")}
@@ -197,8 +197,8 @@ export default function FiltersBar({
           <button data-action="filters.contract.rent"
             className={`flex-1 sm:flex-none px-3 py-2 text-sm font-medium transition ${
               isRent
-                ? "bg-teal-600 text-white"
-                : "bg-white text-slate-500 hover:text-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:text-slate-200"
+                ? "bg-rent text-on-solid"
+                : "bg-control text-ink-dim hover:text-ink-strong"
             }`}
             onClick={() => set({ contract: "rent" })}>
             {t("filters.rent")}
@@ -362,7 +362,7 @@ export default function FiltersBar({
           onClick={() => setAdvOpen((o) => !o)}>
           {t("filters.more")}
           {advActiveCount > 0 && (
-            <span className="chip-blue text-[11px] px-1.5 py-0.5 rounded-full font-semibold">
+            <span className="chip-accent text-2xs px-1.5 py-0.5 rounded-full font-semibold">
               {advActiveCount}
             </span>
           )}
@@ -452,8 +452,8 @@ export default function FiltersBar({
           <button data-action="maintenance.geocode"
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               geocoding
-                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
-                : "bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/30"
+                ? "bg-sunken-strong text-ink-dim border-line-strong cursor-wait animate-pulse"
+                : "bg-info-tint hover:bg-info-tint-strong text-info-ink border-info-line"
             }`}
             disabled={geocoding}
             title={t("filters.findCoordsTitle")}
@@ -471,8 +471,8 @@ export default function FiltersBar({
           <button data-action="maintenance.clearGeocodeCache"
             className={`px-3 py-2 text-sm font-medium rounded-lg transition border flex items-center gap-1.5 shadow-sm ${
               clearCache.isPending
-                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 cursor-wait animate-pulse"
-                : "bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-300 border-slate-500/30"
+                ? "bg-sunken-strong text-ink-dim border-line-strong cursor-wait animate-pulse"
+                : "bg-neutral-tint hover:bg-neutral-soft text-neutral-ink border-neutral-line"
             }`}
             disabled={clearCache.isPending || geocoding}
             title={t("filters.retryFailedTitle")}
@@ -488,7 +488,7 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1">
           <span className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</span>
           <div role="group" aria-label={t("filters.export")}
-            className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+            className="flex rounded-lg overflow-hidden border border-line-strong">
             {/* The action id is carried in the tuple rather than built from
                 `fmt`: the inventory is checked against the literal strings in
                 the source, and a template one would be invisible to it. */}
@@ -500,9 +500,8 @@ export default function FiltersBar({
             ] as const).map(
               ([fmt, label, action]) => (
                 <button key={fmt} data-action={action}
-                  className="px-3 py-2 text-sm font-medium transition bg-white
-                    text-slate-500 hover:text-slate-800 dark:bg-slate-800/80
-                    dark:text-slate-400 dark:hover:text-slate-200
+                  className="px-3 py-2 text-sm font-medium transition
+                    bg-control text-ink-dim hover:text-ink-strong
                     disabled:opacity-40 disabled:cursor-not-allowed"
                   disabled={count === 0 || exporting !== null}
                   title={
@@ -522,7 +521,7 @@ export default function FiltersBar({
         <div className="flex flex-col gap-1">
           <span className="text-xs t-muted">{t("filters.view")}</span>
           <div role="group" aria-label={t("filters.view")}
-            className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600/60">
+            className="flex rounded-lg overflow-hidden border border-line-strong">
             {([
               ["grid", t("filters.viewGrid"), "view.grid"],
               ["map", t("filters.viewMap"), "view.map"],
@@ -531,8 +530,8 @@ export default function FiltersBar({
                 <button key={value} data-action={action}
                   className={`px-3 py-2 text-sm font-medium transition ${
                     view === value
-                      ? "bg-blue-600 text-white"
-                      : "bg-white text-slate-500 hover:text-slate-800 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-accent text-on-solid"
+                      : "bg-control text-ink-dim hover:text-ink-strong"
                   }`}
                   onClick={() => onViewChange(value)}>
                   {label}
@@ -544,13 +543,13 @@ export default function FiltersBar({
       </div>
 
       {geocoding && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 animate-fade-in shadow-sm space-y-2">
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sunken border border-line animate-fade-in shadow-sm space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-accent-link flex items-center gap-1.5">
               <span>📍</span> {t("filters.geocodeRunning")}
             </span>
             <button data-action="maintenance.geocode.stop"
-              className="btn py-1 px-2.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
+              className="btn py-1 px-2.5 text-xs bg-negative-tint hover:bg-negative-soft text-negative-ink font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
               disabled={stoppingGeocode}
               onClick={() => {
                 // Held until the sweep itself ends rather than until this
@@ -580,7 +579,7 @@ export default function FiltersBar({
             {" "}
             <span className="opacity-75 font-normal">{t("filters.geocodePacing")}</span>
             {geocodeProgress?.last_error && (
-              <span className="block opacity-75 font-normal text-rose-600 dark:text-rose-400">
+              <span className="block opacity-75 font-normal text-negative-ink">
                 {t("filters.geocodeLastIssue", { error: geocodeProgress.last_error })}
               </span>
             )}
@@ -589,7 +588,7 @@ export default function FiltersBar({
       )}
 
       {cacheCleared !== null && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-neutral-tint border border-neutral-line text-xs text-ink-strong flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <p>
             {cacheCleared === 0
               ? t("filters.cacheClearedNone")
@@ -598,7 +597,7 @@ export default function FiltersBar({
                 })}
           </p>
           <button data-action="maintenance.cacheCleared.dismiss"
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            className="text-ink-faint hover:text-ink-strong text-base leading-none font-bold p-1"
             onClick={() => clearCache.reset()}
             title={t("common.close")}>
             ✕
@@ -607,9 +606,9 @@ export default function FiltersBar({
       )}
 
       {geocodeResult && !geocoding && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
+        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-info-tint border border-info-line text-xs text-ink-strong flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
-            <p className="font-semibold text-sky-700 dark:text-sky-400 text-sm flex items-center gap-1.5">
+            <p className="font-semibold text-info-ink-strong text-sm flex items-center gap-1.5">
               <span>📍</span> {t("filters.geocodeDone")}
             </p>
             {geocodeResult.scanned === 0 ? (
@@ -624,7 +623,7 @@ export default function FiltersBar({
                   t("filters.geocodeNotFound", { count: geocodeResult.not_found })}
                 .
                 {geocodeResult.cancelled ? (
-                  <span className="block mt-1 font-medium text-amber-600 dark:text-amber-400">
+                  <span className="block mt-1 font-medium text-caution-ink">
                     {t("filters.geocodeCancelled")}
                   </span>
                 ) : geocodeResult.remaining > 0 ? (
@@ -634,7 +633,7 @@ export default function FiltersBar({
             )}
           </div>
           <button data-action="maintenance.result.dismiss"
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
+            className="text-ink-faint hover:text-ink-strong text-base leading-none font-bold p-1"
             onClick={() => geocode.reset()}
             title={t("common.close")}>
             ✕

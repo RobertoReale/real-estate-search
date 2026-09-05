@@ -19,16 +19,16 @@ interface DayCell {
 function dayCells(days: ScraperHealthDay[]): DayCell[] {
   return days.map((day) => {
     const failures = day.blocked + day.errors;
-    let cls = "bg-emerald-500/80";
+    let cls = "bg-positive-dot";
     let state = translateCurrent("health.dayAllOk");
     if (day.attempts === 0) {
-      cls = "bg-slate-300 dark:bg-slate-700";
+      cls = "bg-neutral-dot";
       state = translateCurrent("health.dayNone");
     } else if (failures === day.attempts) {
-      cls = "bg-rose-500/90";
+      cls = "bg-negative-dot";
       state = translateCurrent("health.dayAllFailed");
     } else if (failures > 0) {
-      cls = "bg-amber-400/90";
+      cls = "bg-caution-dot";
       state = translateCurrent("health.daySomeFailed");
     }
     return {
@@ -102,7 +102,7 @@ export default function ScraperHealthPanel() {
               <h3 className="font-medium text-sm mb-2">{t("health.historyTitle")}</h3>
               <table className="w-full text-sm">
                 <thead className="t-muted text-xs text-left">
-                  <tr className="border-b border-slate-200 dark:border-slate-700/50">
+                  <tr className="border-b border-line">
                     <th className="py-2 pr-3 font-medium">{t("health.colPortal")}</th>
                     <th className="py-2 px-3 font-medium">{t("health.colDays")}</th>
                     <th className="py-2 px-3 font-medium text-right">{t("health.colScans")}</th>
@@ -114,11 +114,11 @@ export default function ScraperHealthPanel() {
                     <th className="py-2 pl-3 font-medium">{t("health.colTransport")}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="tnum">
                   {data.portals.map((p) => (
                     <tr
                       key={p.portal}
-                      className="border-b border-slate-100 dark:border-slate-800/50">
+                      className="border-b border-line-subtle">
                       <td className="py-2 pr-3 t-strong capitalize">{p.portal}</td>
                       <td className="py-2 px-3">
                         <div className="flex items-end gap-[2px]" aria-hidden={false}>
@@ -137,7 +137,7 @@ export default function ScraperHealthPanel() {
                           p.block_rate >= 0.5
                             ? "accent-bad"
                             : p.block_rate > 0
-                              ? "text-amber-600 dark:text-amber-400"
+                              ? "text-caution-ink"
                               : "accent-good"
                         }`}>
                         {(p.block_rate * 100).toFixed(0)}%

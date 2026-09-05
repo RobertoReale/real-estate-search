@@ -1,0 +1,614 @@
+/* ---------------------------------------------------------------------------
+   The design tokens. Three layers, and the order matters:
+
+   1. THE PALETTE — named ramps, in OKLCH, identical in both themes. Nothing
+      outside this file may name a ramp step.
+   2. THE ROLES — what a colour is *for*: `--surface`, `--ink-muted`,
+      `--negative-ink`. Assigned once for light in `:root` and again for dark in
+      `.dark`. Both are written out; neither is derived from the other.
+   3. THE UTILITIES — `@theme inline` hands the roles to Tailwind, which turns
+      each one into `bg-*`, `text-*`, `border-*`, `ring-*`, `fill-*`, `stroke-*`.
+
+   Layer 3 is what makes layer 2 worth having. Because `@theme inline` emits
+   `background-color: var(--surface)` rather than a literal colour, a rule set on
+   `.dark` re-points every utility in the document at once — so a component
+   writes `bg-surface` and never `bg-white dark:bg-slate-900`. There is exactly
+   one `dark:` variant left in the whole stylesheet (the Leaflet tile filter,
+   which is a filter and not a colour), and none at all in the components.
+   `src/styles/tokens.test.ts` is the gate that keeps it that way.
+
+   Contrast: every ramp below keeps the OKLCH *lightness* of the Tailwind shade
+   it replaces and changes only hue and chroma. That is deliberate — the browser
+   suite gates on axe-core at three widths, and the light-mode contrast ratios in
+   `index.css` were pinned by measurement, not by taste. Re-hueing at constant
+   lightness inherits those measurements instead of re-litigating them.
+   --------------------------------------------------------------------------- */
+
+/* === 1. THE PALETTE ====================================================== */
+
+:root {
+  /* CLAY — the neutral. Stock `slate` is a blue-grey, and against a blue accent
+     it reads as more of the same colour rather than as a background; every
+     surface in the app then leans cold. Clay carries the same lightness ramp at
+     hue ~65 (red-yellow) and roughly half slate's chroma, so it is warm enough
+     to sit under a blue accent and quiet enough never to look tinted. */
+  --clay-0: oklch(1 0 0);
+  --clay-50: oklch(0.984 0.003 75);
+  --clay-100: oklch(0.968 0.005 72);
+  --clay-200: oklch(0.929 0.008 70);
+  --clay-300: oklch(0.869 0.011 68);
+  --clay-400: oklch(0.704 0.016 66);
+  /* A half-step, and it exists for one reason: dark mode has less usable range
+     below the body text than light mode does. `--ink-dim` at clay-500 clears
+     4.5:1 on white but only reaches 3.06:1 on the darkest panel it lands on, so
+     the dark theme needs its own dimmest ink rather than the light one reused.
+     0.66 is the lowest lightness that still clears the ratio on `--sunken`. */
+  --clay-450: oklch(0.66 0.017 65);
+  --clay-500: oklch(0.554 0.018 64);
+  --clay-600: oklch(0.446 0.017 62);
+  --clay-700: oklch(0.372 0.015 60);
+  --clay-800: oklch(0.279 0.013 58);
+  --clay-900: oklch(0.208 0.011 58);
+  --clay-950: oklch(0.129 0.009 58);
+
+  /* AZURE — the accent, and only the accent. It marks what the user can act on;
+     it never says whether a number is good or bad. That is the separation the
+     three semantic ramps below exist to keep. */
+  --azure-50: oklch(0.97 0.014 256);
+  --azure-100: oklch(0.932 0.032 256);
+  --azure-200: oklch(0.882 0.059 256);
+  --azure-300: oklch(0.809 0.105 256);
+  --azure-400: oklch(0.707 0.165 257);
+  --azure-500: oklch(0.623 0.214 257);
+  --azure-600: oklch(0.546 0.245 259);
+  --azure-700: oklch(0.488 0.243 260);
+  --azure-800: oklch(0.424 0.199 261);
+  --azure-900: oklch(0.379 0.146 262);
+
+  /* SAGE / OCHRE / GARNET — the verdict ramps: positive, caution, negative. */
+  --sage-100: oklch(0.95 0.052 158);
+  --sage-200: oklch(0.905 0.093 158);
+  --sage-300: oklch(0.845 0.143 158);
+  --sage-400: oklch(0.765 0.177 158);
+  --sage-500: oklch(0.696 0.17 158);
+  --sage-600: oklch(0.596 0.145 158);
+  --sage-700: oklch(0.508 0.118 160);
+  --sage-800: oklch(0.432 0.095 161);
+
+  /* Ochre travels from yellow at the light end to orange at the dark end, the
+     way amber does: a caution that stays at one hue goes muddy once it is dark
+     enough to carry white text. */
+  --ochre-100: oklch(0.962 0.059 98);
+  --ochre-200: oklch(0.924 0.12 96);
+  --ochre-300: oklch(0.879 0.169 90);
+  --ochre-400: oklch(0.828 0.189 86);
+  --ochre-500: oklch(0.769 0.188 74);
+  --ochre-600: oklch(0.666 0.179 60);
+  --ochre-700: oklch(0.555 0.163 52);
+  --ochre-800: oklch(0.473 0.137 48);
+
+  --garnet-100: oklch(0.941 0.03 16);
+  --garnet-200: oklch(0.892 0.058 15);
+  --garnet-300: oklch(0.81 0.117 16);
+  --garnet-400: oklch(0.712 0.194 17);
+  --garnet-500: oklch(0.645 0.246 19);
+  --garnet-600: oklch(0.586 0.253 20);
+  --garnet-700: oklch(0.514 0.222 19);
+  --garnet-800: oklch(0.455 0.188 17);
+
+  /* HARBOR — informational, and distinct from the accent on purpose: a drawn
+     area or a zone note is a statement about the data, not a control. */
+  --harbor-100: oklch(0.951 0.026 236);
+  --harbor-200: oklch(0.901 0.058 235);
+  --harbor-300: oklch(0.828 0.111 234);
+  --harbor-400: oklch(0.746 0.16 234);
+  --harbor-500: oklch(0.685 0.169 237);
+  --harbor-600: oklch(0.588 0.158 242);
+  --harbor-700: oklch(0.5 0.134 243);
+
+  /* The categorical ramps. These identify a thing — a portal, a tag, a contract
+     — and carry no judgement at all. They are kept out of the semantic set so
+     that nothing can accidentally read "Idealista" as "good". */
+  --orchid-100: oklch(0.946 0.033 307);
+  --orchid-200: oklch(0.902 0.063 307);
+  --orchid-300: oklch(0.827 0.119 306);
+  --orchid-400: oklch(0.714 0.203 305);
+  --orchid-500: oklch(0.627 0.265 304);
+  --orchid-600: oklch(0.558 0.288 302);
+  --orchid-700: oklch(0.496 0.265 302);
+  --orchid-800: oklch(0.438 0.218 304);
+  --orchid-900: oklch(0.381 0.176 305);
+
+  --verdigris-100: oklch(0.953 0.051 181);
+  --verdigris-300: oklch(0.855 0.138 181);
+  --verdigris-600: oklch(0.6 0.118 185);
+  --verdigris-700: oklch(0.511 0.096 186);
+
+  --moss-100: oklch(0.967 0.067 122);
+  --moss-300: oklch(0.841 0.238 129);
+  --moss-700: oklch(0.532 0.157 132);
+
+  --gold-400: oklch(0.852 0.199 92);
+  --gold-500: oklch(0.795 0.184 86);
+}
+
+/* === 2. THE ROLES ======================================================== */
+
+/* --- light ---------------------------------------------------------------
+   Designed on its own terms: surfaces climb *towards* white as they come
+   forward (page → panel → card), so depth reads as light gathering on the
+   nearest plane. The dark theme below inverts that logic rather than the
+   values, which is why the two sets are written out separately. */
+:root {
+  --page: var(--clay-100);
+  --surface: var(--clay-0);
+  --raised: var(--clay-0);
+  /* a control with its own ground inside a panel — a segment of a view switcher,
+     a select. It is a step towards the viewer in both themes, which is why it
+     cannot be `--surface`: in dark, `--surface` is the panel it sits on. */
+  --control: var(--clay-0);
+  --sunken: var(--clay-50);
+  --sunken-strong: var(--clay-200);
+  --overlay: color-mix(in oklab, var(--clay-950) 50%, transparent);
+  --console: var(--clay-950);
+  --console-ink: var(--clay-200);
+
+  --line: var(--clay-200);
+  --line-subtle: var(--clay-100);
+  --line-strong: var(--clay-300);
+
+  /* `--ink` is the page default, set on `body`. The four below are the
+     hierarchy *within* a panel, and they start one step softer on purpose: a
+     panel that opens at full strength competes with the page it sits on. */
+  --ink: var(--clay-900);
+  --ink-strong: var(--clay-800);
+  --ink-body: var(--clay-700);
+  --ink-muted: var(--clay-600);
+  --ink-dim: var(--clay-500);
+  /* `--ink-faint` is a glyph the user is meant to find but not read — a dismiss
+     ×, a disabled caret. It holds the same step in both themes on purpose: it
+     lands on tinted callouts where a darker dark-mode value drops under 4.5:1
+     and turns the axe gate red. `--ink-hint` is placeholder text, which may go
+     quieter in dark because it sits on a field, not on a tint. */
+  --ink-faint: var(--clay-400);
+  --ink-hint: var(--clay-400);
+  --on-solid: var(--clay-0);
+
+  --accent: var(--azure-600);
+  --accent-hover: var(--azure-700);
+  --accent-active: var(--azure-800);
+  --accent-deep: var(--azure-700);
+  /* 700 rather than 600 for text: an accent-coloured number sits on a near-white
+     panel, where azure-600 measures under 4.5:1 and azure-700 clears it. */
+  --accent-ink: var(--azure-700);
+  --accent-link: var(--azure-600);
+  --accent-soft: var(--azure-100);
+  --accent-tint: color-mix(in oklab, var(--azure-500) 10%, transparent);
+  --accent-line: color-mix(in oklab, var(--azure-500) 50%, transparent);
+  --accent-ring: color-mix(in oklab, var(--azure-500) 60%, transparent);
+  --accent-graph: var(--azure-500);
+  --accent-graph-point: var(--azure-600);
+
+  /* Every `*-ink` below is the 700 step, never the 600 one. A verdict colour is
+     read at 11px on a near-white card or on its own 100-step chip, and the 600
+     step measures between 2.9:1 and 4.1:1 there — under the 4.5:1 the browser
+     suite gates on. 700 is the first step in each ramp that clears it. */
+  --positive: var(--sage-700);
+  --positive-dot: color-mix(in oklab, var(--sage-500) 80%, transparent);
+  --positive-ink: var(--sage-700);
+  --positive-soft: var(--sage-100);
+  --positive-tint: color-mix(in oklab, var(--sage-500) 10%, transparent);
+  --positive-line: color-mix(in oklab, var(--sage-500) 40%, transparent);
+
+  --caution: var(--ochre-700);
+  --caution-dot: color-mix(in oklab, var(--ochre-400) 90%, transparent);
+  --caution-ink: var(--ochre-700);
+  --caution-ink-strong: var(--ochre-800);
+  --caution-soft: var(--ochre-100);
+  --caution-tint: color-mix(in oklab, var(--ochre-500) 10%, transparent);
+  --caution-line: color-mix(in oklab, var(--ochre-500) 30%, transparent);
+
+  --negative: var(--garnet-600);
+  --negative-hover: var(--garnet-700);
+  --negative-deep: var(--garnet-700);
+  --negative-dot: color-mix(in oklab, var(--garnet-500) 90%, transparent);
+  --negative-veil: color-mix(in oklab, var(--garnet-600) 80%, transparent);
+  --negative-ink: var(--garnet-700);
+  --negative-ink-strong: var(--garnet-800);
+  --negative-soft: var(--garnet-100);
+  --negative-tint: color-mix(in oklab, var(--garnet-500) 10%, transparent);
+  --negative-line: color-mix(in oklab, var(--garnet-500) 50%, transparent);
+  --negative-line-soft: color-mix(in oklab, var(--garnet-300) 40%, transparent);
+
+  --info: var(--harbor-700);
+  --info-ink: var(--harbor-700);
+  --info-ink-strong: var(--harbor-700);
+  --info-soft: var(--harbor-100);
+  --info-tint: color-mix(in oklab, var(--harbor-500) 10%, transparent);
+  --info-tint-strong: color-mix(in oklab, var(--harbor-500) 20%, transparent);
+  --info-line: color-mix(in oklab, var(--harbor-500) 30%, transparent);
+  --info-marker: var(--harbor-400);
+
+  --neutral-solid: var(--clay-700);
+  --neutral-dot: var(--clay-300);
+  --neutral-ink: var(--clay-600);
+  --neutral-soft: var(--clay-200);
+  --neutral-tint: color-mix(in oklab, var(--clay-500) 10%, transparent);
+  --neutral-line: color-mix(in oklab, var(--clay-500) 30%, transparent);
+
+  --tag: var(--orchid-700);
+  --tag-ink: var(--orchid-700);
+  --tag-ink-strong: var(--orchid-800);
+  --tag-soft: var(--orchid-100);
+  --tag-line: var(--orchid-200);
+
+  --rent: var(--verdigris-600);
+  --rent-deep: var(--verdigris-700);
+  --rent-ink: var(--verdigris-700);
+  --rent-soft: var(--verdigris-100);
+
+  --favorite: color-mix(in oklab, var(--gold-500) 90%, transparent);
+  --favorite-soft: color-mix(in oklab, var(--gold-500) 70%, transparent);
+  --favorite-ink: var(--gold-500);
+
+  --portal-immobiliare: var(--azure-700);
+  --portal-immobiliare-soft: var(--azure-100);
+  --portal-immobiliare-ink: var(--azure-700);
+  --portal-idealista: var(--moss-700);
+  --portal-idealista-soft: var(--moss-100);
+  --portal-idealista-ink: var(--moss-700);
+
+  /* the scrim under a control floating over a photograph, and the hairline that
+     keeps a map marker readable against a tile of any colour */
+  --veil: color-mix(in oklab, var(--clay-0) 80%, transparent);
+  --hairline: color-mix(in oklab, var(--clay-0) 70%, transparent);
+  --wash: color-mix(in oklab, var(--clay-950) 10%, transparent);
+
+  /* Elevation. Light needs a cast shadow because the surface is lighter than
+     what is behind it. */
+  --shadow-e1: 0 1px 2px 0 color-mix(in oklab, var(--clay-950) 6%, transparent);
+  --shadow-e2:
+    0 4px 6px -1px color-mix(in oklab, var(--clay-950) 8%, transparent),
+    0 2px 4px -2px color-mix(in oklab, var(--clay-950) 6%, transparent);
+  --shadow-e3:
+    0 12px 20px -6px color-mix(in oklab, var(--clay-950) 12%, transparent),
+    0 4px 8px -4px color-mix(in oklab, var(--clay-950) 8%, transparent);
+  --shadow-accent: 0 8px 16px -6px color-mix(in oklab, var(--azure-600) 35%, transparent);
+
+  --page-glow-a: color-mix(in oklab, var(--azure-500) 7%, transparent);
+  --page-glow-b: color-mix(in oklab, var(--orchid-500) 5%, transparent);
+}
+
+/* --- dark ----------------------------------------------------------------
+   Not the light theme inverted. Two things change shape rather than value:
+   surfaces climb *away* from black as they come forward, and elevation stops
+   being a cast shadow — a shadow on a dark ground is invisible — and becomes a
+   lighter surface plus a brighter edge. The verdict ramps also move a step or
+   two towards their light end, because saturated mid-tones that read as
+   confident on white read as neon on charcoal. */
+.dark {
+  --page: var(--clay-950);
+  --surface: var(--clay-900);
+  --raised: var(--clay-900);
+  --control: color-mix(in oklab, var(--clay-800) 80%, transparent);
+  --sunken: var(--clay-800);
+  --sunken-strong: var(--clay-800);
+  --overlay: color-mix(in oklab, var(--clay-950) 70%, transparent);
+  --console: var(--clay-950);
+  --console-ink: var(--clay-200);
+
+  --line: color-mix(in oklab, var(--clay-700) 60%, transparent);
+  --line-subtle: color-mix(in oklab, var(--clay-800) 50%, transparent);
+  --line-strong: color-mix(in oklab, var(--clay-600) 60%, transparent);
+
+  --ink: var(--clay-100);
+  --ink-strong: var(--clay-200);
+  --ink-body: var(--clay-300);
+  --ink-muted: var(--clay-400);
+  /* Not clay-500, the light theme's value: see the note on `--clay-450`. The
+     gap between this and `--ink-muted` is narrower here than it is in light,
+     which is the honest consequence of a dark ground rather than an oversight —
+     dim and muted are simply closer together when the floor is 4.5:1. */
+  --ink-dim: var(--clay-450);
+  --ink-faint: var(--clay-400);
+  /* Placeholder text only, which the contrast rules exempt. */
+  --ink-hint: var(--clay-500);
+  --on-solid: var(--clay-0);
+
+  --accent: var(--azure-600);
+  --accent-hover: var(--azure-700);
+  --accent-active: var(--azure-800);
+  --accent-deep: var(--azure-700);
+  --accent-ink: var(--azure-300);
+  --accent-link: var(--azure-400);
+  --accent-soft: color-mix(in oklab, var(--azure-500) 20%, transparent);
+  --accent-tint: color-mix(in oklab, var(--azure-500) 20%, transparent);
+  --accent-line: color-mix(in oklab, var(--azure-500) 50%, transparent);
+  --accent-ring: color-mix(in oklab, var(--azure-500) 60%, transparent);
+  --accent-graph: var(--azure-400);
+  --accent-graph-point: var(--azure-300);
+
+  --positive: var(--sage-700);
+  --positive-dot: color-mix(in oklab, var(--sage-500) 80%, transparent);
+  --positive-ink: var(--sage-400);
+  --positive-soft: color-mix(in oklab, var(--sage-500) 20%, transparent);
+  --positive-tint: color-mix(in oklab, var(--sage-500) 10%, transparent);
+  --positive-line: color-mix(in oklab, var(--sage-500) 40%, transparent);
+
+  --caution: var(--ochre-700);
+  --caution-dot: color-mix(in oklab, var(--ochre-400) 90%, transparent);
+  --caution-ink: var(--ochre-400);
+  --caution-ink-strong: var(--ochre-200);
+  --caution-soft: color-mix(in oklab, var(--ochre-500) 20%, transparent);
+  --caution-tint: color-mix(in oklab, var(--ochre-500) 10%, transparent);
+  --caution-line: color-mix(in oklab, var(--ochre-500) 30%, transparent);
+
+  --negative: var(--garnet-600);
+  --negative-hover: var(--garnet-700);
+  --negative-deep: var(--garnet-700);
+  --negative-dot: color-mix(in oklab, var(--garnet-500) 90%, transparent);
+  --negative-veil: color-mix(in oklab, var(--garnet-600) 80%, transparent);
+  --negative-ink: var(--garnet-400);
+  --negative-ink-strong: var(--garnet-200);
+  --negative-soft: color-mix(in oklab, var(--garnet-500) 20%, transparent);
+  --negative-tint: color-mix(in oklab, var(--garnet-500) 10%, transparent);
+  --negative-line: color-mix(in oklab, var(--garnet-500) 50%, transparent);
+  --negative-line-soft: color-mix(in oklab, var(--garnet-800) 40%, transparent);
+
+  --info: var(--harbor-700);
+  --info-ink: var(--harbor-400);
+  --info-ink-strong: var(--harbor-400);
+  --info-soft: color-mix(in oklab, var(--harbor-500) 20%, transparent);
+  --info-tint: color-mix(in oklab, var(--harbor-500) 20%, transparent);
+  --info-tint-strong: color-mix(in oklab, var(--harbor-500) 20%, transparent);
+  --info-line: color-mix(in oklab, var(--harbor-500) 30%, transparent);
+  --info-marker: var(--harbor-400);
+
+  --neutral-solid: var(--clay-700);
+  --neutral-dot: var(--clay-700);
+  --neutral-ink: var(--clay-300);
+  --neutral-soft: color-mix(in oklab, var(--clay-500) 20%, transparent);
+  --neutral-tint: color-mix(in oklab, var(--clay-500) 20%, transparent);
+  --neutral-line: color-mix(in oklab, var(--clay-500) 30%, transparent);
+
+  --tag: var(--orchid-700);
+  --tag-ink: var(--orchid-400);
+  --tag-ink-strong: var(--orchid-300);
+  --tag-soft: color-mix(in oklab, var(--orchid-900) 40%, transparent);
+  --tag-line: var(--orchid-800);
+
+  --rent: var(--verdigris-600);
+  --rent-deep: var(--verdigris-700);
+  --rent-ink: var(--verdigris-300);
+  --rent-soft: color-mix(in oklab, var(--verdigris-600) 20%, transparent);
+
+  --favorite: color-mix(in oklab, var(--gold-500) 90%, transparent);
+  --favorite-soft: color-mix(in oklab, var(--gold-500) 70%, transparent);
+  --favorite-ink: var(--gold-400);
+
+  --portal-immobiliare: var(--azure-700);
+  --portal-immobiliare-soft: color-mix(in oklab, var(--azure-500) 20%, transparent);
+  --portal-immobiliare-ink: var(--azure-300);
+  --portal-idealista: var(--moss-700);
+  --portal-idealista-soft: color-mix(in oklab, var(--moss-300) 20%, transparent);
+  --portal-idealista-ink: var(--moss-300);
+
+  --veil: color-mix(in oklab, var(--clay-900) 60%, transparent);
+  --hairline: color-mix(in oklab, var(--clay-0) 70%, transparent);
+  --wash: color-mix(in oklab, var(--clay-0) 10%, transparent);
+
+  --shadow-e1: 0 0 0 1px color-mix(in oklab, var(--clay-0) 4%, transparent);
+  --shadow-e2:
+    0 0 0 1px color-mix(in oklab, var(--clay-0) 5%, transparent),
+    0 8px 16px -8px color-mix(in oklab, var(--clay-950) 80%, transparent);
+  --shadow-e3:
+    0 0 0 1px color-mix(in oklab, var(--clay-0) 6%, transparent),
+    0 16px 32px -12px color-mix(in oklab, var(--clay-950) 90%, transparent);
+  --shadow-accent: 0 8px 16px -6px color-mix(in oklab, var(--azure-600) 45%, transparent);
+
+  --page-glow-a: color-mix(in oklab, var(--azure-500) 15%, transparent);
+  --page-glow-b: color-mix(in oklab, var(--orchid-500) 8%, transparent);
+}
+
+/* === 3. THE UTILITIES ==================================================== */
+
+/* `inline` is load-bearing: it makes Tailwind emit `var(--surface)` into the
+   utility instead of copying the resolved colour, which is what lets the `.dark`
+   block above re-point every one of them without a single `dark:` variant. */
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-control: var(--control);
+  --color-sunken: var(--sunken);
+  --color-sunken-strong: var(--sunken-strong);
+  --color-overlay: var(--overlay);
+  --color-console: var(--console);
+  --color-console-ink: var(--console-ink);
+  --color-veil: var(--veil);
+  --color-hairline: var(--hairline);
+  --color-wash: var(--wash);
+
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-body: var(--ink-body);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-hint: var(--ink-hint);
+  --color-on-solid: var(--on-solid);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-link: var(--accent-link);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-line: var(--accent-line);
+  --color-accent-ring: var(--accent-ring);
+  --color-accent-graph: var(--accent-graph);
+  --color-accent-graph-point: var(--accent-graph-point);
+
+  --color-positive: var(--positive);
+  --color-positive-dot: var(--positive-dot);
+  --color-positive-ink: var(--positive-ink);
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-tint: var(--positive-tint);
+  --color-positive-line: var(--positive-line);
+
+  --color-caution: var(--caution);
+  --color-caution-dot: var(--caution-dot);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-ink-strong: var(--caution-ink-strong);
+  --color-caution-soft: var(--caution-soft);
+  --color-caution-tint: var(--caution-tint);
+  --color-caution-line: var(--caution-line);
+
+  --color-negative: var(--negative);
+  --color-negative-hover: var(--negative-hover);
+  --color-negative-deep: var(--negative-deep);
+  --color-negative-dot: var(--negative-dot);
+  --color-negative-veil: var(--negative-veil);
+  --color-negative-ink: var(--negative-ink);
+  --color-negative-ink-strong: var(--negative-ink-strong);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-tint: var(--negative-tint);
+  --color-negative-line: var(--negative-line);
+  --color-negative-line-soft: var(--negative-line-soft);
+
+  --color-info: var(--info);
+  --color-info-ink: var(--info-ink);
+  --color-info-ink-strong: var(--info-ink-strong);
+  --color-info-soft: var(--info-soft);
+  --color-info-tint: var(--info-tint);
+  --color-info-tint-strong: var(--info-tint-strong);
+  --color-info-line: var(--info-line);
+  --color-info-marker: var(--info-marker);
+
+  --color-neutral-solid: var(--neutral-solid);
+  --color-neutral-dot: var(--neutral-dot);
+  --color-neutral-ink: var(--neutral-ink);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-tint: var(--neutral-tint);
+  --color-neutral-line: var(--neutral-line);
+
+  --color-tag: var(--tag);
+  --color-tag-ink: var(--tag-ink);
+  --color-tag-ink-strong: var(--tag-ink-strong);
+  --color-tag-soft: var(--tag-soft);
+  --color-tag-line: var(--tag-line);
+
+  --color-rent: var(--rent);
+  --color-rent-deep: var(--rent-deep);
+  --color-rent-ink: var(--rent-ink);
+  --color-rent-soft: var(--rent-soft);
+
+  --color-favorite: var(--favorite);
+  --color-favorite-soft: var(--favorite-soft);
+  --color-favorite-ink: var(--favorite-ink);
+
+  --color-portal-immobiliare: var(--portal-immobiliare);
+  --color-portal-immobiliare-soft: var(--portal-immobiliare-soft);
+  --color-portal-immobiliare-ink: var(--portal-immobiliare-ink);
+  --color-portal-idealista: var(--portal-idealista);
+  --color-portal-idealista-soft: var(--portal-idealista-soft);
+  --color-portal-idealista-ink: var(--portal-idealista-ink);
+
+  --shadow-e1: var(--shadow-e1);
+  --shadow-e2: var(--shadow-e2);
+  --shadow-e3: var(--shadow-e3);
+  --shadow-accent: var(--shadow-accent);
+}
+
+@theme {
+  /* --- type ------------------------------------------------------------
+     A pairing, not a font. `--font-display` is an old-style serif and
+     `--font-sans` a humanist grotesque; neither is the operating system's
+     default UI face on its own, and the contrast between them is what stops
+     a heading from reading as "the same text, larger". Both chains resolve
+     locally on Windows, macOS and Linux, which matters twice over: the
+     browser suite is forbidden from reaching the network (A.2), and a
+     webfont that arrives late reflows the layout the suite is measuring.
+
+     The display face is scoped to `h1`/`h2` in `index.css` and nowhere else.
+     A serif is worth its width on a handful of large, short headings; on the
+     card titles and the dense rows it would cost legibility for decoration. */
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia,
+    "Times New Roman", serif;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue",
+    "Liberation Sans", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+
+  /* The scale. `xs`–`base` keep the metrics the dense screens are already
+     laid out on: this task owns the vocabulary, not the layout, and moving
+     the body leading mid-cycle would reflow every row the browser suite
+     measures for overflow. What is designed here is the two ends. Below
+     `xs`, the app had been reaching for `text-[10px]` and `text-[11px]`
+     arbitrary values — 39 of them, all of them a scale step that did not
+     exist yet. Above `base`, the steps run on a 1.2 ratio with tracking that
+     tightens as the size grows, because letter-spacing that reads as normal
+     at 14px reads as loose at 30. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+  --text-3xs--letter-spacing: 0.02em;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.01em;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.5rem;
+  --text-lg--letter-spacing: -0.005em;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.6875rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 1.5625rem;
+  --text-2xl--line-height: 1.9375rem;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-3xl--letter-spacing: -0.02em;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+  --text-4xl--letter-spacing: -0.025em;
+
+  /* --- space ------------------------------------------------------------
+     A 4px base, stated rather than inherited. The named steps are the two
+     measurements that were being retyped as numbers and drifting: the
+     fingertip target, and the inset a panel keeps from its own border. */
+  --spacing: 0.25rem;
+  --spacing-touch: 2.75rem;
+  --spacing-inset: 1rem;
+  --spacing-gutter: 1.5rem;
+
+  /* --- radius -----------------------------------------------------------
+     Named after what they wrap, so a control and the card it sits in cannot
+     drift apart the way six near-identical buttons did. */
+  --radius-chip: 0.5rem;
+  --radius-control: 0.5rem;
+  --radius-card: 0.875rem;
+  --radius-surface: 1rem;
+  --radius-pill: 9999px;
+}
+
+/* === utilities the tokens carry ========================================== */
+
+/* Digits that line up in a column must be the same width, or the eye cannot
+   compare them without reading them. Every price, every €/m², every count in a
+   table and every measured number in the Insights panels gets this. It is a
+   utility rather than a base rule on `body` because proportional figures are
+   the better choice inside a sentence, which is most of the app's text; and
+   `@utility` rather than a plain class so `index.css` can `@apply` it. */
+@utility tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+}

@@ -378,7 +378,7 @@ export default function MapView({
           {t("map.onMap", { shown: geolocated.length, total: properties.length })}
           {missing > 0 && (
             <span
-              className="ml-2 text-xs chip-amber px-2 py-0.5 rounded-lg"
+              className="ml-2 text-xs chip-caution px-2 py-0.5 rounded-lg"
               title={t("map.missingTitle")}>
               {t("map.missing", { count: missing })}
             </span>
@@ -387,7 +387,7 @@ export default function MapView({
         <div className="flex flex-wrap gap-3 text-xs t-muted">
           {legend.map((kind) => (
             <span key={kind} className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full border border-white/70"
+              <span className="w-3 h-3 rounded-full border border-hairline"
                 style={{ background: PIN_STYLE[kind].color }} />
               {t(PIN_STYLE[kind].label)}
             </span>
@@ -407,14 +407,14 @@ export default function MapView({
         <button data-action="map.drawRadius"
           type="button"
           onClick={drawMode === "radius" ? cancelDrawing : startRadius}
-          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-sky-400" : ""}`}
+          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-info-marker" : ""}`}
           title={t("map.drawRadiusTitle")}>
           {t(drawMode === "radius" ? "map.drawingRadius" : "map.drawRadius")}
         </button>
         <button data-action="map.drawArea"
           type="button"
           onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
-          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-sky-400" : ""}`}
+          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-info-marker" : ""}`}
           title={t("map.drawAreaTitle")}>
           {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
         </button>
@@ -432,7 +432,7 @@ export default function MapView({
           </button>
         )}
         {hasZone && (
-          <span className="text-xs chip-sky px-2 py-0.5 rounded-lg">
+          <span className="text-xs chip-info px-2 py-0.5 rounded-lg">
             {activeGeo.geo_mode === "radius"
               ? t("map.radiusActive", {
                   km: (Number(activeGeo.radius_m) / 1000).toFixed(2),
@@ -445,7 +445,7 @@ export default function MapView({
       {/* The mandatory caveat: a geographic filter silently drops every property
           without coordinates. Keep it loud whenever a zone is active. */}
       {hasZone && missing > 0 && (
-        <div className="text-xs rounded-lg chip-amber px-3 py-2 flex flex-wrap items-center gap-2">
+        <div className="text-xs rounded-lg chip-caution px-3 py-2 flex flex-wrap items-center gap-2">
           <span>
             {t(missing === 1 ? "map.zoneWarningOne" : "map.zoneWarning", { count: missing })}
           </span>

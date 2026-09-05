@@ -55,8 +55,8 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
       onBlur={closeOnBlur}>
       {tags.map((t) => (
         <span key={t.id}
-          className={`inline-flex items-center gap-1 rounded-full bg-slate-200 text-slate-700
-            dark:bg-slate-700 dark:text-slate-200 ${compact ? "text-[10px] px-2 py-0.5" : "text-xs px-2.5 py-1"}`}>
+          className={`inline-flex items-center gap-1 rounded-full bg-neutral-soft text-ink-body
+            ${compact ? "text-3xs px-2 py-0.5" : "text-xs px-2.5 py-1"}`}>
           {t.name}
           <button data-action="tags.remove" type="button" className="opacity-60 hover:opacity-100"
             title={translate("tags.removeTag", { name: t.name })}
@@ -68,9 +68,9 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
       ))}
       {!open && (
         <button data-action="tags.add" type="button"
-          className={`rounded-full border border-dashed border-slate-400 text-slate-500
-            dark:border-slate-500 dark:text-slate-400 hover:border-blue-500 hover:text-blue-500
-            ${compact ? "text-[10px] px-2 py-0.5" : "text-xs px-2.5 py-1"}`}
+          className={`rounded-full border border-dashed border-line-strong text-ink-dim
+            hover:border-accent-line hover:text-accent
+            ${compact ? "text-3xs px-2 py-0.5" : "text-xs px-2.5 py-1"}`}
           title={translate("tags.addTag")} aria-label={translate("tags.addTag")}
           onClick={() => setOpen(true)}>
           {translate("tags.addTagButton")}
@@ -94,14 +94,14 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
               glass shadow-lg p-1">
               {suggestions.map((t) => (
                 <button data-action="tags.suggest" key={t.id} type="button"
-                  className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-blue-500/20"
+                  className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-accent-tint"
                   onClick={() => commit(t.name)}>
                   {t.name}
                 </button>
               ))}
               {trimmed && !exactMatch && (
                 <button data-action="tags.create" type="button"
-                  className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-blue-500/20 font-medium"
+                  className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-accent-tint font-medium"
                   onClick={() => commit(trimmed)}>
                   {translate("tags.create", { name: trimmed })}
                 </button>

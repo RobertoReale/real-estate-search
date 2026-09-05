@@ -56,8 +56,8 @@ export function MarketBadge({ property: p }: { property: Property }) {
   const pct = Math.abs(p.sqm_price_delta_pct).toFixed(0);
   return (
     <span
-      className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
-        below ? "chip-emerald" : "chip-amber"
+      className={`text-2xs font-semibold px-2 py-0.5 rounded-lg ${
+        below ? "chip-positive" : "chip-caution"
       }`}
       title={t("card.medianIn", {
         scope,
@@ -74,9 +74,9 @@ export function MarketBadge({ property: p }: { property: Property }) {
 export function MatchBadge({ score }: { score: number | null }) {
   const t = useT();
   if (score === null || score === undefined) return null;
-  const chip = score >= 80 ? "chip-emerald" : score >= 50 ? "chip-amber" : "chip-slate";
+  const chip = score >= 80 ? "chip-positive" : score >= 50 ? "chip-caution" : "chip-neutral";
   return (
-    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${chip}`}
+    <span className={`text-2xs font-semibold px-2 py-0.5 rounded-lg ${chip}`}
       title={t("card.matchBadgeTitle")}>
       {t("card.matchBadge", { score })}
     </span>
@@ -107,8 +107,8 @@ export function DealBadge({ property: p }: { property: Property }) {
   const under = p.deal_label === "undervalued";
   return (
     <span
-      className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg ${
-        under ? "chip-emerald" : "chip-amber"
+      className={`text-2xs font-semibold px-2 py-0.5 rounded-lg ${
+        under ? "chip-positive" : "chip-caution"
       }`}
       title={(p.deal_reasons ?? []).join(" · ") || t("card.dealScore")}>
       {t(under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
@@ -145,22 +145,22 @@ export default function PropertyCard({
       // inside it compete for the same activation. The keyboard route is the
       // title button below instead, which announces the listing and opens it.
       aria-label={p.title || t("card.untitled")}
-      className={`glass rounded-2xl overflow-hidden cursor-pointer group hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-200 hover:-translate-y-0.5 ${
-        selected ? "ring-2 ring-blue-500 border-blue-500" : ""
+      className={`glass rounded-2xl overflow-hidden cursor-pointer group hover:border-accent-line hover:shadow-e3 transition-all duration-200 hover:-translate-y-0.5 ${
+        selected ? "ring-2 ring-accent border-accent" : ""
       }`}>
       {/* A ratio, not a height: the box is the same shape whatever the card is
           wide, and it is reserved before the image arrives. A portal's signed
           image URL expires often enough that the fallback is a normal state
           rather than an edge case, and neither a slow load nor a dead link may
           move the rows below it. */}
-      <div className="relative aspect-[4/3] bg-slate-200 dark:bg-slate-800 overflow-hidden">
+      <div className="relative aspect-[4/3] bg-sunken-strong overflow-hidden">
         {p.image_url && !imgBroken ? (
           <img src={p.image_url} alt={p.title} loading="lazy" decoding="async"
             onError={() => setImgBroken(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center
-            text-slate-400 dark:text-slate-600">
+            text-ink-faint">
             {/* Drawn rather than typed: an emoji renders as a different picture
                 on every platform and cannot be sized or coloured to match the
                 box it sits in. */}
@@ -185,7 +185,7 @@ export default function PropertyCard({
         <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 pr-28 sm:pr-24">
           {isNew && (
             <span
-              className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-700 text-white"
+              className="text-3xs font-bold uppercase px-2 py-0.5 rounded bg-portal-immobiliare text-on-solid"
               title={t("card.newTitle")}>
               {t("card.new")}
             </span>
@@ -194,17 +194,17 @@ export default function PropertyCard({
             <PortalBadge key={portal} portal={portal} variant="overlay" />
           ))}
           {p.contract === "rent" && (
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-teal-700 text-white">
+            <span className="text-3xs font-bold uppercase px-2 py-0.5 rounded bg-rent-deep text-on-solid">
               {t("card.rent")}
             </span>
           )}
           {p.listings.length > 1 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-700 text-white">
+            <span className="text-3xs font-bold px-2 py-0.5 rounded bg-tag text-on-solid">
               {t("card.mergedListings", { count: p.listings.length })}
             </span>
           )}
           {p.source === "email" && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-700 text-white"
+            <span className="text-3xs font-bold px-2 py-0.5 rounded bg-info text-on-solid"
               title={t("card.emailTitle")}>
               {t("card.email")}
             </span>
@@ -219,8 +219,8 @@ export default function PropertyCard({
               type="button"
               className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center justify-center text-sm transition btn-focus ${
                 selected
-                  ? "bg-blue-600 text-white shadow"
-                  : "bg-white/80 text-slate-400 dark:bg-slate-900/60 dark:text-slate-500 hover:text-blue-500"
+                  ? "bg-accent text-on-solid shadow"
+                  : "bg-veil text-ink-faint hover:text-accent"
               }`}
               title={selected ? t("card.deselect") : t("card.selectForBatch")}
               onClick={onToggleSelect}>
@@ -231,8 +231,8 @@ export default function PropertyCard({
             className={`w-9 h-9 sm:w-7 sm:h-7 rounded-lg backdrop-blur flex items-center
               justify-center text-sm transition btn-focus ${
                 p.is_favorite
-                  ? "bg-yellow-500/90 text-white"
-                  : "bg-white/80 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300 hover:bg-yellow-500/70 hover:text-white dark:hover:bg-yellow-500/70 dark:hover:text-white"
+                  ? "bg-favorite text-on-solid"
+                  : "bg-veil text-ink-body hover:bg-favorite-soft hover:text-on-solid"
               }`}
             title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
             aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
@@ -241,9 +241,8 @@ export default function PropertyCard({
           </button>
           {p.status !== "hidden" && (
             <button data-action="property.hide"
-              className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-white/80 text-slate-600
-                dark:bg-slate-900/60 dark:text-slate-300 backdrop-blur hover:bg-rose-600/80
-                hover:text-white dark:hover:bg-rose-600/80 dark:hover:text-white flex
+              className="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-veil text-ink-body
+                backdrop-blur hover:bg-negative-veil hover:text-on-solid flex
                 items-center justify-center text-sm transition btn-focus"
               title={t("card.hideTitle")}
               aria-label={t("card.hideAria")}
@@ -255,22 +254,22 @@ export default function PropertyCard({
 
         <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
           {drop !== null && (
-            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-emerald-700 text-white">
+            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-positive text-on-solid">
               📉 {drop.toFixed(1)}%
             </span>
           )}
           {p.status === "filtered" && (
-            <span className="text-xs px-2 py-1 rounded-lg bg-rose-700 text-white">
+            <span className="text-xs px-2 py-1 rounded-lg bg-negative-deep text-on-solid">
               {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
             </span>
           )}
           {p.status === "gone" && (
-            <span className="text-xs px-2 py-1 rounded-lg bg-slate-700 text-white">
+            <span className="text-xs px-2 py-1 rounded-lg bg-neutral-solid text-on-solid">
               {t("card.noLongerAvailable")}
             </span>
           )}
           {p.status === "sold" && (
-            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-700 text-white">
+            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-caution text-on-solid">
               {t(p.contract === "rent" ? "card.rentedOut" : "card.sold")}
             </span>
           )}
@@ -283,7 +282,7 @@ export default function PropertyCard({
             {formatPrice(p.current_min_price, p.contract)}
           </span>
           {sqmPrice && (
-            <span className="text-xs t-muted">
+            <span className="text-xs t-muted tnum">
               {t("common.sqmPrice", { value: formatNumber(sqmPrice) })}
             </span>
           )}

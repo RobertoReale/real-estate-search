@@ -438,18 +438,18 @@ export default function App() {
             {!hasProfiles && (
               <ol className="mt-4 text-sm text-left max-w-md mx-auto space-y-2">
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">1</span>
+                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">1</span>
                   <span>
                     {t("app.step1")}{" "}
                     <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
                   </span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">2</span>
+                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">2</span>
                   <span>{t("app.step2")}</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-blue text-xs flex items-center justify-center font-bold">3</span>
+                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">3</span>
                   <span>{t("app.step3")}</span>
                 </li>
               </ol>
@@ -469,8 +469,8 @@ export default function App() {
                   type="button"
                   className={`btn-ghost text-xs px-3 py-1.5 rounded-lg border transition ${
                     selectionMode
-                      ? "bg-blue-600 text-white border-blue-600 shadow"
-                      : "border-slate-200 dark:border-slate-700 hover:border-blue-500"
+                      ? "bg-accent text-on-solid border-accent shadow-e1"
+                      : "border-line hover:border-accent-line"
                   }`}
                   onClick={() => {
                     setSelectionMode(!selectionMode);
@@ -493,7 +493,7 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button data-action="selection.hide"
                     type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-negative-line hover:text-negative-ink flex items-center gap-1.5"
                     disabled={checkingBatch}
                     title={t("app.hideSelectedTitle")}
                     onClick={() => bulkAction("hide")}>
@@ -501,21 +501,21 @@ export default function App() {
                   </button>
                   <button data-action="selection.markSold"
                     type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("sold")}>
                     {t("app.markSold", { count: selectedIds.size })}
                   </button>
                   <button data-action="selection.favorite"
                     type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
                     {t("app.addFavorites")}
                   </button>
                   <button data-action="selection.unfavorite"
                     type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1.5"
+                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("unfavorite")}>
                     {t("app.removeFavorites")}
@@ -532,7 +532,7 @@ export default function App() {
                   {checkingBatch && (
                     <button data-action="selection.stopCheck"
                       type="button"
-                      className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5"
+                      className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-negative-line hover:text-negative-ink flex items-center gap-1.5"
                       disabled={cancellingBatch}
                       onClick={stopCheckingProperties}>
                       {cancellingBatch ? t("app.stopping") : t("app.stop")}
@@ -544,7 +544,7 @@ export default function App() {
 
             {checkingBatch && (
               <ProgressBar
-                className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50"
+                className="pt-2 border-t border-line"
                 done={batchProgress?.done ?? 0}
                 total={batchProgress?.total ?? 0}
                 indeterminate={!batchProgress || batchProgress.total <= 0}>
@@ -574,13 +574,13 @@ export default function App() {
             )}
 
             {batchSummary && !checkingBatch && (
-              <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 text-xs t-muted flex items-center justify-between">
+              <div className="pt-2 border-t border-line text-xs t-muted flex items-center justify-between">
                 <div>
                   {t("app.summaryChecked")} <strong>{batchSummary.checked}</strong> |{" "}
-                  <span className="text-rose-600 dark:text-rose-400 font-bold">
+                  <span className="text-negative-ink font-bold">
                     {t("app.summaryGone", { count: batchSummary.gone })}
                   </span> |{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span className="text-positive-ink font-semibold">
                     {t("app.summaryOnline", { count: batchSummary.online })}
                   </span>
                   {batchSummary.unknown > 0 && t("app.summaryUnknown", { count: batchSummary.unknown })}
@@ -588,7 +588,7 @@ export default function App() {
                     <span className="block">{t("app.summaryCancelled")}</span>
                   )}
                   {batchSummary.aborted && !batchSummary.cancelled && (
-                    <span className="block text-amber-600 dark:text-amber-400">
+                    <span className="block text-caution-ink">
                       {t("app.summaryAborted")}
                       {batchSummary.transport && batchSummary.transport.includes("forced") && (
                         <span className="block font-normal opacity-90">

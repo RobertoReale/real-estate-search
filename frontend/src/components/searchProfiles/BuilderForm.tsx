@@ -22,7 +22,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
             <span className="text-xs t-muted">{t("profiles.understood")}</span>
             {assistant.interpretation.map((part) => (
               <span key={part}
-                className="text-xs chip-emerald px-2 py-1 rounded-lg font-medium">
+                className="text-xs chip-positive px-2 py-1 rounded-lg font-medium">
                 {part}
               </span>
             ))}
@@ -37,7 +37,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           ))}
           {assistant.warnings.map((warning) => (
             <p key={warning}
-              className="text-xs text-amber-600 dark:text-amber-400">
+              className="text-xs text-caution-ink">
               ⚠️ {warning}
             </p>
           ))}
@@ -146,7 +146,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
 
       {/* The full-power escape hatch, kept next to the filters so it is
           found exactly when the user reaches for a filter that isn't here. */}
-      <p className="text-xs rounded-lg px-3 py-2 chip-blue">
+      <p className="text-xs rounded-lg px-3 py-2 chip-accent">
         {t("profiles.builderTipPrefix")}
         <button data-action="profiles.builder.toUrlTip" className="underline font-medium"
           onClick={() => setMode("url")}>{t("profiles.builderTipLink")}</button>

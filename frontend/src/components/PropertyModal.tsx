@@ -77,10 +77,10 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
         {median && (
           <div>
             <p className="text-xs t-muted">{t("benchmark.askingLabel")}</p>
-            <p className="font-semibold">
+            <p className="font-semibold tnum">
               {t("common.sqmPrice", { value: formatNumber(Math.round(median)) })}
             </p>
-            <p className="text-[11px] t-dim">{t("benchmark.askingScope", { scope })}</p>
+            <p className="text-2xs t-dim">{t("benchmark.askingScope", { scope })}</p>
           </div>
         )}
         {omi && (
@@ -88,13 +88,13 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
             <p className="text-xs t-muted">
               {t(p.contract === "rent" ? "benchmark.omiRentLabel" : "benchmark.omiSaleLabel")}
             </p>
-            <p className="font-semibold">
+            <p className="font-semibold tnum">
               {t(p.contract === "rent" ? "benchmark.rangeMonthly" : "benchmark.range", {
                 min: formatNumber(Math.round(omi.min)),
                 max: formatNumber(Math.round(omi.max)),
               })}
             </p>
-            <p className="text-[11px] t-dim">
+            <p className="text-2xs t-dim">
               {t("benchmark.omiSource", {
                 zone: p.omi_zone_code,
                 semester: formatSemester(omi.semester),
@@ -103,7 +103,7 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
             {omi.stale && (
               <p className="mt-1">
                 <span
-                  className="text-[11px] font-semibold px-2 py-0.5 rounded-lg chip-amber"
+                  className="text-2xs font-semibold px-2 py-0.5 rounded-lg chip-caution"
                   title={t("benchmark.staleNote")}>
                   {t("benchmark.stale")}
                 </span>
@@ -112,11 +112,11 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
           </div>
         )}
       </div>
-      {median && omi && <p className="mt-2 text-[11px] t-dim">{t("benchmark.note")}</p>}
+      {median && omi && <p className="mt-2 text-2xs t-dim">{t("benchmark.note")}</p>}
       {/* Required by the licence on the OMI supply, so it is tied to the figures
           being on screen rather than to the panel: with the median alone there is
           nothing here of the Agenzia's to credit. */}
-      {omi && <p className="mt-2 text-[11px] t-dim">{t("benchmark.attribution")}</p>}
+      {omi && <p className="mt-2 text-2xs t-dim">{t("benchmark.attribution")}</p>}
     </div>
   );
 }
@@ -242,7 +242,7 @@ export default function PropertyModal({
   }
 
   return (
-    <div data-action="modal.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="modal.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-overlay backdrop-blur-sm"
       onClick={onClose}>
       {/* dvh, not vh: a mobile browser's `vh` ignores the collapsing address
           bar, so the modal would be taller than the visible viewport and its
@@ -258,7 +258,7 @@ export default function PropertyModal({
             <div className="min-w-0">
               <h2 className="text-lg font-bold">
                 {p.contract === "rent" && (
-                  <span className="text-[10px] font-bold uppercase align-middle px-2 py-0.5 mr-2 rounded chip-teal">
+                  <span className="text-3xs font-bold uppercase align-middle px-2 py-0.5 mr-2 rounded chip-rent">
                     {t("card.rent")}
                   </span>
                 )}
@@ -270,7 +270,7 @@ export default function PropertyModal({
             </div>
             <div className="flex gap-2 shrink-0">
               <button data-action="modal.favorite"
-                className={`btn-ghost ${p.is_favorite ? "text-yellow-500 dark:text-yellow-400" : ""}`}
+                className={`btn-ghost ${p.is_favorite ? "text-favorite-ink" : ""}`}
                 title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 onClick={onToggleFavorite}>
@@ -285,7 +285,7 @@ export default function PropertyModal({
               {formatPrice(p.current_min_price, p.contract)}
             </span>
             {p.sqm && p.current_min_price && (
-              <span className="self-end t-muted">
+              <span className="self-end t-muted tnum">
                 {t("common.sqmPrice", {
                   value: formatNumber(Math.round(p.current_min_price / p.sqm)),
                 })}
@@ -321,13 +321,13 @@ export default function PropertyModal({
               {p.target_price_low && p.target_price_high && (
                 <p className="mt-2 t-body">
                   {t("modal.suggestedProposal")}{" "}
-                  <span className="font-semibold">
+                  <span className="font-semibold tnum">
                     {formatPrice(p.target_price_low, p.contract)} –{" "}
                     {formatPrice(p.target_price_high, p.contract)}
                   </span>
                 </p>
               )}
-              <p className="mt-2 text-[11px] t-dim">{t("modal.dealDisclaimer")}</p>
+              <p className="mt-2 text-2xs t-dim">{t("modal.dealDisclaimer")}</p>
             </div>
           )}
 
@@ -338,10 +338,10 @@ export default function PropertyModal({
           <div className="space-y-2">
             {p.listings.map((l) => (
               <a key={l.id} href={safeHref(l.url)} target="_blank" rel="noreferrer"
-                className="flex items-center gap-3 p-3 rounded-xl panel hover:border-blue-500/50 transition">
+                className="flex items-center gap-3 p-3 rounded-xl panel hover:border-accent-line transition">
                 <PortalBadge portal={l.portal} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{formatPrice(l.price, p.contract)}</p>
+                  <p className="text-sm font-medium tnum">{formatPrice(l.price, p.contract)}</p>
                   {l.agency && (
                     <p className="text-xs t-dim truncate">🏢 {l.agency}</p>
                   )}
@@ -357,7 +357,7 @@ export default function PropertyModal({
               <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
                 {t("modal.priceHistory")}
               </h3>
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-1 text-sm tnum">
                 {history.map((h, i) => {
                   const pct = h.old_price
                     ? ((h.new_price - h.old_price) / h.old_price) * 100
@@ -404,7 +404,7 @@ export default function PropertyModal({
               <div className="flex flex-wrap gap-2">
                 {p.found_by.map((s) => (
                   <span key={s.id}
-                    className="text-xs px-2.5 py-1 rounded-full panel border border-slate-200 dark:border-slate-700">
+                    className="text-xs px-2.5 py-1 rounded-full panel border border-line">
                     {s.name}
                   </span>
                 ))}
@@ -480,7 +480,7 @@ export default function PropertyModal({
                   <AuditList title={t("audit.costs")} items={audit.costs} />
                   <AuditList title={t("audit.concerns")} items={audit.concerns} />
                   <AuditList title={t("audit.negotiation")} items={audit.negotiation} />
-                  <p className="text-[11px] t-dim">
+                  <p className="text-2xs t-dim">
                     {t("audit.footer", {
                       model: audit.model,
                       date: formatDate(audit.created_at),
@@ -493,7 +493,7 @@ export default function PropertyModal({
               <div className="mt-2">
                 <button data-action="modal.audit.read"
                   type="button"
-                  className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg"
+                  className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg"
                   disabled={auditing}
                   onClick={() => readListing(audit !== null)}
                   title={t("audit.buttonTitle")}>
@@ -511,7 +511,7 @@ export default function PropertyModal({
             <div className="flex items-center gap-2">
               <button data-action="modal.checkOnline"
                 type="button"
-                className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={checkingOnline || !p.listings.length}
                 onClick={checkIfOnline}
                 title={t("modal.checkOnlineTitle")}>
@@ -519,7 +519,7 @@ export default function PropertyModal({
               </button>
               <button data-action="modal.viewOnMap"
                 type="button"
-                className="btn-ghost text-xs border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 disabled={locating}
                 onClick={viewOnMap}
                 title={t(hasCoords ? "modal.viewOnMapTitle" : "modal.locateAndViewTitle")}>
@@ -560,7 +560,7 @@ export default function PropertyModal({
             ) : (
               <div className="flex items-center gap-3">
                 <button data-action="modal.markSold"
-                  className="text-amber-600 dark:text-amber-400 hover:opacity-80 text-sm transition"
+                  className="text-caution-ink hover:opacity-80 text-sm transition"
                   onClick={async () => {
                     // "sold" is a confirmed market close: it leaves the grid
                     // like "hidden" but is kept as a real sale date feeding the

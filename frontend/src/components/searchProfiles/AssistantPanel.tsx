@@ -26,7 +26,7 @@ export function AssistantPanel({ sp }: { sp: SearchProfilesState }) {
         <span className="text-xs t-dim">{t("profiles.assistantTry")}</span>
         {ASSISTANT_EXAMPLES.map((example) => (
           <button data-action="profiles.assistant.example" key={example}
-            className="text-xs chip-blue px-2 py-1 rounded-lg hover:opacity-80 transition"
+            className="text-xs chip-accent px-2 py-1 rounded-lg hover:opacity-80 transition"
             onClick={() => setQuery(example)}>
             {example}
           </button>
