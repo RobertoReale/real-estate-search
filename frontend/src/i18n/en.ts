@@ -27,8 +27,6 @@ export const en = {
   "common.unknownError": "Unknown error",
   "common.optional": "optional",
   "common.of": "of",
-  "common.dismissError": "Dismiss error",
-  "common.actionFailed": "Action failed",
   "common.copy": "Copy",
   "common.copied": "Copied",
   "common.showMore": "Show more",
@@ -206,9 +204,41 @@ export const en = {
   "nav.language": "Language",
   "nav.languageSwitchTo": "Switch to {language}",
 
+  // ── toasts: what failed, and what to do about it ────────────────────────
+  "toast.region": "Messages",
+  "toast.dismiss": "Dismiss this message",
+  "toast.undo": "Undo",
+  "toast.adviceUnreachable":
+    "The backend is not answering. Check it is running — start.bat — and try again.",
+  "toast.adviceServer":
+    "The backend ran into a problem. Try again; if it keeps failing, the log has the detail.",
+  "toast.adviceRefused":
+    "The backend refused the request. Change what you asked for and try again.",
+  "toast.adviceRetry": "Try again.",
+  "toast.gridFailed":
+    "The listings could not be refreshed — what is on screen is the last answer that arrived.",
+  "toast.hidden": "Property hidden.",
+  "toast.hiddenMany": "{count} properties hidden.",
+  "toast.sold": "Marked as no longer on the market.",
+  "toast.soldMany": "{count} marked as no longer on the market.",
+  "toast.favoritedMany": "{count} added to favourites.",
+  "toast.unfavoritedMany": "{count} removed from favourites.",
+  "toast.hideFailed": "The property could not be hidden.",
+  "toast.bulkFailed": "The selected properties could not be updated.",
+  "toast.undoFailed": "That could not be undone.",
+  "toast.favoriteFailed": "The favourite could not be updated.",
+  "toast.tagFailed": "The tags could not be updated.",
+  "toast.scanFailed": "The scan could not be started.",
+  "toast.selectAllFailed": "The whole set of results could not be selected.",
+  "toast.exportFailed": "The dossier could not be produced.",
+  "toast.geocodeFailed": "The coordinate lookup could not be run.",
+  "toast.settingsLoadFailed": "The settings could not be loaded.",
+  "toast.settingsSaveFailed": "The settings could not be saved.",
+  "toast.searchSaveFailed": "The search could not be saved.",
+  "toast.searchUpdateFailed": "The searches could not be updated.",
+  "toast.searchDeleteFailed": "The searches could not be deleted.",
+
   // ── dashboard shell ─────────────────────────────────────────────────────
-  "app.backendUnreachable":
-    "Backend unreachable on http://localhost:8000 — start it with start.bat",
   "app.noMatches": "No properties match the current filters.",
   "app.noMatchesHint": "Try switching the Buy/Rent toggle or relaxing the filters.",
   "app.welcome": "Welcome! Three steps to get started:",
@@ -347,7 +377,6 @@ export const en = {
   "filters.exportFavorites": "Favorites",
   "filters.exportRentals": "Rentals",
   "filters.exportProperties": "Properties",
-  "filters.exportFailed": "Could not build the dossier: {error}",
   "filters.exportIn": "{what} in {city}",
 
   // ── maintenance actions ─────────────────────────────────────────────────
@@ -398,7 +427,6 @@ export const en = {
   "settings.secretLastSaved": "Last saved: {date}",
   "settings.secretNotSet": "○ Not set",
   "settings.saved": "Settings saved.",
-  "settings.saveFailed": "Could not save settings: {error}",
   "settings.loadFailed": "Could not load the settings: {error}",
   "settings.save": "Save settings",
   "settings.errCredentials":

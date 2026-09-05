@@ -8,7 +8,7 @@
  *  is left in this component is the one thing neither the server nor the URL
  *  owns — which properties are ticked for a batch action, which is a choice in
  *  progress rather than a place. */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import FiltersBar from "./components/FiltersBar";
 import MapView from "./components/MapView";
@@ -19,6 +19,7 @@ import ScraperHealthPanel from "./components/ScraperHealth";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
 import SearchProfiles from "./components/SearchProfiles";
+import { useToasts } from "./components/Toast";
 import { useDebounced } from "./hooks/useDebounced";
 import { useOnReveal } from "./hooks/useOnReveal";
 import {
@@ -29,10 +30,11 @@ import { useGeocodeMissing } from "./queries/maintenance";
 import {
   useAddTag, useAvailabilityProgress, useBulkProperties, useCancelPropertiesCheck,
   useCheckProperties, useFetchPropertySet, useHideProperty, usePropertyPages,
-  usePropertySet, useRemoveTag, useRefreshDashboard, useToggleFavorite,
+  usePropertySet, useRemoveTag, useRefreshDashboard, useRestoreProperty,
+  useToggleFavorite, type BulkAction,
 } from "./queries/properties";
 import { useSettings } from "./queries/settings";
-import { useT } from "./i18n";
+import { useT, type TranslationKey } from "./i18n";
 import type { DashboardContext } from "./routes/context";
 import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
@@ -97,8 +99,24 @@ export function pruneSelection(
   return kept;
 }
 
+/** For each batch action: what to say it did, and the one request that takes it
+ *  back. `restore` is absent as a key because it is only ever the undo of
+ *  something else, never a button — and every value here is an action the bulk
+ *  endpoint already accepts, because an Undo that half-works is worse than no
+ *  Undo at all. */
+const BULK_OUTCOME: Record<
+  "hide" | "favorite" | "unfavorite" | "sold",
+  { done: TranslationKey; undo: BulkAction }
+> = {
+  hide: { done: "toast.hiddenMany", undo: "restore" },
+  sold: { done: "toast.soldMany", undo: "restore" },
+  favorite: { done: "toast.favoritedMany", undo: "unfavorite" },
+  unfavorite: { done: "toast.unfavoritedMany", undo: "favorite" },
+};
+
 export default function App() {
   const t = useT();
+  const toasts = useToasts();
   // The filters, the sort, the view and the open property are the URL's, so
   // they survive a reload, move under Back and Forward, and can be sent to
   // somebody else. Everything below is state that genuinely is not a place.
@@ -112,7 +130,6 @@ export default function App() {
   const [rawSelection, setRawSelection] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState(false);
-  const [actionError, setActionError] = useState("");
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Captured through a lazy initializer (not an effect) so the very first
@@ -171,6 +188,7 @@ export default function App() {
   const triggerScan = useTriggerScan();
   const geocodeMissing = useGeocodeMissing();
   const hideProperty = useHideProperty();
+  const restoreProperty = useRestoreProperty();
   const toggleFavoriteOn = useToggleFavorite();
   const addTagTo = useAddTag();
   const removeTagFrom = useRemoveTag();
@@ -194,14 +212,30 @@ export default function App() {
     () => { void grid.fetchNextPage(); },
   );
 
+  // A refused read is reported the same way a refused write is, and carries the
+  // one thing the old banner could not: the way to ask again. Keyed, so a query
+  // that keeps failing keeps saying so once rather than once per attempt — and
+  // the stale grid it is about stays readable underneath.
+  const refetchProperties = onMap ? wholeSet.refetch : grid.refetch;
+  const loadError = onMap ? wholeSet.error : grid.error;
+  useEffect(() => {
+    if (!loadError) return;
+    toasts.fail(loadError, {
+      key: "grid",
+      doing: t("toast.gridFailed"),
+      retry: () => { void refetchProperties(); },
+    });
+  }, [loadError, refetchProperties, t, toasts]);
+
   // a failed click must say so: without this wrapper the rejection is
   // unhandled and the button silently does nothing, which reads as "broken"
-  async function runAction(fn: () => Promise<unknown>) {
+  async function runAction(fn: () => Promise<unknown>, doing?: string) {
     try {
-      setActionError("");
       await fn();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : t("common.actionFailed"));
+      // The retry is the same closure that just failed, so "Try again" means
+      // exactly what the button the user pressed meant.
+      toasts.fail(e, { doing, retry: () => runAction(fn, doing) });
     }
   }
 
@@ -209,39 +243,53 @@ export default function App() {
   // backfills pins for the properties a geographic filter would otherwise drop.
   function findCoordinates() {
     if (geocodeMissing.isPending) return;
-    return runAction(() => geocodeMissing.mutateAsync());
+    return runAction(() => geocodeMissing.mutateAsync(), t("toast.geocodeFailed"));
   }
 
   function scanNow() {
-    return runAction(() => triggerScan.mutateAsync());
+    return runAction(() => triggerScan.mutateAsync(), t("toast.scanFailed"));
+  }
+
+  /** The one-click way back from a destructive action. Its own failure is a
+   *  failure like any other — silently swallowing it would leave the user
+   *  believing the undo took. */
+  function undo(label: string, run: () => Promise<unknown>) {
+    return { label, run: () => runAction(run, t("toast.undoFailed")) };
   }
 
   function quickHide(p: Property) {
-    // same confirm() used by the modal's "Hide property" action: hiding is
-    // irreversible on its own (only a manual "Restore" brings it back), so
-    // both entry points must ask the same way
+    // same confirm() used by the modal's "Hide property" action: hiding needs a
+    // deliberate answer, and both entry points must ask the same way
     if (!confirm(t("app.confirmHideOne"))) {
       return;
     }
     return runAction(async () => {
       await hideProperty.mutateAsync(p.id);
       if (openPropertyId === p.id) close();
-    });
+      // The card leaves the grid, so without this the only evidence of what
+      // happened is a gap — and the way back is a filter change away.
+      toasts.done(
+        t("toast.hidden"),
+        undo(t("toast.undo"), () => restoreProperty.mutateAsync(p.id)),
+      );
+    }, t("toast.hideFailed"));
   }
 
   function toggleFavorite(p: Property) {
     // The ⭐ Favorites filter is part of the query, so a card that no longer
     // belongs in the view leaves it with the refetch rather than being spliced
     // out of a local list.
-    return runAction(() => toggleFavoriteOn.mutateAsync(p));
+    return runAction(() => toggleFavoriteOn.mutateAsync(p), t("toast.favoriteFailed"));
   }
 
   function addTag(p: Property, name: string) {
-    return runAction(() => addTagTo.mutateAsync({ property: p, name }));
+    return runAction(() => addTagTo.mutateAsync({ property: p, name }), t("toast.tagFailed"));
   }
 
   function removeTag(p: Property, tagId: number) {
-    return runAction(() => removeTagFrom.mutateAsync({ property: p, tagId }));
+    return runAction(
+      () => removeTagFrom.mutateAsync({ property: p, tagId }), t("toast.tagFailed"),
+    );
   }
 
   // "View on map" from the property detail: focus the map on this property and
@@ -278,7 +326,7 @@ export default function App() {
     return runAction(async () => {
       const page = await fetchWholeSet(query);
       setRawSelection(new Set(page.items.map((p) => p.id)));
-    });
+    }, t("toast.selectAllFailed"));
   }
 
   function toggleOne(id: number) {
@@ -294,22 +342,32 @@ export default function App() {
     if (ids.length === 0) return;
     if (action === "hide" && !confirm(t("app.confirmHideMany", { count: ids.length }))) return;
     if (action === "sold" && !confirm(t("app.confirmSoldMany", { count: ids.length }))) return;
+    const outcome = BULK_OUTCOME[action];
     return runAction(async () => {
       await bulk.mutateAsync({ ids, action });
       setRawSelection(new Set());
       setSelectionMode(false);
-    });
+      // The batch is the action with the least visible result and the most to
+      // regret: the selection is gone, the cards are gone, and nothing said how
+      // many of them there were.
+      toasts.done(
+        t(outcome.done, { count: ids.length }),
+        undo(t("toast.undo"), () => bulk.mutateAsync({ ids, action: outcome.undo })),
+      );
+    }, t("toast.bulkFailed"));
   }
 
   async function checkSelectedProperties() {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
     setCancellingBatch(false);
-    setActionError("");
     try {
       await checkBatch.mutateAsync(ids);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : t("app.batchCheckFailed"));
+      toasts.fail(e, {
+        doing: t("app.batchCheckFailed"),
+        retry: () => checkSelectedProperties(),
+      });
     } finally {
       setCancellingBatch(false);
     }
@@ -352,19 +410,6 @@ export default function App() {
       />
 
       <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-        {loadFailed && (
-          <div className="glass rounded-2xl p-4 border-rose-500/50 text-rose-600 dark:text-rose-300 text-sm">
-            ⚠️ {t("app.backendUnreachable")}
-          </div>
-        )}
-        {actionError && (
-          <div className="glass rounded-2xl p-4 border-rose-500/50 text-rose-600 dark:text-rose-300 text-sm flex items-center justify-between gap-3">
-            <span>⚠️ {actionError}</span>
-            <button data-action="app.error.dismiss" className="btn-ghost shrink-0" aria-label={t("common.dismissError")}
-              onClick={() => setActionError("")}>✕</button>
-          </div>
-        )}
-
         <SearchProfiles profiles={profiles} settings={settings} onChanged={refresh} />
 
         {hasProfiles && <ScraperHealthPanel />}

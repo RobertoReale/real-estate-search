@@ -6,8 +6,9 @@ import {
 } from "../../queries/maintenance";
 import { api, authToken, AuthError, fetchBackup } from "../../services/api";
 import type { BackupFile, Settings } from "../../types";
+import { errorText, useToasts } from "../Toast";
 import { Result, SecretStatus, SectionHeading } from "./controls";
-import { errorText, useSectionState, type Section, type SettingsShell } from "./state";
+import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
   apiToken: string;
@@ -49,6 +50,7 @@ export function SystemSection(
   { section, settings, shell }: { section: Section<Values>; settings: Settings; shell: SettingsShell },
 ) {
   const t = useT();
+  const toasts = useToasts();
   const { values, set } = section;
   const filePicker = useRef<HTMLInputElement>(null);
 
@@ -77,14 +79,15 @@ export function SystemSection(
     if (!window.confirm(t("settings.restartConfirm"))) return;
     shell.setFeedback(null);
     try {
+      // A resolved mutation is the bad outcome here, so it is a message about
+      // something that did not happen rather than a confirmation.
       const outcome = await restart.mutateAsync();
-      shell.setFeedback({
-        where: "global",
-        ok: false,
+      toasts.show({
+        tone: "error",
         text: t(outcome === "too-old" ? "settings.restartTooOld" : "settings.restartNoReturn"),
       });
     } catch (e) {
-      shell.setFeedback({ where: "global", ok: false, text: errorText(e) });
+      toasts.fail(e, { retry: () => restartBackend() });
     }
   }
 
@@ -95,9 +98,9 @@ export function SystemSection(
     shell.setFeedback(null);
     try {
       const made = await createBackup.mutateAsync();
-      shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupTaken", { name: made.name }) });
+      shell.setFeedback({ where: "backups", text: t("settings.backupTaken", { name: made.name }) });
     } catch (e) {
-      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+      toasts.fail(e, { retry: () => takeBackup() });
     } finally {
       shell.setBusy(null);
     }
@@ -122,7 +125,7 @@ export function SystemSection(
     } catch (e) {
       // an AuthError has already raised the token prompt
       if (!(e instanceof AuthError)) {
-        shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+        toasts.fail(e, { retry: () => download(name) });
       }
     } finally {
       shell.setBusy(null);
@@ -140,9 +143,11 @@ export function SystemSection(
     shell.setFeedback(null);
     try {
       const added = await importBackup.mutateAsync(file);
-      shell.setFeedback({ where: "backups", ok: true, text: t("settings.backupImported", { name: added.name }) });
+      shell.setFeedback({ where: "backups", text: t("settings.backupImported", { name: added.name }) });
     } catch (e) {
-      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+      // No retry: the picked file is gone from the input by now, so the button
+      // would have nothing to send.
+      toasts.fail(e);
     } finally {
       shell.setBusy(null);
     }
@@ -163,7 +168,6 @@ export function SystemSection(
       const r = await restoreBackup.mutateAsync(file.name);
       shell.setFeedback({
         where: "backups",
-        ok: true,
         text: r.backup
           ? t("settings.restoreDoneBackup", { name: r.restored, backup: r.backup })
           : t("settings.restoreDone", { name: r.restored }),
@@ -172,7 +176,9 @@ export function SystemSection(
       // looking at a different database.
       setTimeout(() => window.location.reload(), 1800);
     } catch (e) {
-      shell.setFeedback({ where: "backups", ok: false, text: errorText(e) });
+      // No retry offered on the most destructive action in the app: it asks for
+      // a typed word for a reason, and a one-click way to ask again undoes that.
+      toasts.fail(e);
       shell.setBusy(null);
     }
   }
@@ -194,7 +200,6 @@ export function SystemSection(
         .map(([k, v]) => `${v} ${k.replace(/_/g, " ")}`).join(", ");
       shell.setFeedback({
         where: "data",
-        ok: true,
         text: r.backup
           ? t("settings.resetDoneBackup", {
               removed: removed || t("settings.resetNothing"),
@@ -206,7 +211,8 @@ export function SystemSection(
       // the buttons first only invites a second click into a dying view.
       setTimeout(() => window.location.reload(), 1600);
     } catch (e) {
-      shell.setFeedback({ where: "data", ok: false, text: errorText(e) });
+      // Same reason as the restore above: this one asked twice on purpose.
+      toasts.fail(e);
       shell.setBusy(null);
     }
   }
@@ -249,7 +255,10 @@ export function SystemSection(
           className="hidden" onChange={importPicked} />
       </div>
       {folder && <p className="text-[11px] t-dim mt-2 break-all">{t("settings.backupsFolder", { folder })}</p>}
-      {listError && <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{listError}</p>}
+      {/* In place of the list rather than in a toast: this is what there is to
+          read where the copies would have been, and it is not the result of
+          anything the user just pressed. */}
+      {listError && <p className="text-xs t-muted mt-2">{listError}</p>}
       {backups !== null && backups.length === 0 && !listError && (
         <p className="text-xs t-dim mt-2">{t("settings.backupsEmpty")}</p>
       )}

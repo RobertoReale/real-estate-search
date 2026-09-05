@@ -61,6 +61,24 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   key spelled two ways is two caches that never hear about each other, which
   presents as a panel that silently stops refreshing.
 
+- **A failed *operation* goes to the toast; a failed *read* stays where its data would
+  have been.** `components/Toast.tsx` owns every `catch` in the frontend: no component
+  keeps an error banner of its own, because eleven of them each printed `e.message` and
+  stopped there — so "Failed to fetch" (the backend is not running) read exactly like a
+  request the backend had considered and refused, and neither told the user what to do
+  next. `toasts.fail(e, …)` adds that sentence from the *shape* of the failure rather than
+  from its words, which is why `api.ts` throws `ApiError` carrying the status and uses
+  status `0` for a request that never arrived. Three things stay out of it, and the reason
+  is the same in each case — the message belongs where the user is already looking:
+  a surface's own read state (the log tail, the scraper health strip, the backups list)
+  renders in place, muted, not as an alert; form validation stays on the field it is about,
+  with `aria-invalid` and `aria-describedby`; and the dashboard grid is the one operation
+  that *does* toast, because it keeps the last answer on screen rather than blanking, so
+  there is no hole to put a message in. Anything destructive that the backend can reverse
+  (`hide`, "no longer on the market", the bulk equivalents) ships an Undo on its success
+  toast — `bulk_action` accepting `restore` is what makes that possible, and it is the only
+  caller of it, since no button sends `restore` on its own.
+
 - **Windows-only code carries a targeted type-check suppression.** `ctypes.windll` and
   friends do not exist off Windows, and the types are checked on Linux as well — CI runs
   there, because the Raspberry Pi is a real target — so a Windows-only call site needs a
@@ -126,7 +144,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (86 in sixteen files: vitest +
+- **The frontend has unit tests too** (90 in seventeen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -151,7 +169,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   dates and floor labels keep formatting the old way; nothing else in the suite notices.
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
-  pixels — for five things a pure test cannot reach, each written after the bug it now
+  pixels — for six things a pure test cannot reach, each written after the bug it now
   guards: that a label actually names its control (`FiltersBar.test.tsx` uses
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
   offers a focusable, named way into the listing *without* itself becoming a control that
@@ -162,7 +180,11 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   never reaches the screen undated, unmarked when out of date, or uncredited
   (`PropertyModal.test.tsx` — the attribution is a licence obligation, so a refactor that
   drops the line is a legal defect and not a cosmetic one, and the figures around it would
-  still be right). `App.test.tsx` mounts under `StrictMode` on purpose: its double
+  still be right), and that a failure reaches the screen carrying what to do about it and
+  a way to do it (`Toast.test.tsx`: a backend that never answered and one that considered
+  the request and refused it produce different advice, and pressing Try again runs the
+  retry exactly once and takes the message with it). `App.test.tsx` mounts under
+  `StrictMode` on purpose: its double
   invocation of `useState` initializers is the bug, so nothing weaker reproduces it.
 
 - **There is a third tier: the browser suite** (`frontend/e2e/`, run `cd frontend && npm

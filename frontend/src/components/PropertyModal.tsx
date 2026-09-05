@@ -10,6 +10,7 @@ import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
 import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
+import { useToasts } from "./Toast";
 import { formatSemester } from "../utils/format";
 
 /** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
@@ -140,10 +141,10 @@ export default function PropertyModal({
   allTags, onAddTag, onRemoveTag, auditEnabled,
 }: Props) {
   const t = useT();
+  const toasts = useToasts();
   const history = [...p.price_history].reverse();
   const [notes, setNotes] = useState(p.notes);
   const [checkResult, setCheckResult] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const [imgBroken, setImgBroken] = useState(false);
   const notesDirty = notes !== p.notes;
   const hasCoords = p.latitude !== null && p.longitude !== null;
@@ -166,12 +167,27 @@ export default function PropertyModal({
   const checkingOnline = checkOnline.isPending;
   const savingNotes = saveNotesTo.isPending;
 
+  /** The way back from a close the user regrets. The card is gone from the grid
+   *  by the time this is offered, so the undo is the id and the endpoint, not
+   *  anything held on screen. */
+  function undoClose() {
+    return {
+      label: t("toast.undo"),
+      run: async () => {
+        try {
+          await restore.mutateAsync(p.id);
+        } catch (e) {
+          toasts.fail(e, { doing: t("toast.undoFailed") });
+        }
+      },
+    };
+  }
+
   async function readListing(force = false) {
-    setError("");
     try {
       await readAudit.mutateAsync({ id: p.id, force });
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("audit.failed"));
+      toasts.fail(e, { doing: t("audit.failed"), retry: () => readListing(force) });
     }
   }
 
@@ -184,7 +200,6 @@ export default function PropertyModal({
     // No coordinates yet — resolve them on demand (portals omit them ~70% of
     // the time), then show the map. Fail-open: an address too vague to place
     // is not an error, it just leaves the property off the map.
-    setError("");
     try {
       // The mutation invalidates the grid, so the new pin is in the set the map
       // reads by the time it renders — nothing has to be handed upwards.
@@ -192,16 +207,17 @@ export default function PropertyModal({
       if (located) {
         onShowOnMap(p);
       } else {
-        setError(t("modal.locateFailed"));
+        // Nothing broke: the address is simply not specific enough to place, so
+        // there is nothing to retry and nothing to advise.
+        toasts.show({ tone: "error", text: t("modal.locateFailed") });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("modal.locateError"));
+      toasts.fail(e, { doing: t("modal.locateError"), retry: () => viewOnMap() });
     }
   }
 
   async function checkIfOnline() {
     setCheckResult(null);
-    setError("");
     try {
       const { summary } = await checkOnline.mutateAsync(p.id);
       if (summary.gone > 0) {
@@ -212,17 +228,16 @@ export default function PropertyModal({
         setCheckResult(t("modal.checkUnknown"));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("modal.checkError"));
+      toasts.fail(e, { doing: t("modal.checkError"), retry: () => checkIfOnline() });
     }
   }
 
   async function saveNotes() {
     try {
       await saveNotesTo.mutateAsync({ id: p.id, notes });
-      setError("");
     } catch (e) {
       // the unsaved text stays in the textarea, so a retry costs one click
-      setError(e instanceof Error ? e.message : t("modal.notesError"));
+      toasts.fail(e, { doing: t("modal.notesError"), retry: () => saveNotes() });
     }
   }
 
@@ -492,10 +507,6 @@ export default function PropertyModal({
             </>
           )}
 
-          {error && (
-            <p className="text-sm text-rose-600 dark:text-rose-300 mt-4">⚠️ {error}</p>
-          )}
-
           <div className="flex flex-wrap items-center justify-between gap-3 mt-6">
             <div className="flex items-center gap-2">
               <button data-action="modal.checkOnline"
@@ -540,7 +551,7 @@ export default function PropertyModal({
                       await restore.mutateAsync(p.id);
                       onDeleted(); // the grid re-reads itself; this closes the card
                     } catch (e) {
-                      setError(e instanceof Error ? e.message : t("modal.restoreFailed"));
+                      toasts.fail(e, { doing: t("modal.restoreFailed") });
                     }
                   }
                 }}>
@@ -562,8 +573,9 @@ export default function PropertyModal({
                       try {
                         await markSold.mutateAsync(p.id);
                         onDeleted();
+                        toasts.done(t("toast.sold"), undoClose());
                       } catch (e) {
-                        setError(e instanceof Error ? e.message : t("modal.markSoldFailed"));
+                        toasts.fail(e, { doing: t("modal.markSoldFailed") });
                       }
                     }
                   }}>
@@ -578,8 +590,9 @@ export default function PropertyModal({
                       try {
                         await hide.mutateAsync(p.id);
                         onDeleted();
+                        toasts.done(t("toast.hidden"), undoClose());
                       } catch (e) {
-                        setError(e instanceof Error ? e.message : t("modal.hideFailed"));
+                        toasts.fail(e, { doing: t("modal.hideFailed") });
                       }
                     }
                   }}>

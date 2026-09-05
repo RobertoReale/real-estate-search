@@ -67,15 +67,17 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
   );
 }
 
-/** Renders the shared feedback line, but only for the section that raised it. */
+/** Renders the shared feedback line, but only for the section that raised it.
+ *  Success only: what a section reports here is the result of an action whose
+ *  controls are right above it, and a failure has an instruction attached that
+ *  belongs in the toast rather than in a line of prose. */
 export function Result({ feedback, where }: { feedback: Feedback | null; where: SectionName }) {
   if (!feedback || feedback.where !== where) return null;
   return (
     <p role="status"
-      className={`text-sm mt-3 rounded-lg px-3 py-2 ${feedback.ok
-        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-        : "bg-rose-500/10 text-rose-700 dark:text-rose-300"}`}>
-      {feedback.ok ? "✅ " : "❌ "}{feedback.text}
+      className="text-sm mt-3 rounded-lg px-3 py-2
+        bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+      ✅ {feedback.text}
     </p>
   );
 }

@@ -7,6 +7,7 @@ import { api, authToken, AuthError, fetchExport } from "../services/api";
 import type { PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
 import { ProgressBar } from "./ProgressBar";
+import { useToasts } from "./Toast";
 
 
 interface Props {
@@ -31,6 +32,7 @@ export default function FiltersBar({
   onReset,
 }: Props) {
   const t = useT();
+  const toasts = useToasts();
   // The two maintenance sweeps and the one that stops them. What each of them
   // is doing, whether it failed and what it answered are the mutation's own
   // state now, so there is no `finally` left that can forget to clear a flag.
@@ -42,18 +44,21 @@ export default function FiltersBar({
   const geocodeProgress = useGeocodeProgress(geocoding);
   const geocodeResult = geocode.data ?? null;
   const cacheCleared = clearCache.data?.cleared ?? null;
-  // A backend older than these routes answers 404, and "update the backend"
-  // is a far more useful thing to read than "Error 404".
   const failure = geocode.error ?? clearCache.error;
-  const geocodeError = !failure
-    ? null
-    : /Error 404|Not Found/i.test(failure.message)
-      ? t("filters.backendTooOld")
-      : failure.message;
+  useEffect(() => {
+    if (!failure) return;
+    // A backend older than these routes answers 404, and "update the backend"
+    // is a far more useful thing to read than "Error 404" — and it is not a
+    // refusal to act on, so it carries no advice about the request.
+    if (/Error 404|Not Found/i.test(failure.message)) {
+      toasts.show({ tone: "error", key: "maintenance", text: t("filters.backendTooOld") });
+      return;
+    }
+    toasts.fail(failure, { key: "maintenance", doing: t("toast.geocodeFailed") });
+  }, [failure, t, toasts]);
   // only used on the authenticated export path, which is a fetch rather than a
-  // navigation and so has a wait and a failure the UI has to show
+  // navigation and so has a wait the UI has to show
   const [exporting, setExporting] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
   // Advanced filters live behind a toggle so the common controls stay
   // uncluttered. Opened by default when one is already active (e.g. after a
   // reload), so an applied filter is never hidden.
@@ -110,7 +115,6 @@ export default function FiltersBar({
         ? t("filters.exportRentals")
         : t("filters.exportProperties");
     const title = filters.city ? t("filters.exportIn", { what, city: filters.city }) : what;
-    setExportError(null);
 
     // The common case (no API token): let the browser fetch it. Content-
     // Disposition names the file and the PDF prints itself, with no blob in
@@ -131,11 +135,11 @@ export default function FiltersBar({
       // immediately cancels the transfer in some browsers
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
-      // an AuthError has already raised the token prompt; anything else is the
-      // backend's own message, and a button that silently does nothing reads
-      // as broken
+      // an AuthError has already raised the token prompt, and the user has
+      // something to do about it on screen; anything else is worth a message,
+      // because a button that silently does nothing reads as broken
       if (!(e instanceof AuthError)) {
-        setExportError(e instanceof Error ? e.message : String(e));
+        toasts.fail(e, { doing: t("toast.exportFailed"), retry: () => exportAs(fmt) });
       }
     } finally {
       setExporting(null);
@@ -581,32 +585,6 @@ export default function FiltersBar({
               </span>
             )}
           </ProgressBar>
-        </div>
-      )}
-
-      {exportError && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
-          <p role="status" className="text-rose-700 dark:text-rose-300">
-            ❌ {t("filters.exportFailed", { error: exportError })}
-          </p>
-          <button data-action="export.error.dismiss"
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => setExportError(null)}
-            title={t("common.close")}>
-            ✕
-          </button>
-        </div>
-      )}
-
-      {geocodeError && (
-        <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-slate-800 dark:text-slate-200 flex items-start justify-between gap-3 animate-fade-in shadow-sm">
-          <p className="text-rose-700 dark:text-rose-300">❌ {geocodeError}</p>
-          <button data-action="maintenance.error.dismiss"
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base leading-none font-bold p-1"
-            onClick={() => { geocode.reset(); clearCache.reset(); }}
-            title={t("common.close")}>
-            ✕
-          </button>
         </div>
       )}
 

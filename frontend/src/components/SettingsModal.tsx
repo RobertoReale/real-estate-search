@@ -11,7 +11,8 @@ import { ScanningSection, useScanningSection } from "./settings/ScanningSection"
 import { ScrapingSection, useScrapingSection } from "./settings/ScrapingSection";
 import { SystemSection, useSystemSection } from "./settings/SystemSection";
 import { TelegramSection, useTelegramSection } from "./settings/TelegramSection";
-import { errorText, type Feedback, type SectionName, type SettingsShell } from "./settings/state";
+import { errorText, useToasts } from "./Toast";
+import { type Feedback, type SectionName, type SettingsShell } from "./settings/state";
 
 interface Props {
   onClose: () => void;
@@ -49,6 +50,7 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
  */
 export default function SettingsModal({ onClose }: Props) {
   const t = useT();
+  const toasts = useToasts();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busy, setBusy] = useState<SectionName | null>(null);
@@ -118,9 +120,9 @@ export default function SettingsModal({ onClose }: Props) {
     setFeedback(null);
     try {
       await persist();
-      setFeedback({ where: "global", ok: true, text: t("settings.saved") });
+      setFeedback({ where: "global", text: t("settings.saved") });
     } catch (e) {
-      setFeedback({ where: "global", ok: false, text: errorText(e) });
+      toasts.fail(e, { doing: t("toast.settingsSaveFailed"), retry: () => save() });
     } finally {
       setBusy(null);
     }
@@ -136,14 +138,16 @@ export default function SettingsModal({ onClose }: Props) {
     try {
       await persist();
     } catch (e) {
-      setFeedback({ where, ok: false, text: t("settings.saveFailed", { error: errorText(e) }) });
+      // The test never ran, so this is the save's failure and says so — the
+      // section's own settings are still only in the form.
+      toasts.fail(e, { doing: t("toast.settingsSaveFailed") });
       setBusy(null);
       return;
     }
     try {
-      setFeedback({ where, ok: true, text: describe(await test()) });
+      setFeedback({ where, text: describe(await test()) });
     } catch (e) {
-      setFeedback({ where, ok: false, text: errorText(e) });
+      toasts.fail(e, { retry: () => saveAndTest(where, test, describe) });
     } finally {
       setBusy(null);
     }
@@ -152,9 +156,12 @@ export default function SettingsModal({ onClose }: Props) {
   if (loadError) {
     return (
       <Shell onClose={onClose}>
-        <p role="status"
-          className="text-sm rounded-lg px-3 py-2 bg-rose-500/10 text-rose-700 dark:text-rose-300">
-          ❌ {t("settings.loadFailed", { error: loadError })}
+        {/* In place of the form rather than beside it: this is what the dialog
+            has to show when it has nothing to show, and it is the one screen
+            whose own failure must not be reported anywhere the user has to
+            close the dialog to read. */}
+        <p role="status" className="text-sm t-muted">
+          {t("settings.loadFailed", { error: loadError })}
         </p>
         <div className="flex justify-end gap-2 mt-6">
           <button data-action="settings.loadError.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>

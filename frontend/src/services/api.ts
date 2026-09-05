@@ -32,6 +32,40 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * A request the backend refused, or never answered.
+ *
+ * `status` is what separates the three failures a user has to act on
+ * differently: **0** means the request never reached the backend at all (it is
+ * not running, or the machine is offline), **5xx** means it arrived and broke,
+ * and **4xx** means it arrived and was refused. The toast that reports it picks
+ * its advice from this number, which is the whole reason it is carried: before
+ * it, every failure read as the same shrug, and the one that meant "start the
+ * backend" looked exactly like the one that meant "that name is already taken".
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/** The backend's own explanation, when it sent one. FastAPI's `detail` is a
+ *  string for the errors this app raises by hand and a list of objects for a
+ *  validation failure — rendering the latter put a literal `[object Object]` in
+ *  front of the user, so anything that is not a sentence falls back to the
+ *  status. */
+async function refusal(resp: Response): Promise<ApiError> {
+  const body: unknown = await resp.json().catch(() => null);
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  return new ApiError(
+    resp.status,
+    typeof detail === "string" && detail ? detail : `Error ${resp.status}`,
+  );
+}
+
 /** Set by the app so any 401 anywhere can surface the login gate. */
 let onAuthRequired: (() => void) | null = null;
 export function setAuthRequiredHandler(fn: () => void) {
@@ -41,22 +75,28 @@ export function setAuthRequiredHandler(fn: () => void) {
 /** Execute an HTTP request against the backend REST endpoint, throwing formatted JSON errors on failure. */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = authToken.get();
-  const resp = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options?.headers,
+      },
+    });
+  } catch (e) {
+    // `fetch` rejects only when the request never got an answer, and the
+    // browser's word for that is "Failed to fetch" — which says nothing to
+    // anyone. Status 0 is how the toast knows to say "the backend is not
+    // answering" instead of repeating it.
+    throw new ApiError(0, e instanceof Error ? e.message : String(e));
+  }
   if (resp.status === 401) {
     onAuthRequired?.();
     throw new AuthError();
   }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => null);
-    throw new Error(body?.detail ?? `Error ${resp.status}`);
-  }
+  if (!resp.ok) throw await refusal(resp);
   return resp.json();
 }
 
@@ -493,10 +533,7 @@ export async function fetchExport(
     onAuthRequired?.();
     throw new AuthError();
   }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => null);
-    throw new Error(body?.detail ?? `Error ${resp.status}`);
-  }
+  if (!resp.ok) throw await refusal(resp);
   const match = /filename="([^"]+)"/.exec(resp.headers.get("Content-Disposition") ?? "");
   return { blob: await resp.blob(), filename: match?.[1] ?? "dossier" };
 }
@@ -514,10 +551,7 @@ export async function fetchBackup(name: string): Promise<Blob> {
     onAuthRequired?.();
     throw new AuthError();
   }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => null);
-    throw new Error(body?.detail ?? `Error ${resp.status}`);
-  }
+  if (!resp.ok) throw await refusal(resp);
   return resp.blob();
 }
 

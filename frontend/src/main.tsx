@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import AuthGate from "./components/AuthGate";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ToastProvider } from "./components/Toast";
 import { I18nProvider } from "./i18n";
 import { createQueryClient } from "./queries/client";
 import AppRoutes from "./routes/router";
@@ -23,13 +24,18 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           else so the answer is not fetched twice. */}
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
-          {/* Inside the gate: until a token is proved there is no dashboard to
-              address, and the prompt is the same page whatever URL was asked
-              for — which is also what lets a link survive being opened by
-              someone who has to sign in first. */}
-          <AuthGate>
-            <AppRoutes />
-          </AuthGate>
+          {/* Inside the boundary, so a rendering crash takes the messages down
+              with the screen they were about, and above everything that reports
+              a failure — which after this task is everything that writes. */}
+          <ToastProvider>
+            {/* Inside the gate: until a token is proved there is no dashboard to
+                address, and the prompt is the same page whatever URL was asked
+                for — which is also what lets a link survive being opened by
+                someone who has to sign in first. */}
+            <AuthGate>
+              <AppRoutes />
+            </AuthGate>
+          </ToastProvider>
         </ErrorBoundary>
       </QueryClientProvider>
     </I18nProvider>

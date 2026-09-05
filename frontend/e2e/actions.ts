@@ -62,9 +62,13 @@ export const ACTIONS = {
     what: "Scan now",
     does: "asks the backend to start a scan and disables itself while one runs",
   },
-  "app.error.dismiss": {
-    what: "the ✕ on the action-failed banner",
-    does: "removes the banner and leaves the grid as it was",
+  "toast.dismiss": {
+    what: "the ✕ on a message",
+    does: "removes that message and leaves the screen it was about as it was",
+  },
+  "toast.action": {
+    what: "Try again / Undo on a message",
+    does: "re-runs what failed, or reverses what just happened, and closes the message",
   },
   "app.crash.reload": {
     what: "Reload on the last-resort error screen",
@@ -108,7 +112,6 @@ export const ACTIONS = {
   "export.markdown": { what: "the MD export button", does: "hands the browser a Markdown file of the filtered set" },
   "export.csv": { what: "the CSV export button", does: "hands the browser a CSV file of the filtered set" },
   "export.pdf": { what: "the PDF export button", does: "hands the browser a PDF of the filtered set" },
-  "export.error.dismiss": { what: "the ✕ on the export-failed notice", does: "removes the notice" },
 
   // ── Maintenance ─────────────────────────────────────────────────────────
   "maintenance.geocode": {
@@ -123,7 +126,6 @@ export const ACTIONS = {
     what: "Retry failed lookups",
     does: "clears the remembered failures and says how many it dropped",
   },
-  "maintenance.error.dismiss": { what: "the ✕ on the geocoding error", does: "removes the message" },
   "maintenance.result.dismiss": { what: "the ✕ on the geocoding summary", does: "removes the summary" },
   "maintenance.cacheCleared.dismiss": { what: "the ✕ on the cache-cleared notice", does: "removes the notice" },
 
