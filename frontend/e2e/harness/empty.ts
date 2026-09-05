@@ -21,6 +21,16 @@ import { EMPTY_BACKEND_ORIGIN } from "./ports";
 export async function useEmptyBackend(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const { pathname, search } = new URL(route.request().url());
+    // The event stream is the one route that cannot be forwarded this way:
+    // `route.fetch` waits for a response that is deliberately never finished,
+    // so the redirect would hang until the test timed out. Refused instead,
+    // which is a case the app already has an answer for — three refused opens
+    // and it goes back to polling, through this same redirect. Onboarding is
+    // a screen driven by what the user types, not by what the backend pushes.
+    if (pathname === "/api/events") {
+      await route.fulfill({ status: 503, body: "" }).catch(() => {});
+      return;
+    }
     const response = await route.fetch({ url: `${EMPTY_BACKEND_ORIGIN}${pathname}${search}` });
     await route.fulfill({ response });
   });

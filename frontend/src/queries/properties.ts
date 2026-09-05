@@ -17,6 +17,7 @@ import { api } from "../services/api";
 import type {
   AvailabilityCheckSummary, ListingAudit, Property, PropertyFilters, PropertyPage,
 } from "../types";
+import { usePollingFallback } from "./events";
 import { keys } from "./keys";
 
 /** One screenful. The grid used to download the whole filtered set — market
@@ -222,14 +223,19 @@ export function useCancelPropertiesCheck() {
   return useMutation({ mutationFn: () => api.cancelPropertiesCheck() });
 }
 
-/** How far the batch has got. Polled only while one is running, and kept out of
- *  the cache afterwards so the next batch cannot open on the last one's numbers. */
+/** How far the batch has got. Pushed down the event stream, and kept out of the
+ *  cache afterwards so the next batch cannot open on the last one's numbers.
+ *
+ *  The query stays declared so the pushed value has an observer to keep it
+ *  alive — `gcTime: 0` collects a key nothing is watching — and its interval is
+ *  what runs if the stream could not be opened. */
 export function useAvailabilityProgress(running: boolean) {
+  const polling = usePollingFallback();
   const { data } = useQuery({
     queryKey: keys.availabilityProgress,
     queryFn: () => api.propertiesCheckProgress(),
-    enabled: running,
-    refetchInterval: 800,
+    enabled: running && polling,
+    refetchInterval: polling ? 800 : false,
     gcTime: 0,
   });
   // `active: false` is the backend saying there is nothing to report — showing

@@ -111,7 +111,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 
 ## Testing
 
-- **1015 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
+- **1025 backend tests** in `backend/tests/`, all offline (simulated HTML + in-memory
   SQLite): no network, so always reproducible. `test_property_based.py` adds `hypothesis`
   property tests for the pure helpers (the dedup ±tolerance gate, haversine, the
   price/sqm/floor parsers): the laws they must obey for *any* input, complementing the
@@ -126,7 +126,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (81 in fifteen files: vitest +
+- **The frontend has unit tests too** (86 in sixteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export

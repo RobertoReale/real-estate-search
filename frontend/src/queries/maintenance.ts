@@ -8,6 +8,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api";
+import { usePollingFallback } from "./events";
 import { keys } from "./keys";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,14 +35,20 @@ export function useClearGeocodeCache() {
   return useMutation({ mutationFn: () => api.clearGeocodeCache() });
 }
 
-/** How far the sweep has got. Polled only while one is running, and dropped
- *  from the cache afterwards so the next sweep cannot open on stale numbers. */
+/** How far the sweep has got. Pushed down the event stream, and dropped from
+ *  the cache afterwards so the next sweep cannot open on stale numbers.
+ *
+ *  The query is still declared while the sweep runs, and that is what keeps the
+ *  pushed value alive: `gcTime: 0` collects a key the moment it has no
+ *  observer, so writing to one nothing is watching would be writing to nothing.
+ *  Its interval is the fallback, at the 800 ms this bar needs to move smoothly. */
 export function useGeocodeProgress(running: boolean) {
+  const polling = usePollingFallback();
   const { data } = useQuery({
     queryKey: keys.geocodeProgress,
     queryFn: () => api.geocodeProgress(),
-    enabled: running,
-    refetchInterval: 800,
+    enabled: running && polling,
+    refetchInterval: polling ? 800 : false,
     gcTime: 0,
   });
   return data?.active ? data : null;
@@ -148,6 +155,14 @@ export function useRestartBackend() {
 
 /**
  * The tail of `app.log`, refreshed while the viewer asks for it.
+ *
+ * The one timer the event stream deliberately did not absorb. Everything else
+ * it carries is state the whole application shares and the backend already
+ * holds in memory; this is a file, read only because somebody opened this
+ * viewer and ticked a box. Sampling it server-side for every connected browser
+ * would cost more than the poll it replaced, and it would run whether or not
+ * anyone was looking — so this stays a request made by the person who asked
+ * for it, and it stops when they close the viewer.
  *
  * The out-of-order guard the viewer used to carry is gone with the mechanism
  * that needed it: one key means one request in flight, so a tail that resolves

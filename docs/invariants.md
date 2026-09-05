@@ -162,7 +162,14 @@ each invariant to its code home and its test file. See also
     polls for it instead**: the Telegram inline buttons (`services/telegram_bot.py`) take
     the `getUpdates` long poll rather than the webhook the Bot API also offers, precisely
     because a webhook is an inbound port in front of this API. Anything else arriving later
-    — a second chat platform, a callback from a portal — takes the same shape. **The
+    — a second chat platform, a callback from a portal — takes the same shape. **The push
+    the dashboard receives is the same shape read the other way**: `GET /api/events`
+    (`services/events.py`) is a stream the *browser* opened, outbound-only over the origin it
+    already loaded from, under `/api` so the token middleware covers it like everything else.
+    That last part is why the client uses `fetch` rather than `EventSource` — `EventSource`
+    cannot send an `Authorization` header, and a stream that stopped working the moment
+    somebody set a token, or a second unauthenticated route carrying it, would each be this
+    rule broken quietly. **The
     backups routes are the standing test of this rule**: `GET /api/maintenance/backups/{name}`
     hands over the whole database and `POST .../restore` overwrites it, which makes them the
     most powerful endpoints in the app. They add no access control of their own and need
