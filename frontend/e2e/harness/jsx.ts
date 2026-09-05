@@ -25,6 +25,17 @@ import path from "node:path";
  *  sits somewhere else. */
 const HANDLER = /\bon(Click|Change|Submit|KeyDown)\s*=/;
 
+/** The primitives from `src/ui/` that put their props onto a DOM control, and
+ *  are therefore exactly as much a control as the `<button>` they replaced.
+ *
+ *  Without this list the gate would have quietly weakened the day the batch bar
+ *  stopped writing `<button>`: the scan admits lowercase tags only, so every
+ *  migrated control would have dropped out of it and the count would have fallen
+ *  without anything turning red. A component name earns a place here when it
+ *  renders one interactive DOM node and forwards the handler to it — which is
+ *  why `Card` and `Field`, which pass their children through, are not on it. */
+const CONTROLS = new Set(["Button", "IconButton", "Input", "Textarea", "Select", "Checkbox"]);
+
 export interface Element {
   /** Repo-relative path, forward slashes, for a message someone can act on. */
   readonly file: string;
@@ -120,17 +131,26 @@ function sources(dir: string, found: string[] = []): string[] {
 /**
  * Every interactive element under `root`, in file order.
  *
- * Only intrinsic elements — a lowercase tag is a DOM node that will carry the
- * attribute, while `<PropertyCard onClick={...}>` is a prop being passed to a
- * component that decides for itself what to do with it. Requiring an id there
- * would mean requiring one on something that never reaches the page.
+ * Intrinsic elements and the primitives in `CONTROLS` — a lowercase tag is a DOM
+ * node that will carry the attribute, and a `<Button>` is one wearing a name,
+ * while `<PropertyCard onClick={...}>` is a prop being passed to a component
+ * that decides for itself what to do with it. Requiring an id there would mean
+ * requiring one on something that never reaches the page.
+ *
+ * `src/ui/` itself is skipped. A primitive is not a control: it has no meaning
+ * until a screen uses it, and the id belongs to the use — `selection.hide` is a
+ * fact about the batch bar, not about `Button`. Scanning the directory would
+ * demand an id from every element the primitives are built out of, which is a
+ * list of ids for controls that do not exist.
  */
 export function interactiveElements(root: string): Element[] {
   const out: Element[] = [];
+  const primitives = path.join(root, "ui") + path.sep;
   for (const file of sources(root)) {
+    if (file.startsWith(primitives)) continue;
     const src = fs.readFileSync(file, "utf8");
     for (const tag of tags(src)) {
-      if (!/^[a-z]/.test(tag.name)) continue;
+      if (!/^[a-z]/.test(tag.name) && !CONTROLS.has(tag.name)) continue;
       if (!HANDLER.test(tag.attrs) && tag.name !== "form") continue;
       const literal = /data-action\s*=\s*"([^"]*)"/.exec(tag.attrs);
       const any = /data-action\s*=/.test(tag.attrs);

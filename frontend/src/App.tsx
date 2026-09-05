@@ -39,6 +39,7 @@ import type { DashboardContext } from "./routes/context";
 import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
+import { Button, type Emphasis } from "./ui";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
  *  as new for the rest of this browser session, even if a scan completes while
@@ -59,6 +60,13 @@ import type { Property, ViewMode } from "./types";
  */
 const SEEN_KEY = "propertiesSeenBefore";
 let seenBefore: string | null | undefined;
+
+/** The two states of the multi-select toggle, named rather than expressed as a
+ *  ternary inside the class attribute. Filled while selection is on, outlined
+ *  while it is off — the same distinction every other toggle in the app will
+ *  make once it uses `Button`, instead of each one inventing it. */
+const SELECTION_ON: Emphasis = { variant: "solid", tone: "accent" };
+const SELECTION_OFF: Emphasis = { variant: "outline", tone: "accent" };
 
 export function readSeenThreshold(): string | null {
   if (seenBefore === undefined) {
@@ -465,19 +473,15 @@ export default function App() {
           <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <button data-action="selection.toggleMode"
-                  type="button"
-                  className={`btn-ghost text-xs px-3 py-1.5 rounded-lg border transition ${
-                    selectionMode
-                      ? "bg-accent text-on-solid border-accent shadow-e1"
-                      : "border-line hover:border-accent-line"
-                  }`}
+                <Button data-action="selection.toggleMode"
+                  size="sm"
+                  {...(selectionMode ? SELECTION_ON : SELECTION_OFF)}
                   onClick={() => {
                     setSelectionMode(!selectionMode);
                     if (selectionMode) setRawSelection(new Set());
                   }}>
                   {selectionMode ? t("app.closeMultiSelect") : t("app.selectMultiple")}
-                </button>
+                </Button>
                 {selectionMode && (
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
                     <input data-action="selection.selectAll"
@@ -491,52 +495,46 @@ export default function App() {
               </div>
               {selectionMode && selectedIds.size > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <button data-action="selection.hide"
-                    type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-negative-line hover:text-negative-ink flex items-center gap-1.5"
+                  <Button data-action="selection.hide"
+                    size="sm" variant="outline" tone="negative"
                     disabled={checkingBatch}
                     title={t("app.hideSelectedTitle")}
                     onClick={() => bulkAction("hide")}>
                     {t("app.hideSelected", { count: selectedIds.size })}
-                  </button>
-                  <button data-action="selection.markSold"
-                    type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
+                  </Button>
+                  <Button data-action="selection.markSold"
+                    size="sm" variant="outline" tone="caution"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("sold")}>
                     {t("app.markSold", { count: selectedIds.size })}
-                  </button>
-                  <button data-action="selection.favorite"
-                    type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
+                  </Button>
+                  <Button data-action="selection.favorite"
+                    size="sm" variant="outline" tone="neutral"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
                     {t("app.addFavorites")}
-                  </button>
-                  <button data-action="selection.unfavorite"
-                    type="button"
-                    className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-caution-line hover:text-caution-ink flex items-center gap-1.5"
+                  </Button>
+                  <Button data-action="selection.unfavorite"
+                    size="sm" variant="outline" tone="neutral"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("unfavorite")}>
                     {t("app.removeFavorites")}
-                  </button>
-                  <button data-action="selection.checkAvailability"
-                    type="button"
-                    className="accent-good text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                  </Button>
+                  <Button data-action="selection.checkAvailability"
+                    size="sm" variant="outline" tone="positive"
                     disabled={checkingBatch}
                     onClick={checkSelectedProperties}>
                     {checkingBatch
                       ? t("app.checking")
                       : t("app.checkAvailability", { count: selectedIds.size })}
-                  </button>
+                  </Button>
                   {checkingBatch && (
-                    <button data-action="selection.stopCheck"
-                      type="button"
-                      className="btn-ghost text-xs px-3 py-1.5 rounded-lg border border-line hover:border-negative-line hover:text-negative-ink flex items-center gap-1.5"
+                    <Button data-action="selection.stopCheck"
+                      size="sm" variant="outline" tone="negative"
                       disabled={cancellingBatch}
                       onClick={stopCheckingProperties}>
                       {cancellingBatch ? t("app.stopping") : t("app.stop")}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}

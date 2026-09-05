@@ -203,7 +203,10 @@ and for how to tell a stale TLS profile from an address that has gone bad.
 * **Frontend**: React / Vite / TypeScript / Tailwind CSS, with TanStack Query as
   the data layer — every read is a keyed query and every write a mutation, so a
   slow answer for a filter you have moved off cannot reach the screen and a scan
-  finishing does not lose your place in the results. Bilingual (English /
+  finishing does not lose your place in the results. Buttons, fields, dialogs and
+  the rest are one shared set of primitives built on Radix, so every dialog traps
+  focus, every menu answers Escape and every control can be reached with the
+  keyboard alone — asserted per primitive, not left to review. Bilingual (English /
   Italian) through a small dependency-free dictionary — no i18n library, and a
   key present in one language but missing in the other fails the build.
 

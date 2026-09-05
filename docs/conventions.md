@@ -151,6 +151,32 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   darkest panel it lands on. The consequence is that dim and muted sit closer together in
   dark than in light, which is what a dark ground costs rather than an oversight.
 
+- **A screen composes a primitive; it does not draw a control.** `src/ui/` holds the
+  sixteen — `Button`, `IconButton`, `Chip`, `Card`, `Field`, `Input`, `Select`, `Checkbox`,
+  `Dialog`, `Sheet`, `Popover`, `Tooltip`, `Tabs`, `Toast`, `Skeleton`, `EmptyState` — and a
+  new screen reaches for one rather than for a class string. Loudness is two declared axes,
+  `variant` (`solid`/`outline`/`ghost`) × `tone` (`neutral`/`accent`/`positive`/`caution`/
+  `negative`), written as a union in `ui/tone.ts` so a combination with no correct drawing
+  fails `tsc` instead of rendering an undrawn one. That is the rule the batch bar broke:
+  six buttons, six class strings, two of them hovering towards `caution` for adding and
+  removing a favourite, and one with no border, no hover and **no focus ring at all**.
+  Nothing had decided any of it, and nothing in the build could tell a variant somebody
+  meant from one they mistyped.
+
+  Everything with an overlay, a focus trap or an `aria-*` relationship is
+  [Radix](https://www.radix-ui.com/) underneath. The reason is not convenience: focus
+  trapping, Escape handling, `aria-expanded`/`aria-controls` wiring, typeahead in a listbox
+  and the return of focus to whatever opened the thing are where hand-rolled overlays go
+  wrong quietly, and Radix's are audited by people who do that full time. Where this
+  codebase does add to them, it is because the default was wrong *here*: `Dialog` and
+  `Sheet` remember the opener themselves (`ui/returnFocus.ts`), since Radix restores focus
+  through its own `Trigger` and both of these are opened from a piece of state instead.
+
+  Two things stay out of `src/ui/`. Strings — every label a user reads is a prop, because
+  the interface is Italian and a primitive that spelt its own close button would be one
+  English word nobody could find. And decisions — `components/Toast.tsx` still owns *when* a
+  message is raised and what advice goes on it; `ui/Toast.tsx` owns only its drawing.
+
 ---
 
 ## Testing
@@ -170,7 +196,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (92 in eighteen files: vitest +
+- **The frontend has unit tests too** (181 in thirty-four files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -216,6 +242,15 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   `StrictMode` on purpose: its double
   invocation of `useState` initializers is the bug, so nothing weaker reproduces it.
 
+  The primitives in `src/ui/` are tested one file per component, and each of those files
+  asks the same two questions: can it be operated with the keyboard alone, and does
+  `axe-core` find anything in the tree it produces (`src/test/axe.ts`). The keyboard half is
+  the point — an overlay is only as good as the way out of it, so the dialog test presses
+  Escape, tabs round the trap and asserts the opener has the focus back, and the toast test
+  reaches the Undo through the viewport hotkey. Three of the sixteen draw nothing
+  interactive (`Chip`, `Card`, `Skeleton`); their keyboard test asserts the honest thing,
+  which is that Tab passes them by rather than stopping on decoration.
+
 - **There is a third tier: the browser suite** (`frontend/e2e/`, run `cd frontend && npm
   run e2e`; `npm run e2e:browser` fetches Chromium the first time). It is the only thing
   here that runs the *assembled* product — the production build, served by `vite preview`
@@ -260,7 +295,13 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   gate green by quietly shrinking what it checks, which is the failure mode this whole
   arrangement exists to prevent. One row per *control*, not per rendering — a checkbox
   inside a `.map` is one control the user meets several times, and splitting it per item
-  would make the inventory grow with the data instead of with the app.
+  would make the inventory grow with the data instead of with the app. The primitives in
+  `src/ui/` are the one place the scanner reads differently, and it is not a loophole
+  either: the directory itself is skipped, because `Button` has no identity until a screen
+  uses one, while the primitive names are demanded an id **everywhere else**, exactly as
+  `<button>` is. Migrating a control from a lowercase tag to one of them changes nothing
+  about what the gate asks of it — which is the point, since the alternative was a gate
+  that shrank silently the day a screen stopped writing `<button>`.
 
 - **Every screen a journey reaches is held to two invariants**, applied by `checkScreen`
   at 390, 768 and 1440 px: the page must not scroll sideways, and `axe-core` must report no
