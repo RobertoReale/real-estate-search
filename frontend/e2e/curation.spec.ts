@@ -55,8 +55,9 @@ test("hiding a property takes it out of the grid, and Restore brings it back", a
 
   // Where a hidden property goes, and the way back from it. Changing the status
   // filter also refetches, so the count that comes back is the backend's answer
-  // and not the grid's local edit.
-  await page.getByLabel("Status").selectOption({ label: "Discarded" });
+  // and not the grid's local edit. `exact` because the chip that undoes the
+  // filter is labelled after it too, and `getByLabel` matches on substring.
+  await page.getByLabel("Status", { exact: true }).selectOption({ label: "Discarded" });
   await waitForResults(page);
   const hidden = page.locator("article", { hasText: title });
   await expect(hidden).toBeVisible();
@@ -65,7 +66,7 @@ test("hiding a property takes it out of the grid, and Restore brings it back", a
   await page.getByRole("button", { name: "Restore property" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeHidden();
 
-  await page.getByLabel("Status").selectOption({ label: "For sale" });
+  await page.getByLabel("Status", { exact: true }).selectOption({ label: "For sale" });
   await expect.poll(() => resultCount(page)).toBe(before);
   await expect(page.locator("article", { hasText: title })).toBeVisible();
 });

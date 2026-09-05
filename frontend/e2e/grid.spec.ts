@@ -32,3 +32,36 @@ test("the grid is the first thing a user with data can read", async ({ page }) =
   expect(box).not.toBeNull();
   expect(box!.y).toBeLessThan(900);
 });
+
+test("a row of cards reads down its columns, not across four layouts", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await waitForResults(page);
+
+  // The card is built on a fixed skeleton so that the same field is in the same
+  // place on every card in a row — which is what lets a reader compare four
+  // prices by moving their eye down instead of hunting for each one. It was not:
+  // a badge row that was empty on one card and two lines on the next, a tag
+  // strip that only existed once something had been tagged, and a commute row
+  // that depended on a routing batch each pushed everything below them down.
+  //
+  // Four cards, because `xl:grid-cols-4` is what 1440px gets, and the top of
+  // each zone is the assertion: heights inside a zone may differ, positions may
+  // not.
+  const row = cards(page);
+  expect(await row.count()).toBeGreaterThanOrEqual(4);
+
+  for (const zone of ["title", "address", "price", "facts", "market", "tags"] as const) {
+    const tops: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const box = await row.nth(i).locator(`[data-zone="${zone}"]`).boundingBox();
+      expect(box, `card ${i} has no ${zone} zone`).not.toBeNull();
+      tops.push(Math.round(box!.y));
+    }
+    // Sub-pixel rounding is the only slack allowed: anything larger is a card
+    // whose content changed where its rows are.
+    const drift = Math.max(...tops) - Math.min(...tops);
+    expect(drift, `the ${zone} zone sits at ${tops.join(", ")} across the row`)
+      .toBeLessThanOrEqual(1);
+  }
+});

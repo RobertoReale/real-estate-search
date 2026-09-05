@@ -36,7 +36,7 @@ export type Size = "sm" | "md" | "icon-sm" | "icon-md";
 
 const SIZES: Record<Size, string> = {
   // Dense rows — a toolbar, a card's own actions. Deliberately without a
-  // minimum height: the batch bar and the filter bar are measured for
+  // minimum height: the batch bar and the filter rail are measured for
   // horizontal overflow at 390 px by the browser suite, and growing every
   // small button is a layout change wearing the clothes of a token change.
   sm: "text-xs px-3 py-1.5",

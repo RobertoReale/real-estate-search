@@ -310,7 +310,16 @@ export const it: Dict = {
   "app.summaryCapped":
     "Raggiunto il limite di richieste per esecuzione: rilancia la verifica per continuare con i restanti.",
 
-  // ── barra dei filtri ────────────────────────────────────────────────────
+  // ── pannello dei filtri ─────────────────────────────────────────────────
+  "filters.title": "Filtri",
+  "filters.show": "Mostra i filtri",
+  "filters.hide": "Nascondi i filtri",
+  "filters.railHint": "Tutto ciò che restringe la griglia",
+  "filters.active": "Filtri attivi",
+  "filters.chipValue": "{label}: {value}",
+  "filters.chipRemove": "Togli il filtro {label}",
+  "filters.chipMerged": "Solo unificati",
+  "filters.chipMapArea": "Area sulla mappa",
   "filters.search": "Cerca",
   "filters.searchPlaceholder": "Cerca per zona, indirizzo, titolo, piano o testo dell'annuncio…",
   "filters.clearSearch": "Cancella la ricerca",
@@ -391,40 +400,42 @@ export const it: Dict = {
   "filters.exportIn": "{what} a {city}",
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
-  "filters.maintenance": "Manutenzione",
-  "filters.findCoords": "Trova le coordinate",
-  "filters.locating": "Localizzazione…",
-  "filters.findCoordsTitle":
+  "maintenance.title": "Manutenzione",
+  "maintenance.hint":
+    "Manutenzione dell'intero archivio, non di una singola ricerca. Nessuna delle due cambia ciò che una scansione cerca.",
+  "maintenance.findCoords": "Trova le coordinate",
+  "maintenance.locating": "Localizzazione…",
+  "maintenance.findCoordsTitle":
     "Trova le coordinate sulla mappa per gli annunci che hanno un indirizzo o una zona ma nessun segnaposto (usa OpenStreetMap; può richiedere tempo)",
-  "filters.retryFailed": "Riprova le ricerche fallite",
-  "filters.clearing": "Pulizia…",
-  "filters.retryFailedTitle":
+  "maintenance.retryFailed": "Riprova le ricerche fallite",
+  "maintenance.clearing": "Pulizia…",
+  "maintenance.retryFailedTitle":
     "Dimentica le geocodifiche fallite così \"Trova le coordinate\" riprova gli indirizzi che un disservizio temporaneo di OpenStreetMap ha congelato come \"non trovati\". Non sposta mai i segnaposti esistenti.",
-  "filters.backendTooOld":
+  "maintenance.backendTooOld":
     "Il backend non ha ancora questa funzione — riavvialo (chiudi e rilancia start.bat / serve.bat) e riprova.",
 
   // ── esiti della manutenzione ────────────────────────────────────────────
-  "filters.geocodeRunning": "Ricerca delle coordinate in background…",
-  "filters.geocodeProgress":
+  "maintenance.geocodeRunning": "Ricerca delle coordinate in background…",
+  "maintenance.geocodeProgress":
     "Localizzazione annuncio {done} di {total} — {geocoded} localizzati, {cached} dalla cache",
-  "filters.geocodeProgressNotFound": ", {count} non trovati",
-  "filters.geocodeStarting": "Avvio della ricerca delle coordinate…",
-  "filters.geocodePacing":
+  "maintenance.geocodeProgressNotFound": ", {count} non trovati",
+  "maintenance.geocodeStarting": "Avvio della ricerca delle coordinate…",
+  "maintenance.geocodePacing":
     "(Ritmo di 1 richiesta al secondo, per rispettare le regole d'uso di OpenStreetMap Nominatim)",
-  "filters.geocodeLastIssue": "Ultimo problema segnalato da Nominatim: {error}",
-  "filters.geocodeDone": "Ricerca delle coordinate terminata",
-  "filters.geocodeNothing":
+  "maintenance.geocodeLastIssue": "Ultimo problema segnalato da Nominatim: {error}",
+  "maintenance.geocodeDone": "Ricerca delle coordinate terminata",
+  "maintenance.geocodeNothing":
     "Niente da localizzare: ogni immobile ha già un segnaposto oppure non ha indirizzo/zona da cui ricavarlo. (La sola città viene saltata di proposito — porterebbe tutti quegli annunci sullo stesso punto in centro.)",
-  "filters.geocodeLocated": "Localizzati {geocoded} di {scanned} annunci senza segnaposto",
-  "filters.geocodeNotFound": " · {count} non risolti",
-  "filters.geocodeCancelled":
+  "maintenance.geocodeLocated": "Localizzati {geocoded} di {scanned} annunci senza segnaposto",
+  "maintenance.geocodeNotFound": " · {count} non risolti",
+  "maintenance.geocodeCancelled":
     'Interrotta — gli immobili rimanenti sono rimasti senza segnaposto. Premi di nuovo "Trova le coordinate" per riprendere.',
-  "filters.geocodeRemaining": "Ne restano {count} — rilanciala per continuare.",
-  "filters.cacheClearedNone":
+  "maintenance.geocodeRemaining": "Ne restano {count} — rilanciala per continuare.",
+  "maintenance.cacheClearedNone":
     "Nessuna ricerca bloccata da cancellare — ogni indirizzo fallito era già stato dimenticato o non era mai stato messo in cache.",
-  "filters.cacheCleared":
+  "maintenance.cacheCleared":
     "Cancellate {count} ricerche fallite. Premi Trova le coordinate per riprovarle.",
-  "filters.cacheClearedOne":
+  "maintenance.cacheClearedOne":
     "Cancellata {count} ricerca fallita. Premi Trova le coordinate per riprovarla.",
 
   // ── impostazioni: struttura e segreti ───────────────────────────────────

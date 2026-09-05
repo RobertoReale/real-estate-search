@@ -65,10 +65,12 @@ test("a slow answer for an abandoned filter never reaches the grid", async ({ pa
     },
   );
 
-  await page.getByLabel("City").fill("Bologna");
+  // `exact`: setting the field raises a chip labelled "Remove the City: … filter",
+  // and a substring match would find both.
+  await page.getByLabel("City", { exact: true }).fill("Bologna");
   await page.waitForRequest((request) =>
     isGrid(request.url()) && new URL(request.url()).searchParams.get("city") === "Bologna");
-  await page.getByLabel("City").fill("Milano");
+  await page.getByLabel("City", { exact: true }).fill("Milano");
   await expect.poll(() => resultCount(page)).toBe(all);
 
   // The abandoned answer arrives about here. It is a page of nothing, for a

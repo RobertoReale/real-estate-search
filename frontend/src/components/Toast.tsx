@@ -3,7 +3,7 @@
  * something they cannot see happened, and how to take it back.
  *
  * Before this, every surface reported its own failures: a red `<div>` under the
- * navbar for a failed write, a second one inside the filter bar for a failed
+ * navbar for a failed write, a second one inside the filter rail for a failed
  * export, a third inside the property detail, a fourth per section of the
  * settings dialog. Four containers with four looks, none of which could say
  * anything a user could act on, and a fifth failure — the request that never

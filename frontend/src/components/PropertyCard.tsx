@@ -1,7 +1,48 @@
+/** One property, on a skeleton every other card also has.
+ *
+ *  The rebuild is the point. The card used to lay itself out from whatever the
+ *  listing happened to carry: a badge row that was empty on one card and two
+ *  lines on the next, a tag strip that appeared only once something had been
+ *  tagged, a commute row that existed only after a routing batch had covered
+ *  it. Every one of those pushed the rows under it down, so four cards in a row
+ *  had their titles at four heights and their prices at four more, and a reader
+ *  scanning the grid had to find each field again on every card instead of
+ *  reading down a column.
+ *
+ *  So the shape is fixed and the content varies inside it. Six zones, in this
+ *  order and at these heights whatever the data:
+ *
+ *      image (4:3) · title · address · price · facts · market · tags
+ *
+ *  Each carries a `data-zone`, and the browser suite asserts that the tops of
+ *  the corresponding zones line up across a row of four. They are `data-zone`
+ *  and not `data-action` on purpose: they hold no handler, and the action
+ *  inventory is a list of things a user can press.
+ *
+ *  Three consequences worth naming, because each one is a decision rather than
+ *  a detail:
+ *
+ *  - **The title is above the price.** A card is found by what it is and then
+ *    judged by what it costs; the price used to come first and the eye had to
+ *    jump back up for the address.
+ *  - **The tags are last and appear on hover.** Tagging is editing, and an
+ *    editing affordance sitting in the middle of the reading path was read as
+ *    part of the listing. It is `opacity`, not `hidden`: the row still occupies
+ *    its zone (so nothing moves when it appears) and is still operable by
+ *    pointer and by keyboard, which `display: none` would end.
+ *  - **One market statement, never two.** See `utils/marketPosition.ts` for the
+ *    precedence and for why the OMI band takes no part in it (invariant 22).
+ *
+ *  Everything that is a *state* of the listing rather than a fact about it —
+ *  new, portal, merged, a price drop, gone, sold, no pin, has notes — is an
+ *  overlay on the image, where a variable number of them costs no layout at
+ *  all.
+ */
 import { useState } from "react";
 import { formatNumber, useT } from "../i18n";
 import { formatPrice } from "../services/api";
-import { COMMUTE_ICONS, formatDistance, formatDuration, humanizeFloor } from "../utils/format";
+import { humanizeFloor } from "../utils/format";
+import { marketPosition } from "../utils/marketPosition";
 import { PortalBadge } from "./PortalBadge";
 import TagPicker from "./TagPicker";
 import type { Property, Tag } from "../types";
@@ -40,104 +81,29 @@ interface Props {
   onRemoveTag: (tagId: number) => void;
 }
 
-/** Travel time from this property to each of the user's saved places.
- *
- *  Absent rather than empty when nothing has been routed yet: the annotation is
- *  cache-only (the grid must never spend a routing request), so a card shows a
- *  commute once the batch in Settings has covered it, and simply says nothing
- *  until then. `detailed` adds the distance, which the modal has room for and
- *  the card does not.
- */
-export function CommuteChips(
-  { property: p, detailed }: { property: Property; detailed?: boolean },
-) {
-  const t = useT();
-  if (!p.commutes?.length) return null;
-  return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
-      {p.commutes.map((c) => {
-        const Mode = COMMUTE_ICONS[c.mode];
-        return (
-          <span key={`${c.name}-${c.mode}`} className="inline-flex items-center gap-1"
-            title={t("card.commuteTitle", { name: c.name })}>
-            <Mode /> {c.name} {formatDuration(c.duration_s)}
-            {detailed && ` · ${formatDistance(c.distance_m)}`}
-          </span>
-        );
-      })}
-    </div>
-  );
+/** Every overlay badge is white on an opaque 700-weight fill. The 600 weights
+ *  these used to carry read at 3.1–3.7:1 against white, under the 4.5:1 the
+ *  browser suite gates on, and the translucency made it worse still: composited
+ *  over a bright photo the fill lightens and the label fades with it, so the
+ *  contrast depended on the picture behind it. */
+const OVERLAY = "inline-flex items-center gap-1 rounded text-3xs font-bold px-2 py-0.5 text-on-solid";
+const MARKER = "inline-flex items-center gap-1 rounded-lg text-xs px-2 py-1 text-on-solid";
+
+/** The dream-home score's fill, which tracks the score so a strong match reads
+ *  before the number does. Solid rather than tinted: it sits on a photograph. */
+function matchFill(score: number): string {
+  if (score >= 80) return "bg-positive";
+  if (score >= 50) return "bg-caution";
+  return "bg-neutral-solid";
 }
 
-/** Badge comparing this property's €/sqm to the local median.
- *  Only shown beyond ±5%: smaller deltas are market noise, not signal. */
-export function MarketBadge({ property: p }: { property: Property }) {
-  const t = useT();
-  if (p.sqm_price_delta_pct === null || Math.abs(p.sqm_price_delta_pct) < 5) {
-    return null;
-  }
-  const below = p.sqm_price_delta_pct < 0;
-  const scope = t(p.area_median_scope === "zone" ? "card.scopeZone" : "card.scopeCity");
-  const pct = Math.abs(p.sqm_price_delta_pct).toFixed(0);
+/** A fact slot: always rendered, so the three of them are always in the same
+ *  places. An em dash is the honest answer to "how many rooms" when the ad did
+ *  not say — and it keeps the row the same height as one that did. */
+function Fact({ icon, value }: { icon: React.ReactNode; value: string | null }) {
   return (
-    <span
-      title={t("card.medianIn", {
-        scope,
-        value: formatNumber(Math.round(p.area_median_sqm_price ?? 0)),
-      })}>
-      <Chip tone={below ? "positive" : "caution"} className="font-semibold">
-        {t(below ? "card.belowAverage" : "card.aboveAverage", { pct, scope })}
-      </Chip>
-    </span>
-  );
-}
-
-/** The "92% match" badge: compatibility with the user's "dream home" settings.
- *  Only rendered when the Smart Match Score feature is on (score is non-null).
- *  Colour tracks the score so a strong match reads at a glance. */
-export function MatchBadge({ score }: { score: number | null }) {
-  const t = useT();
-  if (score === null || score === undefined) return null;
-  const tone = score >= 80 ? "positive" : score >= 50 ? "caution" : "neutral";
-  return (
-    <span title={t("card.matchBadgeTitle")}>
-      <Chip tone={tone} className="font-semibold">
-        <Deal /> {t("card.matchBadge", { score })}
-      </Chip>
-    </span>
-  );
-}
-
-/** The "16% below market" badge from the Deal Score. Shown only when the
- *  verdict is decisive (undervalued/overpriced); "fair" adds no signal. A
- *  positive score means priced below the local market. */
-export function DealBadge({ property: p }: { property: Property }) {
-  const t = useT();
-  if (p.deal_score === null || p.deal_label === "fair" || p.deal_label === null) {
-    return null;
-  }
-  // The Deal Score's base is exactly the market-position delta (deal_score.py:
-  // base = -sqm_price_delta_pct); condition/agency cues then shift it. When
-  // nothing shifted it, this badge just restates the MarketBadge with the same
-  // number in different words ("18% above market" next to "18% above city
-  // average") — a confusing duplicate. Drop it in that case: the MarketBadge
-  // already carries the €/sqm position, and DealBadge earns its place only when
-  // it says something more (a renovation/agency adjustment moved the score).
-  if (
-    p.sqm_price_delta_pct !== null &&
-    Math.round(-p.sqm_price_delta_pct) === p.deal_score
-  ) {
-    return null;
-  }
-  const under = p.deal_label === "undervalued";
-  return (
-    <span title={(p.deal_reasons ?? []).join(" · ") || t("card.dealScore")}>
-      <Chip tone={under ? "positive" : "caution"} className="font-semibold">
-        <Deal />{" "}
-        {t(under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
-          pct: Math.abs(p.deal_score),
-        })}
-      </Chip>
+    <span className={`inline-flex items-center gap-1 ${value === null ? "t-dim" : ""}`}>
+      {icon} {value ?? "—"}
     </span>
   );
 }
@@ -154,6 +120,10 @@ export default function PropertyCard({
   const sqmPrice =
     p.current_min_price && p.sqm ? Math.round(p.current_min_price / p.sqm) : null;
   const portals = [...new Set(p.listings.map((l) => l.portal))];
+  const market = marketPosition(p);
+  const scope = market?.kind === "median"
+    ? t(market.scope === "zone" ? "card.scopeZone" : "card.scopeCity")
+    : "";
   // portal image URLs are often signed/expiring CDN links: a stale one fails
   // to load, and the browser's broken-image icon renders the alt text right
   // under the absolutely-positioned badges instead of the placeholder icon
@@ -194,18 +164,10 @@ export default function PropertyCard({
             </div>
           )}
           {/* right padding reserves the quick-action corner, which is wider on
-              phones where the buttons grow to a thumb-sized target.
-
-              Every badge here is white on an opaque 700-weight fill. The 600
-              weights these used to carry read at 3.1–3.7:1 against white, under
-              the 4.5:1 the browser suite gates on, and the translucency made it
-              worse still: composited over a bright photo the fill lightens and
-              the label fades with it, so the contrast depended on the picture
-              behind it. */}
+              phones where the buttons grow to a thumb-sized target */}
           <div className="absolute top-2 left-2 flex flex-wrap gap-1.5 pr-28 sm:pr-24">
             {isNew && (
-              <span
-                className="text-3xs font-bold uppercase px-2 py-0.5 rounded bg-portal-immobiliare text-on-solid"
+              <span className={`${OVERLAY} uppercase bg-portal-immobiliare`}
                 title={t("card.newTitle")}>
                 {t("card.new")}
               </span>
@@ -214,21 +176,27 @@ export default function PropertyCard({
               <PortalBadge key={portal} portal={portal} variant="overlay" />
             ))}
             {p.contract === "rent" && (
-              <span className="inline-flex items-center gap-1 text-3xs font-bold uppercase
-                px-2 py-0.5 rounded bg-rent-deep text-on-solid">
+              <span className={`${OVERLAY} uppercase bg-rent-deep`}>
                 <Sold /> {t("card.rent")}
               </span>
             )}
+            {/* The dream-home score. An overlay rather than a row of its own:
+                it is a judgement about the listing, and the one row this card
+                keeps for judgements is the market line, which says something
+                about the price instead. */}
+            {p.match_score !== null && p.match_score !== undefined && (
+              <span className={`${OVERLAY} ${matchFill(p.match_score)}`}
+                title={t("card.matchBadgeTitle")}>
+                <Deal /> {t("card.matchBadge", { score: p.match_score })}
+              </span>
+            )}
             {p.listings.length > 1 && (
-              <span className="inline-flex items-center gap-1 text-3xs font-bold px-2 py-0.5
-                rounded bg-tag text-on-solid">
+              <span className={`${OVERLAY} bg-tag`}>
                 <Merged /> {t("card.mergedListings", { count: p.listings.length })}
               </span>
             )}
             {p.source === "email" && (
-              <span className="inline-flex items-center gap-1 text-3xs font-bold px-2 py-0.5
-                rounded bg-info text-on-solid"
-                title={t("card.emailTitle")}>
+              <span className={`${OVERLAY} bg-info`} title={t("card.emailTitle")}>
                 <Email /> {t("card.email")}
               </span>
             )}
@@ -281,34 +249,65 @@ export default function PropertyCard({
 
           <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
             {drop !== null && (
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1
-                rounded-lg bg-positive text-on-solid">
+              <span className={`${MARKER} font-bold bg-positive`}>
                 <PriceDrop /> {drop.toFixed(1)}%
               </span>
             )}
             {p.status === "filtered" && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg
-                bg-negative-deep text-on-solid">
+              <span className={`${MARKER} bg-negative-deep`}>
                 <Filtered /> {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
               </span>
             )}
             {p.status === "gone" && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg
-                bg-neutral-solid text-on-solid">
+              <span className={`${MARKER} bg-neutral-solid`}>
                 <Gone /> {t("card.noLongerAvailable")}
               </span>
             )}
             {p.status === "sold" && (
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1
-                rounded-lg bg-caution text-on-solid">
+              <span className={`${MARKER} font-bold bg-caution`}>
                 <Sold /> {t(p.contract === "rent" ? "card.rentedOut" : "card.sold")}
+              </span>
+            )}
+            {p.notes && (
+              <span className={`${MARKER} bg-neutral-solid`} title={p.notes}>
+                <Notes /> {t("card.notes")}
+              </span>
+            )}
+            {/* Whether the property is placeable on the map. Called out because a
+                zone filter silently drops the un-pinned ones (invariant 19), and
+                from the grid there was no way to tell which cards those are. */}
+            {(p.latitude === null || p.longitude === null) && (
+              <span className={`${MARKER} bg-neutral-solid`}
+                title={t("card.notOnMapTitle")}>
+                <Atlas /> {t("card.notOnMap")}
               </span>
             )}
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="flex items-baseline justify-between gap-2">
+        <div className="p-4 flex flex-col gap-2">
+          {/* The card's keyboard route into the property. Styled as the heading
+              it already was — this is the same target the whole card offers a
+              pointer, given to Tab as a control a screen reader can name. Two
+              lines, always: a one-line title leaves the second line empty
+              rather than pulling the price up into it. */}
+          <h3 data-zone="title" className="h-10 font-medium text-sm leading-5">
+            <button data-action="property.open" type="button"
+              className="text-left w-full line-clamp-2 btn-focus rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}>
+              {p.title || t("card.untitled")}
+            </button>
+          </h3>
+          <p data-zone="address" className="h-4 flex items-center gap-1 text-xs t-muted">
+            <Place className="shrink-0" />
+            <span className="truncate">
+              {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("card.locationUnknown")}
+            </span>
+          </p>
+          <div data-zone="price" className="h-7 flex items-baseline justify-between gap-2">
             <span className="text-xl font-bold accent-price">
               {formatPrice(p.current_min_price, p.contract)}
             </span>
@@ -318,64 +317,50 @@ export default function PropertyCard({
               </span>
             )}
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
-            <DealBadge property={p} />
-            <MatchBadge score={p.match_score} />
-            <MarketBadge property={p} />
+          <div data-zone="facts" className="h-4 flex items-center gap-x-3 text-xs t-body">
+            <Fact icon={<Rooms />}
+              value={p.rooms ? t("common.rooms", { count: p.rooms }) : null} />
+            <Fact icon={<Area />}
+              value={p.sqm ? t("common.sqm", { value: p.sqm.toFixed(0) }) : null} />
+            <Fact icon={<Floor />} value={p.floor ? humanizeFloor(p.floor) : null} />
           </div>
-          <div className="mt-1.5">
+          {/* Exactly one statement about where this price sits, or none. The row
+              is here either way, so a card the backend could not judge is the
+              same height as one it could. */}
+          <div data-zone="market" className="h-6 flex items-center">
+            {market?.kind === "deal" && (
+              <span title={market.reasons.join(" · ") || t("card.dealScore")}>
+                <Chip tone={market.under ? "positive" : "caution"} className="font-semibold">
+                  <Deal />{" "}
+                  {t(market.under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
+                    pct: market.pct,
+                  })}
+                </Chip>
+              </span>
+            )}
+            {market?.kind === "median" && (
+              <span
+                title={t("card.medianIn", {
+                  scope,
+                  value: formatNumber(Math.round(market.median ?? 0)),
+                })}>
+                <Chip tone={market.below ? "positive" : "caution"} className="font-semibold">
+                  {t(market.below ? "card.belowAverage" : "card.aboveAverage", {
+                    pct: market.pct, scope,
+                  })}
+                </Chip>
+              </span>
+            )}
+          </div>
+          {/* Editing, not reading: revealed on hover and on focus, and holding
+              its height either way so nothing below it moves. `opacity` rather
+              than `hidden` — a control a keyboard can reach must stay a control
+              a keyboard can operate. */}
+          <div data-zone="tags"
+            className="h-7 flex items-center opacity-0 transition-opacity
+              group-hover:opacity-100 group-focus-within:opacity-100">
             <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} compact />
           </div>
-          {/* The card's keyboard route into the property. Styled as the heading
-              it already was — this is the same target the whole card offers a
-              pointer, given to Tab as a control a screen reader can name. */}
-          <h3 className="font-medium text-sm mt-1">
-            <button data-action="property.open" type="button"
-              className="text-left w-full line-clamp-2 min-h-[2.5rem] btn-focus rounded"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}>
-              {p.title || t("card.untitled")}
-            </button>
-          </h3>
-          <p className="flex items-center gap-1 text-xs t-muted mt-1">
-            <Place className="shrink-0" />
-            <span className="truncate">
-              {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("card.locationUnknown")}
-            </span>
-          </p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
-            {p.rooms && (
-              <span className="inline-flex items-center gap-1">
-                <Rooms /> {t("common.rooms", { count: p.rooms })}
-              </span>
-            )}
-            {p.sqm && (
-              <span className="inline-flex items-center gap-1">
-                <Area /> {t("common.sqm", { value: p.sqm.toFixed(0) })}
-              </span>
-            )}
-            {p.floor && (
-              <span className="inline-flex items-center gap-1">
-                <Floor /> {humanizeFloor(p.floor)}
-              </span>
-            )}
-            {p.notes && (
-              <span className="inline-flex items-center gap-1" title={p.notes}>
-                <Notes /> {t("card.notes")}
-              </span>
-            )}
-            {/* Whether the property is placeable on the map. Called out because a
-                zone filter silently drops the un-pinned ones (invariant 19), and
-                from the grid there was no way to tell which cards those are. */}
-            {(p.latitude === null || p.longitude === null) && (
-              <span className="inline-flex items-center gap-1 t-dim" title={t("card.notOnMapTitle")}>
-                <Atlas /> {t("card.notOnMap")}
-              </span>
-            )}
-          </div>
-          <CommuteChips property={p} />
         </div>
       </article>
     </Card>

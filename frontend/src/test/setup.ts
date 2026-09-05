@@ -29,3 +29,25 @@ if (!globalThis.ResizeObserver) {
     disconnect() {}
   };
 }
+
+// jsdom has no media queries either, and this one is not inert: `useMediaQuery`
+// decides whether the filter rail renders inline or as a sheet, so a stub that
+// always answered `false` would mean every component test drives a rail that is
+// shut inside a sheet. jsdom does report a window width (1024), so answer from
+// it rather than from a constant — a test that sets `window.innerWidth` gets
+// the layout it asked for, and the default is the desktop one the specs expect.
+if (!window.matchMedia) {
+  window.matchMedia = (query: string): MediaQueryList => {
+    const min = /\(min-width:\s*(\d+)px\)/.exec(query);
+    const max = /\(max-width:\s*(\d+)px\)/.exec(query);
+    const matches =
+      (min === null || window.innerWidth >= Number(min[1])) &&
+      (max === null || window.innerWidth <= Number(max[1]));
+    return {
+      matches, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {},
+      dispatchEvent: () => false,
+    };
+  };
+}

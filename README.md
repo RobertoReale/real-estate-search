@@ -115,7 +115,7 @@ are covered in [Remote Access & Running in the Background](docs/remote-access.md
    and filter the grid, and clean up in bulk.
 
 The full walkthrough — every portal filter, search-building shortcuts, the
-search/filter bar, bulk cleanup, deleting a search (and what happens to the
+search/filter rail, bulk cleanup, deleting a search (and what happens to the
 listings it found), and silencing a search's notifications — is in
 [Using the App](docs/using-the-app.md).
 

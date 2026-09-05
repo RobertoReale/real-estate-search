@@ -40,7 +40,8 @@
   location that looks exact is not, and it is the kind of mistake you would have
   no way of spotting. Nothing else in the app treats those pins differently, so a
   zone you draw around a district will include them.
-* The **📍 Find coordinates** button under *Maintenance* runs the same
+* The **📍 Find coordinates** button under *Maintenance*, on the **Searches**
+  screen, runs the same
   OpenStreetMap lookup over the *whole* dashboard rather than one scan's
   listings — the remedy for what is still missing after a scan, or after
   importing older data (cached, and it never invents a wrong pin: a lookup it
@@ -171,7 +172,7 @@
   giardino", "mi piace ma…" — and attach as many as you like to a property,
   right from its card or the detail modal. Typing a name that already exists
   reuses it instead of creating a near-duplicate. Filter the grid down to a
-  single tag from the filter bar, same as filtering by city or zone.
+  single tag from the filter rail, same as filtering by city or zone.
 * **Which search found it**: a property's detail modal shows **🔍 Found by** —
   the monitored searches that turned it up. Overlapping searches both appear, so
   you can tell at a glance whether a listing came from your "Milano trilocali" or
@@ -179,7 +180,7 @@
   says so instead.
 * **Mortgage calculator**: inside a property's detail modal, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
-* **Share a shortlist**: the **Export** buttons on the filter bar download the
+* **Share a shortlist**: the **Export** buttons at the foot of the filter rail download the
   properties currently on screen — apply the filters or tick *Favorites* first —
   as a self-contained **HTML dossier**, a clean **Markdown** report, or a **CSV**
   spreadsheet. Each includes prices, price-drop history, and the Deal/Match

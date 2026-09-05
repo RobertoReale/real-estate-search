@@ -187,10 +187,10 @@ progetto/
 ├── frontend/                     # React + Vite + Tailwind CSS 4
 │   └── src/
 │       ├── App.tsx
-│       ├── components/           # Navbar, SearchProfiles, FiltersBar, PortalBadge,
-│       │                         # PropertyCard, PropertyModal, SettingsModal, TagPicker,
-│       │                         # MapView, MarketVelocity, Calculators,
-│       │                         # ErrorBoundary
+│       ├── components/           # Navbar, SearchProfiles, MaintenanceActions,
+│       │                         # PortalBadge, PropertyCard, PropertyModal,
+│       │                         # SettingsModal, TagPicker, MapView,
+│       │                         # MarketVelocity, Calculators, ErrorBoundary
 │       │   ├── settings/         # one file per settings section (Telegram, Email,
 │       │   │                     # Scanning, Match, Assistant, Scraping, System),
 │       │   │                     # each owning its own fields; SettingsModal is
@@ -199,8 +199,13 @@ progetto/
 │       │                         # (AssistantPanel, MultiPanel, UrlForm,
 │       │                         # BuilderForm, BulkToolbar, ProfileList,
 │       │                         # DeleteDialog) + its constants and helpers
+│       ├── routes/                 # one folder per screen; params.ts is the URL
+│       │                           # codec and useDashboardUrl reads it
+│       │   └── listings/          # the grid's own regions: FilterRail,
+│       │                          # ActiveFilters, ResultHeader, chips.ts
 │       ├── hooks/                  # useSearchProfiles (the search panel's state
-│       │                           # machine), useDebounced, useOnReveal
+│       │                           # machine), useDebounced, useOnReveal,
+│       │                           # useMediaQuery
 │       ├── queries/                # the data layer: keys.ts names every piece of
 │       │                           # server state, then one module per area
 │       │                           # (properties, dashboard, settings, insights,

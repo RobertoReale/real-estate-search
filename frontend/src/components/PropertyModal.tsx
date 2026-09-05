@@ -8,10 +8,11 @@ import { formatPrice, safeHref } from "../services/api";
 import type { Property, Tag } from "../types";
 import Calculators from "./Calculators";
 import { PortalBadge } from "./PortalBadge";
-import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
 import { useToasts } from "./Toast";
-import { formatSemester } from "../utils/format";
+import {
+  COMMUTE_ICONS, formatDistance, formatDuration, formatSemester,
+} from "../utils/format";
 import {
   Agency,
   Area,
@@ -35,6 +36,101 @@ import {
   Warning,
 } from "../ui/icons";
 import { Button, Chip, IconButton, Textarea } from "../ui";
+
+/** Travel time from this property to each of the user's saved places.
+ *
+ *  Absent rather than empty when nothing has been routed yet: the annotation is
+ *  cache-only (the grid must never spend a routing request), so this appears
+ *  once the batch in Settings has covered the property, and simply says nothing
+ *  until then. `detailed` adds the distance, which the modal has room for.
+ *
+ *  It used to live on the card as well, and that was the trouble: a row that
+ *  exists on some cards and not others is a row that moves everything under it,
+ *  and the grid now keeps a fixed skeleton. The detail view is where a variable
+ *  number of lines costs nothing.
+ */
+function CommuteChips({ property: p, detailed }: { property: Property; detailed?: boolean }) {
+  const t = useT();
+  if (!p.commutes?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
+      {p.commutes.map((c) => {
+        const Mode = COMMUTE_ICONS[c.mode];
+        return (
+          <span key={`${c.name}-${c.mode}`} className="inline-flex items-center gap-1"
+            title={t("card.commuteTitle", { name: c.name })}>
+            <Mode /> {c.name} {formatDuration(c.duration_s)}
+            {detailed && ` · ${formatDistance(c.distance_m)}`}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Badge comparing this property's €/sqm to the local median.
+ *  Only shown beyond ±5%: smaller deltas are market noise, not signal. */
+function MarketBadge({ property: p }: { property: Property }) {
+  const t = useT();
+  if (p.sqm_price_delta_pct === null || Math.abs(p.sqm_price_delta_pct) < 5) {
+    return null;
+  }
+  const below = p.sqm_price_delta_pct < 0;
+  const scope = t(p.area_median_scope === "zone" ? "card.scopeZone" : "card.scopeCity");
+  const pct = Math.abs(p.sqm_price_delta_pct).toFixed(0);
+  return (
+    <span
+      title={t("card.medianIn", {
+        scope,
+        value: formatNumber(Math.round(p.area_median_sqm_price ?? 0)),
+      })}>
+      <Chip tone={below ? "positive" : "caution"} className="font-semibold">
+        {t(below ? "card.belowAverage" : "card.aboveAverage", { pct, scope })}
+      </Chip>
+    </span>
+  );
+}
+
+/** The "16% below market" badge from the Deal Score. Shown only when the
+ *  verdict is decisive (undervalued/overpriced); "fair" adds no signal. A
+ *  positive score means priced below the local market.
+ *
+ *  The card picks one of these two and shows only that one
+ *  (`utils/marketPosition.ts`); here both are welcome, because the breakdown
+ *  underneath them explains what each is measuring. What stays true in both
+ *  places is that the €/sqm median and the OMI band are separate statements and
+ *  neither ever stands in for the other (invariant 22).
+ */
+function DealBadge({ property: p }: { property: Property }) {
+  const t = useT();
+  if (p.deal_score === null || p.deal_label === "fair" || p.deal_label === null) {
+    return null;
+  }
+  // The Deal Score's base is exactly the market-position delta (deal_score.py:
+  // base = -sqm_price_delta_pct); condition/agency cues then shift it. When
+  // nothing shifted it, this badge just restates the MarketBadge with the same
+  // number in different words ("18% above market" next to "18% above city
+  // average") — a confusing duplicate. Drop it in that case: the MarketBadge
+  // already carries the €/sqm position, and DealBadge earns its place only when
+  // it says something more (a renovation/agency adjustment moved the score).
+  if (
+    p.sqm_price_delta_pct !== null &&
+    Math.round(-p.sqm_price_delta_pct) === p.deal_score
+  ) {
+    return null;
+  }
+  const under = p.deal_label === "undervalued";
+  return (
+    <span title={(p.deal_reasons ?? []).join(" · ") || t("card.dealScore")}>
+      <Chip tone={under ? "positive" : "caution"} className="font-semibold">
+        <Deal />{" "}
+        {t(under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
+          pct: Math.abs(p.deal_score),
+        })}
+      </Chip>
+    </span>
+  );
+}
 
 /** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
  *  so each value has a translation rather than being printed raw. */
@@ -567,7 +663,7 @@ export default function PropertyModal({
                 onClick={viewOnMap}
                 title={t(hasCoords ? "modal.viewOnMapTitle" : "modal.locateAndViewTitle")}>
                 <Atlas />
-                {locating ? t("filters.locating") : t("modal.viewOnMap")}
+                {locating ? t("maintenance.locating") : t("modal.viewOnMap")}
               </Button>
               {checkResult && (
                 <span className="text-xs font-medium animate-fade-in">
