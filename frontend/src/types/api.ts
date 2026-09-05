@@ -321,7 +321,7 @@ export interface paths {
          * Get Property Audit
          * @description The stored reading of this listing's text, or null if none was asked for.
          *
-         *     Reads the row and nothing else â€” never the model â€” so the detail modal can
+         *     Reads the row and nothing else â€” never the model â€” so the detail can
          *     show an audit the user already paid for without spending a request every
          *     time a card is opened. Same split as the commute annotation: what is cached
          *     is free, what costs something needs a press.
@@ -604,7 +604,7 @@ export interface paths {
          *     the chart's latest point summarises. Snapshots keep only the median and the
          *     count, so this is necessarily the set as it stands today, not a past point's
          *     (see pricing_stats.area_comparables). Same properties, annotated exactly like
-         *     the grid, so the same detail modal opens from the chart.
+         *     the grid, so the same property detail opens from the chart.
          */
         get: operations["pricing_trend_comparables_api_pricing_trends_comparables_get"];
         put?: never;
@@ -1897,7 +1897,7 @@ export interface components {
          *
          *     Deliberately not part of `PropertyOut`: an audit exists only for the
          *     properties the user asked about, so carrying it on every grid row would be
-         *     a join for a field almost every card leaves empty. The detail modal fetches
+         *     a join for a field almost every card leaves empty. The detail fetches
          *     it on its own.
          *
          *     `cached` says the answer came from the stored row rather than the model,

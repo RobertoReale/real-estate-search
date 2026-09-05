@@ -439,7 +439,7 @@ def check_single_property(property_id: int, db: Session = Depends(get_db)):
 def get_property_audit(property_id: int, db: Session = Depends(get_db)):
     """The stored reading of this listing's text, or null if none was asked for.
 
-    Reads the row and nothing else — never the model — so the detail modal can
+    Reads the row and nothing else — never the model — so the detail can
     show an audit the user already paid for without spending a request every
     time a card is opened. Same split as the commute annotation: what is cached
     is free, what costs something needs a press."""

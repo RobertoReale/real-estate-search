@@ -251,7 +251,7 @@ export function useAvailabilityProgress(running: boolean) {
  *
  *  Reads the cache only — never the model — so opening a card is free. A card
  *  nobody has ever read answers `null` rather than failing, which is why the
- *  modal shows nothing here instead of an error. */
+ *  detail shows nothing here instead of an error. */
 export function useListingAudit(id: number, enabled: boolean) {
   return useQuery<ListingAudit | null>({
     queryKey: keys.listingAudit(id),

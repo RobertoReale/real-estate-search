@@ -173,7 +173,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
               <a data-action="profiles.builder.openBuilt" href={built[portal]} target="_blank" rel="noreferrer"
                 className="accent-link text-xs shrink-0"
                 onClick={(e) => e.stopPropagation()}>
-                {t("modal.open")} <External />
+                {t("common.open")} <External />
               </a>
             </label>
           ))}

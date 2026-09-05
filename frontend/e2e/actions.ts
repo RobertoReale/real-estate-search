@@ -169,7 +169,7 @@ export const ACTIONS = {
     guard: true,
   },
 
-  // ── Tags, from the card and from the modal ──────────────────────────────
+  // ── Tags, from the card and from the detail ─────────────────────────────
   "tags.picker": {
     what: "the tag strip",
     does: "keeps a click inside it from opening the property, and closes the input on blur",
@@ -192,19 +192,19 @@ export const ACTIONS = {
   "selection.stopCheck": { what: "Stop, while the batch runs", does: "asks the batch to stop after the listing in flight" },
   "selection.dismissSummary": { what: "the dismiss button on the batch summary", does: "removes the summary" },
 
-  // ── The property modal ──────────────────────────────────────────────────
-  "modal.panel": { what: "the modal's panel", does: "keeps a click inside the modal from closing it", guard: true },
-  "modal.close.backdrop": { what: "the dimmed area around the modal", does: "closes the modal" },
-  "modal.close": { what: "the close button in the modal", does: "closes the modal" },
-  "modal.favorite": { what: "the star in the modal", does: "stars the property, and the star fills in" },
-  "modal.notes": { what: "the notes box", does: "holds what is typed, and reveals the Save button" },
-  "modal.notes.save": { what: "Save notes", does: "stores the note, and it is still there when the property is reopened" },
-  "modal.checkOnline": { what: "Check if it is still online", does: "probes the listing and says what came back" },
-  "modal.viewOnMap": { what: "View on the map", does: "leaves the modal and puts the map on that property" },
-  "modal.audit.read": { what: "Read the listing", does: "asks the configured model to read the ad and shows what it found" },
-  "modal.restore": { what: "Restore", does: "asks first, then puts a hidden, gone or sold property back in the grid" },
-  "modal.markSold": { what: "Mark as sold", does: "asks first, then records the sale and leaves the grid" },
-  "modal.hide": { what: "Hide", does: "asks first, then takes the property out of the grid" },
+  // ── The property detail ─────────────────────────────────────────────────
+  "detail.close": { what: "the close button on the detail", does: "goes back to the grid" },
+  "detail.prev": { what: "the back arrow in the detail's header", does: "opens the previous result without leaving the page" },
+  "detail.next": { what: "the forward arrow in the detail's header", does: "opens the next result without leaving the page" },
+  "detail.favorite": { what: "the star in the detail", does: "stars the property, and the star fills in" },
+  "detail.notes": { what: "the notes box", does: "holds what is typed, and reveals the Save button" },
+  "detail.notes.save": { what: "Save notes", does: "stores the note, and it is still there when the property is reopened" },
+  "detail.checkOnline": { what: "Check if it is still online", does: "probes the listing and says what came back" },
+  "detail.viewOnMap": { what: "View on the map", does: "leaves the detail and puts the map on that property" },
+  "detail.audit.read": { what: "Read the listing", does: "asks the configured model to read the ad and shows what it found" },
+  "detail.restore": { what: "Restore", does: "asks first, then puts a hidden, gone or sold property back in the grid" },
+  "detail.markSold": { what: "Mark as sold", does: "asks first, then records the sale and leaves the grid" },
+  "detail.hide": { what: "Hide", does: "asks first, then takes the property out of the grid" },
 
   // ── The mortgage and yield calculators ──────────────────────────────────
   "calc.mortgage.downPayment": { what: "the down-payment percentage", does: "changes the loan amount and the monthly payment" },

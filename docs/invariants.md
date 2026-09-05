@@ -459,7 +459,7 @@ each invariant to its code home and its test file. See also
     only `omi_min_sqm_price`/`omi_max_sqm_price`/`omi_semester`/`omi_stale` and never touches
     `sqm_price_delta_pct`, `area_median_*`, `deal_score`, `deal_label` or the proposal range
     — the deal score's inputs are what they were before OMI existed, and the band is one
-    extra reason line beside them. Every rendering (the modal's benchmark panel, the print
+    extra reason line beside them. Every rendering (the detail's benchmark panel, the print
     dossier's key facts, the reason line itself) labels each figure with **whose** it is and
     dates the OMI one with its semester: an undated band is a claim with no expiry, and an
     unlabelled one is two different measurements wearing one name. The same rule carries two
@@ -473,7 +473,7 @@ each invariant to its code home and its test file. See also
     dossier carrying none of its data names a source that document never used. The reason
     line repeats it rather than leaning on the panel above, because that line also travels
     alone into the card's deal-score tooltip. Regression tests in `test_omi_benchmark.py`
-    (and `frontend/src/components/PropertyModal.test.tsx` for the rendered panel) — the
+    (and `frontend/src/routes/property/Benchmarks.test.tsx` for the rendered panel) — the
     load-bearing one asserts that a property scores identically with and without OMI figures.
     On the grid the rule has a second guard, because the card shows **one** market statement
     and picking one is exactly where a substitution would be easy to make: `marketPosition`

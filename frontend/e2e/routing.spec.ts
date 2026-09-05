@@ -83,13 +83,42 @@ test("a property's link opens it cold, carrying the filters it was sent with", a
   expect(shared.searchParams.get("max_price")).toBe(CEILING);
 
   // …and pasted into a fresh tab, which shares nothing with this one but the
-  // address. The property is open, and the grid behind it is the sender's.
+  // address. The property opens on its own, and the grid it closes onto is the
+  // sender's rather than the recipient's default — the query string was carried
+  // through a screen that never showed it.
   const fresh = await page.context().newPage();
   await fresh.goto(shared.href);
   await expect(fresh.getByRole("heading", { level: 2, name: title })).toBeVisible();
+  await press(fresh, "detail.close");
   await expect(fresh.getByLabel(/^Max price €/)).toHaveValue(CEILING);
   await expect.poll(() => resultCount(fresh)).toBe(narrowed);
   await fresh.close();
+});
+
+test("Back from a property returns to the grid where it was left", async ({ page }) => {
+  await page.goto("/");
+  await waitForResults(page);
+
+  // Far enough down that the grid's own top is nowhere near: a restore that
+  // quietly landed at zero would pass against the second row.
+  const deep = cards(page).nth(20);
+  await deep.scrollIntoViewIfNeeded();
+  const left = await page.evaluate(() => window.scrollY);
+  expect(left).toBeGreaterThan(0);
+
+  await deep.click();
+  await expect(page.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  // The property is a screen of its own, so it opens at its own top rather than
+  // at whatever offset the reader had scrolled the grid to.
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.goBack();
+  await waitForResults(page);
+  // Within a row of where it was: the cards are the same height they were, but
+  // the images behind them are not necessarily decoded again at the same moment.
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(left - 200);
 });
 
 test("a property the grid cannot answer for still opens, and a made-up one does not", async ({
@@ -107,8 +136,11 @@ test("a property the grid cannot answer for still opens, and a made-up one does 
   // be looking at the same grid would not be a link.
   await page.goto(`/listings/${id}?city=Bologna`);
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  await expect(cards(page)).toHaveCount(0);
   await checkScreen(page, "a property opened from a link that excludes it");
+  // The filters really were honoured on the way in: closing lands on the empty
+  // grid they describe, rather than on the recipient's own listings.
+  await press(page, "detail.close");
+  await expect(cards(page)).toHaveCount(0);
 
   // An id that names nothing: a mistyped link, or a property gone since it was
   // sent. The dashboard is where that lands, rather than a blank screen.

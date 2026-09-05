@@ -13,7 +13,7 @@
  *  header and the navigation belong to the session, the grid belongs to this
  *  screen, and the property detail, the settings and the log open on top of it
  *  without unmounting it. */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ActiveFilters, FilterRail, ResultHeader } from "./routes/listings";
 import MapView from "./components/MapView";
@@ -21,6 +21,7 @@ import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
 import { useToasts } from "./components/Toast";
 import { useDebounced } from "./hooks/useDebounced";
+import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery";
 import { useOnReveal } from "./hooks/useOnReveal";
 import { useProfiles, useTags } from "./queries/dashboard";
 import { useGeocodeMissing } from "./queries/maintenance";
@@ -155,6 +156,42 @@ export default function App() {
   const query = useDebounced(filters, 250);
   const onMap = view === "map";
 
+  // A property is a page on a laptop and a sheet on a phone (routes/property),
+  // and only the page needs anything from here: it takes the whole screen, so
+  // the grid stops rendering while it is open. The settings and the log are
+  // dialogs at every width and leave this alone.
+  const desktop = useMediaQuery(DESKTOP_QUERY);
+  const detailIsAPage = openPropertyId !== null && desktop;
+
+  /** Where the grid was left, so that coming back to it lands there.
+   *
+   *  The browser cannot do this one for us: it restores the scroll position of
+   *  a document it is *loading*, and this is a client-side navigation that
+   *  unmounted sixty cards and mounts them again. So the position is recorded
+   *  while the grid is on screen, and only then — the listener comes off in the
+   *  same layout phase that removes the cards, before the shrinking document
+   *  can fire the scroll event that would overwrite it with a clamped value.
+   *
+   *  A layout effect on both sides: the restore happens before the browser
+   *  paints, so returning is not a visible jump from the top, and the detail
+   *  opens at its own top rather than at whatever offset the grid was at. */
+  const gridScroll = useRef(0);
+  const cameFromDetail = useRef(false);
+  useLayoutEffect(() => {
+    if (detailIsAPage) {
+      cameFromDetail.current = true;
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (cameFromDetail.current) {
+      cameFromDetail.current = false;
+      window.scrollTo(0, gridScroll.current);
+    }
+    const remember = () => { gridScroll.current = window.scrollY; };
+    window.addEventListener("scroll", remember, { passive: true });
+    return () => window.removeEventListener("scroll", remember);
+  }, [detailIsAPage]);
+
   // The grid holds a window; the map holds every pin, because a map missing
   // everything past the first page is not a map. Two queries rather than one
   // with a variable limit: they are different reads and they are cached apart.
@@ -255,7 +292,7 @@ export default function App() {
   }
 
   function quickHide(p: Property) {
-    // same confirm() used by the modal's "Hide property" action: hiding needs a
+    // same confirm() used by the detail's "Hide property" action: hiding needs a
     // deliberate answer, and both entry points must ask the same way
     if (!confirm(t("app.confirmHideOne"))) {
       return;
@@ -396,6 +433,12 @@ export default function App() {
   const dashboard: DashboardContext = {
     properties, tags, settings, toggleFavorite, addTag, removeTag, showOnMap, close,
   };
+
+  // A property has the screen to itself on a laptop, so the grid gives it up
+  // rather than being covered over. The queries above are untouched by that —
+  // this component stays mounted, holding its answers, its selection and the
+  // place the user had scrolled to.
+  if (detailIsAPage) return <Outlet context={dashboard} />;
 
   return (
     <>

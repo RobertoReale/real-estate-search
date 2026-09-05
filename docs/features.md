@@ -93,7 +93,7 @@
   combines the €/sqm gap to the local median with condition cues read from the
   listing text (*da ristrutturare* lowers it, *ristrutturato / classe A* raises
   it) into a single score — positive means priced below the market. An
-  undervalued listing shows a **🎯 below market** badge, and its detail modal
+  undervalued listing shows a **🎯 below market** badge, and its detail page
   adds a suggested proposal range drawn from the agency's own usual discount. If
   Telegram or email alerts are on, an undervalued new listing carries the flag
   into the notification. It is a starting point for your judgement, not an
@@ -170,15 +170,15 @@
   market never builds up towards a false outage alert.
 * **Tags**: create your own free-form categories — "senza ascensore", "con
   giardino", "mi piace ma…" — and attach as many as you like to a property,
-  right from its card or the detail modal. Typing a name that already exists
+  right from its card or its detail page. Typing a name that already exists
   reuses it instead of creating a near-duplicate. Filter the grid down to a
   single tag from the filter rail, same as filtering by city or zone.
-* **Which search found it**: a property's detail modal shows **🔍 Found by** —
+* **Which search found it**: a property's detail page shows **🔍 Found by** —
   the monitored searches that turned it up. Overlapping searches both appear, so
   you can tell at a glance whether a listing came from your "Milano trilocali" or
   your "Navigli" search (or both). A property that predates the provenance links
   says so instead.
-* **Mortgage calculator**: inside a property's detail modal, estimate the monthly
+* **Mortgage calculator**: on a property's detail page, estimate the monthly
   payment (French amortization) for a given down payment, rate, and term.
 * **Share a shortlist**: the **Export** buttons at the foot of the filter rail download the
   properties currently on screen — apply the filters or tick *Favorites* first —

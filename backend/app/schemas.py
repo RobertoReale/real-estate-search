@@ -211,7 +211,7 @@ class ListingAuditOut(ApiOut):
 
     Deliberately not part of `PropertyOut`: an audit exists only for the
     properties the user asked about, so carrying it on every grid row would be
-    a join for a field almost every card leaves empty. The detail modal fetches
+    a join for a field almost every card leaves empty. The detail fetches
     it on its own.
 
     `cached` says the answer came from the stored row rather than the model,

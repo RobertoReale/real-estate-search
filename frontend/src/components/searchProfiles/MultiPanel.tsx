@@ -62,7 +62,7 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
                 <span className="t-muted truncate flex-1">{urls[portal]}</span>
                 <a href={urls[portal]} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-1 accent-link shrink-0">
-                  {t("modal.open")} <External />
+                  {t("common.open")} <External />
                 </a>
               </div>
             );

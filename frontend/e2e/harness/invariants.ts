@@ -70,7 +70,7 @@ async function overflowingElements(page: Page): Promise<Overflowing[]> {
 /** Checks both rules at all three widths and leaves the page as it was found.
  *
  *  `where` names the screen in the failure message — "the grid", "the property
- *  modal" — because "expected 390 to be >= 542" on its own says nothing about
+ *  detail" — because "expected 390 to be >= 542" on its own says nothing about
  *  which of a journey's stops was the broken one.
  *
  *  Soft assertions throughout: a screen that overflows at 390px almost certainly

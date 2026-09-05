@@ -11,10 +11,9 @@
 
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import PropertyModal from "./PropertyModal";
-import { I18nProvider, STORAGE_KEY } from "../i18n";
-import { WithQuery } from "../test/withQuery";
-import type { Property } from "../types";
+import { Benchmarks } from "./Benchmarks";
+import { I18nProvider, STORAGE_KEY } from "../../i18n";
+import type { Property } from "../../types";
 
 // Pinned rather than left to the default: thousands separators are locale-bound
 // ("9,000" here, "9.000" in Italian), and a test that reads them must say which
@@ -47,16 +46,10 @@ function withBand(semester: string, stale: boolean): Property {
   };
 }
 
-const noop = () => {};
-
 function show(property: Property): string {
   const { container } = render(
     <I18nProvider>
-      <WithQuery>
-        <PropertyModal property={property} onClose={noop} onDeleted={noop}
-          onToggleFavorite={noop} onShowOnMap={noop}
-          allTags={[]} onAddTag={noop} onRemoveTag={noop} auditEnabled={false} />
-      </WithQuery>
+      <Benchmarks property={property} />
     </I18nProvider>,
   );
   return container.textContent ?? "";
@@ -90,12 +83,7 @@ describe("the OMI half of the benchmark panel", () => {
   it("explains the staleness rather than only flagging it", () => {
     render(
       <I18nProvider>
-        <WithQuery>
-          <PropertyModal property={withBand("2022/2", true)} onClose={noop}
-            onDeleted={noop} onToggleFavorite={noop}
-            onShowOnMap={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop}
-            auditEnabled={false} />
-        </WithQuery>
+        <Benchmarks property={withBand("2022/2", true)} />
       </I18nProvider>,
     );
     expect(screen.getByTitle(/more than 18 months old/i)).toBeTruthy();

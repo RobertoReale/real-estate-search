@@ -22,7 +22,7 @@ import AppShell from "../ui/AppShell";
 import { useDashboard } from "./context";
 import InsightsRoute from "./InsightsRoute";
 import { INSIGHTS, LISTINGS, LOGS, SEARCHES, SETTINGS, withSearch } from "./params";
-import PropertyRoute from "./PropertyRoute";
+import PropertyRoute from "./property/PropertyRoute";
 import SearchesRoute from "./SearchesRoute";
 
 function SettingsRoute() {

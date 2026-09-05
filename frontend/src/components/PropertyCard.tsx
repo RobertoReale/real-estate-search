@@ -202,7 +202,7 @@ export default function PropertyCard({
             )}
           </div>
 
-          {/* quick actions: select + star + hide without opening the modal */}
+          {/* quick actions: select + star + hide without opening the property */}
           <div data-action="property.quickActions" className="absolute top-2 right-2 flex gap-1.5"
             onClick={(e) => e.stopPropagation()}>
             {onToggleSelect && (

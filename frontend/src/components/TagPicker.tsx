@@ -16,8 +16,8 @@ interface Props {
  *  removable chips, a trailing "+" opens a small text input that suggests
  *  matching existing tags (click to add) or, with no exact match, offers to
  *  create a new one on Enter. Used identically from PropertyCard (while
- *  browsing the grid) and PropertyModal, so classifying a listing never
- *  requires opening the modal first. */
+ *  browsing the grid) and the property detail, so classifying a listing never
+ *  requires opening it first. */
 export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: Props) {
   const translate = useT();
   const [open, setOpen] = useState(false);
