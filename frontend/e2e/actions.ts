@@ -48,16 +48,31 @@ export interface Action {
 
 export const ACTIONS = {
   // ── The shell ───────────────────────────────────────────────────────────
+  "nav.listings": {
+    what: "Listings, in the navigation",
+    does: "goes to the property grid, keeping the filters that are applied",
+  },
+  "nav.insights": {
+    what: "Insights, in the navigation",
+    does: "goes to the screen with scraper health, market velocity and price trends",
+  },
+  "nav.searches": {
+    what: "Searches, in the navigation",
+    does: "goes to the monitored searches",
+  },
   "nav.language": {
-    what: "the language toggle in the navbar",
+    what: "the language toggle in the shell header",
     does: "swaps the interface between English and Italian, and the grid follows",
   },
   "nav.theme": {
     what: "the light/dark toggle",
     does: "puts `dark` on the document element and remembers it across a reload",
   },
-  "nav.logs": { what: "the log button in the navbar", does: "opens the log viewer" },
-  "nav.settings": { what: "the settings button in the navbar", does: "opens the settings dialog" },
+  "nav.logs": { what: "the log button in the header", does: "opens the log viewer" },
+  "nav.settings": {
+    what: "Settings, in the navigation",
+    does: "opens the settings dialog over the grid",
+  },
   "scan.now": {
     what: "Scan now",
     does: "asks the backend to start a scan and disables itself while one runs",
@@ -130,6 +145,10 @@ export const ACTIONS = {
   "maintenance.cacheCleared.dismiss": { what: "the dismiss button on the cache-cleared notice", does: "removes the notice" },
 
   // ── The grid and its cards ──────────────────────────────────────────────
+  "app.addSearch": {
+    what: "Add a search, in the first-run steps",
+    does: "goes to the searches, so step one is a click rather than an instruction",
+  },
   "grid.loadMore": { what: "Show N more", does: "appends the next page of results to the grid" },
   "property.card": { what: "the card itself", does: "opens that property, or selects it while multi-select is on" },
   "property.open": { what: "the card's title button", does: "opens the property from the keyboard" },
@@ -203,7 +222,11 @@ export const ACTIONS = {
       + "the same one `maintenance.geocode` drives, and that one is exercised.",
   },
 
-  // ── Insights panels ─────────────────────────────────────────────────────
+  // ── Insights ────────────────────────────────────────────────────────────
+  "insights.toSearches": {
+    what: "Add a search, on an Insights screen with nothing to analyse",
+    does: "goes to the searches, which is the only thing that fills this screen in",
+  },
   "health.toggle": { what: "the scraper-health header", does: "expands and collapses the panel" },
   "velocity.toggle": { what: "the market-velocity header", does: "expands and collapses the panel" },
   "trends.toggle": { what: "the price-trends header", does: "expands and collapses the panel" },

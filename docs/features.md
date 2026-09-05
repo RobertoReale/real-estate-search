@@ -2,6 +2,14 @@
 
 [← Back to README](../README.md)
 
+* **Four places, not one long page**: the app opens on the **Listings**, which
+  is the product — the first property is on screen without scrolling. The rest
+  is one click away in the navigation: **Insights** (price trends, market
+  velocity, scraper health), **Searches** (everything you monitor, and the three
+  ways to add one) and **Settings**. Each has its own address, so any of them
+  can be bookmarked or sent to someone, and moving between them keeps whatever
+  you had filtered the listings down to. On a phone the navigation is a bar
+  along the bottom, where a thumb reaches it; on a laptop it is in the top bar.
 * **Interface language (English / Italian)**: the 🌐 button in the top bar
   switches the whole dashboard between English and Italian — every label,
   button, tooltip and confirmation dialog, plus number and date formats

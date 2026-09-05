@@ -6,12 +6,16 @@
  */
 import { checkScreen, expect, test } from "./fixtures";
 import { resultCount, waitForResults } from "./harness/dashboard";
+import { press } from "./harness/drive";
 
 test("Settings opens over the grid and closes back to it", async ({ page }) => {
   await page.goto("/");
   await waitForResults(page);
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  // One of the four places in the navigation, so it is a link rather than a
+  // button — but a dialog over the listings rather than a screen beside them,
+  // which is what the rest of this journey is about.
+  await press(page, "nav.settings");
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   // Loaded, not merely opened: the dialog cannot render a field until the
   // backend answers, and a failed load used to leave it blank.
@@ -30,12 +34,15 @@ test("switching language repaints the grid, and the choice survives a reload", a
   await waitForResults(page);
   const count = await resultCount(page);
 
-  // The switch is in the navbar rather than inside Settings — two languages
-  // make a toggle, and it has to survive a 390px navbar.
+  // The switch is in the shell rather than inside Settings — two languages
+  // make a toggle, and it has to survive a 390px header.
   await page.getByRole("button", { name: "Switch to Italiano" }).click();
 
   await expect(page.getByText(`${count} immobili`)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Ricerche monitorate" })).toBeVisible();
+  // The count alone would also be satisfied by a number that never moved, so a
+  // second string: a filter the user types into, on this screen rather than in
+  // the shell around it.
+  await expect(page.getByLabel(/^Prezzo max €/)).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "it");
   await checkScreen(page, "the grid in Italian");
 

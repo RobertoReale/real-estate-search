@@ -11,10 +11,10 @@
  *  `keyof Dict`, so a typo is a compile error too.
  *
  *  The choice lives in localStorage, per device, exactly like the theme toggle
- *  next to it in the navbar. Strings produced by the backend (scan summaries,
- *  API errors, the availability check's `transport` line) stay in English:
- *  they cross the wire already rendered and the server does not know the
- *  browser's choice.
+ *  next to it in the shell header. Strings produced by the backend (scan
+ *  summaries, API errors, the availability check's `transport` line) stay in
+ *  English: they cross the wire already rendered and the server does not know
+ *  the browser's choice.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";

@@ -9,6 +9,7 @@
  */
 import { checkScreen, expect, test } from "./fixtures";
 import { cards, resultCount, waitForResults } from "./harness/dashboard";
+import { press } from "./harness/drive";
 
 const TILES = /tile\.openstreetmap\.org/;
 
@@ -20,6 +21,44 @@ test("the bare address is the listings", async ({ page }) => {
   await page.goto("/");
   await waitForResults(page);
   expect(new URL(page.url()).pathname).toBe("/listings");
+});
+
+test("the four places are linkable, and keep the filters between them", async ({ page }) => {
+  await page.goto("/");
+  await waitForResults(page);
+  await page.getByLabel(/^Max price €/).fill(CEILING);
+  await expect.poll(() => new URL(page.url()).searchParams.get("max_price")).toBe(CEILING);
+
+  // Going somewhere else and coming back is not a filter change. The query
+  // string is the app's state and the navigation carries it, so the listings
+  // are still narrowed rather than reset to the whole corpus.
+  for (const [id, pathname] of [
+    ["nav.insights", "/insights"],
+    ["nav.searches", "/searches"],
+    ["nav.listings", "/listings"],
+  ] as const) {
+    await press(page, id);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(pathname);
+    expect(new URL(page.url()).searchParams.get("max_price")).toBe(CEILING);
+  }
+  await expect(page.getByLabel(/^Max price €/)).toHaveValue(CEILING);
+
+  // The fourth is a dialog over the listings rather than a screen beside them,
+  // so it goes last: nothing underneath it can be pressed while it is open.
+  await press(page, "nav.settings");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/settings");
+  expect(new URL(page.url()).searchParams.get("max_price")).toBe(CEILING);
+
+  // …and each address opens on its own, which is what makes it a place rather
+  // than a panel: a link to the insights has to work in a tab that has never
+  // seen the listings.
+  await page.goto("/insights");
+  await expect(page.locator("[data-action='trends.toggle']")).toBeVisible();
+  await checkScreen(page, "the insights");
+
+  await page.goto("/searches");
+  await expect(page.locator("[data-action='profiles.row.select']").first()).toBeVisible();
+  await checkScreen(page, "the searches");
 });
 
 test("a property's link opens it cold, carrying the filters it was sent with", async ({ page }) => {

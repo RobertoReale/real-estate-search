@@ -48,10 +48,12 @@ import {
   Car,
   ChartColumn,
   ChartLine,
+  ChartPie,
   Check,
   Circle,
   ChevronDown,
   CircleCheck,
+  Clock,
   Compass,
   Database,
   DoorOpen,
@@ -66,6 +68,7 @@ import {
   House,
   Info,
   Key,
+  LayoutGrid,
   Link,
   Lock,
   type LucideProps,
@@ -149,6 +152,12 @@ function icon(Glyph: Icon, displayName: string): Icon {
 // ── The shell ───────────────────────────────────────────────────────────────
 /** The application itself, in the navbar. */
 export const Brand = icon(House, "Brand");
+/** The properties themselves — the default destination. */
+export const Listings = icon(LayoutGrid, "Listings");
+/** What the collected properties add up to: health, velocity, price trends. */
+export const Insights = icon(ChartPie, "Insights");
+/** Something the app will do later, at a known time. */
+export const Scheduled = icon(Clock, "Scheduled");
 /** Switch the interface language. */
 export const Language = icon(Globe, "Language");
 /** Switch to the dark theme. */

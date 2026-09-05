@@ -113,7 +113,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
      decidable by reading — `<Button className="px-2">` puts two utilities from the same
      group on one element, and Tailwind resolves those by stylesheet order rather than by
      the order of the class attribute. Either way, write `!px-2` when you mean it (as
-     `Navbar.tsx`, `ProfileList.tsx` and `Calculators.tsx` do). A padding or width that
+     `AppShell.tsx`, `ProfileList.tsx` and `Calculators.tsx` do). A padding or width that
      "has no effect" is almost always this.
 
   Fixed widths (`w-36`, `w-56`) must always be written `w-full sm:w-36`. `.input` jumps to
@@ -232,7 +232,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (274 in thirty-five files: vitest +
+- **The frontend has unit tests too** (276 in thirty-five files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export

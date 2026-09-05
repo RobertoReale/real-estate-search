@@ -135,7 +135,7 @@ const insideDialog = (page: Page, panel: ActionId) =>
 
 /* ────────────────────────── the shell ────────────────────────── */
 
-test("the navbar and the log viewer", async ({ page }) => {
+test("the navigation, the header and the log viewer", async ({ page }) => {
   // A scan reaches the portals, which the suite may not. The button is still
   // pressed for real; only what it asks for is answered from here.
   await page.route("**/api/scrapers/trigger", (route) =>
@@ -143,6 +143,20 @@ test("the navbar and the log viewer", async ({ page }) => {
 
   await page.goto("/");
   await waitForResults(page);
+
+  // The four places, each reached from the navigation and each leaving an
+  // address behind. Listings last, so what follows runs on the grid.
+  await press(page, "nav.insights");
+  await expect(control(page, "velocity.toggle")).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/insights");
+
+  await press(page, "nav.searches");
+  await expect(control(page, "profiles.mode.assistant")).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/searches");
+
+  await press(page, "nav.listings");
+  await waitForResults(page);
+  expect(new URL(page.url()).pathname).toBe("/listings");
 
   // Language: the toggle names the language it will switch *to*, so the grid's
   // own words are what proves it followed.
@@ -182,8 +196,9 @@ test("the navbar and the log viewer", async ({ page }) => {
   await press(page, "settings.close");
   await expect(control(page, "settings.save")).toBeHidden();
 
-  await reachableByKeyboard(page, "the navbar", [
-    "scan.now", "nav.language", "nav.theme", "nav.logs", "nav.settings",
+  await reachableByKeyboard(page, "the shell", [
+    "nav.listings", "nav.insights", "nav.searches", "nav.settings",
+    "scan.now", "nav.language", "nav.theme", "nav.logs",
   ]);
 });
 
@@ -788,8 +803,11 @@ test("the three insight panels", async ({ page }) => {
       ],
     } }));
 
-  await page.goto("/");
-  await waitForResults(page);
+  // Straight to the address, without pressing anything to get there: the three
+  // panels are a screen of their own now, and a screen that only exists at the
+  // end of a click is one nobody can link to.
+  await page.goto("/insights");
+  await expect(control(page, "health.toggle")).toBeVisible();
 
   await press(page, "health.toggle");
   await press(page, "health.toggle");
@@ -806,12 +824,17 @@ test("the three insight panels", async ({ page }) => {
   await reachableByKeyboard(page, "the trends panel", [
     "trends.toggle", "trends.area", "trends.comparables", "trends.openProperty",
   ]);
+  await press(page, "trends.comparables");
+  await expect(control(page, "trends.openProperty")).toBeHidden();
+
+  // A comparable is a property, and a property opens where properties are: the
+  // listings screen, with the reader over it. That leaves this screen behind,
+  // so it is the last thing the journey asks of the panel.
+  await press(page, "trends.comparables");
   await press(page, "trends.openProperty");
   await expect(control(page, "modal.close")).toBeVisible();
   await press(page, "modal.close");
-  await press(page, "trends.comparables");
-  await expect(control(page, "trends.openProperty")).toBeHidden();
-  await press(page, "trends.toggle");
+  await waitForResults(page);
 });
 
 /* ────────────────────────── monitored searches ────────────────────────── */
@@ -820,8 +843,7 @@ test("the three insight panels", async ({ page }) => {
    rather than on whatever they left behind. Merging is the exception and lives
    with them: see the comment where it is. */
 test("the list of searches, one row and in bulk", async ({ page }) => {
-  await page.goto("/");
-  await waitForResults(page);
+  await page.goto("/searches");
 
   const rows = page.locator("[data-action='profiles.row.select']");
   await expect(rows.first()).toBeVisible();
@@ -873,8 +895,7 @@ test("creating a search, three ways", async ({ page }) => {
   // for confirmation. Dismissed — which is what Playwright does unless told
   // otherwise — both return without doing anything at all.
   acceptDialogs(page, "Coverage merged search");
-  await page.goto("/");
-  await waitForResults(page);
+  await page.goto("/searches");
 
   // Mode switching is mutually exclusive, and each button closes its own panel.
   await press(page, "profiles.mode.url");
@@ -980,8 +1001,7 @@ test("creating a search, three ways", async ({ page }) => {
 });
 
 test("one query, several searches", async ({ page }) => {
-  await page.goto("/");
-  await waitForResults(page);
+  await page.goto("/searches");
 
   // A query with an alternative in it is answered as a list to review before
   // anything is created — dropping one here is cheaper than deleting a profile.
@@ -1019,8 +1039,12 @@ test("one query, several searches", async ({ page }) => {
 });
 
 test("deleting a search, and the counts it shows first", async ({ page }) => {
+  // From the listings, because the promise "keep the results" is about the
+  // properties, and the count that proves it is on that screen.
   await page.goto("/");
   await waitForResults(page);
+  const properties = await resultCount(page);
+  await press(page, "nav.searches");
 
   // The dialog shows what would go and what is spared, which is why it is a
   // dialog and not a confirm().
@@ -1040,12 +1064,13 @@ test("deleting a search, and the counts it shows first", async ({ page }) => {
 
   // Keep the results: the search goes, the properties stay.
   const searches = await page.locator("[data-action='profiles.row.delete']").count();
-  const properties = await resultCount(page);
   await press(page, "profiles.row.delete");
   await press(page, "profiles.delete.keepResults");
   await expect.poll(() => page.locator("[data-action='profiles.row.delete']").count())
     .toBe(searches - 1);
+  await press(page, "nav.listings");
   await expect.poll(() => resultCount(page)).toBe(properties);
+  await press(page, "nav.searches");
 
   // With the results: only the ones nothing else covers go with it.
   await press(page, "profiles.row.delete");
@@ -1228,6 +1253,7 @@ test("the app stays usable when the backend refuses everything", async ({ page }
   const skip: ActionId[] = [
     // Each of these takes the page away from under the sweep, or hands it to
     // the browser rather than to the app.
+    "nav.listings", "nav.insights", "nav.searches",
     "nav.language", "nav.theme", "view.map",
     "export.pdf", "export.html", "export.markdown", "export.csv",
     // ...each of these puts an overlay over everything the sweep has left to

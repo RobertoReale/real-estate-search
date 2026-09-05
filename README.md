@@ -105,7 +105,8 @@ are covered in [Remote Access & Running in the Background](docs/remote-access.md
 1. **Get the search URL** from Immobiliare.it or Idealista.it (or describe the
    search in plain Italian and let the built-in assistant build both URLs for
    you), and copy it from the address bar.
-2. **Add Profile**: paste the URL into **"+ Add search profile"**, name it, save.
+2. **Add Profile**: open **Searches** in the navigation, paste the URL into
+   **"+ Add search profile"**, name it, save.
 3. **Start Scanning**: click **"Start Scan Now"**, or let the scheduler run in
    the background.
 4. **Browse Listings**: merged duplicates show a purple badge, and properties

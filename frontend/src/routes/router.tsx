@@ -1,21 +1,29 @@
-/** Every address the dashboard answers to.
+/** Every address the app answers to.
  *
- *  The table is deliberately small and deliberately flat: one screen, and the
- *  three things that open on top of it. What matters is the shape rather than
- *  the size — the dashboard is a *layout* route with no path of its own, so it
- *  mounts once and stays mounted while the URL moves between the overlays.
- *  Opening Settings and closing it again therefore does not re-run the grid's
- *  queries, lose the scroll position or empty a multi-selection, which is
- *  exactly what a route table that swapped one whole screen for another would
- *  do.
+ *  Two layers of layout route, and both are load-bearing.
+ *
+ *  `AppShell` is the outer one: the header, the navigation and the event stream
+ *  belong to the session rather than to a screen, so they mount once and every
+ *  destination is drawn inside them.
+ *
+ *  `App` — the listings grid — is the inner one, and it has no path of its own.
+ *  That is what lets the URL move between the grid, a property, the settings
+ *  and the log without re-running the grid's queries, losing the scroll
+ *  position or emptying a multi-selection, which is exactly what a table that
+ *  swapped one whole screen for another would do. Insights and Searches sit
+ *  beside it rather than under it: they *are* whole screens, and a user on them
+ *  is not looking at the grid.
  */
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import App from "../App";
 import LogViewer from "../components/LogViewer";
 import SettingsModal from "../components/SettingsModal";
+import AppShell from "../ui/AppShell";
 import { useDashboard } from "./context";
-import { LISTINGS, LOGS, SETTINGS, withSearch } from "./params";
+import InsightsRoute from "./InsightsRoute";
+import { INSIGHTS, LISTINGS, LOGS, SEARCHES, SETTINGS, withSearch } from "./params";
 import PropertyRoute from "./PropertyRoute";
+import SearchesRoute from "./SearchesRoute";
 
 function SettingsRoute() {
   return <SettingsModal onClose={useDashboard().close} />;
@@ -46,11 +54,15 @@ export default function AppRoutes() {
     // control, however briefly, and the heavier the grid the longer it lasts.
     <BrowserRouter useTransitions={false}>
       <Routes>
-        <Route element={<App />}>
-          <Route path={LISTINGS} element={null} />
-          <Route path={`${LISTINGS}/:id`} element={<PropertyRoute />} />
-          <Route path={SETTINGS} element={<SettingsRoute />} />
-          <Route path={LOGS} element={<LogsRoute />} />
+        <Route element={<AppShell />}>
+          <Route element={<App />}>
+            <Route path={LISTINGS} element={null} />
+            <Route path={`${LISTINGS}/:id`} element={<PropertyRoute />} />
+            <Route path={SETTINGS} element={<SettingsRoute />} />
+            <Route path={LOGS} element={<LogsRoute />} />
+          </Route>
+          <Route path={INSIGHTS} element={<InsightsRoute />} />
+          <Route path={SEARCHES} element={<SearchesRoute />} />
         </Route>
         <Route path="*" element={<ToListings />} />
       </Routes>

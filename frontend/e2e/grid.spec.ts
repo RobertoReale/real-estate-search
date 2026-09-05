@@ -19,23 +19,15 @@ test("the corpus is on screen on first load", async ({ page }) => {
 });
 
 test("the grid is the first thing a user with data can read", async ({ page }) => {
-  // Known to fail, and recorded rather than fixed: at 1440×900 the first card
-  // starts 1385px down, below monitored searches, scraper health, market
-  // velocity, price trends and the filter bar. That is the information
-  // architecture rather than a layout slip, and it is task D.1 that moves the
-  // panels. Declaring it here keeps the finding in the suite instead of in a
-  // note nobody reads: when D.1 lands, Playwright reports this as "expected to
-  // fail but passed" and the annotation comes off in the same commit.
-  test.fail();
-
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await waitForResults(page);
 
-  // Above the fold, at the width this app is used on: a product whose own
-  // listings are below three panels of configuration is a product that opens on
-  // its plumbing. (Phase D moves the panels; this is the assertion that says
-  // whether it has to.)
+  // Above the fold, at the width this app is used on. It was not: the first
+  // card started 1385px down, below monitored searches, scraper health, market
+  // velocity and price trends, and a product whose own listings sit under three
+  // panels of configuration is a product that opens on its plumbing. The panels
+  // are their own screens now, and this is the assertion that keeps them there.
   const box = await cards(page).first().boundingBox();
   expect(box).not.toBeNull();
   expect(box!.y).toBeLessThan(900);
