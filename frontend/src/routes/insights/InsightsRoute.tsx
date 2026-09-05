@@ -6,20 +6,28 @@
  *  scroll past the analysis to reach the thing the analysis is about. They are a
  *  place of their own now, and the grid is what the app opens on.
  *
+ *  **Nothing here is behind a disclosure any more.** Three collapsed headers
+ *  were the right shape when this was the top of somebody else's screen and the
+ *  wrong one the moment it became a destination: a page whose whole content is
+ *  three "Show" links is a page that asks to be clicked three times before it
+ *  says anything. They are sections now, and the panels under `insights/` are
+ *  the sections rather than reusable components — a market-velocity table knows
+ *  what a contract is, and no second screen should want one.
+ *
  *  The contract and the city come from the query string, which is the same
  *  source the grid reads them from, so the two screens are looking at the same
  *  market and a link carries which one.
  */
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 
-import MarketVelocityPanel from "../components/MarketVelocity";
-import PriceTrends from "../components/PriceTrends";
-import ScraperHealthPanel from "../components/ScraperHealth";
-import { useT } from "../i18n";
-import { useProfiles } from "../queries/dashboard";
-import { Button, Card, EmptyState } from "../ui";
-import { ICON_SIZE, Insights, Searches } from "../ui/icons";
-import { filtersFromSearch, propertyPath, SEARCHES, withSearch } from "./params";
+import MarketVelocityPanel from "./MarketVelocity";
+import PriceTrends from "./PriceTrends";
+import ScraperHealthPanel from "./ScraperHealth";
+import { useT } from "../../i18n";
+import { useProfiles } from "../../queries/dashboard";
+import { Button, Card, EmptyState } from "../../ui";
+import { ICON_SIZE, Insights, Searches } from "../../ui/icons";
+import { filtersFromSearch, propertyPath, SEARCHES, withSearch } from "../params";
 
 export default function InsightsRoute() {
   const t = useT();

@@ -999,6 +999,9 @@ export const en = {
   "trends.listingsFailed": "Could not load the listings",
   "trends.empty":
     "No history to chart yet. The app records one median per area per day; a trend line needs at least two days of scans before it means anything — come back in a couple of days.",
+  "trends.chartEmpty": "Nothing recorded for this area",
+  "trends.chartEmptyHint":
+    "The medians are written once a day, at the end of a scan. The first point appears after the next one runs.",
   "trends.changeSince": "{pct}% since {date}",
   "trends.caveat":
     "Median asking price per square meter among the listings this app was tracking each day — your own sample, not the whole market. It moves with what you monitor as much as with prices.",
@@ -1026,8 +1029,6 @@ export const en = {
   // ── scraper health ──────────────────────────────────────────────────────
   "health.title": "Scraper health",
   "health.subtitle": "is the anti-bot pipeline still getting through?",
-  "health.hide": "Hide",
-  "health.show": "Show",
   "health.loadFailed": "Could not load scraper health",
   "health.window":
     "Last {days} days of scan outcomes per portal. Next scan starts on: {transport}.",
@@ -1035,6 +1036,7 @@ export const en = {
   "health.historyTitle": "History — how past scans went, day by day",
   "health.colPortal": "Portal",
   "health.colDays": "Days (oldest → today)",
+  "health.noDays": "no days recorded",
   "health.colScans": "Scans",
   "health.colFailureRate": "Failure rate",
   "health.colFailureRateTitle":

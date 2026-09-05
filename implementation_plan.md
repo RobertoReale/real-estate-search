@@ -190,7 +190,7 @@ progetto/
 │       ├── components/           # Navbar, SearchProfiles, MaintenanceActions,
 │       │                         # PortalBadge, PropertyCard,
 │       │                         # SettingsModal, TagPicker, MapView,
-│       │                         # MarketVelocity, Calculators, ErrorBoundary
+│       │                         # Calculators, ErrorBoundary
 │       │   ├── settings/         # one file per settings section (Telegram, Email,
 │       │   │                     # Scanning, Match, Assistant, Scraping, System),
 │       │   │                     # each owning its own fields; SettingsModal is
@@ -203,10 +203,14 @@ progetto/
 │       │                           # codec and useDashboardUrl reads it
 │       │   ├── listings/          # the grid's own regions: FilterRail,
 │       │   │                      # ActiveFilters, ResultHeader, chips.ts
-│       │   └── property/          # one property at its own address: the
-│       │                          # route, the two shapes, and one file per
-│       │                          # block (Facts, Benchmarks, Provenance,
-│       │                          # Curation, ListingAudit, Actions)
+│       │   ├── property/          # one property at its own address: the
+│       │   │                      # route, the two shapes, and one file per
+│       │   │                      # block (Facts, Benchmarks, Provenance,
+│       │   │                      # Curation, ListingAudit, Actions)
+│       │   └── insights/          # the three analysis sections (ScraperHealth,
+│       │                          # MarketVelocity, PriceTrends) plus the two
+│       │                          # charts they draw with (TrendChart, DayStrip)
+│       │                          # and chart.ts, the geometry behind them
 │       ├── hooks/                  # useSearchProfiles (the search panel's state
 │       │                           # machine), useDebounced, useOnReveal,
 │       │                           # useMediaQuery
