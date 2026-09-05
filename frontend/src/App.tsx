@@ -39,7 +39,7 @@ import type { DashboardContext } from "./routes/context";
 import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
-import { Button, type Emphasis } from "./ui";
+import { Button, Card, Checkbox, Chip, EmptyState, IconButton, type Emphasis } from "./ui";
 import {
   Close, Favorite, Hidden, ICON_SIZE, NoResults, Sold, Unticked, Verify,
 } from "./ui/icons";
@@ -441,41 +441,37 @@ export default function App() {
           onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
 
         {properties.length === 0 && !loadFailed && (
-          <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
-            <p className="flex justify-center mb-3 t-dim">
-              <NoResults size={ICON_SIZE.display} strokeWidth={1.25} />
-            </p>
-            <p className="font-medium t-strong">
-              {hasProfiles ? t("app.noMatches") : t("app.welcome")}
-            </p>
+          <Card padding="none">
+            <EmptyState headingLevel={2}
+              className={hasProfiles ? undefined : "!pb-0"}
+              icon={<NoResults size={ICON_SIZE.display} strokeWidth={1.25} />}
+              title={hasProfiles ? t("app.noMatches") : t("app.welcome")}
+              description={hasProfiles ? t("app.noMatchesHint") : undefined} />
             {!hasProfiles && (
-              <ol className="mt-4 text-sm text-left max-w-md mx-auto space-y-2">
+              <ol className="px-6 pb-10 pt-4 text-sm max-w-md mx-auto space-y-2">
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">1</span>
+                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">1</Chip>
                   <span>
                     {t("app.step1")}{" "}
                     <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
                   </span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">2</span>
+                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">2</Chip>
                   <span>{t("app.step2")}</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="shrink-0 w-6 h-6 rounded-full chip-accent text-xs flex items-center justify-center font-bold">3</span>
+                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">3</Chip>
                   <span>{t("app.step3")}</span>
                 </li>
               </ol>
             )}
-            {hasProfiles && (
-              <p className="text-sm mt-1">{t("app.noMatchesHint")}</p>
-            )}
-          </div>
+          </Card>
         )}
 
         {/* Batch Selection & Live Availability Check Bar */}
         {properties.length > 0 && (
-          <div className="glass rounded-2xl p-3 sm:p-4 flex flex-col gap-3">
+          <Card padding="none" className="p-3 sm:p-4 flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Button data-action="selection.toggleMode"
@@ -490,14 +486,11 @@ export default function App() {
                     : <><Unticked /> {t("app.selectMultiple")}</>}
                 </Button>
                 {selectionMode && (
-                  <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
-                    <input data-action="selection.selectAll"
-                      type="checkbox"
-                      checked={selectedIds.size === total && total > 0}
-                      onChange={() => toggleSelectAll()}
-                    />
-                    {t("app.selectAll", { selected: selectedIds.size, total })}
-                  </label>
+                  <Checkbox data-action="selection.selectAll"
+                    className="ml-2"
+                    checked={selectedIds.size === total && total > 0}
+                    onCheckedChange={() => toggleSelectAll()}
+                    label={t("app.selectAll", { selected: selectedIds.size, total })} />
                 )}
               </div>
               {selectionMode && selectedIds.size > 0 && (
@@ -612,15 +605,15 @@ export default function App() {
                     <span className="block">{t("app.summaryCapped")}</span>
                   )}
                 </div>
-                <button data-action="selection.dismissSummary"
-                  type="button"
-                  className="btn-ghost text-xs py-0.5 px-2"
+                <IconButton data-action="selection.dismissSummary"
+                  variant="ghost" size="sm" className="shrink-0"
+                  label={t("common.close")}
                   onClick={() => checkBatch.reset()}>
                   <Close size={16} />
-                </button>
+                </IconButton>
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {view === "map" ? (
@@ -672,13 +665,13 @@ export default function App() {
             {(grid.hasNextPage || grid.isFetchingNextPage) && (
               <div ref={loadMoreRef}
                 className="col-span-full flex justify-center py-4">
-                <button data-action="grid.loadMore" type="button" className="btn-ghost text-sm"
+                <Button data-action="grid.loadMore"
                   aria-busy={grid.isFetchingNextPage}
                   onClick={() => grid.fetchNextPage()}>
                   {grid.isFetchingNextPage
                     ? t("common.loading")
                     : t("app.showMoreCount", { count: total - properties.length })}
-                </button>
+                </Button>
               </div>
             )}
           </div>

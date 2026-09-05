@@ -6,6 +6,7 @@ import { formatNumber } from "../../i18n";
 import { PortalBadge } from "../PortalBadge";
 import { statusBadge } from "./constants";
 import { combinedKeywords } from "./helpers";
+import { Checkbox, Chip, IconButton } from "../../ui";
 import { Area, Delete, Edit, Filtered, Place, Price, Rooms, Split } from "../../ui/icons";
 
 export function ProfileList({ sp }: { sp: SearchProfilesState }) {
@@ -44,9 +45,10 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 <PortalBadge key={p.id} portal={p.portal} />
               ))}
               {group.profiles.length > 1 && (
-                <span className="text-2xs px-2 py-0.5 rounded-full font-medium bg-tag-soft text-tag-ink-strong border border-tag-line shrink-0"
-                  title={t("profiles.mergedTitle")}>
-                  {t("profiles.merged", { count: group.profiles.length })}
+                <span title={t("profiles.mergedTitle")}>
+                  <Chip tone="tag" className="shrink-0">
+                    {t("profiles.merged", { count: group.profiles.length })}
+                  </Chip>
                 </span>
               )}
             </div>
@@ -85,37 +87,35 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               {pParams && (pParams.city || pParams.min_price || pParams.max_price || pParams.min_rooms || pParams.min_sqm || pParams.zone) && (
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {pParams.contract && (
-                    <span className="text-2xs chip-accent px-2 py-0.5 rounded-md font-medium">
+                    <Chip tone="accent">
                       {t(pParams.contract === "rent" ? "profiles.chipRent" : "profiles.chipBuy")}
-                    </span>
+                    </Chip>
                   )}
                   {pParams.city && (
-                    <span className="text-2xs chip-positive px-2 py-0.5 rounded-md font-medium">
+                    <Chip tone="positive">
                       <Place /> {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
                       {pParams.zone ? ` · ${pParams.zone}` : ""}
-                    </span>
+                    </Chip>
                   )}
                   {(pParams.min_price || pParams.max_price) && (
-                    <span className="text-2xs chip-caution px-2 py-0.5 rounded-md font-medium">
+                    <Chip tone="caution">
                       <Price /> {pParams.min_price ? `${formatNumber(pParams.min_price)} €` : "0 €"} – {pParams.max_price ? `${formatNumber(pParams.max_price)} €` : "∞"}
-                    </span>
+                    </Chip>
                   )}
                   {(pParams.min_rooms || pParams.max_rooms) && (
-                    <span className="inline-flex items-center gap-1 text-2xs chip-accent
-                      px-2 py-0.5 rounded-md font-medium">
+                    <Chip tone="accent">
                       <Rooms />{" "}
                       {t("profiles.chipRooms", {
                         range: `${pParams.min_rooms ?? 1}${
                           pParams.max_rooms ? `–${pParams.max_rooms}` : "+"
                         }`,
                       })}
-                    </span>
+                    </Chip>
                   )}
                   {pParams.min_sqm && (
-                    <span className="inline-flex items-center gap-1 text-2xs chip-positive
-                      px-2 py-0.5 rounded-md font-medium">
+                    <Chip tone="positive">
                       <Area /> {t("profiles.chipMinSqm", { value: pParams.min_sqm })}
-                    </span>
+                    </Chip>
                   )}
                 </div>
               )}
@@ -151,33 +151,28 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer shrink-0">
-              <input data-action="profiles.row.active" type="checkbox" checked={group.is_active}
-                onChange={() =>
-                  runBulk(group.ids, group.is_active ? "pause" : "activate")} />
-              {t("profiles.active")}
-            </label>
+            <Checkbox data-action="profiles.row.active"
+              className="shrink-0"
+              checked={group.is_active}
+              onCheckedChange={() =>
+                runBulk(group.ids, group.is_active ? "pause" : "activate")}
+              label={t("profiles.active")} />
             <div className="flex items-center gap-1 shrink-0">
-              <button data-action="profiles.row.edit" className="t-dim hover:opacity-70 transition text-sm btn-focus
-                  inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                title={t("profiles.editBox")} aria-label={t("profiles.editBox")}
-                onClick={() => editGroup(group)}>
+              <IconButton data-action="profiles.row.edit" variant="ghost" size="sm" className="shrink-0"
+                label={t("profiles.editBox")} onClick={() => editGroup(group)}>
                 <Edit size={16} />
-              </button>
+              </IconButton>
               {group.profiles.length > 1 && (
-                <button data-action="profiles.row.separate" className="t-dim hover:text-tag-ink transition text-sm btn-focus
-                    inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                  title={t("profiles.separateBox")} aria-label={t("profiles.separateBox")}
-                  onClick={() => separateGroup(group)}>
+                <IconButton data-action="profiles.row.separate" variant="ghost" size="sm" className="shrink-0"
+                  label={t("profiles.separateBox")} onClick={() => separateGroup(group)}>
                   <Split size={16} />
-                </button>
+                </IconButton>
               )}
-              <button data-action="profiles.row.delete" className="t-dim hover:text-negative-ink transition text-sm btn-focus
-                  inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
-                title={t("profiles.deleteBox")} aria-label={t("profiles.deleteBox")}
+              <IconButton data-action="profiles.row.delete" variant="ghost" tone="negative" size="sm"
+                className="shrink-0" label={t("profiles.deleteBox")}
                 onClick={() => askDelete(group.profiles)}>
                 <Delete size={16} />
-              </button>
+              </IconButton>
             </div>
           </li>
         );

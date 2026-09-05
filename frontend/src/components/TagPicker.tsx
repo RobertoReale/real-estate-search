@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useT } from "../i18n";
 import type { Tag } from "../types";
+import { Card, Chip, Input } from "../ui";
 
 interface Props {
   tags: Tag[];       // this property's current tags
@@ -54,9 +55,7 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
       onClick={(e) => e.stopPropagation()}
       onBlur={closeOnBlur}>
       {tags.map((t) => (
-        <span key={t.id}
-          className={`inline-flex items-center gap-1 rounded-full bg-neutral-soft text-ink-body
-            ${compact ? "text-3xs px-2 py-0.5" : "text-xs px-2.5 py-1"}`}>
+        <Chip key={t.id} tone="neutral" size={compact ? "sm" : "md"}>
           {t.name}
           <button data-action="tags.remove" type="button" className="opacity-60 hover:opacity-100"
             title={translate("tags.removeTag", { name: t.name })}
@@ -64,7 +63,7 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
             onClick={() => onRemove(t.id)}>
             ×
           </button>
-        </span>
+        </Chip>
       ))}
       {!open && (
         <button data-action="tags.add" type="button"
@@ -78,9 +77,10 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
       )}
       {open && (
         <div className="relative">
-          <input data-action="tags.name"
+          <Input data-action="tags.name"
             autoFocus
-            className="input text-xs w-32 py-1"
+            className="text-xs w-32 !py-1"
+            aria-label={translate("tags.namePlaceholder")}
             placeholder={translate("tags.namePlaceholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -90,8 +90,8 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
             }}
           />
           {(suggestions.length > 0 || (trimmed && !exactMatch)) && (
-            <div className="absolute z-10 mt-1 w-40 max-h-48 overflow-auto rounded-lg
-              glass shadow-lg p-1">
+            <Card padding="none" elevation="e3"
+              className="absolute z-10 mt-1 w-40 max-h-48 overflow-auto p-1">
               {suggestions.map((t) => (
                 <button data-action="tags.suggest" key={t.id} type="button"
                   className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-accent-tint"
@@ -106,7 +106,7 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
                   {translate("tags.create", { name: trimmed })}
                 </button>
               )}
-            </div>
+            </Card>
           )}
         </div>
       )}

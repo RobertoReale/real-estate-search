@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useT } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { Property } from "../types";
+import { Field as FormField, Input } from "../ui";
 import { Calculators as CalculatorIcon, Trend } from "../ui/icons";
 
 /** French amortization: fixed monthly payment on the residual loan. */
@@ -13,21 +14,23 @@ function monthlyPayment(loan: number, annualRatePct: number, years: number): num
   return (loan * r) / (1 - Math.pow(1 + r, -n));
 }
 
-function Field({ label, suffix, value, onChange, action, step = 1, width = "w-24" }: {
+function Field({ label, suffix, value, onChange, action, step = 1, width = "!w-24" }: {
   label: string; suffix: string; value: number;
-  onChange: (v: number) => void; action: string; step?: number; width?: string;
+  onChange: (v: number) => void; action: string; step?: number;
+  /** Carries the `!`: `Input` is `w-full`, and Tailwind resolves two widths by
+   *  stylesheet order rather than by the order of the class attribute. */
+  width?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs t-muted">
-      {label}
+    <FormField label={label}>
       <span className="flex items-center gap-1">
         {/* Each caller names its own field: five inputs share this element, and
             the browser suite's inventory is of controls, not of components. */}
-        <input data-action={action} className={`input ${width}`} type="number" step={step} min={0}
+        <Input data-action={action} className={width} type="number" step={step} min={0}
           value={value} onChange={(e) => onChange(Number(e.target.value))} />
         <span className="t-dim">{suffix}</span>
       </span>
-    </label>
+    </FormField>
   );
 }
 
@@ -74,11 +77,11 @@ export default function Calculators({ property: p }: { property: Property }) {
       <div className="rounded-xl panel p-4 space-y-3">
         <div className="flex flex-wrap gap-4">
           <Field label={t("calc.downPayment")} suffix="%" value={downPct}
-            onChange={setDownPct} width="w-20" action="calc.mortgage.downPayment" />
+            onChange={setDownPct} width="!w-20" action="calc.mortgage.downPayment" />
           <Field label={t("calc.interestRate")} suffix={t("calc.perYear")} value={rate}
-            onChange={setRate} step={0.1} width="w-20" action="calc.mortgage.rate" />
+            onChange={setRate} step={0.1} width="!w-20" action="calc.mortgage.rate" />
           <Field label={t("calc.duration")} suffix={t("calc.years")} value={years}
-            onChange={setYears} width="w-20" action="calc.mortgage.years" />
+            onChange={setYears} width="!w-20" action="calc.mortgage.years" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Stat label={t("calc.loanAmount")} value={formatPrice(loan)} />
@@ -95,7 +98,7 @@ export default function Calculators({ property: p }: { property: Property }) {
           <Field label={t("calc.expectedRent")} suffix={t("calc.perMonthUnit")} value={rent}
             onChange={setRent} step={50} action="calc.yield.rent" />
           <Field label={t("calc.costsVacancy")} suffix={t("calc.percentOfRent")} value={costsPct}
-            onChange={setCostsPct} width="w-20" action="calc.yield.costs" />
+            onChange={setCostsPct} width="!w-20" action="calc.yield.costs" />
         </div>
         {grossYield !== null ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

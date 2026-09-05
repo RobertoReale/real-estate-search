@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LANGUAGE_NAMES, useI18n } from "../i18n";
 import type { ScanStatus } from "../types";
+import { Button } from "../ui";
 import { Brand, Cog, Language, Logs, Paused, Run, ThemeDark, ThemeLight } from "../ui/icons";
 
 interface Props {
@@ -67,7 +68,8 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
         )}
       </div>
 
-      <button data-action="scan.now" className="btn-primary shrink-0 px-3 sm:px-4" onClick={onScanNow}
+      <Button data-action="scan.now" variant="solid" tone="accent"
+        className="shrink-0 !px-3 sm:!px-4" onClick={onScanNow}
         disabled={running} aria-label={t("nav.scanNowAria")}>
         {running ? (
           t("nav.running")
@@ -78,36 +80,41 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
             <span className="hidden sm:inline">{t("nav.scanNow")}</span>
           </>
         )}
-      </button>
+      </Button>
       {/* Every control here is `shrink-0`, so the padding is what decides
           whether the row fits: at 390px with the longer Italian labels the four
           of them ran 3px past the viewport and scrolled the whole document
           sideways. Tight on a phone, roomier from `sm` up.
 
-          The `!` is load-bearing. `.btn-ghost` carries its own `px-4` and is
-          declared outside `@layer`, so it beats a plain `px-2` utility however
-          specific that looks in the markup — the `px-3 sm:px-4` these buttons
-          used to carry never applied at all, and the row was four px-4 buttons
-          the whole time. */}
-      <button data-action="nav.language" className="btn-ghost shrink-0 !px-2 sm:!px-3 font-semibold text-xs"
+          The `!` is load-bearing. `Button` already sets `px-4` for its default
+          size, and Tailwind resolves two utilities from the same group by
+          stylesheet order rather than by the order they appear in the class
+          attribute — so a plain `px-2` here would lose, and the row would go
+          back to being four px-4 buttons.
+
+          Icon-only, but deliberately `Button` with an `aria-label` rather than
+          `IconButton`: the latter is square by construction, and a 40px square
+          is 6px wider than what these are today. Three of them is the 18px that
+          used to push this row past a 390px viewport. */}
+      <Button data-action="nav.language" className="shrink-0 !px-2 sm:!px-3 font-semibold !text-xs"
         onClick={() => setLang(otherLang)}
         title={switchLangLabel} aria-label={switchLangLabel}>
         <Language size={16} />
         {lang.toUpperCase()}
-      </button>
-      <button data-action="nav.theme" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
+      </Button>
+      <Button data-action="nav.theme" className="shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
         title={dark ? t("nav.toLight") : t("nav.toDark")}
         aria-label={dark ? t("nav.toLight") : t("nav.toDark")}>
         {dark ? <ThemeLight size={18} /> : <ThemeDark size={18} />}
-      </button>
-      <button data-action="nav.logs" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
+      </Button>
+      <Button data-action="nav.logs" className="shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
         title={t("nav.viewLog")} aria-label={t("nav.viewLog")}>
         <Logs size={18} />
-      </button>
-      <button data-action="nav.settings" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
+      </Button>
+      <Button data-action="nav.settings" className="shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
         title={t("nav.settings")} aria-label={t("nav.settings")}>
         <Cog size={18} />
-      </button>
+      </Button>
     </nav>
   );
 }

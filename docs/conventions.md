@@ -94,21 +94,27 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   1. dense control rows are `grid grid-cols-2 … sm:flex sm:flex-wrap`, and the
      `col-span-2` on wide fields needs no `sm:` prefix because `grid-column` is inert on a
      flex item;
-  2. `.btn-primary`/`.btn-ghost` carry `min-h-touch sm:min-h-0` — a 44 px touch target on a
+  2. `Button`'s default size carries `min-h-touch sm:min-h-0` — a 44 px touch target on a
      phone, the original density on a mouse-driven desktop. `--spacing-touch` is a named
-     token precisely so the number is not retyped as `11` at each new control;
+     token precisely so the number is not retyped as `11` at each new control, and the
+     `sm` size omits the minimum on purpose: the filter bar and the batch bar are measured
+     for horizontal overflow at 390 px, and growing every dense button is a layout change
+     wearing the clothes of a token change;
   3. full-height panels use `dvh`, never `vh`, since `vh` spans behind a mobile address
      bar and pushes a modal's footer buttons out of reach;
   4. a row of groups that cannot fit side by side must say so: a `flex` bar of controls
      needs `flex-wrap`, and a block that should claim its own line gets `w-full
      sm:w-auto`. Wrapping left implicit is how the filter bar's Grid/Map switch and the
      search rows' URLs each pushed the document 150 px past a 390 px viewport;
-  5. **a utility cannot override a `.btn-*`, `.input` or `.chip-*` class.** Those are
-     defined in `index.css` outside any `@layer`, and un-layered CSS beats layered CSS
-     whatever the selectors look like — so `className="btn-ghost px-2"` renders at the
-     `px-4` the component class carries, silently. Write `!px-2` when you mean it (as
-     `Navbar.tsx` and `ProfileList.tsx` do). A padding or width that "has no effect" is
-     almost always this.
+  5. **a utility passed from a call site does not automatically win.** Against the
+     remaining `.btn-*`, `.input` and `.chip-*` classes it never does: they are defined in
+     `index.css` outside any `@layer`, and un-layered CSS beats layered CSS whatever the
+     selectors look like. Against a primitive it is worse than that, because it is not
+     decidable by reading — `<Button className="px-2">` puts two utilities from the same
+     group on one element, and Tailwind resolves those by stylesheet order rather than by
+     the order of the class attribute. Either way, write `!px-2` when you mean it (as
+     `Navbar.tsx`, `ProfileList.tsx` and `Calculators.tsx` do). A padding or width that
+     "has no effect" is almost always this.
 
   Fixed widths (`w-36`, `w-56`) must always be written `w-full sm:w-36`. `.input` jumps to
   16 px below `sm`: anything smaller makes iOS Safari zoom in on focus and never zoom back
@@ -186,6 +192,21 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   which is why `ui/icons.test.ts` reads the source of `src/components`, `src/ui`,
   `src/routes`, `src/i18n` and `src/App.tsx` and fails on any `\p{Extended_Pictographic}`.
   A label is interface wherever it is stored.
+
+  Five things kept their hand-rolled markup when the screens moved onto the primitives,
+  and each is a decision rather than a leftover. **Native `<select>` stays native**: the
+  browser suite drives a dropdown with Playwright's `selectOption`, which only works on a
+  real `<select>`, and on a phone the platform picker is better than any listbox this app
+  could draw. **The modal frames stay hand-rolled** — `PropertyModal`, `SettingsModal`,
+  `LogViewer` and the search-profile delete dialog carry inventoried ids on their backdrop
+  and their panel, and neither can be forwarded onto Radix's overlay. **The two
+  select-all checkboxes stay native**, because their indeterminate state is set from a ref
+  and moving them is a behaviour change in a bar the browser suite measures. **`PortalBadge`
+  keeps its own tints**: `Chip`'s tones are verdicts, and nothing should be able to render
+  "Idealista" in the colour that means "good deal". And **the navbar's icon-only controls
+  are `Button` with an `aria-label`, not `IconButton`** — the latter is square by
+  construction, and three 40 px squares are the 18 px that used to push that row past a
+  390 px viewport.
 
   Two things stay out of `src/ui/`. Strings — every label a user reads is a prop, because
   the interface is Italian and a primitive that spelt its own close button would be one

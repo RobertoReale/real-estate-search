@@ -3,6 +3,7 @@ import { useT } from "../i18n";
 import { useSaveSettings, useSettingsForm } from "../queries/settings";
 import { authToken } from "../services/api";
 import type { Settings } from "../types";
+import { Button, IconButton } from "../ui";
 import { Close } from "../ui/icons";
 import { AssistantSection, useAssistantSection } from "./settings/AssistantSection";
 import { CommuteSection, useCommuteSection } from "./settings/CommuteSection";
@@ -34,7 +35,7 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold">{t("settings.title")}</h2>
-          <button data-action="settings.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}><Close size={16} /></button>
+          <IconButton data-action="settings.close" label={t("common.close")} onClick={onClose}><Close size={16} /></IconButton>
         </div>
         {children}
       </div>
@@ -165,10 +166,11 @@ export default function SettingsModal({ onClose }: Props) {
           {t("settings.loadFailed", { error: loadError })}
         </p>
         <div className="flex justify-end gap-2 mt-6">
-          <button data-action="settings.loadError.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-          <button data-action="settings.loadError.retry" className="btn-primary" onClick={() => void loaded.refetch()}>
+          <Button data-action="settings.loadError.close" onClick={onClose}>{t("common.close")}</Button>
+          <Button data-action="settings.loadError.retry" variant="solid" tone="accent"
+            onClick={() => void loaded.refetch()}>
             {t("common.retry")}
-          </button>
+          </Button>
         </div>
       </Shell>
     );
@@ -206,10 +208,11 @@ export default function SettingsModal({ onClose }: Props) {
       <SystemSection section={system} settings={settings} shell={shell} />
 
       <div className="flex justify-end gap-2 mt-6">
-        <button data-action="settings.footer.close" className="btn-ghost" onClick={onClose}>{t("common.close")}</button>
-        <button data-action="settings.save" className="btn-primary" onClick={save} disabled={shell.anyBusy}>
+        <Button data-action="settings.footer.close" onClick={onClose}>{t("common.close")}</Button>
+        <Button data-action="settings.save" variant="solid" tone="accent" onClick={save}
+          disabled={shell.anyBusy}>
           {busy === "global" ? t("common.saving") : t("settings.save")}
-        </button>
+        </Button>
       </div>
     </Shell>
   );

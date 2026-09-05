@@ -16,6 +16,7 @@ import { DeleteDialog } from "./searchProfiles/DeleteDialog";
 import { MultiPanel } from "./searchProfiles/MultiPanel";
 import { ProfileList } from "./searchProfiles/ProfileList";
 import { UrlForm } from "./searchProfiles/UrlForm";
+import { Button, Card } from "../ui";
 import { BuildSearch, Describe, PasteUrl, Searches, Warning } from "../ui/icons";
 
 interface Props {
@@ -45,60 +46,62 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   ];
 
   return (
-    <section className="glass rounded-2xl p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 className="flex items-center gap-1.5 font-semibold text-base">
-          <Searches className="shrink-0" />
-          {t("profiles.title")}{" "}
-          <span className="t-muted text-sm">({profiles.length})</span>
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          <button data-action="profiles.mode.assistant" className="btn-ghost"
-            onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
-            {mode === "assistant"
-              ? t("common.cancel")
-              : <><Describe /> {t("profiles.modeAssistant")}</>}
-          </button>
-          <button data-action="profiles.mode.builder" className="btn-ghost"
-            onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
-            {mode === "builder"
-              ? t("common.cancel")
-              : <><BuildSearch /> {t("profiles.modeBuilder")}</>}
-          </button>
-          <button data-action="profiles.mode.url" className="btn-ghost"
-            onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
-            {mode === "url"
-              ? t("common.cancel")
-              : <><PasteUrl /> {t("profiles.modeUrl")}</>}
-          </button>
+    <Card asChild padding="lg">
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="flex items-center gap-1.5 font-semibold text-base">
+            <Searches className="shrink-0" />
+            {t("profiles.title")}{" "}
+            <span className="t-muted text-sm">({profiles.length})</span>
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <Button data-action="profiles.mode.assistant"
+              onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
+              {mode === "assistant"
+                ? t("common.cancel")
+                : <><Describe /> {t("profiles.modeAssistant")}</>}
+            </Button>
+            <Button data-action="profiles.mode.builder"
+              onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
+              {mode === "builder"
+                ? t("common.cancel")
+                : <><BuildSearch /> {t("profiles.modeBuilder")}</>}
+            </Button>
+            <Button data-action="profiles.mode.url"
+              onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
+              {mode === "url"
+                ? t("common.cancel")
+                : <><PasteUrl /> {t("profiles.modeUrl")}</>}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {mode === "assistant" && <AssistantPanel sp={sp} />}
-      {mode === "multi" && <MultiPanel sp={sp} />}
-      {mode === "url" && <UrlForm sp={sp} />}
-      {mode === "builder" && <BuilderForm sp={sp} />}
+        {mode === "assistant" && <AssistantPanel sp={sp} />}
+        {mode === "multi" && <MultiPanel sp={sp} />}
+        {mode === "url" && <UrlForm sp={sp} />}
+        {mode === "builder" && <BuilderForm sp={sp} />}
 
-      {profiles.length === 0 && mode === "closed" && (
-        <p className="text-sm t-muted">{t("profiles.empty")}</p>
-      )}
+        {profiles.length === 0 && mode === "closed" && (
+          <p className="text-sm t-muted">{t("profiles.empty")}</p>
+        )}
 
-      {profiles.length > 1 && <BulkToolbar sp={sp} />}
+        {profiles.length > 1 && <BulkToolbar sp={sp} />}
 
-      {channelWarnings.length > 0 && (
-        <div className="mb-2 p-3 rounded-xl bg-caution-tint border border-caution-line space-y-1">
-          {channelWarnings.map((warn) => (
-            <p key={warn}
-              className="flex items-start gap-1.5 text-xs text-caution-ink-strong">
-              <Warning className="shrink-0 mt-0.5" /> {warn}
-            </p>
-          ))}
-        </div>
-      )}
+        {channelWarnings.length > 0 && (
+          <div className="mb-2 p-3 rounded-xl bg-caution-tint border border-caution-line space-y-1">
+            {channelWarnings.map((warn) => (
+              <p key={warn}
+                className="flex items-start gap-1.5 text-xs text-caution-ink-strong">
+                <Warning className="shrink-0 mt-0.5" /> {warn}
+              </p>
+            ))}
+          </div>
+        )}
 
-      <ProfileList sp={sp} />
+        <ProfileList sp={sp} />
 
-      <DeleteDialog sp={sp} />
-    </section>
+        <DeleteDialog sp={sp} />
+      </section>
+    </Card>
   );
 }

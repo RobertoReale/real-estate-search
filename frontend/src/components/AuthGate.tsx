@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
+import { Button, Card, Input } from "../ui";
 import { Locked } from "../ui/icons";
 import { useVerifyToken } from "../queries/settings";
 import { authToken, setAuthRequiredHandler } from "../services/api";
@@ -36,31 +37,34 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       {children}
       {needAuth && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-overlay backdrop-blur-sm">
-          <form data-action="auth.submit" onSubmit={submit}
-            className="glass rounded-2xl max-w-sm w-full p-6 space-y-4">
-            <div>
-              <h2 className="flex items-center gap-1.5 text-lg font-bold">
-                <Locked className="shrink-0" /> {t("auth.title")}
-              </h2>
-              <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
-            </div>
-            {/* The one failure that stays on the form rather than becoming a
-                message: it is about the field directly above it, the thing to
-                do about it is to type a different token, and the gate is drawn
-                over everything else — including the toasts. */}
-            <input data-action="auth.token" className="input w-full" type="password" autoFocus
-              placeholder={t("auth.placeholder")}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "auth-error" : undefined}
-              value={token} onChange={(e) => setToken(e.target.value)} />
-            {error && (
-              <p id="auth-error" role="alert" className="text-sm accent-bad">{error}</p>
-            )}
-            <button className="btn-primary w-full" type="submit"
-              disabled={verify.isPending || !token.trim()}>
-              {verify.isPending ? t("auth.checking") : t("auth.unlock")}
-            </button>
-          </form>
+          <Card asChild padding="lg" elevation="e3">
+            <form data-action="auth.submit" onSubmit={submit}
+              className="max-w-sm w-full space-y-4">
+              <div>
+                <h2 className="flex items-center gap-1.5 text-lg font-bold">
+                  <Locked className="shrink-0" /> {t("auth.title")}
+                </h2>
+                <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
+              </div>
+              {/* The one failure that stays on the form rather than becoming a
+                  message: it is about the field directly above it, the thing to
+                  do about it is to type a different token, and the gate is drawn
+                  over everything else — including the toasts. */}
+              <Input data-action="auth.token" type="password" autoFocus
+                aria-label={t("auth.title")}
+                placeholder={t("auth.placeholder")}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "auth-error" : undefined}
+                value={token} onChange={(e) => setToken(e.target.value)} />
+              {error && (
+                <p id="auth-error" role="alert" className="text-sm accent-bad">{error}</p>
+              )}
+              <Button variant="solid" tone="accent" block type="submit"
+                disabled={verify.isPending || !token.trim()}>
+                {verify.isPending ? t("auth.checking") : t("auth.unlock")}
+              </Button>
+            </form>
+          </Card>
         </div>
       )}
     </>

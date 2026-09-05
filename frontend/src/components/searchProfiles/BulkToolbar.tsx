@@ -4,6 +4,7 @@
  * reads as "nothing selected" while a bulk bar is on screen. */
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
+import { Button, Chip } from "../../ui";
 import { Delete, Merged, Paused, Run } from "../../ui/icons";
 
 export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
@@ -25,17 +26,17 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
       </label>
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs chip-accent px-2 py-1 rounded-lg font-medium">
+          <Chip tone="accent" size="md">
             {t("profiles.selectedCount", { count: selected.size })}
-          </span>
-          <button data-action="profiles.bulk.activate" className="btn-ghost !text-xs" disabled={bulkBusy}
+          </Chip>
+          <Button data-action="profiles.bulk.activate" size="sm" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "activate")}>
             <Run /> {t("profiles.activate")}
-          </button>
-          <button data-action="profiles.bulk.pause" className="btn-ghost !text-xs" disabled={bulkBusy}
+          </Button>
+          <Button data-action="profiles.bulk.pause" size="sm" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "pause")}>
             <Paused /> {t("profiles.pause")}
-          </button>
+          </Button>
           {/* value stays on the placeholder: this is an action, not a state
               — the selection can hold searches with different channels */}
           <select data-action="profiles.bulk.notify" className="input !py-1 !px-2 text-xs w-full sm:w-48"
@@ -47,20 +48,19 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <button data-action="profiles.bulk.delete"
-            className="btn-ghost !text-xs hover:!text-negative-ink"
+          <Button data-action="profiles.bulk.delete" size="sm" tone="negative"
             disabled={bulkBusy}
             onClick={() => askDelete(selectedProfiles)}>
             <Delete /> {t("profiles.deleteAction")}
-          </button>
+          </Button>
           {selectedProfiles.length > 1 && (
-            <button data-action="profiles.bulk.merge"
-              className="btn-ghost !text-xs !text-tag-ink font-medium"
+            <Button data-action="profiles.bulk.merge" size="sm"
+              className="text-tag-ink"
               disabled={bulkBusy}
               title={t("profiles.mergeSelectedTitle")}
               onClick={() => groupSelected(selectedProfiles)}>
               <Merged /> {t("profiles.mergeSelected")}
-            </button>
+            </Button>
           )}
           <button data-action="profiles.bulk.clear" className="text-xs accent-link"
             onClick={() => setSelected(new Set())}>

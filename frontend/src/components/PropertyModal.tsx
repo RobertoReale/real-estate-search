@@ -34,6 +34,7 @@ import {
   Verify,
   Warning,
 } from "../ui/icons";
+import { Button, Chip, IconButton, Textarea } from "../ui";
 
 /** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
  *  so each value has a translation rather than being printed raw. */
@@ -124,10 +125,8 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
             </p>
             {omi.stale && (
               <p className="mt-1">
-                <span
-                  className="text-2xs font-semibold px-2 py-0.5 rounded-lg chip-caution"
-                  title={t("benchmark.staleNote")}>
-                  {t("benchmark.stale")}
+                <span title={t("benchmark.staleNote")}>
+                  <Chip tone="caution" className="font-semibold">{t("benchmark.stale")}</Chip>
                 </span>
               </p>
             )}
@@ -280,10 +279,10 @@ export default function PropertyModal({
             <div className="min-w-0">
               <h2 className="text-lg font-bold">
                 {p.contract === "rent" && (
-                  <span className="inline-flex items-center gap-1 text-3xs font-bold uppercase
-                    align-middle px-2 py-0.5 mr-2 rounded chip-rent">
+                  <Chip tone="rent" size="sm"
+                    className="!text-3xs font-bold uppercase align-middle mr-2">
                     <Sold /> {t("card.rent")}
-                  </span>
+                  </Chip>
                 )}
                 {p.title || t("card.untitled")}
               </h2>
@@ -293,14 +292,17 @@ export default function PropertyModal({
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <button data-action="modal.favorite"
-                className={`btn-ghost ${p.is_favorite ? "text-favorite-ink" : ""}`}
-                title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
-                aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
+              <IconButton data-action="modal.favorite"
+                variant="ghost"
+                className={p.is_favorite ? "text-favorite-ink" : undefined}
+                label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 onClick={onToggleFavorite}>
                 <Favorite fill={p.is_favorite ? "currentColor" : "none"} />
-              </button>
-              <button data-action="modal.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}><Close /></button>
+              </IconButton>
+              <IconButton data-action="modal.close" variant="ghost"
+                label={t("common.close")} onClick={onClose}>
+                <Close />
+              </IconButton>
             </div>
           </div>
 
@@ -465,17 +467,18 @@ export default function PropertyModal({
           <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
             <Notes /> {t("modal.notes")}
           </h3>
-          <textarea data-action="modal.notes"
-            className="input w-full h-24 resize-none"
+          <Textarea data-action="modal.notes"
+            className="h-24 !resize-none"
             placeholder={t("modal.notesPlaceholder")}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
           {notesDirty && (
             <div className="flex justify-end mt-2">
-              <button data-action="modal.notes.save" className="btn-primary" onClick={saveNotes} disabled={savingNotes}>
+              <Button data-action="modal.notes.save" variant="solid" tone="accent"
+                onClick={saveNotes} disabled={savingNotes}>
                 {savingNotes ? t("common.saving") : t("modal.saveNotes")}
-              </button>
+              </Button>
             </div>
           )}
 
@@ -533,9 +536,8 @@ export default function PropertyModal({
                 </div>
               )}
               <div className="mt-2">
-                <button data-action="modal.audit.read"
-                  type="button"
-                  className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg"
+                <Button data-action="modal.audit.read"
+                  size="sm"
                   disabled={auditing}
                   onClick={() => readListing(audit !== null)}
                   title={t("audit.buttonTitle")}>
@@ -544,31 +546,29 @@ export default function PropertyModal({
                     : audit
                       ? t("audit.again")
                       : <><Describe /> {t("audit.button")}</>}
-                </button>
+                </Button>
               </div>
             </>
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 mt-6">
             <div className="flex items-center gap-2">
-              <button data-action="modal.checkOnline"
-                type="button"
-                className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+              <Button data-action="modal.checkOnline"
+                size="sm"
                 disabled={checkingOnline || !p.listings.length}
                 onClick={checkIfOnline}
                 title={t("modal.checkOnlineTitle")}>
                 <Verify />
                 {checkingOnline ? t("app.checking") : t("modal.checkOnlineButton")}
-              </button>
-              <button data-action="modal.viewOnMap"
-                type="button"
-                className="btn-ghost text-xs border border-line px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+              </Button>
+              <Button data-action="modal.viewOnMap"
+                size="sm"
                 disabled={locating}
                 onClick={viewOnMap}
                 title={t(hasCoords ? "modal.viewOnMapTitle" : "modal.locateAndViewTitle")}>
                 <Atlas />
                 {locating ? t("filters.locating") : t("modal.viewOnMap")}
-              </button>
+              </Button>
               {checkResult && (
                 <span className="text-xs font-medium animate-fade-in">
                   {checkResult}

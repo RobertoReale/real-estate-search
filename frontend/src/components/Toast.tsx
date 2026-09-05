@@ -32,6 +32,7 @@ import {
 } from "react";
 import { translateCurrent, useT } from "../i18n";
 import { ApiError } from "../services/api";
+import { Button, IconButton } from "../ui";
 import { Close, ICON_SIZE, Success, Warning } from "../ui/icons";
 
 /** How long a confirmation stays up. Sized by the Undo it may be carrying: the
@@ -230,10 +231,7 @@ function ToastCard({ toast, onDismiss }: {
         </p>
         {toast.hint && <p className="t-muted text-xs mt-1 break-words">{toast.hint}</p>}
         {toast.action && (
-          <button data-action="toast.action"
-            type="button"
-            className="btn-ghost text-xs mt-2 px-2.5 py-1 rounded-lg border
-              border-line-strong"
+          <Button data-action="toast.action" size="sm" className="mt-2"
             onClick={() => {
               // Dismissed first: whatever the action does, this message is
               // about what already happened, and leaving it up while an Undo
@@ -242,16 +240,14 @@ function ToastCard({ toast, onDismiss }: {
               void toast.action?.run();
             }}>
             {toast.action.label}
-          </button>
+          </Button>
         )}
       </div>
-      <button data-action="toast.dismiss"
-        type="button"
-        className="btn-ghost shrink-0 py-0.5 px-2 leading-none"
-        aria-label={t("toast.dismiss")}
+      <IconButton data-action="toast.dismiss" variant="ghost" size="sm" className="shrink-0"
+        label={t("toast.dismiss")}
         onClick={() => onDismiss(toast.id)}>
         <Close size={16} />
-      </button>
+      </IconButton>
     </div>
   );
 }

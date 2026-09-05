@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { translateCurrent } from "../i18n";
+import { Button, Card } from "../ui";
 import { Crashed, ICON_SIZE } from "../ui/icons";
 
 interface Props {
@@ -28,7 +29,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="glass rounded-2xl p-6 sm:p-10 max-w-lg text-center space-y-4">
+          <Card padding="lg" elevation="e3" className="max-w-lg text-center space-y-4">
             <p className="flex justify-center accent-bad">
               <Crashed size={ICON_SIZE.display} strokeWidth={1.25} />
             </p>
@@ -37,10 +38,11 @@ export default class ErrorBoundary extends Component<Props, State> {
             <p className="font-semibold t-strong">{translateCurrent("error.title")}</p>
             <p className="text-sm t-muted break-words">{this.state.error.message}</p>
             <p className="text-sm t-muted">{translateCurrent("error.dataSafe")}</p>
-            <button data-action="app.crash.reload" className="btn-primary" onClick={() => window.location.reload()}>
+            <Button data-action="app.crash.reload" variant="solid" tone="accent"
+              onClick={() => window.location.reload()}>
               {translateCurrent("error.reload")}
-            </button>
-          </div>
+            </Button>
+          </Card>
         </div>
       );
     }

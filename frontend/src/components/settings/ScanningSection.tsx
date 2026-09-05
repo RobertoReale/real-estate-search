@@ -1,5 +1,6 @@
 import { useT } from "../../i18n";
 import { SectionHeading } from "./controls";
+import { Checkbox, Textarea } from "../../ui";
 import { Alarm, Filtered, Restart } from "../../ui/icons";
 import { splitList, useSectionState, type Section } from "./state";
 
@@ -45,14 +46,12 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
         <option value={480}>{t("settings.every8h")}</option>
       </select>
 
-      <label className="flex items-start gap-2 mt-3 cursor-pointer">
-        <input data-action="settings.scanning.pause" type="checkbox" checked={values.paused} className="mt-0.5"
-          onChange={(e) => set("paused", e.target.checked)} />
-        <span className="text-sm">
+      <Checkbox data-action="settings.scanning.pause" className="mt-3"
+        checked={values.paused} onCheckedChange={(v) => set("paused", v === true)}
+        label={<>
           {t("settings.pauseScans")}
           <span className="block text-xs t-dim">{t("settings.pauseScansNote")}</span>
-        </span>
-      </label>
+        </>} />
 
       <SectionHeading icon={Alarm}>{t("settings.healthTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.healthNote")}</p>
@@ -69,7 +68,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
 
       <SectionHeading icon={Filtered}>{t("settings.keywordsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.keywordsNote")}</p>
-      <textarea data-action="settings.scanning.keywords" className="input w-full h-20 resize-none"
+      <Textarea data-action="settings.scanning.keywords" className="h-20"
         aria-label={t("settings.keywordsTitle")}
         value={values.keywords} onChange={(e) => set("keywords", e.target.value)} />
     </>

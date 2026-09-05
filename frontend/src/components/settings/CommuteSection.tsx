@@ -2,6 +2,7 @@ import { useT } from "../../i18n";
 import { useComputeCommutes } from "../../queries/maintenance";
 import type { CommuteMode, CommutePoint, CommuteSummary, Settings } from "../../types";
 import { Result, SectionHeading } from "./controls";
+import { Button, Checkbox, Field, IconButton, Input } from "../../ui";
 import { Add, Commute, Delete } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
@@ -53,29 +54,24 @@ export function CommuteSection(
   return (
     <>
       <SectionHeading icon={Commute}>{t("settings.commuteTitle")}</SectionHeading>
-      <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-        <input data-action="settings.commute.enable" type="checkbox" checked={values.enabled}
-          onChange={(e) => set("enabled", e.target.checked)} />
-        {t("settings.commuteEnable")}
-      </label>
+      <Checkbox data-action="settings.commute.enable" label={t("settings.commuteEnable")}
+        checked={values.enabled} onCheckedChange={(v) => set("enabled", v === true)} />
       <p className="text-xs t-dim mt-1 mb-2">{t("settings.commuteNote")}</p>
 
       {values.enabled && (
         <div className="space-y-3">
           {values.points.map((point, i) => (
             <div key={i} className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 items-end">
-              <label className="text-xs t-muted">
-                {t("settings.commutePointName")}
-                <input data-action="settings.commute.pointName" className="input w-full sm:w-32 mt-1" value={point.name}
+              <Field label={t("settings.commutePointName")}>
+                <Input data-action="settings.commute.pointName" className="sm:w-32" value={point.name}
                   placeholder={t("settings.commutePointNamePlaceholder")}
                   onChange={(e) => update(i, { name: e.target.value })} />
-              </label>
-              <label className="text-xs t-muted col-span-2 sm:flex-1">
-                {t("settings.commutePointAddress")}
-                <input data-action="settings.commute.pointAddress" className="input w-full mt-1" value={point.address ?? ""}
+              </Field>
+              <Field label={t("settings.commutePointAddress")} className="col-span-2 sm:flex-1">
+                <Input data-action="settings.commute.pointAddress" value={point.address ?? ""}
                   placeholder={t("settings.commutePointAddressPlaceholder")}
                   onChange={(e) => update(i, { address: e.target.value })} />
-              </label>
+              </Field>
               <label className="text-xs t-muted">
                 {t("settings.commutePointMode")}
                 <select data-action="settings.commute.pointMode" className="input w-full sm:w-28 mt-1" value={point.mode}
@@ -83,30 +79,29 @@ export function CommuteSection(
                   {MODES.map((m) => <option key={m} value={m}>{t(`settings.commuteMode.${m}`)}</option>)}
                 </select>
               </label>
-              <button data-action="settings.commute.removePoint" className="btn-ghost" aria-label={t("settings.commuteRemovePoint")}
+              <IconButton data-action="settings.commute.removePoint" label={t("settings.commuteRemovePoint")}
                 onClick={() => set("points", values.points.filter((_, j) => j !== i))}>
                 <Delete size={16} />
-              </button>
+              </IconButton>
             </div>
           ))}
 
-          <button data-action="settings.commute.addPoint" className="btn-ghost text-xs"
+          <Button data-action="settings.commute.addPoint" size="sm"
             onClick={() => set("points", [...values.points, { ...EMPTY }])}>
             <Add /> {t("settings.commuteAddPoint")}
-          </button>
+          </Button>
 
-          <div>
-            <label className="text-xs t-muted block mb-1" htmlFor="commute-osrm-url">{t("settings.commuteOsrmUrl")}</label>
-            <input data-action="settings.commute.osrmUrl" id="commute-osrm-url" className="input w-full" value={values.osrmUrl}
+          <Field label={t("settings.commuteOsrmUrl")} hint={t("settings.commuteOsrmNote")}>
+            <Input data-action="settings.commute.osrmUrl" value={values.osrmUrl}
               placeholder="https://router.project-osrm.org"
               onChange={(e) => set("osrmUrl", e.target.value)} />
-            <p className="text-xs t-dim mt-1">{t("settings.commuteOsrmNote")}</p>
-          </div>
+          </Field>
 
           {/* The grid only reads already-routed legs, so nothing appears on a
               card until this has run at least once. Through saveAndTest, so the
               batch routes to the places just typed rather than the saved ones. */}
-          <button data-action="settings.commute.compute" className="btn-primary w-full sm:w-auto" disabled={shell.anyBusy}
+          <Button data-action="settings.commute.compute" variant="solid" tone="accent"
+            className="w-full sm:w-auto" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest(
               "commute",
               () => compute.mutateAsync(),
@@ -118,7 +113,7 @@ export function CommuteSection(
               },
             )}>
             {shell.busy === "commute" ? t("settings.commuteComputing") : t("settings.commuteCompute")}
-          </button>
+          </Button>
           <p className="text-xs t-dim">
             {t("settings.commuteComputeNote", {
               url: settings.osrm_url || "https://router.project-osrm.org",

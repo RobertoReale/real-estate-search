@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
 import { useLogTail } from "../queries/maintenance";
+import { Checkbox, IconButton, Input } from "../ui";
 import { Close, Logs } from "../ui/icons";
 
 interface Props {
@@ -57,22 +58,23 @@ export default function LogViewer({ onClose }: Props) {
           <h2 className="flex items-center gap-1.5 text-lg font-bold shrink-0">
             <Logs className="shrink-0" /> {t("logs.title")}
           </h2>
-          <button data-action="logs.close" className="btn-ghost shrink-0" aria-label={t("common.close")} onClick={onClose}><Close size={16} /></button>
+          <IconButton data-action="logs.close" className="shrink-0" label={t("common.close")}
+            onClick={onClose}>
+            <Close size={16} />
+          </IconButton>
         </div>
 
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-3">
-          <input data-action="logs.filter"
+          <Input data-action="logs.filter"
             type="text"
+            aria-label={t("logs.filterPlaceholder")}
             placeholder={t("logs.filterPlaceholder")}
-            className="input col-span-2 w-full sm:w-auto sm:flex-1 sm:min-w-[240px]"
+            className="col-span-2 sm:w-auto sm:flex-1 sm:min-w-[240px]"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
-            <input data-action="logs.autoRefresh" type="checkbox" checked={autoRefresh}
-              onChange={() => setAutoRefresh(!autoRefresh)} />
-            {t("logs.autoRefresh")}
-          </label>
+          <Checkbox data-action="logs.autoRefresh" label={t("logs.autoRefresh")}
+            checked={autoRefresh} onCheckedChange={() => setAutoRefresh(!autoRefresh)} />
           <span className="text-xs t-dim ml-auto">
             {t("logs.lineCount", { visible: visible.length, total: lines.length })}
           </span>

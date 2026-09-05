@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { formatDate, formatDateTime, useT } from "../../i18n";
 import type { Feedback, SectionName } from "./state";
+import { Chip } from "../../ui";
 import { Edit, type Icon, Success, Ticked } from "../../ui/icons";
 
 /** The standard section title. `first` drops the top margin, since the opening
@@ -52,30 +53,25 @@ export function Link({ href, children }: { href: string; children: ReactNode }) 
 export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: string; dirty?: boolean }) {
   const t = useT();
   if (dirty) {
-    return (
-      <span className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-caution">
-        <Edit /> {t("settings.secretDirty")}
-      </span>
-    );
+    return <Chip tone="caution"><Edit /> {t("settings.secretDirty")}</Chip>;
   }
   if (set) {
+    // The date is a `title` rather than a second line: it answers "since when"
+    // for the person who asks, and costs the row nothing for everyone else.
     return (
       <span title={since
         ? t("settings.secretLastSaved", { date: formatDateTime(since) })
-        : t("settings.secretSavedTitle")}
-        className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-positive">
-        <Ticked />
-        {since
-          ? t("settings.secretSavedOn", { date: formatDate(since) })
-          : t("settings.secretSaved")}
+        : t("settings.secretSavedTitle")}>
+        <Chip tone="positive">
+          <Ticked />
+          {since
+            ? t("settings.secretSavedOn", { date: formatDate(since) })
+            : t("settings.secretSaved")}
+        </Chip>
       </span>
     );
   }
-  return (
-    <span className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-neutral">
-      {t("settings.secretNotSet")}
-    </span>
-  );
+  return <Chip tone="neutral">{t("settings.secretNotSet")}</Chip>;
 }
 
 /** Renders the shared feedback line, but only for the section that raised it.
