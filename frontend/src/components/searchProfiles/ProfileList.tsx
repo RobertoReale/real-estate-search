@@ -43,7 +43,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 <PortalBadge key={p.id} portal={p.portal} />
               ))}
               {group.profiles.length > 1 && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0"
+                <span className="text-2xs px-2 py-0.5 rounded-full font-medium bg-tag-soft text-tag-ink-strong border border-tag-line shrink-0"
                   title={t("profiles.mergedTitle")}>
                   {t("profiles.merged", { count: group.profiles.length })}
                 </span>
@@ -55,7 +55,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               </p>
               {group.profiles.length === 1 ? (
                 <p className="text-xs t-dim truncate mt-0.5">
-                  <a href={group.profiles[0].search_url} target="_blank" rel="noreferrer" className="hover:underline text-blue-600 dark:text-blue-400">
+                  <a href={group.profiles[0].search_url} target="_blank" rel="noreferrer" className="hover:underline text-accent-link">
                     {group.profiles[0].search_url}
                   </a>
                 </p>
@@ -65,14 +65,14 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                     const pBadge = statusBadge[p.last_run_status];
                     return (
                       <div key={p.id} className="flex items-center gap-1.5 text-xs t-dim">
-                        <span className="font-semibold uppercase text-[10px] w-20 shrink-0 truncate t-muted">
+                        <span className="font-semibold uppercase text-3xs w-20 shrink-0 truncate t-muted">
                           {p.portal}:
                         </span>
-                        <a href={p.search_url} target="_blank" rel="noreferrer" className="hover:underline truncate min-w-0 flex-1 text-blue-600 dark:text-blue-400" title={p.search_url}>
+                        <a href={p.search_url} target="_blank" rel="noreferrer" className="hover:underline truncate min-w-0 flex-1 text-accent-link" title={p.search_url}>
                           {p.search_url}
                         </a>
                         {pBadge && p.last_run_status !== "ok" && (
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${pBadge.cls}`}>
+                          <span className={`text-3xs px-1.5 py-0.2 rounded-full shrink-0 ${pBadge.cls}`}>
                             {t(pBadge.label)}
                           </span>
                         )}
@@ -84,23 +84,23 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               {pParams && (pParams.city || pParams.min_price || pParams.max_price || pParams.min_rooms || pParams.min_sqm || pParams.zone) && (
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {pParams.contract && (
-                    <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
+                    <span className="text-2xs chip-accent px-2 py-0.5 rounded-md font-medium">
                       {t(pParams.contract === "rent" ? "profiles.chipRent" : "profiles.chipBuy")}
                     </span>
                   )}
                   {pParams.city && (
-                    <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
+                    <span className="text-2xs chip-positive px-2 py-0.5 rounded-md font-medium">
                       📍 {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
                       {pParams.zone ? ` · ${pParams.zone}` : ""}
                     </span>
                   )}
                   {(pParams.min_price || pParams.max_price) && (
-                    <span className="text-[11px] chip-amber px-2 py-0.5 rounded-md font-medium">
+                    <span className="text-2xs chip-caution px-2 py-0.5 rounded-md font-medium">
                       💰 {pParams.min_price ? `${formatNumber(pParams.min_price)} €` : "0 €"} – {pParams.max_price ? `${formatNumber(pParams.max_price)} €` : "∞"}
                     </span>
                   )}
                   {(pParams.min_rooms || pParams.max_rooms) && (
-                    <span className="text-[11px] chip-blue px-2 py-0.5 rounded-md font-medium">
+                    <span className="text-2xs chip-accent px-2 py-0.5 rounded-md font-medium">
                       {t("profiles.chipRooms", {
                         range: `${pParams.min_rooms ?? 1}${
                           pParams.max_rooms ? `–${pParams.max_rooms}` : "+"
@@ -109,7 +109,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                     </span>
                   )}
                   {pParams.min_sqm && (
-                    <span className="text-[11px] chip-emerald px-2 py-0.5 rounded-md font-medium">
+                    <span className="text-2xs chip-positive px-2 py-0.5 rounded-md font-medium">
                       {t("profiles.chipMinSqm", { value: pParams.min_sqm })}
                     </span>
                   )}
@@ -160,14 +160,14 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 ✏️
               </button>
               {group.profiles.length > 1 && (
-                <button data-action="profiles.row.separate" className="t-dim hover:text-purple-500 transition text-sm btn-focus
+                <button data-action="profiles.row.separate" className="t-dim hover:text-tag-ink transition text-sm btn-focus
                     inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                   title={t("profiles.separateBox")} aria-label={t("profiles.separateBox")}
                   onClick={() => separateGroup(group)}>
                   ✂️
                 </button>
               )}
-              <button data-action="profiles.row.delete" className="t-dim hover:text-rose-500 transition text-sm btn-focus
+              <button data-action="profiles.row.delete" className="t-dim hover:text-negative-ink transition text-sm btn-focus
                   inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 title={t("profiles.deleteBox")} aria-label={t("profiles.deleteBox")}
                 onClick={() => askDelete(group.profiles)}>

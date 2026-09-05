@@ -289,7 +289,7 @@ export function ScrapingSection(
                 <span>{t("settings.browserHumanize")}</span>
               </label>
 
-              <div className="pt-2 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 space-y-1.5">
+              <div className="pt-2 mt-1 border-t border-line space-y-1.5">
                 <label className="flex items-center gap-2 text-xs t-body">
                   <span className="whitespace-nowrap">{t("settings.browserEngine")}</span>
                   <select data-action="settings.scraping.engine" className="input py-1 w-full sm:w-auto"
@@ -300,7 +300,7 @@ export function ScrapingSection(
                     <option value="chromium">{t("settings.engineChromium")}</option>
                   </select>
                 </label>
-                <p className="text-[11px] t-muted">
+                <p className="text-2xs t-muted">
                   {t("settings.camoufoxNote")}{" "}
                   {t(settings.camoufox_available
                     ? "settings.camoufoxInstalled"
@@ -327,9 +327,9 @@ export function ScrapingSection(
                   ? t("settings.installingHarvester")
                   : t("settings.installHarvester")}
               </button>
-              <p className="text-[11px] t-muted pt-1">
+              <p className="text-2xs t-muted pt-1">
                 {t("settings.manualInstall")}
-                <code className="px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 select-all">
+                <code className="px-1 py-0.5 rounded bg-wash select-all">
                   backend\.venv\Scripts\pip install playwright &amp;&amp; backend\.venv\Scripts\playwright install chromium
                 </code>
               </p>

@@ -54,7 +54,7 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
           <>
             {scanStatus?.last_summary && <div>{scanStatus.last_summary}</div>}
             {scanStatus?.paused ? (
-              <div className="text-amber-700 dark:text-amber-400">
+              <div className="text-caution-ink">
                 {t("nav.paused")}
               </div>
             ) : (

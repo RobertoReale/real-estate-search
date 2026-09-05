@@ -15,7 +15,7 @@ export function SectionHeading({ first, children }: { first?: boolean; children:
 export function HelpSteps({ summary, steps }: { summary: string; steps: ReactNode[] }) {
   return (
     <details className="text-xs t-muted mb-3 rounded-lg panel">
-      <summary className="cursor-pointer px-3 py-2 select-none hover:text-slate-800 dark:hover:text-slate-200 transition">
+      <summary className="cursor-pointer px-3 py-2 select-none hover:text-ink-strong transition">
         {summary}
       </summary>
       <ol className="px-3 pb-3 pt-1 space-y-1.5 list-decimal list-inside">
@@ -28,7 +28,7 @@ export function HelpSteps({ summary, steps }: { summary: string; steps: ReactNod
 export function Link({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noreferrer"
-      className="underline underline-offset-2 hover:text-slate-800 dark:hover:text-slate-200">
+      className="underline underline-offset-2 hover:text-ink-strong">
       {children}
     </a>
   );
@@ -43,7 +43,7 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
   const t = useT();
   if (dirty) {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-amber">
+      <span className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-caution">
         {t("settings.secretDirty")}
       </span>
     );
@@ -53,7 +53,7 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
       <span title={since
         ? t("settings.secretLastSaved", { date: formatDateTime(since) })
         : t("settings.secretSavedTitle")}
-        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-emerald">
+        className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-positive">
         {since
           ? t("settings.secretSavedOn", { date: formatDate(since) })
           : t("settings.secretSaved")}
@@ -61,7 +61,7 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full chip-slate">
+    <span className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-neutral">
       {t("settings.secretNotSet")}
     </span>
   );
@@ -76,7 +76,7 @@ export function Result({ feedback, where }: { feedback: Feedback | null; where: 
   return (
     <p role="status"
       className="text-sm mt-3 rounded-lg px-3 py-2
-        bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+        bg-positive-tint text-positive-ink">
       ✅ {feedback.text}
     </p>
   );

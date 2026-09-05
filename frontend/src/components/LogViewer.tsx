@@ -7,8 +7,8 @@ interface Props {
 }
 
 const LEVEL_CLASS: Record<string, string> = {
-  ERROR: "text-rose-600 dark:text-rose-400",
-  WARNING: "text-amber-600 dark:text-amber-400",
+  ERROR: "text-negative-ink",
+  WARNING: "text-caution-ink",
 };
 
 function levelClass(line: string): string {
@@ -48,7 +48,7 @@ export default function LogViewer({ onClose }: Props) {
     : lines;
 
   return (
-    <div data-action="logs.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="logs.close.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-overlay backdrop-blur-sm"
       onClick={onClose}>
       <div data-action="logs.panel" className="glass rounded-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}>
@@ -79,7 +79,7 @@ export default function LogViewer({ onClose }: Props) {
             there are no lines, and it belongs where the lines would be. */}
         {error && <div className="text-xs t-muted mb-2">{error}</div>}
 
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-slate-950 text-slate-200 p-3 font-mono text-[11px] leading-relaxed">
+        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-console text-console-ink p-3 font-mono text-2xs leading-relaxed">
           {visible.length === 0 ? (
             <p className="t-dim">
               {lines.length === 0 ? t("logs.empty") : t("logs.noMatch")}
@@ -95,7 +95,7 @@ export default function LogViewer({ onClose }: Props) {
         </div>
 
         {path && (
-          <p className="text-[10px] t-dim mt-2 truncate">{t("logs.source", { path })}</p>
+          <p className="text-3xs t-dim mt-2 truncate">{t("logs.source", { path })}</p>
         )}
       </div>
     </div>

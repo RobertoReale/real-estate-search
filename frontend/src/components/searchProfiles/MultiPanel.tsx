@@ -23,12 +23,12 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
       {multi.map((search, idx) => (
         <div key={idx} className="p-3 rounded-xl panel space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded chip-blue">
+            <span className="text-3xs font-bold uppercase px-2 py-0.5 rounded chip-accent">
               {t("profiles.searchNumber", { n: idx + 1 })}
             </span>
             {search.interpretation.map((part) => (
               <span key={part}
-                className="text-xs chip-emerald px-2 py-1 rounded-lg font-medium">
+                className="text-xs chip-positive px-2 py-1 rounded-lg font-medium">
                 {part}
               </span>
             ))}
@@ -37,7 +37,7 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
               onClick={() => editInBuilder(search)}>
               {t("common.edit")}
             </button>
-            <button data-action="profiles.multi.drop" className="t-dim hover:text-rose-500 transition text-xs btn-focus"
+            <button data-action="profiles.multi.drop" className="t-dim hover:text-negative-ink transition text-xs btn-focus"
               title={t("profiles.dropAlternative")}
               aria-label={t("profiles.dropAlternative")}
               onClick={() => setMulti((m) => m.filter((_, i) => i !== idx))}>
@@ -49,7 +49,7 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
           ))}
           {search.warnings.map((warning) => (
             <p key={warning}
-              className="text-xs text-amber-600 dark:text-amber-400">
+              className="text-xs text-caution-ink">
               ⚠️ {warning}
             </p>
           ))}

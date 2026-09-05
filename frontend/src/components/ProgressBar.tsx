@@ -24,12 +24,12 @@ export function ProgressBar({
 
   return (
     <div className={`space-y-1.5 ${className}`} role="status" aria-live="polite">
-      <div className="h-1.5 w-full rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
+      <div className="h-1.5 w-full rounded-full overflow-hidden bg-sunken-strong">
         {isIndeterminate ? (
-          <div className="h-full w-1/3 bg-blue-500 animate-pulse" />
+          <div className="h-full w-1/3 bg-accent animate-pulse" />
         ) : (
           <div
-            className="h-full bg-blue-500 transition-[width] duration-300"
+            className="h-full bg-accent transition-[width] duration-300"
             style={{ width: `${pct}%` }}
           />
         )}

@@ -53,11 +53,11 @@ function TrendChart({ points }: { points: PricingTrend["points"] }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
       aria-label={translateCurrent("trends.chartAria")}>
       <polyline points={line} fill="none"
-        className="stroke-blue-500 dark:stroke-blue-400" strokeWidth={2}
+        className="stroke-accent-graph" strokeWidth={2}
         strokeLinejoin="round" strokeLinecap="round" />
       {geom.pts.map((p) => (
         <circle key={p.date} cx={p.x} cy={p.y} r={2.5}
-          className="fill-blue-600 dark:fill-blue-300">
+          className="fill-accent-graph-point">
           <title>
             {translateCurrent("trends.pointTooltip", {
               date: formatDate(p.date),
@@ -162,7 +162,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
               {trend && trend.points.length >= 2 && (
                 <div>
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2 text-sm">
-                    <span className="t-strong text-lg font-semibold">
+                    <span className="t-strong text-lg font-semibold tnum">
                       {t("common.sqmPrice", {
                         value: formatNumber(
                           Math.round(trend.points[trend.points.length - 1].median_sqm_price),
@@ -218,7 +218,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                                 { count: comps.length },
                               )}
                             </p>
-                            <ul className="space-y-1">
+                            <ul className="space-y-1 tnum">
                               {comps.map((p) => {
                                 const sqm = p.current_min_price && p.sqm
                                   ? p.current_min_price / p.sqm : null;
@@ -227,7 +227,7 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                                   <li key={p.id}>
                                     <button data-action="trends.openProperty"
                                       onClick={() => onOpenProperty(p)}
-                                      className="w-full text-left flex flex-wrap items-baseline gap-x-2 gap-y-0.5 p-2 rounded-lg panel hover:border-blue-500/50 transition">
+                                      className="w-full text-left flex flex-wrap items-baseline gap-x-2 gap-y-0.5 p-2 rounded-lg panel hover:border-accent-line transition">
                                       <span className="text-sm font-medium truncate max-w-full">
                                         {p.title || t("card.untitled")}
                                       </span>

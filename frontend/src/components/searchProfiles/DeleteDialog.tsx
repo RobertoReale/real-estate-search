@@ -17,7 +17,7 @@ export function DeleteDialog({ sp }: { sp: SearchProfilesState }) {
   const { t, deleting, setDeleting, results, deleteBusy, deleteError, confirmDelete } = sp;
   if (!deleting) return null;
   return createPortal(
-    <div data-action="profiles.delete.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
+    <div data-action="profiles.delete.backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-overlay backdrop-blur-sm"
       onClick={() => !deleteBusy && setDeleting(null)}>
       <div data-action="profiles.delete.panel" className="glass rounded-2xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
@@ -91,7 +91,7 @@ export function DeleteDialog({ sp }: { sp: SearchProfilesState }) {
             onClick={() => confirmDelete(false)}>
             {t("profiles.keepResults")}
           </button>
-          <button data-action="profiles.delete.withResults" className="btn-primary flex-1 !bg-rose-600 hover:!bg-rose-700"
+          <button data-action="profiles.delete.withResults" className="btn-primary flex-1 !bg-negative hover:!bg-negative-hover"
             disabled={deleteBusy || !results || results.deletable === 0}
             onClick={() => confirmDelete(true)}>
             {deleteBusy

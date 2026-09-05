@@ -39,8 +39,8 @@ function Stat({ label, value, accent }: {
     : "";
   return (
     <div className="rounded-xl panel p-3">
-      <p className="text-[11px] uppercase t-dim">{label}</p>
-      <p className={`text-base font-bold mt-0.5 ${color}`}>{value}</p>
+      <p className="text-2xs uppercase t-dim">{label}</p>
+      <p className={`text-base font-bold mt-0.5 tnum ${color}`}>{value}</p>
     </div>
   );
 }

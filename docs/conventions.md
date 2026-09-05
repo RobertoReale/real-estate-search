@@ -94,8 +94,9 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   1. dense control rows are `grid grid-cols-2 … sm:flex sm:flex-wrap`, and the
      `col-span-2` on wide fields needs no `sm:` prefix because `grid-column` is inert on a
      flex item;
-  2. `.btn-primary`/`.btn-ghost` carry `min-h-11 sm:min-h-0` — a 44 px touch target on a
-     phone, the original density on a mouse-driven desktop;
+  2. `.btn-primary`/`.btn-ghost` carry `min-h-touch sm:min-h-0` — a 44 px touch target on a
+     phone, the original density on a mouse-driven desktop. `--spacing-touch` is a named
+     token precisely so the number is not retyped as `11` at each new control;
   3. full-height panels use `dvh`, never `vh`, since `vh` spans behind a mobile address
      bar and pushes a modal's footer buttons out of reach;
   4. a row of groups that cannot fit side by side must say so: a `flex` bar of controls
@@ -113,17 +114,42 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   16 px below `sm`: anything smaller makes iOS Safari zoom in on focus and never zoom back
   out.
 
-- **Text and fills are chosen against the background, not by eye.** The browser suite
-  fails a screen carrying any *serious* `axe-core` violation, and colour contrast is the
-  one that fires most: against this app's own surfaces (`.glass` resolves to slate-100,
-  `.panel` to slate-50) the stock 400 and 500 slate shades measure 2.5:1 and 4.3:1, both
-  under the 4.5:1 threshold. Hence the light values in `index.css`: `t-muted`, `t-dim`,
-  `accent-good` and `accent-bad` sit a step darker than they read as a design, and every
-  white-on-colour badge uses an **opaque 700** fill — a 600 at 80% opacity over a
-  property photo lands anywhere between 3.1 and 4.2:1 depending on the picture behind it,
-  which is a defect that appears for some listings and not others. Hover states darken
-  rather than lighten for the same reason. A genuinely three-step neutral scale needs a
-  custom palette rather than stock `slate`, and does not exist yet.
+- **A component names a role, never a colour.** `src/styles/tokens.css` holds the design
+  tokens in three layers: the palette ramps (`--clay-*` neutral, `--azure-*` accent, and
+  the verdict ramps `--sage-*`/`--ochre-*`/`--garnet-*`), then the *roles* those ramps
+  serve (`--surface`, `--ink-muted`, `--negative-ink`), then a Tailwind `@theme inline`
+  block that turns every role into a utility. `inline` is the load-bearing word: it emits
+  `background-color: var(--surface)` into the utility rather than the resolved literal, so
+  re-pointing `--surface` inside `.dark` re-points every generated utility at once. That is
+  why components carry **no `dark:` variants at all** — the one exception is the Leaflet
+  tile filter, which inverts an image rather than picking a colour.
+
+  Light and dark are written out **separately**, not derived from one another. Two things
+  change shape rather than value between them: surfaces climb *away* from black as they
+  come forward in dark, and elevation stops being a cast shadow — invisible on a dark
+  ground — and becomes a lighter surface plus a brighter edge.
+
+  `src/styles/tokens.test.ts` enforces the rule: it scans every `.tsx`/`.ts` under `src/`
+  and fails on a Tailwind ramp utility (`bg-blue-600`, `dark:text-slate-500`), on
+  `text-white`/`bg-black`, and on an arbitrary colour value (`bg-[#2563eb]`), which is the
+  same thing wearing brackets. Roles that borrow a Tailwind ramp name are why the pattern
+  insists on a numeric shade: `bg-neutral-soft` is what the rule asks for, `bg-neutral-500`
+  is what it forbids.
+
+- **Contrast is measured, not eyeballed.** The browser suite fails a screen carrying any
+  *serious* `axe-core` violation, and colour contrast is the one that fires most. Two rules
+  fall out of it, and both are written into the token file next to the values they explain:
+  every light `*-ink` is the **700** step of its ramp, never the 600 — on a near-white card
+  or its own 100-step chip the 600 step measures between 2.9:1 and 4.1:1, under the 4.5:1
+  threshold; and every white-on-colour badge uses an **opaque** fill, since a 600 at 80%
+  opacity over a property photo lands anywhere between 3.1 and 4.2:1 depending on the
+  picture behind it — a defect that appears for some listings and not others. Hover states
+  darken rather than lighten for the same reason.
+
+  Dark mode needs its own floor, not the light one reused: `--clay-450` exists solely
+  because `--ink-dim` at clay-500 clears 4.5:1 on white but only reaches 3.06:1 on the
+  darkest panel it lands on. The consequence is that dim and muted sit closer together in
+  dark than in light, which is what a dark ground costs rather than an oversight.
 
 ---
 
@@ -144,7 +170,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (90 in seventeen files: vitest +
+- **The frontend has unit tests too** (92 in eighteen files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -167,6 +193,9 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   `I18nProvider` assigns during render — and that is the half `formatPrice`, `humanizeFloor`
   and MapView's tooltips depend on. Freeze it and the words still switch while the prices,
   dates and floor labels keep formatting the old way; nothing else in the suite notices.
+  `styles/tokens.test.ts` is the odd one out — it asserts nothing about behaviour, it reads
+  the source tree and fails on a hand-typed colour, because the alternative to a rule is
+  six near-identical buttons that differ by accident and a build that cannot tell.
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
   pixels — for six things a pure test cannot reach, each written after the bug it now

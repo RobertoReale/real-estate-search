@@ -24,7 +24,7 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
       </label>
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs chip-blue px-2 py-1 rounded-lg font-medium">
+          <span className="text-xs chip-accent px-2 py-1 rounded-lg font-medium">
             {t("profiles.selectedCount", { count: selected.size })}
           </span>
           <button data-action="profiles.bulk.activate" className="btn-ghost !text-xs" disabled={bulkBusy}
@@ -47,14 +47,14 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
             ))}
           </select>
           <button data-action="profiles.bulk.delete"
-            className="btn-ghost !text-xs hover:!text-rose-500"
+            className="btn-ghost !text-xs hover:!text-negative-ink"
             disabled={bulkBusy}
             onClick={() => askDelete(selectedProfiles)}>
             {t("profiles.deleteAction")}
           </button>
           {selectedProfiles.length > 1 && (
             <button data-action="profiles.bulk.merge"
-              className="btn-ghost !text-xs !text-purple-600 dark:!text-purple-400 font-medium"
+              className="btn-ghost !text-xs !text-tag-ink font-medium"
               disabled={bulkBusy}
               title={t("profiles.mergeSelectedTitle")}
               onClick={() => groupSelected(selectedProfiles)}>

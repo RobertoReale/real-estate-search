@@ -69,9 +69,9 @@ export function AssistantSection(
             {t("settings.llmHintA")}
             <Link href="https://ollama.com">Ollama</Link>
             {t("settings.llmHintB")}
-            <code className="px-1 rounded bg-black/10 dark:bg-white/10 select-all">http://localhost:11434/v1</code>
+            <code className="px-1 rounded bg-wash select-all">http://localhost:11434/v1</code>
             {t("settings.llmHintC")}
-            <code className="px-1 rounded bg-black/10 dark:bg-white/10">llama3.1</code>
+            <code className="px-1 rounded bg-wash">llama3.1</code>
             {t("settings.llmHintD")}
           </p>
           <input data-action="settings.assistant.baseUrl" className="input w-full" placeholder={t("settings.llmBaseUrl")}

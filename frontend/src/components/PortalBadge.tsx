@@ -10,10 +10,10 @@ export function PortalBadge({
   // whatever is behind them.
   const cls =
     variant === "overlay"
-      ? `${isImmobiliare ? "bg-blue-700" : "bg-lime-700"} text-white`
-      : isImmobiliare ? "chip-blue" : "chip-lime";
+      ? `${isImmobiliare ? "bg-portal-immobiliare" : "bg-portal-idealista"} text-on-solid`
+      : isImmobiliare ? "chip-accent" : "chip-portal-idealista";
   return (
-    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg shrink-0 ${cls}`}>
+    <span className={`text-3xs font-bold uppercase px-2 py-0.5 rounded-lg shrink-0 ${cls}`}>
       {portal}
     </span>
   );

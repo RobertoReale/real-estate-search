@@ -254,7 +254,7 @@ export function SystemSection(
         <input data-action="settings.system.backupFile" ref={filePicker} type="file" accept=".db,.sqlite,application/vnd.sqlite3"
           className="hidden" onChange={importPicked} />
       </div>
-      {folder && <p className="text-[11px] t-dim mt-2 break-all">{t("settings.backupsFolder", { folder })}</p>}
+      {folder && <p className="text-2xs t-dim mt-2 break-all">{t("settings.backupsFolder", { folder })}</p>}
       {/* In place of the list rather than in a toast: this is what there is to
           read where the copies would have been, and it is not the result of
           anything the user just pressed. */}
@@ -263,13 +263,13 @@ export function SystemSection(
         <p className="text-xs t-dim mt-2">{t("settings.backupsEmpty")}</p>
       )}
       {backups && backups.length > 0 && (
-        <ul className="mt-2 rounded-lg panel divide-y divide-slate-200/70 dark:divide-slate-700/70">
+        <ul className="mt-2 rounded-lg panel divide-y divide-line">
           {backups.map((file) => (
             <li key={file.name}
               className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 px-3 py-2">
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium t-body">{formatDateTime(file.taken_at)}</div>
-                <div className="text-[11px] t-dim">
+                <div className="text-2xs t-dim">
                   {t(`settings.backupKind.${file.kind}`)} · {formatSize(file.size_bytes)} ·{" "}
                   {file.revision
                     ? t("settings.backupSchema", { revision: file.revision })
@@ -281,7 +281,7 @@ export function SystemSection(
                   onClick={() => download(file.name)}>
                   {t("settings.backupDownload")}
                 </button>
-                <button data-action="settings.system.backupRestore" className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
+                <button data-action="settings.system.backupRestore" className="btn-ghost text-xs text-negative-ink"
                   disabled={shell.anyBusy} onClick={() => restore(file)}>
                   {t("settings.backupRestore")}
                 </button>
@@ -292,8 +292,8 @@ export function SystemSection(
       )}
       <Result feedback={shell.feedback} where="backups" />
 
-      <div className="mt-8 pt-5 border-t border-rose-300/40 dark:border-rose-800/40">
-        <h3 className="font-semibold text-sm uppercase text-rose-600 dark:text-rose-400 mb-1">
+      <div className="mt-8 pt-5 border-t border-negative-line-soft">
+        <h3 className="font-semibold text-sm uppercase text-negative-ink mb-1">
           {t("settings.dataTitle")}
         </h3>
         <p className="text-xs t-dim mb-3">{t("settings.dataNote")}</p>
@@ -303,7 +303,7 @@ export function SystemSection(
               <span className="font-medium">{t("settings.clearDashboardName")}</span>
               {t("settings.clearDashboardBody")}
             </div>
-            <button data-action="settings.system.resetDashboard" className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
+            <button data-action="settings.system.resetDashboard" className="btn-ghost w-full sm:w-auto text-negative-ink"
               disabled={shell.anyBusy}
               onClick={() => runReset("dashboard", t("settings.clearDashboardConfirm"))}>
               {t("settings.clearDashboardButton")}
@@ -314,7 +314,7 @@ export function SystemSection(
               <span className="font-medium">{t("settings.clearTrendsName")}</span>
               {t("settings.clearTrendsBody")}
             </div>
-            <button data-action="settings.system.resetTrends" className="btn-ghost w-full sm:w-auto text-rose-600 dark:text-rose-400"
+            <button data-action="settings.system.resetTrends" className="btn-ghost w-full sm:w-auto text-negative-ink"
               disabled={shell.anyBusy}
               onClick={() => runReset("pricing-snapshots", t("settings.clearTrendsConfirm"))}>
               {t("settings.clearTrendsButton")}
@@ -325,7 +325,7 @@ export function SystemSection(
               <span className="font-medium">{t("settings.factoryName")}</span>
               {t("settings.factoryBody")}
             </div>
-            <button data-action="settings.system.resetFactory" className="btn-ghost w-full sm:w-auto text-white bg-rose-600 hover:bg-rose-700 border-rose-600"
+            <button data-action="settings.system.resetFactory" className="btn-ghost w-full sm:w-auto text-on-solid bg-negative hover:bg-negative-hover border-negative"
               disabled={shell.anyBusy}
               onClick={() => runReset("factory", t("settings.factoryConfirm"), true)}>
               {t("settings.factoryButton")}

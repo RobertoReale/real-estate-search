@@ -78,9 +78,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       {profiles.length > 1 && <BulkToolbar sp={sp} />}
 
       {channelWarnings.length > 0 && (
-        <div className="mb-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+        <div className="mb-2 p-3 rounded-xl bg-caution-tint border border-caution-line space-y-1">
           {channelWarnings.map((warn) => (
-            <p key={warn} className="text-xs text-amber-800 dark:text-amber-200">
+            <p key={warn} className="text-xs text-caution-ink-strong">
               ⚠️ {warn}
             </p>
           ))}
