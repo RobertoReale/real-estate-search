@@ -100,7 +100,7 @@ export async function tabOrder(
   const reached = new Set<string>();
   // Clicking a non-focusable element is what moves the starting point; blurring
   // does not, and Chromium then resumes from wherever the last control was —
-  // which is how a walk for the filter bar can start below it and never come
+  // which is how a walk for the filter rail can start below it and never come
   // back round.
   await anchor.click({ position: { x: 1, y: 1 } });
 

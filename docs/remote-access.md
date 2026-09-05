@@ -15,8 +15,9 @@ instead, so there is nothing to configure on the phone: open the URL the script
 prints, then use the browser's **"Add to home screen"** to get a standalone app
 icon.
 
-The layout adapts to the screen: filter bars and forms fold into two columns,
-the property grid becomes a single column, and buttons grow to a thumb-sized
+The layout adapts to the screen: the filter rail becomes a sheet you pull up
+and put away, forms fold into two columns, the property grid becomes a single
+column, and buttons grow to a thumb-sized
 target. Wide tables (market velocity) scroll sideways on their own rather than
 stretching the page.
 

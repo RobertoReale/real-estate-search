@@ -23,8 +23,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, STORAGE_KEY } from "./index";
 import { en } from "./en";
 import { it as itDict } from "./it";
-import FiltersBar from "../components/FiltersBar";
 import PropertyCard from "../components/PropertyCard";
+import { FilterRail, ResultHeader } from "../routes/listings";
 import { WithQuery } from "../test/withQuery";
 import type { Property, PropertyFilters } from "../types";
 
@@ -59,8 +59,9 @@ const PROPERTY = {
 
 const noop = () => {};
 
-/** Renders a filter bar and a card the way the dashboard composes them, in the
- *  chosen language, and hands back everything that reached the screen.
+/** Renders the rail, the result header and a card the way the listings screen
+ *  composes them, in the chosen language, and hands back everything that reached
+ *  the screen.
  *
  *  Spaces are normalised first: `Intl` separates a number from its currency
  *  symbol with U+00A0, so the Italian price is "1200 €" and a plain
@@ -71,8 +72,9 @@ function screenTextIn(lang: "en" | "it"): string {
   const { container } = render(
     <I18nProvider>
       <WithQuery>
-        <FiltersBar filters={FILTERS} onChange={noop} count={7} view="grid"
-          onViewChange={noop} profiles={[]} tags={[]} matchEnabled onReset={noop} />
+        <FilterRail filters={FILTERS} onChange={noop} count={7} profiles={[]} tags={[]} />
+        <ResultHeader count={7} filters={FILTERS} onChange={noop} view="grid"
+          onViewChange={noop} matchEnabled />
         <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
           onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
       </WithQuery>

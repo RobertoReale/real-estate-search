@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 /**
  * The value as it was `delayMs` ago, if it has stopped changing since.
  *
- * The filter bar produces a new filter set on every keystroke, and each distinct
+ * The filter rail produces a new filter set on every keystroke, and each distinct
  * set is a distinct query — so without this, typing "Milano" is six requests for
  * six answers, five of which nobody will ever see. Debouncing the *key* rather
  * than the request is what keeps that from happening at all: the query never

@@ -306,7 +306,16 @@ export const en = {
   "app.summaryCapped":
     "Per-run request limit reached: run the check again to continue with the rest.",
 
-  // ── filters bar ─────────────────────────────────────────────────────────
+  // ── filter rail ─────────────────────────────────────────────────────────
+  "filters.title": "Filters",
+  "filters.show": "Show the filters",
+  "filters.hide": "Hide the filters",
+  "filters.railHint": "Everything that narrows the grid",
+  "filters.active": "Active filters",
+  "filters.chipValue": "{label}: {value}",
+  "filters.chipRemove": "Remove the {label} filter",
+  "filters.chipMerged": "Merged only",
+  "filters.chipMapArea": "Map area",
   "filters.search": "Search",
   "filters.searchPlaceholder": "Search by zone, address, title, floor or ad text…",
   "filters.clearSearch": "Clear search",
@@ -387,40 +396,42 @@ export const en = {
   "filters.exportIn": "{what} in {city}",
 
   // ── maintenance actions ─────────────────────────────────────────────────
-  "filters.maintenance": "Maintenance",
-  "filters.findCoords": "Find coordinates",
-  "filters.locating": "Locating…",
-  "filters.findCoordsTitle":
+  "maintenance.title": "Maintenance",
+  "maintenance.hint":
+    "Housekeeping for the whole database, not for one search. Neither of these changes what a scan looks for.",
+  "maintenance.findCoords": "Find coordinates",
+  "maintenance.locating": "Locating…",
+  "maintenance.findCoordsTitle":
     "Find map coordinates for listings that have an address or zone but no pin (uses OpenStreetMap; can take a while)",
-  "filters.retryFailed": "Retry failed lookups",
-  "filters.clearing": "Clearing…",
-  "filters.retryFailedTitle":
+  "maintenance.retryFailed": "Retry failed lookups",
+  "maintenance.clearing": "Clearing…",
+  "maintenance.retryFailedTitle":
     "Forget failed geocoding lookups so 'Find coordinates' retries addresses a temporary OpenStreetMap outage froze as 'not found'. Never moves existing pins.",
-  "filters.backendTooOld":
+  "maintenance.backendTooOld":
     "The backend doesn't have this feature yet — restart it (close and re-run start.bat / serve.bat) and try again.",
 
   // ── maintenance result banners ──────────────────────────────────────────
-  "filters.geocodeRunning": "Locating coordinates in background…",
-  "filters.geocodeProgress":
+  "maintenance.geocodeRunning": "Locating coordinates in background…",
+  "maintenance.geocodeProgress":
     "Locating listing {done} of {total} — {geocoded} located, {cached} from cache",
-  "filters.geocodeProgressNotFound": ", {count} not found",
-  "filters.geocodeStarting": "Starting coordinate lookup…",
-  "filters.geocodePacing":
+  "maintenance.geocodeProgressNotFound": ", {count} not found",
+  "maintenance.geocodeStarting": "Starting coordinate lookup…",
+  "maintenance.geocodePacing":
     "(Paced at 1 request/sec to respect OpenStreetMap Nominatim usage policy)",
-  "filters.geocodeLastIssue": "Last issue from Nominatim: {error}",
-  "filters.geocodeDone": "Coordinate lookup finished",
-  "filters.geocodeNothing":
+  "maintenance.geocodeLastIssue": "Last issue from Nominatim: {error}",
+  "maintenance.geocodeDone": "Coordinate lookup finished",
+  "maintenance.geocodeNothing":
     "Nothing to locate: every property either already has a pin or has no address/zone to look one up from. (A bare city is skipped on purpose — it would drop every such listing on one downtown pin.)",
-  "filters.geocodeLocated": "Located {geocoded} of {scanned} listings without a pin",
-  "filters.geocodeNotFound": " · {count} could not be resolved",
-  "filters.geocodeCancelled":
+  "maintenance.geocodeLocated": "Located {geocoded} of {scanned} listings without a pin",
+  "maintenance.geocodeNotFound": " · {count} could not be resolved",
+  "maintenance.geocodeCancelled":
     'Stopped — remaining properties were left without pins. Click "Find coordinates" again to resume.',
-  "filters.geocodeRemaining": "{count} left — run it again to continue.",
-  "filters.cacheClearedNone":
+  "maintenance.geocodeRemaining": "{count} left — run it again to continue.",
+  "maintenance.cacheClearedNone":
     "No stuck lookups to clear — every failed address had already been forgotten or never cached.",
-  "filters.cacheCleared":
+  "maintenance.cacheCleared":
     "Cleared {count} failed lookups. Click Find coordinates to retry them.",
-  "filters.cacheClearedOne":
+  "maintenance.cacheClearedOne":
     "Cleared {count} failed lookup. Click Find coordinates to retry it.",
 
   // ── settings: shell & secrets ───────────────────────────────────────────

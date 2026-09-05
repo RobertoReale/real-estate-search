@@ -7,7 +7,7 @@
  * operating system draws a wheel. What it cannot do is be styled: the popup is
  * the browser's, so a dark theme shows a light menu, an option cannot carry a
  * second line, and the trigger cannot look like the text input beside it. The
- * filter bar has selects and inputs side by side, and half of them ignoring the
+ * filter rail has selects and inputs side by side, and half of them ignoring the
  * theme is the loudest remaining sign that this is a prototype.
  *
  * What Radix gives back is the part that is genuinely hard: the listbox roles,

@@ -475,3 +475,8 @@ each invariant to its code home and its test file. See also
     alone into the card's deal-score tooltip. Regression tests in `test_omi_benchmark.py`
     (and `frontend/src/components/PropertyModal.test.tsx` for the rendered panel) — the
     load-bearing one asserts that a property scores identically with and without OMI figures.
+    On the grid the rule has a second guard, because the card shows **one** market statement
+    and picking one is exactly where a substitution would be easy to make: `marketPosition`
+    (`frontend/src/utils/marketPosition.ts`) chooses between the deal score and the listing
+    median and reads no OMI field at all, which `marketPosition.test.ts` asserts by giving it
+    a property whose only figures are a band.

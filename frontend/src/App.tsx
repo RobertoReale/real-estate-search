@@ -15,7 +15,7 @@
  *  without unmounting it. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import FiltersBar from "./components/FiltersBar";
+import { ActiveFilters, FilterRail, ResultHeader } from "./routes/listings";
 import MapView from "./components/MapView";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
@@ -399,261 +399,279 @@ export default function App() {
 
   return (
     <>
-      {/* the whole filtered set, not the pages loaded so far */}
-      <FiltersBar filters={filters} onChange={setFilters} count={total}
-        view={view} onViewChange={changeView} profiles={profiles} tags={tags}
-        matchEnabled={settings?.match_score_enabled ?? false}
-        onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
+      {/* The screen is a rail and a column. The rail holds the query and the
+          column holds its answer, which is why the count, the sort and the view
+          switch sit above the results rather than at the bottom of a filter bar
+          the user had already scrolled past: they describe what is on screen.
+          Below `lg` the rail collapses to a button that opens a sheet, and the
+          column is the whole width. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+        {/* `count` is the whole filtered set, not the pages loaded so far —
+            the rail's export acts on the query, not on the scroll position. */}
+        <FilterRail filters={filters} onChange={setFilters} count={total}
+          profiles={profiles} tags={tags} />
 
-      {properties.length === 0 && !loadFailed && (
-        <Card padding="none">
-          <EmptyState headingLevel={2}
-            className={hasProfiles ? undefined : "!pb-0"}
-            icon={<NoResults size={ICON_SIZE.display} strokeWidth={1.25} />}
-            title={hasProfiles ? t("app.noMatches") : t("app.welcome")}
-            description={hasProfiles ? t("app.noMatchesHint") : undefined} />
-          {!hasProfiles && (
-            <>
-              <ol className="px-6 pb-6 pt-4 text-sm max-w-md mx-auto space-y-2">
-                <li className="flex gap-3">
-                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">1</Chip>
-                  <span>
-                    {t("app.step1")}{" "}
-                    <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
-                  </span>
-                </li>
-                <li className="flex gap-3">
-                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">2</Chip>
-                  <span>{t("app.step2")}</span>
-                </li>
-                <li className="flex gap-3">
-                  <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">3</Chip>
-                  <span>{t("app.step3")}</span>
-                </li>
-              </ol>
-              {/* Step one, as a control rather than as a sentence. The searches
-                  are a screen of their own now, so the instruction that used to
-                  end "above" has somewhere to point — and an onboarding step a
-                  user has to go and find is one they do not take. */}
-              <div className="flex justify-center pb-10">
-                <Button asChild variant="solid" tone="accent">
-                  <NavLink data-action="app.addSearch" to={withSearch(SEARCHES, search)}>
-                    <Searches /> {t("app.addSearch")}
-                  </NavLink>
-                </Button>
-              </div>
-            </>
-          )}
-        </Card>
-      )}
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* What the query currently says, in words, with a way to take each
+              clause back. The rail can be shut and this stays readable. */}
+          <ActiveFilters filters={filters} onChange={setFilters} profiles={profiles}
+            onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
 
-      {/* Batch Selection & Live Availability Check Bar */}
-      {properties.length > 0 && (
-        <Card padding="none" className="p-3 sm:p-4 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Button data-action="selection.toggleMode"
-                size="sm"
-                {...(selectionMode ? SELECTION_ON : SELECTION_OFF)}
-                onClick={() => {
-                  setSelectionMode(!selectionMode);
-                  if (selectionMode) setRawSelection(new Set());
-                }}>
-                {selectionMode
-                  ? <><Close /> {t("app.closeMultiSelect")}</>
-                  : <><Unticked /> {t("app.selectMultiple")}</>}
-              </Button>
-              {selectionMode && (
-                <Checkbox data-action="selection.selectAll"
-                  className="ml-2"
-                  checked={selectedIds.size === total && total > 0}
-                  onCheckedChange={() => toggleSelectAll()}
-                  label={t("app.selectAll", { selected: selectedIds.size, total })} />
+          <ResultHeader count={total} filters={filters} onChange={setFilters}
+            view={view} onViewChange={changeView}
+            matchEnabled={settings?.match_score_enabled ?? false} />
+
+          {properties.length === 0 && !loadFailed && (
+            <Card padding="none">
+              <EmptyState headingLevel={2}
+                className={hasProfiles ? undefined : "!pb-0"}
+                icon={<NoResults size={ICON_SIZE.display} strokeWidth={1.25} />}
+                title={hasProfiles ? t("app.noMatches") : t("app.welcome")}
+                description={hasProfiles ? t("app.noMatchesHint") : undefined} />
+              {!hasProfiles && (
+                <>
+                  <ol className="px-6 pb-6 pt-4 text-sm max-w-md mx-auto space-y-2">
+                    <li className="flex gap-3">
+                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">1</Chip>
+                      <span>
+                        {t("app.step1")}{" "}
+                        <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">2</Chip>
+                      <span>{t("app.step2")}</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">3</Chip>
+                      <span>{t("app.step3")}</span>
+                    </li>
+                  </ol>
+                  {/* Step one, as a control rather than as a sentence. The searches
+                      are a screen of their own now, so the instruction that used to
+                      end "above" has somewhere to point — and an onboarding step a
+                      user has to go and find is one they do not take. */}
+                  <div className="flex justify-center pb-10">
+                    <Button asChild variant="solid" tone="accent">
+                      <NavLink data-action="app.addSearch" to={withSearch(SEARCHES, search)}>
+                        <Searches /> {t("app.addSearch")}
+                      </NavLink>
+                    </Button>
+                  </div>
+                </>
               )}
-            </div>
-            {selectionMode && selectedIds.size > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button data-action="selection.hide"
-                  size="sm" variant="outline" tone="negative"
-                  disabled={checkingBatch}
-                  title={t("app.hideSelectedTitle")}
-                  onClick={() => bulkAction("hide")}>
-                  <Hidden /> {t("app.hideSelected", { count: selectedIds.size })}
-                </Button>
-                <Button data-action="selection.markSold"
-                  size="sm" variant="outline" tone="caution"
-                  disabled={checkingBatch}
-                  onClick={() => bulkAction("sold")}>
-                  <Sold /> {t("app.markSold", { count: selectedIds.size })}
-                </Button>
-                <Button data-action="selection.favorite"
-                  size="sm" variant="outline" tone="neutral"
-                  disabled={checkingBatch}
-                  onClick={() => bulkAction("favorite")}>
-                  <Favorite /> {t("app.addFavorites")}
-                </Button>
-                <Button data-action="selection.unfavorite"
-                  size="sm" variant="outline" tone="neutral"
-                  disabled={checkingBatch}
-                  onClick={() => bulkAction("unfavorite")}>
-                  <Favorite /> {t("app.removeFavorites")}
-                </Button>
-                <Button data-action="selection.checkAvailability"
-                  size="sm" variant="outline" tone="positive"
-                  disabled={checkingBatch}
-                  onClick={checkSelectedProperties}>
-                  <Verify />
-                  {checkingBatch
-                    ? t("app.checking")
-                    : t("app.checkAvailability", { count: selectedIds.size })}
-                </Button>
-                {checkingBatch && (
-                  <Button data-action="selection.stopCheck"
-                    size="sm" variant="outline" tone="negative"
-                    disabled={cancellingBatch}
-                    onClick={stopCheckingProperties}>
-                    {cancellingBatch ? t("app.stopping") : t("app.stop")}
+            </Card>
+          )}
+
+          {/* Batch Selection & Live Availability Check Bar */}
+          {properties.length > 0 && (
+            <Card padding="none" className="p-3 sm:p-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button data-action="selection.toggleMode"
+                    size="sm"
+                    {...(selectionMode ? SELECTION_ON : SELECTION_OFF)}
+                    onClick={() => {
+                      setSelectionMode(!selectionMode);
+                      if (selectionMode) setRawSelection(new Set());
+                    }}>
+                    {selectionMode
+                      ? <><Close /> {t("app.closeMultiSelect")}</>
+                      : <><Unticked /> {t("app.selectMultiple")}</>}
                   </Button>
+                  {selectionMode && (
+                    <Checkbox data-action="selection.selectAll"
+                      className="ml-2"
+                      checked={selectedIds.size === total && total > 0}
+                      onCheckedChange={() => toggleSelectAll()}
+                      label={t("app.selectAll", { selected: selectedIds.size, total })} />
+                  )}
+                </div>
+                {selectionMode && selectedIds.size > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button data-action="selection.hide"
+                      size="sm" variant="outline" tone="negative"
+                      disabled={checkingBatch}
+                      title={t("app.hideSelectedTitle")}
+                      onClick={() => bulkAction("hide")}>
+                      <Hidden /> {t("app.hideSelected", { count: selectedIds.size })}
+                    </Button>
+                    <Button data-action="selection.markSold"
+                      size="sm" variant="outline" tone="caution"
+                      disabled={checkingBatch}
+                      onClick={() => bulkAction("sold")}>
+                      <Sold /> {t("app.markSold", { count: selectedIds.size })}
+                    </Button>
+                    <Button data-action="selection.favorite"
+                      size="sm" variant="outline" tone="neutral"
+                      disabled={checkingBatch}
+                      onClick={() => bulkAction("favorite")}>
+                      <Favorite /> {t("app.addFavorites")}
+                    </Button>
+                    <Button data-action="selection.unfavorite"
+                      size="sm" variant="outline" tone="neutral"
+                      disabled={checkingBatch}
+                      onClick={() => bulkAction("unfavorite")}>
+                      <Favorite /> {t("app.removeFavorites")}
+                    </Button>
+                    <Button data-action="selection.checkAvailability"
+                      size="sm" variant="outline" tone="positive"
+                      disabled={checkingBatch}
+                      onClick={checkSelectedProperties}>
+                      <Verify />
+                      {checkingBatch
+                        ? t("app.checking")
+                        : t("app.checkAvailability", { count: selectedIds.size })}
+                    </Button>
+                    {checkingBatch && (
+                      <Button data-action="selection.stopCheck"
+                        size="sm" variant="outline" tone="negative"
+                        disabled={cancellingBatch}
+                        onClick={stopCheckingProperties}>
+                        {cancellingBatch ? t("app.stopping") : t("app.stop")}
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {checkingBatch && (
-            <ProgressBar
-              className="pt-2 border-t border-line"
-              done={batchProgress?.done ?? 0}
-              total={batchProgress?.total ?? 0}
-              indeterminate={!batchProgress || batchProgress.total <= 0}>
-              {batchProgress
-                ? t("app.checkProgress", {
-                    done: batchProgress.done,
-                    total: batchProgress.total,
-                    online: batchProgress.online ?? 0,
-                    gone: batchProgress.gone,
-                  }) +
-                  ((batchProgress.unknown ?? 0) > 0
-                    ? t("app.checkProgressUnknown", { count: batchProgress.unknown ?? 0 })
-                    : "")
-                : t("app.checkStarting")}{" "}
-              {t("app.checkPacingNote")}
-              {batchProgress?.transport && (
-                <span className="block opacity-75 font-normal">
-                  {t("app.checkTransport", { transport: batchProgress.transport })}
-                </span>
+              {checkingBatch && (
+                <ProgressBar
+                  className="pt-2 border-t border-line"
+                  done={batchProgress?.done ?? 0}
+                  total={batchProgress?.total ?? 0}
+                  indeterminate={!batchProgress || batchProgress.total <= 0}>
+                  {batchProgress
+                    ? t("app.checkProgress", {
+                        done: batchProgress.done,
+                        total: batchProgress.total,
+                        online: batchProgress.online ?? 0,
+                        gone: batchProgress.gone,
+                      }) +
+                      ((batchProgress.unknown ?? 0) > 0
+                        ? t("app.checkProgressUnknown", { count: batchProgress.unknown ?? 0 })
+                        : "")
+                    : t("app.checkStarting")}{" "}
+                  {t("app.checkPacingNote")}
+                  {batchProgress?.transport && (
+                    <span className="block opacity-75 font-normal">
+                      {t("app.checkTransport", { transport: batchProgress.transport })}
+                    </span>
+                  )}
+                  {batchProgress?.last_error && (
+                    <span className="block opacity-75 font-normal">
+                      {t("app.checkLastIssue", { error: batchProgress.last_error })}
+                    </span>
+                  )}
+                </ProgressBar>
               )}
-              {batchProgress?.last_error && (
-                <span className="block opacity-75 font-normal">
-                  {t("app.checkLastIssue", { error: batchProgress.last_error })}
-                </span>
-              )}
-            </ProgressBar>
-          )}
 
-          {batchSummary && !checkingBatch && (
-            <div className="pt-2 border-t border-line text-xs t-muted flex items-center justify-between">
-              <div>
-                {t("app.summaryChecked")} <strong>{batchSummary.checked}</strong> |{" "}
-                <span className="text-negative-ink font-bold">
-                  {t("app.summaryGone", { count: batchSummary.gone })}
-                </span> |{" "}
-                <span className="text-positive-ink font-semibold">
-                  {t("app.summaryOnline", { count: batchSummary.online })}
-                </span>
-                {batchSummary.unknown > 0 && t("app.summaryUnknown", { count: batchSummary.unknown })}
-                {batchSummary.cancelled && (
-                  <span className="block">{t("app.summaryCancelled")}</span>
-                )}
-                {batchSummary.aborted && !batchSummary.cancelled && (
-                  <span className="block text-caution-ink">
-                    {t("app.summaryAborted")}
-                    {batchSummary.transport && batchSummary.transport.includes("forced") && (
-                      <span className="block font-normal opacity-90">
-                        {t("app.summaryAbortedService", { transport: batchSummary.transport })}
+              {batchSummary && !checkingBatch && (
+                <div className="pt-2 border-t border-line text-xs t-muted flex items-center justify-between">
+                  <div>
+                    {t("app.summaryChecked")} <strong>{batchSummary.checked}</strong> |{" "}
+                    <span className="text-negative-ink font-bold">
+                      {t("app.summaryGone", { count: batchSummary.gone })}
+                    </span> |{" "}
+                    <span className="text-positive-ink font-semibold">
+                      {t("app.summaryOnline", { count: batchSummary.online })}
+                    </span>
+                    {batchSummary.unknown > 0 && t("app.summaryUnknown", { count: batchSummary.unknown })}
+                    {batchSummary.cancelled && (
+                      <span className="block">{t("app.summaryCancelled")}</span>
+                    )}
+                    {batchSummary.aborted && !batchSummary.cancelled && (
+                      <span className="block text-caution-ink">
+                        {t("app.summaryAborted")}
+                        {batchSummary.transport && batchSummary.transport.includes("forced") && (
+                          <span className="block font-normal opacity-90">
+                            {t("app.summaryAbortedService", { transport: batchSummary.transport })}
+                          </span>
+                        )}
+                        {batchSummary.transport && !batchSummary.transport.includes("window") && !batchSummary.transport.includes("forced") && (
+                          <span className="block font-normal opacity-90">
+                            {t("app.summaryAbortedNoWindow", { transport: batchSummary.transport })}
+                          </span>
+                        )}
                       </span>
                     )}
-                    {batchSummary.transport && !batchSummary.transport.includes("window") && !batchSummary.transport.includes("forced") && (
-                      <span className="block font-normal opacity-90">
-                        {t("app.summaryAbortedNoWindow", { transport: batchSummary.transport })}
-                      </span>
+                    {batchSummary.capped && !batchSummary.aborted && !batchSummary.cancelled && (
+                      <span className="block">{t("app.summaryCapped")}</span>
                     )}
-                  </span>
-                )}
-                {batchSummary.capped && !batchSummary.aborted && !batchSummary.cancelled && (
-                  <span className="block">{t("app.summaryCapped")}</span>
-                )}
-              </div>
-              <IconButton data-action="selection.dismissSummary"
-                variant="ghost" size="sm" className="shrink-0"
-                label={t("common.close")}
-                onClick={() => checkBatch.reset()}>
-                <Close size={16} />
-              </IconButton>
-            </div>
+                  </div>
+                  <IconButton data-action="selection.dismissSummary"
+                    variant="ghost" size="sm" className="shrink-0"
+                    label={t("common.close")}
+                    onClick={() => checkBatch.reset()}>
+                    <Close size={16} />
+                  </IconButton>
+                </div>
+              )}
+            </Card>
           )}
-        </Card>
-      )}
 
-      {view === "map" ? (
-        properties.length > 0 && (
-          <MapView
-            properties={properties}
-            onSelect={(p) => openProperty(p.id)}
-            focusId={mapFocusId}
-            geo={{
-              geo_mode: filters.geo_mode,
-              center_lat: filters.center_lat,
-              center_lng: filters.center_lng,
-              radius_m: filters.radius_m,
-              poly: filters.poly,
-            }}
-            onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
-            onFindCoordinates={findCoordinates}
-            geocoding={geocodeMissing.isPending}
-          />
-        )
-      ) : (
-        <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {properties.map((p) => (
-            <PropertyCard
-              key={p.id}
-              property={p}
-              isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
-              selected={selectedIds.has(p.id)}
-              onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
-              onClick={() => {
-                if (selectionMode) toggleOne(p.id);
-                else openProperty(p.id);
-              }}
-              onQuickHide={() => quickHide(p)}
-              onToggleFavorite={() => toggleFavorite(p)}
-              allTags={tags}
-              onAddTag={(name) => addTag(p, name)}
-              onRemoveTag={(tagId) => removeTag(p, tagId)}
-            />
-          ))}
-          {/* Fetches the next page as it scrolls into view (see `useOnReveal`
-              above); the button is the no-observer fallback and a manual
-              nudge. Spans the whole grid row.
-              It stays mounted and operable while that page is on its way:
-              a control that disables itself under the focus that just
-              reached it is one a keyboard user cannot press at all, and a
-              second press costs nothing — the query answers both with the
-              request already in flight. */}
-          {(grid.hasNextPage || grid.isFetchingNextPage) && (
-            <div ref={loadMoreRef}
-              className="col-span-full flex justify-center py-4">
-              <Button data-action="grid.loadMore"
-                aria-busy={grid.isFetchingNextPage}
-                onClick={() => grid.fetchNextPage()}>
-                {grid.isFetchingNextPage
-                  ? t("common.loading")
-                  : t("app.showMoreCount", { count: total - properties.length })}
-              </Button>
+          {view === "map" ? (
+            properties.length > 0 && (
+              <MapView
+                properties={properties}
+                onSelect={(p) => openProperty(p.id)}
+                focusId={mapFocusId}
+                geo={{
+                  geo_mode: filters.geo_mode,
+                  center_lat: filters.center_lat,
+                  center_lng: filters.center_lng,
+                  radius_m: filters.radius_m,
+                  poly: filters.poly,
+                }}
+                onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
+                onFindCoordinates={findCoordinates}
+                geocoding={geocodeMissing.isPending}
+              />
+            )
+          ) : (
+            <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {properties.map((p) => (
+                <PropertyCard
+                  key={p.id}
+                  property={p}
+                  isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
+                  selected={selectedIds.has(p.id)}
+                  onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
+                  onClick={() => {
+                    if (selectionMode) toggleOne(p.id);
+                    else openProperty(p.id);
+                  }}
+                  onQuickHide={() => quickHide(p)}
+                  onToggleFavorite={() => toggleFavorite(p)}
+                  allTags={tags}
+                  onAddTag={(name) => addTag(p, name)}
+                  onRemoveTag={(tagId) => removeTag(p, tagId)}
+                />
+              ))}
+              {/* Fetches the next page as it scrolls into view (see `useOnReveal`
+                  above); the button is the no-observer fallback and a manual
+                  nudge. Spans the whole grid row.
+                  It stays mounted and operable while that page is on its way:
+                  a control that disables itself under the focus that just
+                  reached it is one a keyboard user cannot press at all, and a
+                  second press costs nothing — the query answers both with the
+                  request already in flight. */}
+              {(grid.hasNextPage || grid.isFetchingNextPage) && (
+                <div ref={loadMoreRef}
+                  className="col-span-full flex justify-center py-4">
+                  <Button data-action="grid.loadMore"
+                    aria-busy={grid.isFetchingNextPage}
+                    onClick={() => grid.fetchNextPage()}>
+                    {grid.isFetchingNextPage
+                      ? t("common.loading")
+                      : t("app.showMoreCount", { count: total - properties.length })}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Whatever the URL has open over the grid: a property, the settings, the
           log. Rendered last, as the modals it replaced were — a dialog appended

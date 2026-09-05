@@ -6,14 +6,20 @@
  * blank" fourteen times over. `getByLabelText` only resolves through a real
  * association (`htmlFor`/`id`, or a wrapping label), so this test is exactly the
  * property that was missing.
+ *
+ * It follows the controls from the filter bar into the rail, which is what the
+ * rail is: the same fields, in a column, behind a toggle. The one thing to know
+ * about running it is that jsdom reports a 1024px window, so `useMediaQuery`
+ * resolves to the desktop shape and the fields are rendered inline rather than
+ * inside a sheet — which is the shape a label assertion can see.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import FiltersBar from "./FiltersBar";
-import { en } from "../i18n/en";
-import { WithQuery } from "../test/withQuery";
-import type { PropertyFilters } from "../types";
+import FilterRail from "./FilterRail";
+import { en } from "../../i18n/en";
+import { WithQuery } from "../../test/withQuery";
+import type { PropertyFilters } from "../../types";
 
 const FILTERS: PropertyFilters = {
   status: "active", contract: "sale", city: "", zone: "", q: "", source: "",
@@ -25,36 +31,26 @@ const FILTERS: PropertyFilters = {
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
-function renderBar() {
+function renderRail(filters: PropertyFilters = FILTERS) {
   render(
     <WithQuery>
-      <FiltersBar
-        filters={FILTERS}
-        onChange={vi.fn()}
-        count={0}
-        view="grid"
-        onViewChange={vi.fn()}
-        profiles={[]}
-        tags={[]}
-        matchEnabled={false}
-        onReset={vi.fn()}
-      />
+      <FilterRail filters={filters} onChange={vi.fn()} count={0} profiles={[]} tags={[]} />
     </WithQuery>,
   );
 }
 
-// The always-visible controls of the search bar, by the label the user reads.
+// The always-visible controls of the rail, by the label the user reads.
 // `min/maxPrice` carry a conditional "/month" suffix, so they are matched by
 // prefix rather than exact text.
 const LABELLED: (keyof typeof en)[] = [
   "filters.search", "filters.city", "filters.zone", "filters.minSqm",
-  "filters.maxSqm", "filters.rooms", "filters.floor", "filters.sortBy",
+  "filters.maxSqm", "filters.rooms", "filters.floor",
   "filters.status", "filters.origin",
 ];
 
-describe("FiltersBar labelling", () => {
+describe("FilterRail labelling", () => {
   it("names every filter control", () => {
-    renderBar();
+    renderRail();
     for (const key of LABELLED) {
       expect(
         screen.getByLabelText(en[key]),
@@ -67,30 +63,16 @@ describe("FiltersBar labelling", () => {
   });
 
   it("names the button groups, which have no control to label", () => {
-    // Buy/Rent, the export formats and the view switch are groups of buttons:
-    // a <label> there points at nothing, so they carry role="group" instead.
-    renderBar();
-    for (const key of ["filters.market", "filters.export", "filters.view"] as const) {
+    // Buy/Rent and the export formats are groups of buttons: a <label> there
+    // points at nothing, so they carry role="group" instead.
+    renderRail();
+    for (const key of ["filters.market", "filters.export"] as const) {
       expect(screen.getByRole("group", { name: en[key] })).toBeInTheDocument();
     }
   });
 
   it("names the advanced filters once the panel is open", () => {
-    render(
-      <WithQuery>
-        <FiltersBar
-          filters={{ ...FILTERS, portal: "idealista" }}  // opens the panel
-          onChange={vi.fn()}
-          count={0}
-          view="grid"
-          onViewChange={vi.fn()}
-          profiles={[]}
-          tags={[]}
-          matchEnabled={false}
-          onReset={vi.fn()}
-        />
-      </WithQuery>,
-    );
+    renderRail({ ...FILTERS, portal: "idealista" }); // a set advanced filter opens it
     for (const key of ["filters.portal", "filters.agency", "filters.deal",
                        "filters.minSqmPrice", "filters.maxSqmPrice"] as const) {
       expect(
@@ -98,5 +80,16 @@ describe("FiltersBar labelling", () => {
         `no control is labelled "${en[key]}"`,
       ).toBeInTheDocument();
     }
+  });
+
+  it("shuts, and takes the fields with it", () => {
+    // The point of the rail: the query is a panel the reader can put away. If
+    // the toggle left the fields mounted, the "collapsible" part would be a
+    // repaint and the grid would never get the width back.
+    renderRail();
+    const toggle = screen.getByRole("button", { name: new RegExp(en["filters.title"]) });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(screen.queryByLabelText(en["filters.city"])).not.toBeInTheDocument();
   });
 });

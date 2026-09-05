@@ -15,7 +15,7 @@ export function cards(page: Page): Locator {
   return page.locator("article");
 }
 
-/** The result count the filter bar prints, which is the size of the whole
+/** The result count the result header prints, which is the size of the whole
  *  filtered set rather than of the page loaded so far. */
 export async function resultCount(page: Page): Promise<number> {
   const label = await page.getByText(/^\d+ (properties|immobili)$/).innerText();

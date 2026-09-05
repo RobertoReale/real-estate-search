@@ -91,6 +91,14 @@ export const ACTIONS = {
   },
 
   // ── Filters ─────────────────────────────────────────────────────────────
+  "filters.toggle": {
+    what: "Filters — one control in two shapes",
+    does: "collapses and reopens the rail on a wide screen, and opens the filter sheet on a narrow one",
+  },
+  "filters.chip.remove": {
+    what: "the × on an active-filter chip",
+    does: "takes that one clause off the query and leaves the rest of it alone",
+  },
   "filters.query": { what: "the free-text search box", does: "narrows the grid to matching listings" },
   "filters.query.clear": { what: "the clear button inside the search box", does: "empties it and restores the full count" },
   "filters.contract.sale": { what: "Buy", does: "switches the grid to properties for sale" },

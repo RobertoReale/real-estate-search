@@ -91,6 +91,7 @@ import {
   Send,
   Settings as SettingsCog,
   Shield,
+  SlidersHorizontal,
   Square,
   Star,
   Stethoscope,
@@ -233,6 +234,8 @@ export const OnFoot = icon(Footprints, "OnFoot");
 export const ByBike = icon(Bike, "ByBike");
 
 // ── Searching, and filtering ────────────────────────────────────────────────
+/** The controls that narrow the grid — the filter rail, open or shut. */
+export const Filters = icon(SlidersHorizontal, "Filters");
 /** A monitored search, the thing that goes out to the portals. */
 export const Searches = icon(Search, "Searches");
 /** Check one listing against the portal, now. */

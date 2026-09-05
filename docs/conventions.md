@@ -97,14 +97,14 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   2. `Button`'s default size carries `min-h-touch sm:min-h-0` — a 44 px touch target on a
      phone, the original density on a mouse-driven desktop. `--spacing-touch` is a named
      token precisely so the number is not retyped as `11` at each new control, and the
-     `sm` size omits the minimum on purpose: the filter bar and the batch bar are measured
+     `sm` size omits the minimum on purpose: the filter rail and the batch bar are measured
      for horizontal overflow at 390 px, and growing every dense button is a layout change
      wearing the clothes of a token change;
   3. full-height panels use `dvh`, never `vh`, since `vh` spans behind a mobile address
      bar and pushes a modal's footer buttons out of reach;
   4. a row of groups that cannot fit side by side must say so: a `flex` bar of controls
      needs `flex-wrap`, and a block that should claim its own line gets `w-full
-     sm:w-auto`. Wrapping left implicit is how the filter bar's Grid/Map switch and the
+     sm:w-auto`. Wrapping left implicit is how the result header's Grid/Map switch and the
      search rows' URLs each pushed the document 150 px past a 390 px viewport;
   5. **a utility passed from a call site does not automatically win.** Against the
      remaining `.btn-*`, `.input` and `.chip-*` classes it never does: they are defined in
@@ -261,7 +261,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
   pixels — for six things a pure test cannot reach, each written after the bug it now
-  guards: that a label actually names its control (`FiltersBar.test.tsx` uses
+  guards: that a label actually names its control (`FilterRail.test.tsx` uses
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
   offers a focusable, named way into the listing *without* itself becoming a control that
   contains controls (`PropertyCard.test.tsx`), that a dialog whose data fails to

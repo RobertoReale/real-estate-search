@@ -50,7 +50,7 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src")
 /* ────────────────────────── shared moves ────────────────────────── */
 
 /** Applies something that must change how many properties the grid holds, then
- *  puts it back. The count is the filter bar's own, which is the size of the
+ *  puts it back. The count is the result header's own, which is the size of the
  *  whole filtered set rather than of the page loaded so far — so this is an
  *  assertion about the backend's answer and not about the DOM. */
 async function narrows(
@@ -202,7 +202,7 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
   ]);
 });
 
-/* ────────────────────────── the filter bar ────────────────────────── */
+/* ────────────────────────── the filter rail ────────────────────────── */
 
 test("every filter narrows the grid, and reset undoes all of it", async ({ page }) => {
   await page.goto("/");
@@ -276,14 +276,14 @@ test("every filter narrows the grid, and reset undoes all of it", async ({ page 
   await press(page, "filters.contract.sale");
   await expect.poll(() => resultCount(page)).toBe(sale);
 
-  await reachableByKeyboard(page, "the filter bar", [
+  await reachableByKeyboard(page, "the filter rail and the result header", [
+    "filters.toggle",
     "filters.query", "filters.contract.sale", "filters.contract.rent", "filters.city",
     "filters.zone", "filters.minPrice", "filters.maxPrice", "filters.minSqm",
     "filters.maxSqm", "filters.rooms", "filters.floor", "filters.sort", "filters.status",
     "filters.source", "filters.tag", "filters.profile", "filters.priceDrops",
     "filters.favorites", "filters.advanced.toggle", "view.grid", "view.map",
     "export.html", "export.markdown", "export.csv", "export.pdf",
-    "maintenance.geocode", "maintenance.clearGeocodeCache",
   ]);
 
   // The advanced panel, and with it the six filters that live behind the toggle.
@@ -321,9 +321,68 @@ test("every filter narrows the grid, and reset undoes all of it", async ({ page 
   await choose(page, "filters.rooms", "3");
   await setTicked(page, "filters.favorites", true);
   await expect.poll(() => resultCount(page)).not.toBe(all);
+
+  // Each of those three is now readable above the grid with its own way out,
+  // which is what makes a collapsed rail safe: a chip takes one clause off and
+  // leaves the others alone.
+  //
+  // Rooms is the one to pull, because the corpus is a single city and "Milano"
+  // therefore narrows nothing — a count assertion on it would pass whether the
+  // chip worked or not.
+  const chips = page.getByRole("group", { name: "Active filters" });
+  await expect(chips.getByText("City: Milano")).toBeVisible();
+  await setTicked(page, "filters.favorites", false);
+  const narrowed = await resultCount(page);
+  expect(narrowed).toBeLessThan(all);
+  await chips.getByRole("button", { name: "Remove the Rooms: 3 filter" }).click();
+  // Back to everything, because the only clause left is a city that matches it.
+  await expect.poll(() => resultCount(page)).toBe(all);
+  await expect(control(page, "filters.rooms")).toHaveValue("");
+  await expect(chips.getByText("City: Milano")).toBeVisible();
+
+  await setTicked(page, "filters.favorites", true);
   await press(page, "filters.reset");
   await expect.poll(() => resultCount(page)).toBe(all);
-  await expect(control(page, "filters.city")).toHaveValue("");
+  await expect(chips).toBeHidden();
+
+  // The rail itself: shut, the fields go with it and the grid keeps the width;
+  // open, they are back. The chips are what stands in for them meanwhile, so
+  // this is the last thing the screen owes a reader who has put it away.
+  await press(page, "filters.toggle");
+  await expect(control(page, "filters.city")).toBeHidden();
+  await expect(control(page, "filters.sort")).toBeVisible();
+  await press(page, "filters.toggle");
+  await expect(control(page, "filters.city")).toBeVisible();
+});
+
+test("the filters, as a sheet on a phone", async ({ page }) => {
+  // Below `lg` the rail has nowhere to stand, so the same toggle opens a sheet
+  // instead of collapsing a column. One control, two shapes — and the fields
+  // inside it are the same ones, which is why the rail renders once rather
+  // than twice.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await waitForResults(page);
+
+  await expect(control(page, "filters.city")).toBeHidden();
+  await press(page, "filters.toggle");
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator("[data-action='filters.city']")).toBeVisible();
+
+  // A city the corpus does not hold, so the count moves: the corpus is a single
+  // city and its own name narrows nothing.
+  const all = await resultCount(page);
+  await fill(page, "filters.city", "Bologna");
+  await expect.poll(() => resultCount(page)).not.toBe(all);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+
+  // The sheet is shut and the query is still readable, which is the whole
+  // reason the chips exist.
+  await expect(page.getByText("City: Bologna")).toBeVisible();
+  await press(page, "filters.reset");
+  await expect.poll(() => resultCount(page)).toBe(all);
 });
 
 test("the exports, the view switch and the maintenance actions", async ({ page, context, offlineGuard }) => {
@@ -368,6 +427,10 @@ test("the exports, the view switch and the maintenance actions", async ({ page, 
   await press(page, "view.grid");
   await expect(cards(page).first()).toBeVisible();
 
+  // The two sweeps are on the searches screen now: they repair the database
+  // rather than narrow a query, and they were taking the top of the grid on
+  // every visit for a job that gets run a handful of times a year.
+  await page.goto("/searches");
   await press(page, "maintenance.geocode");
   await expect(control(page, "maintenance.result.dismiss")).toBeVisible();
   await press(page, "maintenance.result.dismiss");
@@ -399,14 +462,14 @@ test("the exports, the view switch and the maintenance actions", async ({ page, 
   await expect(control(page, "toast.dismiss")).toBeHidden();
 
   // Exporting through a refused backend: the message says what failed, and the
-  // filter bar is still usable underneath it.
+  // filter rail is still usable underneath it.
   await page.unroute("**/api/properties/export**");
   await page.route("**/api/properties/export**", (route) =>
     route.fulfill({ status: 500, body: "no" }));
   // With a token stored, the export stops being a navigation and becomes a
   // fetch — which is the only path that has a failure the UI can show.
   await page.evaluate(() => localStorage.setItem("apiToken", "x"));
-  await page.reload();
+  await page.goto("/");
   await waitForResults(page);
   await press(page, "export.csv");
   await expect(control(page, "toast.dismiss")).toBeVisible();
@@ -1262,6 +1325,11 @@ test("the app stays usable when the backend refuses everything", async ({ page }
     "profiles.row.delete", "profiles.bulk.delete", "trends.openProperty",
     // ...and each of these asks a question the sweep is not there to answer.
     "property.hide", "selection.hide", "selection.markSold",
+    // Collapsing the rail unmounts everything the sweep has not reached yet,
+    // and `visibleActions` was resolved before the click: two dozen controls
+    // that are gone but still on the list, each costing the full five-second
+    // timeout, which is the test's own budget spent on nothing.
+    "filters.toggle",
   ];
   for (const id of await visibleActions(page, skip)) {
     await page.locator(`[data-action="${id}"]`).first().click({ timeout: 5_000 }).catch(() => {});

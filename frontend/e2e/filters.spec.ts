@@ -1,6 +1,6 @@
 /** Narrowing the grid, and getting back out of it.
  *
- *  Counts are read from the filter bar and compared against each other rather
+ *  Counts are read from the result header and compared against each other rather
  *  than against literals: the corpus is deterministic, but which of its eighty
  *  properties are still active depends on what the journeys before this one did,
  *  and a suite that has to be renumbered whenever a test is added is a suite
@@ -17,15 +17,19 @@ test("filtering by city, by price and by contract, then resetting", async ({ pag
   // City — the corpus is one city, so the name matches everything and a
   // different one matches nothing. Both directions matter: a filter that
   // silently ignores its input looks identical to one that has nothing to hide.
-  await page.getByLabel("City").fill("Milano");
+  //
+  // `exact` because setting the field also raises the chip that takes it back
+  // off again, and that chip is labelled "Remove the City: Milano filter" —
+  // `getByLabel` matches on substring, so the field has to ask for its own name.
+  await page.getByLabel("City", { exact: true }).fill("Milano");
   await expect.poll(() => resultCount(page)).toBe(all);
 
-  await page.getByLabel("City").fill("Bologna");
+  await page.getByLabel("City", { exact: true }).fill("Bologna");
   await expect.poll(() => resultCount(page)).toBe(0);
   await expect(page.getByText("No properties match the current filters.")).toBeVisible();
   await checkScreen(page, "the grid with nothing matching");
 
-  await page.getByLabel("City").fill("");
+  await page.getByLabel("City", { exact: true }).fill("");
   await expect.poll(() => resultCount(page)).toBe(all);
 
   // Price — a ceiling under the cheapest sale keeps nothing, and every card
