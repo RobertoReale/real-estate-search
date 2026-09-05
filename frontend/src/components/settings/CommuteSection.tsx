@@ -2,6 +2,7 @@ import { useT } from "../../i18n";
 import { useComputeCommutes } from "../../queries/maintenance";
 import type { CommuteMode, CommutePoint, CommuteSummary, Settings } from "../../types";
 import { Result, SectionHeading } from "./controls";
+import { Add, Commute, Delete } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -51,7 +52,7 @@ export function CommuteSection(
 
   return (
     <>
-      <SectionHeading>{t("settings.commuteTitle")}</SectionHeading>
+      <SectionHeading icon={Commute}>{t("settings.commuteTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
         <input data-action="settings.commute.enable" type="checkbox" checked={values.enabled}
           onChange={(e) => set("enabled", e.target.checked)} />
@@ -84,14 +85,14 @@ export function CommuteSection(
               </label>
               <button data-action="settings.commute.removePoint" className="btn-ghost" aria-label={t("settings.commuteRemovePoint")}
                 onClick={() => set("points", values.points.filter((_, j) => j !== i))}>
-                🗑
+                <Delete size={16} />
               </button>
             </div>
           ))}
 
           <button data-action="settings.commute.addPoint" className="btn-ghost text-xs"
             onClick={() => set("points", [...values.points, { ...EMPTY }])}>
-            ＋ {t("settings.commuteAddPoint")}
+            <Add /> {t("settings.commuteAddPoint")}
           </button>
 
           <div>

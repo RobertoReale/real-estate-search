@@ -1,5 +1,6 @@
 import { useT } from "../../i18n";
 import { SectionHeading } from "./controls";
+import { Alarm, Filtered, Restart } from "../../ui/icons";
 import { splitList, useSectionState, type Section } from "./state";
 
 interface Values {
@@ -33,7 +34,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
 
   return (
     <>
-      <SectionHeading>{t("settings.scanTitle")}</SectionHeading>
+      <SectionHeading icon={Restart}>{t("settings.scanTitle")}</SectionHeading>
       <label className="text-xs t-muted" htmlFor="scan-interval">{t("settings.frequency")}</label>
       <select data-action="settings.scanning.interval" id="scan-interval" className="input w-full mt-1" value={values.interval}
         onChange={(e) => set("interval", Number(e.target.value))}>
@@ -53,7 +54,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
         </span>
       </label>
 
-      <SectionHeading>{t("settings.healthTitle")}</SectionHeading>
+      <SectionHeading icon={Alarm}>{t("settings.healthTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.healthNote")}</p>
       <label className="text-xs t-muted" htmlFor="health-after">
         {t("settings.alertAfter")}
@@ -66,7 +67,7 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
         ))}
       </select>
 
-      <SectionHeading>{t("settings.keywordsTitle")}</SectionHeading>
+      <SectionHeading icon={Filtered}>{t("settings.keywordsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.keywordsNote")}</p>
       <textarea data-action="settings.scanning.keywords" className="input w-full h-20 resize-none"
         aria-label={t("settings.keywordsTitle")}

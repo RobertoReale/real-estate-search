@@ -8,6 +8,7 @@ import type { PropertyFilters, SearchProfile, Tag, ViewMode } from "../types";
 import { groupSearchProfiles } from "../utils/searchProfiles";
 import { ProgressBar } from "./ProgressBar";
 import { useToasts } from "./Toast";
+import { ClearFailed, Close, Cog, Disclose, Favorite, Place, PriceDrop } from "../ui/icons";
 
 
 interface Props {
@@ -171,7 +172,7 @@ export default function FiltersBar({
               className="absolute right-2 top-1/2 -translate-y-1/2 t-muted hover:t-strong text-lg leading-none px-1"
               aria-label={t("filters.clearSearch")}
               onClick={() => set({ q: "" })}>
-              ✕
+              <Close size={16} />
             </button>
           )}
         </div>
@@ -325,7 +326,7 @@ export default function FiltersBar({
       {profiles.length > 0 && (
         <div className="flex flex-col gap-1">
           {/* This is a FILTER, not a sort: it narrows the grid to the
-              properties a saved search actually found (its "🔍 Found by"
+              properties a saved search actually found (its "Found by"
               provenance), not everything that merely matches its city and
               contract. The label used to read "Match a search", which was
               mistaken for a "best match" ranking. */}
@@ -346,12 +347,12 @@ export default function FiltersBar({
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
           <input data-action="filters.priceDrops" type="checkbox" checked={filters.only_price_drops}
             onChange={(e) => set({ only_price_drops: e.target.checked })} />
-          {t("filters.priceDrops")}
+          <PriceDrop /> {t("filters.priceDrops")}
         </label>
         <label className="flex items-center gap-2 text-sm t-body cursor-pointer">
           <input data-action="filters.favorites" type="checkbox" checked={filters.only_favorites}
             onChange={(e) => set({ only_favorites: e.target.checked })} />
-          {t("filters.favorites")}
+          <Favorite /> {t("filters.favorites")}
         </label>
         {/* Gateway to the advanced filters — kept next to the checkboxes so the
             common controls above stay uncluttered. The badge shows how many
@@ -360,13 +361,13 @@ export default function FiltersBar({
           className="flex items-center gap-1.5 text-sm accent-link hover:underline"
           aria-expanded={advOpen}
           onClick={() => setAdvOpen((o) => !o)}>
-          {t("filters.more")}
+          <Cog /> {t("filters.more")}
           {advActiveCount > 0 && (
             <span className="chip-accent text-2xs px-1.5 py-0.5 rounded-full font-semibold">
               {advActiveCount}
             </span>
           )}
-          <span className="t-dim">{advOpen ? "▲" : "▼"}</span>
+          <Disclose className={`t-dim transition-transform ${advOpen ? "rotate-180" : ""}`} />
         </button>
       </div>
 
@@ -466,6 +467,7 @@ export default function FiltersBar({
               // The grid carries the coordinates, so the mutation re-reads it.
               geocode.mutate(undefined, { onSettled: () => setStoppingGeocode(false) });
             }}>
+            <Place />
             {geocoding ? t("filters.locating") : t("filters.findCoords")}
           </button>
           <button data-action="maintenance.clearGeocodeCache"
@@ -480,6 +482,7 @@ export default function FiltersBar({
               geocode.reset();
               clearCache.mutate();
             }}>
+            <ClearFailed />
             {clearCache.isPending ? t("filters.clearing") : t("filters.retryFailed")}
           </button>
         </div>
@@ -546,7 +549,7 @@ export default function FiltersBar({
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-sunken border border-line animate-fade-in shadow-sm space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-accent-link flex items-center gap-1.5">
-              <span>📍</span> {t("filters.geocodeRunning")}
+              <Place /> {t("filters.geocodeRunning")}
             </span>
             <button data-action="maintenance.geocode.stop"
               className="btn py-1 px-2.5 text-xs bg-negative-tint hover:bg-negative-soft text-negative-ink font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1"
@@ -600,7 +603,7 @@ export default function FiltersBar({
             className="text-ink-faint hover:text-ink-strong text-base leading-none font-bold p-1"
             onClick={() => clearCache.reset()}
             title={t("common.close")}>
-            ✕
+            <Close size={16} />
           </button>
         </div>
       )}
@@ -609,7 +612,7 @@ export default function FiltersBar({
         <div className="col-span-2 mt-3 p-3.5 rounded-xl bg-info-tint border border-info-line text-xs text-ink-strong flex items-start justify-between gap-3 animate-fade-in shadow-sm">
           <div className="space-y-1">
             <p className="font-semibold text-info-ink-strong text-sm flex items-center gap-1.5">
-              <span>📍</span> {t("filters.geocodeDone")}
+              <Place /> {t("filters.geocodeDone")}
             </p>
             {geocodeResult.scanned === 0 ? (
               <p>{t("filters.geocodeNothing")}</p>
@@ -636,7 +639,7 @@ export default function FiltersBar({
             className="text-ink-faint hover:text-ink-strong text-base leading-none font-bold p-1"
             onClick={() => geocode.reset()}
             title={t("common.close")}>
-            ✕
+            <Close size={16} />
           </button>
         </div>
       )}

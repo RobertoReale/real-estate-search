@@ -18,9 +18,9 @@ test("a property can be favourited and unfavourited from the card", async ({ pag
   await favourite.click();
   await expect(card.getByRole("button", { name: "Remove from favorites" })).toBeVisible();
 
-  // The star is a filter, not decoration: the ⭐ Favorites checkbox has to find
+  // The star is a filter, not decoration: the Favorites checkbox has to find
   // what was just starred.
-  await page.getByRole("checkbox", { name: "⭐ Favorites" }).check();
+  await page.getByRole("checkbox", { name: "Favorites" }).check();
   await waitForResults(page);
   await expect(page.locator("article", { hasText: title })).toBeVisible();
   await checkScreen(page, "the favourites grid");
@@ -31,7 +31,7 @@ test("a property can be favourited and unfavourited from the card", async ({ pag
   await starred.getByRole("button", { name: "Remove from favorites" }).click();
   await expect(starred).toBeHidden();
 
-  await page.getByRole("checkbox", { name: "⭐ Favorites" }).uncheck();
+  await page.getByRole("checkbox", { name: "Favorites" }).uncheck();
   await waitForResults(page);
   await expect(
     page.locator("article", { hasText: title }).getByRole("button", { name: "Add to favorites" }),
@@ -56,13 +56,13 @@ test("hiding a property takes it out of the grid, and Restore brings it back", a
   // Where a hidden property goes, and the way back from it. Changing the status
   // filter also refetches, so the count that comes back is the backend's answer
   // and not the grid's local edit.
-  await page.getByLabel("Status").selectOption({ label: "🙈 Discarded" });
+  await page.getByLabel("Status").selectOption({ label: "Discarded" });
   await waitForResults(page);
   const hidden = page.locator("article", { hasText: title });
   await expect(hidden).toBeVisible();
 
   await hidden.click();
-  await page.getByRole("button", { name: "👁 Restore property" }).click();
+  await page.getByRole("button", { name: "Restore property" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeHidden();
 
   await page.getByLabel("Status").selectOption({ label: "For sale" });

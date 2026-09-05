@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatDate, translateCurrent, useT } from "../i18n";
 import { useDebounced } from "../hooks/useDebounced";
 import { useMarketVelocity } from "../queries/insights";
+import { ICON_SIZE, NoResults, Velocity, Warning } from "../ui/icons";
 
 interface Props {
   contract: "sale" | "rent";
@@ -43,7 +44,8 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
       <button data-action="velocity.toggle"
         className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
         onClick={() => setOpen(!open)}>
-        <h2 className="font-semibold text-base">
+        <h2 className="flex items-center gap-1.5 font-semibold text-base">
+          <Velocity className="shrink-0" />
           {t("velocity.title")}{" "}
           <span className="t-muted text-sm font-normal">
             {t(contract === "rent" ? "velocity.subtitleRent" : "velocity.subtitleSale")}
@@ -55,7 +57,7 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
       {open && (
         <div className="mt-4 space-y-5">
           {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {message && <p className="accent-bad text-sm">⚠️ {message}</p>}
+          {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
 
           {data && (
             <p className="text-xs t-muted">
@@ -72,7 +74,7 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
 
           {empty && (
             <div className="panel rounded-xl p-6 text-center text-sm t-muted">
-              <p className="text-2xl mb-2">⏳</p>
+              <p className="flex justify-center mb-2 t-dim"><NoResults size={ICON_SIZE.display} strokeWidth={1.25} /></p>
               {t("velocity.empty", { count: data?.min_sample ?? 0 })}
             </div>
           )}

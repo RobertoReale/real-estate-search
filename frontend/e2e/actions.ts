@@ -49,21 +49,21 @@ export interface Action {
 export const ACTIONS = {
   // ── The shell ───────────────────────────────────────────────────────────
   "nav.language": {
-    what: "the 🌐 language toggle in the navbar",
+    what: "the language toggle in the navbar",
     does: "swaps the interface between English and Italian, and the grid follows",
   },
   "nav.theme": {
     what: "the light/dark toggle",
     does: "puts `dark` on the document element and remembers it across a reload",
   },
-  "nav.logs": { what: "the 📜 button", does: "opens the log viewer" },
-  "nav.settings": { what: "the ⚙️ button", does: "opens the settings dialog" },
+  "nav.logs": { what: "the log button in the navbar", does: "opens the log viewer" },
+  "nav.settings": { what: "the settings button in the navbar", does: "opens the settings dialog" },
   "scan.now": {
     what: "Scan now",
     does: "asks the backend to start a scan and disables itself while one runs",
   },
   "toast.dismiss": {
-    what: "the ✕ on a message",
+    what: "the dismiss button on a message",
     does: "removes that message and leaves the screen it was about as it was",
   },
   "toast.action": {
@@ -77,7 +77,7 @@ export const ACTIONS = {
 
   // ── Filters ─────────────────────────────────────────────────────────────
   "filters.query": { what: "the free-text search box", does: "narrows the grid to matching listings" },
-  "filters.query.clear": { what: "the ✕ inside the search box", does: "empties it and restores the full count" },
+  "filters.query.clear": { what: "the clear button inside the search box", does: "empties it and restores the full count" },
   "filters.contract.sale": { what: "Buy", does: "switches the grid to properties for sale" },
   "filters.contract.rent": { what: "Rent", does: "switches the grid to rentals, with rental prices" },
   "filters.city": { what: "the City field", does: "keeps only listings in that city" },
@@ -94,7 +94,7 @@ export const ACTIONS = {
   "filters.tag": { what: "the Tag select", does: "keeps only listings carrying that tag" },
   "filters.profile": { what: "the Limit to a search select", does: "keeps only what that saved search found" },
   "filters.priceDrops": { what: "the Price drops checkbox", does: "keeps only listings whose price has fallen" },
-  "filters.favorites": { what: "the ⭐ Favorites checkbox", does: "keeps only starred listings" },
+  "filters.favorites": { what: "the Favorites checkbox", does: "keeps only starred listings" },
   "filters.advanced.toggle": { what: "More filters", does: "reveals and hides the advanced panel" },
   "filters.portal": { what: "the Portal select", does: "keeps listings present on that portal" },
   "filters.agency": { what: "the Agency field", does: "keeps listings from a matching agency" },
@@ -126,16 +126,16 @@ export const ACTIONS = {
     what: "Retry failed lookups",
     does: "clears the remembered failures and says how many it dropped",
   },
-  "maintenance.result.dismiss": { what: "the ✕ on the geocoding summary", does: "removes the summary" },
-  "maintenance.cacheCleared.dismiss": { what: "the ✕ on the cache-cleared notice", does: "removes the notice" },
+  "maintenance.result.dismiss": { what: "the dismiss button on the geocoding summary", does: "removes the summary" },
+  "maintenance.cacheCleared.dismiss": { what: "the dismiss button on the cache-cleared notice", does: "removes the notice" },
 
   // ── The grid and its cards ──────────────────────────────────────────────
   "grid.loadMore": { what: "Show N more", does: "appends the next page of results to the grid" },
   "property.card": { what: "the card itself", does: "opens that property, or selects it while multi-select is on" },
   "property.open": { what: "the card's title button", does: "opens the property from the keyboard" },
-  "property.favorite": { what: "the ☆ on a card", does: "stars the property, and the star fills in" },
-  "property.hide": { what: "the ✕ on a card", does: "asks first, then takes the property out of the grid" },
-  "property.select": { what: "the ☐ on a card, while multi-select is on", does: "adds the property to the batch" },
+  "property.favorite": { what: "the star on a card", does: "stars the property, and the star fills in" },
+  "property.hide": { what: "the hide button on a card", does: "asks first, then takes the property out of the grid" },
+  "property.select": { what: "the tick box on a card, while multi-select is on", does: "adds the property to the batch" },
   "property.quickActions": {
     what: "the corner holding the select, star and hide buttons",
     does: "keeps a click on any of them from opening the property underneath",
@@ -163,13 +163,13 @@ export const ACTIONS = {
   "selection.unfavorite": { what: "Remove from favorites", does: "unstars every selected property" },
   "selection.checkAvailability": { what: "Check N are still online", does: "runs the availability batch and reports what it found" },
   "selection.stopCheck": { what: "Stop, while the batch runs", does: "asks the batch to stop after the listing in flight" },
-  "selection.dismissSummary": { what: "the ✕ on the batch summary", does: "removes the summary" },
+  "selection.dismissSummary": { what: "the dismiss button on the batch summary", does: "removes the summary" },
 
   // ── The property modal ──────────────────────────────────────────────────
   "modal.panel": { what: "the modal's panel", does: "keeps a click inside the modal from closing it", guard: true },
   "modal.close.backdrop": { what: "the dimmed area around the modal", does: "closes the modal" },
-  "modal.close": { what: "the ✕ in the modal", does: "closes the modal" },
-  "modal.favorite": { what: "the ☆ in the modal", does: "stars the property, and the star fills in" },
+  "modal.close": { what: "the close button in the modal", does: "closes the modal" },
+  "modal.favorite": { what: "the star in the modal", does: "stars the property, and the star fills in" },
   "modal.notes": { what: "the notes box", does: "holds what is typed, and reveals the Save button" },
   "modal.notes.save": { what: "Save notes", does: "stores the note, and it is still there when the property is reopened" },
   "modal.checkOnline": { what: "Check if it is still online", does: "probes the listing and says what came back" },
@@ -257,7 +257,7 @@ export const ACTIONS = {
 
   "profiles.multi.reword": { what: "Reword, above the alternatives", does: "goes back to the plain-language box" },
   "profiles.multi.edit": { what: "Edit, on one alternative", does: "opens that alternative in the builder" },
-  "profiles.multi.drop": { what: "the ✕ on one alternative", does: "removes it from the list before anything is created" },
+  "profiles.multi.drop": { what: "the remove button on one alternative", does: "removes it from the list before anything is created" },
   "profiles.multi.usePortal": { what: "a portal checkbox on the alternatives", does: "decides whether that portal is searched" },
   "profiles.multi.keywords": { what: "the alternatives' exclusion keywords", does: "records the words that disqualify a listing" },
   "profiles.multi.create": { what: "Create N searches", does: "saves every remaining alternative" },
@@ -265,9 +265,9 @@ export const ACTIONS = {
   "profiles.row.select": { what: "a search's checkbox", does: "adds it to the bulk selection" },
   "profiles.row.notify": { what: "a search's notification select", does: "changes where that search's alerts go" },
   "profiles.row.active": { what: "a search's Active checkbox", does: "pauses the search without deleting it" },
-  "profiles.row.edit": { what: "the ✏️ on a search", does: "opens it in the form it was created with" },
-  "profiles.row.separate": { what: "the ✂️ on a merged pair", does: "splits the two portals back into separate searches" },
-  "profiles.row.delete": { what: "the 🗑 on a search", does: "opens the delete dialog for it" },
+  "profiles.row.edit": { what: "the edit button on a search", does: "opens it in the form it was created with" },
+  "profiles.row.separate": { what: "the split button on a merged pair", does: "splits the two portals back into separate searches" },
+  "profiles.row.delete": { what: "the delete button on a search", does: "opens the delete dialog for it" },
 
   "profiles.bulk.selectAll": { what: "the select-all checkbox above the searches", does: "selects every search, and clears them again" },
   "profiles.bulk.activate": { what: "Activate", does: "resumes every selected search" },
@@ -286,7 +286,7 @@ export const ACTIONS = {
   // ── Settings: the dialog itself ─────────────────────────────────────────
   "settings.panel": { what: "the settings panel", does: "keeps a click inside the dialog from closing it", guard: true },
   "settings.close.backdrop": { what: "the dimmed area around the dialog", does: "closes settings" },
-  "settings.close": { what: "the ✕ in settings", does: "closes settings" },
+  "settings.close": { what: "the close button in settings", does: "closes settings" },
   "settings.footer.close": { what: "Close, at the foot of settings", does: "closes settings" },
   "settings.save": { what: "Save settings", does: "persists every section, and says so" },
   "settings.loadError.retry": { what: "Retry, when settings could not be loaded", does: "asks the backend again" },
@@ -330,7 +330,7 @@ export const ACTIONS = {
   "settings.commute.pointName": { what: "a place's name", does: "names the destination shown on the card" },
   "settings.commute.pointAddress": { what: "a place's address", does: "sets where the route ends" },
   "settings.commute.pointMode": { what: "a place's travel mode", does: "chooses car, foot or bike" },
-  "settings.commute.removePoint": { what: "the 🗑 on a place", does: "removes that place" },
+  "settings.commute.removePoint": { what: "the delete button on a place", does: "removes that place" },
   "settings.commute.osrmUrl": { what: "the OSRM URL", does: "points the routing at a self-hosted server" },
   "settings.commute.compute": { what: "Compute the commutes", does: "saves, routes what it can and reports how many" },
 
@@ -376,7 +376,7 @@ export const ACTIONS = {
   // ── The log viewer ──────────────────────────────────────────────────────
   "logs.panel": { what: "the log viewer's panel", does: "keeps a click inside it from closing the viewer", guard: true },
   "logs.close.backdrop": { what: "the dimmed area around the log viewer", does: "closes it" },
-  "logs.close": { what: "the ✕ in the log viewer", does: "closes it" },
+  "logs.close": { what: "the close button in the log viewer", does: "closes it" },
   "logs.filter": { what: "the log filter box", does: "keeps only the lines containing the text" },
   "logs.autoRefresh": { what: "the auto-refresh checkbox", does: "stops and restarts the three-second reload" },
 

@@ -1,5 +1,6 @@
 import { translateCurrent } from "../i18n";
 import type { CommuteMode } from "../types";
+import { ByBike, ByCar, type Icon, OnFoot } from "../ui/icons";
 
 /** The backend sends OSRM's raw metres and seconds, so the rounding lives here
  *  — one place, shared by the card and the modal, rather than two `toFixed`
@@ -36,11 +37,13 @@ export function formatSemester(semester: string): string {
 }
 
 /** How the leg is travelled, at a glance. Kept out of the dictionary on
- *  purpose: an emoji is the same in every language. */
-export const COMMUTE_ICONS: Record<CommuteMode, string> = {
-  car: "🚗",
-  foot: "🚶",
-  bike: "🚲",
+ *  purpose: a drawing is the same in every language. The map lives here rather
+ *  than in `ui/icons.tsx` because `CommuteMode` is a fact about this product
+ *  and the icon set is not allowed to know any. */
+export const COMMUTE_ICONS: Record<CommuteMode, Icon> = {
+  car: ByCar,
+  foot: OnFoot,
+  bike: ByBike,
 };
 
 /** Turn a portal's raw floor code into a label a mixed audience can read.

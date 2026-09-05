@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber, translateCurrent, useT, type TranslationKey } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { GeoFilter, Property } from "../types";
+import { Close, DrawnArea } from "../ui/icons";
 
 interface Props {
   properties: Property[];
@@ -416,7 +417,7 @@ export default function MapView({
           onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
           className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-info-marker" : ""}`}
           title={t("map.drawAreaTitle")}>
-          {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
+          <DrawnArea /> {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
         </button>
         {drawMode === "polygon" && (
           <span className="text-xs t-dim">
@@ -428,7 +429,7 @@ export default function MapView({
             type="button"
             onClick={clearZone}
             className="btn-ghost min-h-11 sm:min-h-0 text-sm">
-            {t("map.clearZone")}
+            <Close /> {t("map.clearZone")}
           </button>
         )}
         {hasZone && (

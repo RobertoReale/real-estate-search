@@ -12,6 +12,28 @@ import { CommuteChips, DealBadge, MarketBadge } from "./PropertyCard";
 import TagPicker from "./TagPicker";
 import { useToasts } from "./Toast";
 import { formatSemester } from "../utils/format";
+import {
+  Agency,
+  Area,
+  Atlas,
+  Close,
+  Commute,
+  Deal,
+  Describe,
+  External,
+  Favorite,
+  Hidden,
+  Notes,
+  Place,
+  Price,
+  Restore,
+  Rooms,
+  Searches,
+  Sold,
+  Tags,
+  Verify,
+  Warning,
+} from "../ui/icons";
 
 /** The auditor answers inside a fixed vocabulary (backend `listing_auditor`),
  *  so each value has a translation rather than being printed raw. */
@@ -258,14 +280,16 @@ export default function PropertyModal({
             <div className="min-w-0">
               <h2 className="text-lg font-bold">
                 {p.contract === "rent" && (
-                  <span className="text-3xs font-bold uppercase align-middle px-2 py-0.5 mr-2 rounded chip-rent">
-                    {t("card.rent")}
+                  <span className="inline-flex items-center gap-1 text-3xs font-bold uppercase
+                    align-middle px-2 py-0.5 mr-2 rounded chip-rent">
+                    <Sold /> {t("card.rent")}
                   </span>
                 )}
                 {p.title || t("card.untitled")}
               </h2>
-              <p className="text-sm t-muted mt-1">
-                📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("common.notAvailable")}
+              <p className="flex items-center gap-1.5 text-sm t-muted mt-1">
+                <Place className="shrink-0" />
+                {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("common.notAvailable")}
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -274,9 +298,9 @@ export default function PropertyModal({
                 title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
                 onClick={onToggleFavorite}>
-                {p.is_favorite ? "★" : "☆"}
+                <Favorite fill={p.is_favorite ? "currentColor" : "none"} />
               </button>
-              <button data-action="modal.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
+              <button data-action="modal.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}><Close /></button>
             </div>
           </div>
 
@@ -291,8 +315,16 @@ export default function PropertyModal({
                 })}
               </span>
             )}
-            {p.rooms && <span className="self-end">🚪 {t("common.rooms", { count: p.rooms })}</span>}
-            {p.sqm && <span className="self-end">📐 {t("common.sqm", { value: p.sqm.toFixed(0) })}</span>}
+            {p.rooms && (
+              <span className="self-end inline-flex items-center gap-1">
+                <Rooms /> {t("common.rooms", { count: p.rooms })}
+              </span>
+            )}
+            {p.sqm && (
+              <span className="self-end inline-flex items-center gap-1">
+                <Area /> {t("common.sqm", { value: p.sqm.toFixed(0) })}
+              </span>
+            )}
             <DealBadge property={p} />
             <MarketBadge property={p} />
           </div>
@@ -302,7 +334,8 @@ export default function PropertyModal({
           {/* Deal Score breakdown */}
           {p.deal_score !== null && p.deal_label !== "fair" && (
             <div className="mt-4 rounded-xl panel p-3 text-sm">
-              <p className="font-medium mb-1">
+              <p className="flex items-center gap-1.5 font-medium mb-1">
+                <Deal className="shrink-0" />
                 {t("modal.dealScoreTitle")}{" "}
                 <span className={p.deal_score > 0 ? "accent-good" : "accent-bad"}>
                   {p.deal_score > 0 ? "+" : ""}{p.deal_score}%
@@ -320,6 +353,7 @@ export default function PropertyModal({
               )}
               {p.target_price_low && p.target_price_high && (
                 <p className="mt-2 t-body">
+                  <Price className="inline align-[-0.125em]" />{" "}
                   {t("modal.suggestedProposal")}{" "}
                   <span className="font-semibold tnum">
                     {formatPrice(p.target_price_low, p.contract)} –{" "}
@@ -343,10 +377,15 @@ export default function PropertyModal({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium tnum">{formatPrice(l.price, p.contract)}</p>
                   {l.agency && (
-                    <p className="text-xs t-dim truncate">🏢 {l.agency}</p>
+                    <p className="flex items-center gap-1 text-xs t-dim">
+                      <Agency className="shrink-0" />
+                      <span className="truncate">{l.agency}</span>
+                    </p>
                   )}
                 </div>
-                <span className="accent-link text-sm shrink-0">{t("modal.open")}</span>
+                <span className="inline-flex items-center gap-1 accent-link text-sm shrink-0">
+                  {t("modal.open")} <External />
+                </span>
               </a>
             ))}
           </div>
@@ -385,8 +424,8 @@ export default function PropertyModal({
               commute batch has routed this pin (the annotation is cache-only). */}
           {p.commutes.length > 0 && (
             <>
-              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-                {t("modal.commute")}
+              <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                <Commute /> {t("modal.commute")}
               </h3>
               <CommuteChips property={p} detailed />
             </>
@@ -396,7 +435,8 @@ export default function PropertyModal({
               Empty for an email import a scan has never re-found (invariant 19/20). */}
           {p.found_by.length > 0 && (
             <>
-              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+              <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                <Searches />{" "}
                 {p.found_by.length > 1
                   ? t("modal.foundBySearches", { count: p.found_by.length })
                   : t("modal.foundBySearch")}
@@ -416,14 +456,14 @@ export default function PropertyModal({
           )}
 
           {/* Tags: user-curated categories, scans never touch them */}
-          <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-            {t("modal.tags")}
+          <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+            <Tags /> {t("modal.tags")}
           </h3>
           <TagPicker tags={p.tags} allTags={allTags} onAdd={onAddTag} onRemove={onRemoveTag} />
 
           {/* Personal notes: user-curated, scans never touch them */}
-          <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-            {t("modal.notes")}
+          <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+            <Notes /> {t("modal.notes")}
           </h3>
           <textarea data-action="modal.notes"
             className="input w-full h-24 resize-none"
@@ -458,13 +498,15 @@ export default function PropertyModal({
               and it only ever runs on the press below — never on opening. */}
           {auditEnabled && hasDescription && (
             <>
-              <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-                {t("audit.title")}
+              <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+                <Describe /> {t("audit.title")}
               </h3>
               {audit && (
                 <div className="rounded-xl panel p-3 text-sm space-y-2">
                   {audit.stale && (
-                    <p className="text-xs accent-bad">{t("audit.stale")}</p>
+                    <p className="flex items-start gap-1.5 text-xs accent-bad">
+                      <Warning className="shrink-0 mt-0.5" /> {t("audit.stale")}
+                    </p>
                   )}
                   {audit.summary && <p className="t-body">{audit.summary}</p>}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -501,7 +543,7 @@ export default function PropertyModal({
                     ? t("audit.reading")
                     : audit
                       ? t("audit.again")
-                      : t("audit.button")}
+                      : <><Describe /> {t("audit.button")}</>}
                 </button>
               </div>
             </>
@@ -515,6 +557,7 @@ export default function PropertyModal({
                 disabled={checkingOnline || !p.listings.length}
                 onClick={checkIfOnline}
                 title={t("modal.checkOnlineTitle")}>
+                <Verify />
                 {checkingOnline ? t("app.checking") : t("modal.checkOnlineButton")}
               </button>
               <button data-action="modal.viewOnMap"
@@ -523,6 +566,7 @@ export default function PropertyModal({
                 disabled={locating}
                 onClick={viewOnMap}
                 title={t(hasCoords ? "modal.viewOnMapTitle" : "modal.locateAndViewTitle")}>
+                <Atlas />
                 {locating ? t("filters.locating") : t("modal.viewOnMap")}
               </button>
               {checkResult && (
@@ -533,7 +577,8 @@ export default function PropertyModal({
             </div>
             {p.status === "hidden" || p.status === "gone" || p.status === "sold" ? (
               <button data-action="modal.restore"
-                className="accent-good hover:opacity-80 text-sm transition"
+                className="inline-flex items-center gap-1.5 accent-good hover:opacity-80
+                  text-sm transition"
                 onClick={async () => {
                   // The availability check fails open (invariant 16), but a
                   // portal redirect or block it misread as removal can still
@@ -555,12 +600,13 @@ export default function PropertyModal({
                     }
                   }
                 }}>
-                {t("modal.restore")}
+                <Restore /> {t("modal.restore")}
               </button>
             ) : (
               <div className="flex items-center gap-3">
                 <button data-action="modal.markSold"
-                  className="text-caution-ink hover:opacity-80 text-sm transition"
+                  className="inline-flex items-center gap-1.5 text-caution-ink
+                    hover:opacity-80 text-sm transition"
                   onClick={async () => {
                     // "sold" is a confirmed market close: it leaves the grid
                     // like "hidden" but is kept as a real sale date feeding the
@@ -579,10 +625,11 @@ export default function PropertyModal({
                       }
                     }
                   }}>
-                  {t(p.contract === "rent" ? "modal.markRented" : "modal.markSold")}
+                  <Sold /> {t(p.contract === "rent" ? "modal.markRented" : "modal.markSold")}
                 </button>
                 <button data-action="modal.hide"
-                  className="accent-bad hover:opacity-80 text-sm transition"
+                  className="inline-flex items-center gap-1.5 accent-bad hover:opacity-80
+                    text-sm transition"
                   onClick={async () => {
                     // the backend marks as "hidden" rather than physical deletion so
                     // subsequent scans do not re-insert or notify it as new
@@ -596,7 +643,7 @@ export default function PropertyModal({
                       }
                     }
                   }}>
-                  {t("modal.hide")}
+                  <Hidden /> {t("modal.hide")}
                 </button>
               </div>
             )}

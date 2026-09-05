@@ -40,6 +40,9 @@ import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
 import { Button, type Emphasis } from "./ui";
+import {
+  Close, Favorite, Hidden, ICON_SIZE, NoResults, Sold, Unticked, Verify,
+} from "./ui/icons";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
  *  as new for the rest of this browser session, even if a scan completes while
@@ -284,7 +287,7 @@ export default function App() {
   }
 
   function toggleFavorite(p: Property) {
-    // The ⭐ Favorites filter is part of the query, so a card that no longer
+    // The favourites filter is part of the query, so a card that no longer
     // belongs in the view leaves it with the refetch rather than being spliced
     // out of a local list.
     return runAction(() => toggleFavoriteOn.mutateAsync(p), t("toast.favoriteFailed"));
@@ -439,7 +442,9 @@ export default function App() {
 
         {properties.length === 0 && !loadFailed && (
           <div className="glass rounded-2xl p-6 sm:p-10 text-center t-muted">
-            <p className="text-4xl mb-3">🏘️</p>
+            <p className="flex justify-center mb-3 t-dim">
+              <NoResults size={ICON_SIZE.display} strokeWidth={1.25} />
+            </p>
             <p className="font-medium t-strong">
               {hasProfiles ? t("app.noMatches") : t("app.welcome")}
             </p>
@@ -480,7 +485,9 @@ export default function App() {
                     setSelectionMode(!selectionMode);
                     if (selectionMode) setRawSelection(new Set());
                   }}>
-                  {selectionMode ? t("app.closeMultiSelect") : t("app.selectMultiple")}
+                  {selectionMode
+                    ? <><Close /> {t("app.closeMultiSelect")}</>
+                    : <><Unticked /> {t("app.selectMultiple")}</>}
                 </Button>
                 {selectionMode && (
                   <label className="flex items-center gap-1.5 text-xs t-muted cursor-pointer ml-2">
@@ -500,30 +507,31 @@ export default function App() {
                     disabled={checkingBatch}
                     title={t("app.hideSelectedTitle")}
                     onClick={() => bulkAction("hide")}>
-                    {t("app.hideSelected", { count: selectedIds.size })}
+                    <Hidden /> {t("app.hideSelected", { count: selectedIds.size })}
                   </Button>
                   <Button data-action="selection.markSold"
                     size="sm" variant="outline" tone="caution"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("sold")}>
-                    {t("app.markSold", { count: selectedIds.size })}
+                    <Sold /> {t("app.markSold", { count: selectedIds.size })}
                   </Button>
                   <Button data-action="selection.favorite"
                     size="sm" variant="outline" tone="neutral"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("favorite")}>
-                    {t("app.addFavorites")}
+                    <Favorite /> {t("app.addFavorites")}
                   </Button>
                   <Button data-action="selection.unfavorite"
                     size="sm" variant="outline" tone="neutral"
                     disabled={checkingBatch}
                     onClick={() => bulkAction("unfavorite")}>
-                    {t("app.removeFavorites")}
+                    <Favorite /> {t("app.removeFavorites")}
                   </Button>
                   <Button data-action="selection.checkAvailability"
                     size="sm" variant="outline" tone="positive"
                     disabled={checkingBatch}
                     onClick={checkSelectedProperties}>
+                    <Verify />
                     {checkingBatch
                       ? t("app.checking")
                       : t("app.checkAvailability", { count: selectedIds.size })}
@@ -608,7 +616,7 @@ export default function App() {
                   type="button"
                   className="btn-ghost text-xs py-0.5 px-2"
                   onClick={() => checkBatch.reset()}>
-                  ✕
+                  <Close size={16} />
                 </button>
               </div>
             )}

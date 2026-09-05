@@ -6,6 +6,7 @@ import { formatNumber } from "../../i18n";
 import { PortalBadge } from "../PortalBadge";
 import { statusBadge } from "./constants";
 import { combinedKeywords } from "./helpers";
+import { Area, Delete, Edit, Filtered, Place, Price, Rooms, Split } from "../../ui/icons";
 
 export function ProfileList({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, profiles, groupedProfiles, selected, toggleGroup, channelOptions,
@@ -90,17 +91,19 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   )}
                   {pParams.city && (
                     <span className="text-2xs chip-positive px-2 py-0.5 rounded-md font-medium">
-                      📍 {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
+                      <Place /> {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
                       {pParams.zone ? ` · ${pParams.zone}` : ""}
                     </span>
                   )}
                   {(pParams.min_price || pParams.max_price) && (
                     <span className="text-2xs chip-caution px-2 py-0.5 rounded-md font-medium">
-                      💰 {pParams.min_price ? `${formatNumber(pParams.min_price)} €` : "0 €"} – {pParams.max_price ? `${formatNumber(pParams.max_price)} €` : "∞"}
+                      <Price /> {pParams.min_price ? `${formatNumber(pParams.min_price)} €` : "0 €"} – {pParams.max_price ? `${formatNumber(pParams.max_price)} €` : "∞"}
                     </span>
                   )}
                   {(pParams.min_rooms || pParams.max_rooms) && (
-                    <span className="text-2xs chip-accent px-2 py-0.5 rounded-md font-medium">
+                    <span className="inline-flex items-center gap-1 text-2xs chip-accent
+                      px-2 py-0.5 rounded-md font-medium">
+                      <Rooms />{" "}
                       {t("profiles.chipRooms", {
                         range: `${pParams.min_rooms ?? 1}${
                           pParams.max_rooms ? `–${pParams.max_rooms}` : "+"
@@ -109,8 +112,9 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                     </span>
                   )}
                   {pParams.min_sqm && (
-                    <span className="text-2xs chip-positive px-2 py-0.5 rounded-md font-medium">
-                      {t("profiles.chipMinSqm", { value: pParams.min_sqm })}
+                    <span className="inline-flex items-center gap-1 text-2xs chip-positive
+                      px-2 py-0.5 rounded-md font-medium">
+                      <Area /> {t("profiles.chipMinSqm", { value: pParams.min_sqm })}
                     </span>
                   )}
                 </div>
@@ -119,8 +123,9 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 <p className="text-xs t-muted mt-1">{group.last_run_detail}</p>
               )}
               {combinedKeywords(group.profiles[0], settings).length > 0 && (
-                <p className="text-xs t-dim mt-1 truncate"
+                <p className="flex items-center gap-1 text-xs t-dim mt-1 truncate"
                   title={t("profiles.excludesTitle")}>
+                  <Filtered className="shrink-0" />
                   {t("profiles.excludes", {
                     words: combinedKeywords(group.profiles[0], settings).join(", "),
                   })}
@@ -157,21 +162,21 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 title={t("profiles.editBox")} aria-label={t("profiles.editBox")}
                 onClick={() => editGroup(group)}>
-                ✏️
+                <Edit size={16} />
               </button>
               {group.profiles.length > 1 && (
                 <button data-action="profiles.row.separate" className="t-dim hover:text-tag-ink transition text-sm btn-focus
                     inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                   title={t("profiles.separateBox")} aria-label={t("profiles.separateBox")}
                   onClick={() => separateGroup(group)}>
-                  ✂️
+                  <Split size={16} />
                 </button>
               )}
               <button data-action="profiles.row.delete" className="t-dim hover:text-negative-ink transition text-sm btn-focus
                   inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
                 title={t("profiles.deleteBox")} aria-label={t("profiles.deleteBox")}
                 onClick={() => askDelete(group.profiles)}>
-                🗑
+                <Delete size={16} />
               </button>
             </div>
           </li>

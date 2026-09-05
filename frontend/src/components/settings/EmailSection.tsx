@@ -2,6 +2,7 @@ import { useT } from "../../i18n";
 import { useEmailTest } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Link, Result, SecretStatus, SectionHeading } from "./controls";
+import { Email } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -53,7 +54,7 @@ export function EmailSection(
 
   return (
     <>
-      <SectionHeading>{t("settings.emailTitle")}</SectionHeading>
+      <SectionHeading icon={Email}>{t("settings.emailTitle")}</SectionHeading>
       <HelpSteps
         summary={t("settings.emailHelp")}
         steps={[

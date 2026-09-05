@@ -2,6 +2,7 @@ import { useState } from "react";
 import { translateCurrent, useT } from "../i18n";
 import { useScraperHealth } from "../queries/insights";
 import type { ScraperHealthDay } from "../types";
+import { Dot, Health, ICON_SIZE, Warning } from "../ui/icons";
 
 /** Scraper Health panel: the anti-bot pipeline degrades
  *  silently — a blocked scraper looks exactly like a quiet market — so this
@@ -63,7 +64,8 @@ export default function ScraperHealthPanel() {
       <button data-action="health.toggle"
         className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
         onClick={() => setOpen(!open)}>
-        <h2 className="font-semibold text-base">
+        <h2 className="flex items-center gap-1.5 font-semibold text-base">
+          <Health className="shrink-0" />
           {t("health.title")}{" "}
           <span className="t-muted text-sm font-normal">{t("health.subtitle")}</span>
         </h2>
@@ -73,7 +75,7 @@ export default function ScraperHealthPanel() {
       {open && (
         <div className="mt-4 space-y-5">
           {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {message && <p className="accent-bad text-sm">⚠️ {message}</p>}
+          {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
 
           {data && (
             <p className="text-xs t-muted">
@@ -86,7 +88,7 @@ export default function ScraperHealthPanel() {
 
           {empty && (
             <div className="panel rounded-xl p-6 text-center text-sm t-muted">
-              <p className="text-2xl mb-2">🩺</p>
+              <p className="flex justify-center mb-2 t-dim"><Health size={ICON_SIZE.display} strokeWidth={1.25} /></p>
               {t("health.empty")}
             </div>
           )}
@@ -158,7 +160,7 @@ export default function ScraperHealthPanel() {
               <ul className="text-sm space-y-1">
                 {failingProfiles.map((p) => (
                   <li key={p.profile_id} className="flex items-center gap-2">
-                    <span className="accent-bad">●</span>
+                    <span className="accent-bad"><Dot size={10} fill="currentColor" /></span>
                     <span className="t-strong">{p.name}</span>
                     <span className="t-muted">
                       {t("health.failingRow", {

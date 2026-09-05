@@ -26,7 +26,7 @@ test("a property opens, shows its price and its listings, and closes", async ({ 
   await expect(listings).toBeVisible();
   const found = Number((await listings.innerText()).replace(/\D/g, ""));
   expect(found).toBeGreaterThan(0);
-  await expect(page.getByRole("link", { name: /Open ↗/ })).toHaveCount(found);
+  await expect(page.getByRole("link", { name: /Open/ })).toHaveCount(found);
 
   await checkScreen(page, "the property detail");
 

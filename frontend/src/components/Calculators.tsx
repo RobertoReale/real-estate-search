@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useT } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { Property } from "../types";
+import { Calculators as CalculatorIcon, Trend } from "../ui/icons";
 
 /** French amortization: fixed monthly payment on the residual loan. */
 function monthlyPayment(loan: number, annualRatePct: number, years: number): number {
@@ -67,8 +68,8 @@ export default function Calculators({ property: p }: { property: Property }) {
 
   return (
     <>
-      <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-        {t("calc.mortgageTitle")}
+      <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+        <CalculatorIcon /> {t("calc.mortgageTitle")}
       </h3>
       <div className="rounded-xl panel p-4 space-y-3">
         <div className="flex flex-wrap gap-4">
@@ -86,8 +87,8 @@ export default function Calculators({ property: p }: { property: Property }) {
         </div>
       </div>
 
-      <h3 className="font-semibold mt-6 mb-2 text-sm uppercase t-muted">
-        {t("calc.yieldTitle")}
+      <h3 className="flex items-center gap-1.5 font-semibold mt-6 mb-2 text-sm uppercase t-muted">
+        <Trend /> {t("calc.yieldTitle")}
       </h3>
       <div className="rounded-xl panel p-4 space-y-3">
         <div className="flex flex-wrap gap-4">

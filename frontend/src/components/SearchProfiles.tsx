@@ -16,6 +16,7 @@ import { DeleteDialog } from "./searchProfiles/DeleteDialog";
 import { MultiPanel } from "./searchProfiles/MultiPanel";
 import { ProfileList } from "./searchProfiles/ProfileList";
 import { UrlForm } from "./searchProfiles/UrlForm";
+import { BuildSearch, Describe, PasteUrl, Searches, Warning } from "../ui/icons";
 
 interface Props {
   profiles: SearchProfile[];
@@ -46,22 +47,29 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   return (
     <section className="glass rounded-2xl p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 className="font-semibold text-base">
+        <h2 className="flex items-center gap-1.5 font-semibold text-base">
+          <Searches className="shrink-0" />
           {t("profiles.title")}{" "}
           <span className="t-muted text-sm">({profiles.length})</span>
         </h2>
         <div className="flex flex-wrap gap-2">
           <button data-action="profiles.mode.assistant" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "assistant") setMode("assistant"); }}>
-            {mode === "assistant" ? t("common.cancel") : t("profiles.modeAssistant")}
+            {mode === "assistant"
+              ? t("common.cancel")
+              : <><Describe /> {t("profiles.modeAssistant")}</>}
           </button>
           <button data-action="profiles.mode.builder" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "builder") setMode("builder"); }}>
-            {mode === "builder" ? t("common.cancel") : t("profiles.modeBuilder")}
+            {mode === "builder"
+              ? t("common.cancel")
+              : <><BuildSearch /> {t("profiles.modeBuilder")}</>}
           </button>
           <button data-action="profiles.mode.url" className="btn-ghost"
             onClick={() => { resetForm(); if (mode !== "url") setMode("url"); }}>
-            {mode === "url" ? t("common.cancel") : t("profiles.modeUrl")}
+            {mode === "url"
+              ? t("common.cancel")
+              : <><PasteUrl /> {t("profiles.modeUrl")}</>}
           </button>
         </div>
       </div>
@@ -80,8 +88,9 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
       {channelWarnings.length > 0 && (
         <div className="mb-2 p-3 rounded-xl bg-caution-tint border border-caution-line space-y-1">
           {channelWarnings.map((warn) => (
-            <p key={warn} className="text-xs text-caution-ink-strong">
-              ⚠️ {warn}
+            <p key={warn}
+              className="flex items-start gap-1.5 text-xs text-caution-ink-strong">
+              <Warning className="shrink-0 mt-0.5" /> {warn}
             </p>
           ))}
         </div>

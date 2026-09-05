@@ -10,6 +10,7 @@ import { PortalBadge } from "../PortalBadge";
 import type { SearchBuilderParams } from "../../types";
 import { CONDITIONS, FEATURES, FLOORS, UNSUPPORTED_LABELS } from "./constants";
 import { GlobalKeywordsHint } from "./helpers";
+import { External, Hint, Warning } from "../../ui/icons";
 
 export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, assistant, setMode, params, setParam, name, setName, keywords, setKeywords,
@@ -33,12 +34,14 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           </div>
           {/* assumptions the parser had to make: visible, not buried */}
           {assistant.notes.map((note) => (
-            <p key={note} className="text-xs t-muted">ℹ️ {note}</p>
+            <p key={note} className="flex items-start gap-1.5 text-xs t-muted">
+              <Hint className="shrink-0 mt-0.5" /> {note}
+            </p>
           ))}
           {assistant.warnings.map((warning) => (
             <p key={warning}
-              className="text-xs text-caution-ink">
-              ⚠️ {warning}
+              className="flex items-start gap-1.5 text-xs text-caution-ink">
+              <Warning className="shrink-0 mt-0.5" /> {warning}
             </p>
           ))}
           <p className="text-xs t-dim">{t("profiles.checkFields")}</p>
@@ -182,7 +185,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
               <a data-action="profiles.builder.openBuilt" href={built[portal]} target="_blank" rel="noreferrer"
                 className="accent-link text-xs shrink-0"
                 onClick={(e) => e.stopPropagation()}>
-                {t("modal.open")}
+                {t("modal.open")} <External />
               </a>
             </label>
           ))}

@@ -25,7 +25,7 @@ test("the map shows the filtered set and the grid comes back", async ({
   const title = (await placed.getAttribute("aria-label")) ?? "";
 
   const view = page.getByRole("group", { name: "View" });
-  await view.getByRole("button", { name: "🗺 Map" }).click();
+  await view.getByRole("button", { name: "Map" }).click();
 
   // The map says how much of the set it is showing, and how much it cannot
   // place. About a sixth of the corpus has no coordinates on purpose, because

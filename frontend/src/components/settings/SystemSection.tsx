@@ -8,6 +8,7 @@ import { api, authToken, AuthError, fetchBackup } from "../../services/api";
 import type { BackupFile, Settings } from "../../types";
 import { errorText, useToasts } from "../Toast";
 import { Result, SecretStatus, SectionHeading } from "./controls";
+import { Backup, Import, Locked, Restart } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -219,7 +220,7 @@ export function SystemSection(
 
   return (
     <>
-      <SectionHeading>{t("settings.apiTokenTitle")}</SectionHeading>
+      <SectionHeading icon={Locked}>{t("settings.apiTokenTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.apiTokenNote")}</p>
       <input data-action="settings.system.apiToken" className="input w-full" type="password"
         placeholder={t("settings.apiTokenPlaceholder")}
@@ -232,22 +233,22 @@ export function SystemSection(
 
       <Result feedback={shell.feedback} where="global" />
 
-      <SectionHeading>{t("settings.backendTitle")}</SectionHeading>
+      <SectionHeading icon={Restart}>{t("settings.backendTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.backendNote")}</p>
       <button data-action="settings.system.restart" className="btn-ghost w-full sm:w-auto" onClick={restartBackend}
         disabled={restarting || shell.anyBusy}>
-        {restarting ? t("settings.restarting") : t("settings.restart")}
+        <Restart /> {restarting ? t("settings.restarting") : t("settings.restart")}
       </button>
 
-      <SectionHeading>{t("settings.backupsTitle")}</SectionHeading>
+      <SectionHeading icon={Backup}>{t("settings.backupsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-3">{t("settings.backupsNote")}</p>
       <div className="flex flex-col sm:flex-row gap-2">
         <button data-action="settings.system.backupNow" className="btn-ghost w-full sm:w-auto" onClick={takeBackup} disabled={shell.anyBusy}>
-          {t("settings.backupTakeNow")}
+          <Backup /> {t("settings.backupTakeNow")}
         </button>
         <button data-action="settings.system.backupImport" className="btn-ghost w-full sm:w-auto"
           onClick={() => filePicker.current?.click()} disabled={shell.anyBusy}>
-          {t("settings.backupImport")}
+          <Import /> {t("settings.backupImport")}
         </button>
         {/* .db only as a hint: the file is proved to be one of ours by the
             backend before anything live is touched, never by its name */}

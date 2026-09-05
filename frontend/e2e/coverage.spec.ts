@@ -677,10 +677,10 @@ test("selecting several properties, and every batch action", async ({ page }) =>
     if (!await control(page, "selection.selectAll").isVisible()) {
       await press(page, "selection.toggleMode");
     }
-    // The glyph is the state (✓ or ☐), so a card that is already in the batch
-    // is left alone rather than clicked back out of it.
+    // `aria-pressed` is the state, so a card that is already in the batch is
+    // left alone rather than clicked back out of it.
     const box = control(cards(page).first(), "property.select");
-    if ((await box.textContent())?.trim() !== "✓") await box.click();
+    if (await box.getAttribute("aria-pressed") !== "true") await box.click();
     await expect(control(page, "selection.favorite")).toBeVisible();
   };
 
@@ -1285,8 +1285,10 @@ test("a refused write says what to do, and the retry does it", async ({ page }) 
 
   // Scoped to one card rather than to the page: the grid re-reads itself after
   // the write, and the assertion has to be about the property that was starred.
+  // Its state is in the label rather than in the glyph: the star is a drawing,
+  // and a drawing has no text to compare.
   const star = control(cards(page).first(), "property.favorite");
-  const before = (await star.textContent()) ?? "";
+  const before = (await star.getAttribute("aria-label")) ?? "";
   await star.click();
 
   // What happened, what to do about it, and the one-click way to do it.
@@ -1298,7 +1300,7 @@ test("a refused write says what to do, and the retry does it", async ({ page }) 
   await press(page, "toast.action");
   // The message goes with the press, and the write it was about lands.
   await expect(control(page, "toast.action")).toBeHidden();
-  await expect(star).not.toHaveText(before);
+  await expect(star).not.toHaveAttribute("aria-label", before);
 });
 
 test("the token prompt, when the backend asks for one", async ({ page }) => {

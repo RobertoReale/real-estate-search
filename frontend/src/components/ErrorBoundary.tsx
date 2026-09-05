@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { translateCurrent } from "../i18n";
+import { Crashed, ICON_SIZE } from "../ui/icons";
 
 interface Props {
   children: ReactNode;
@@ -28,7 +29,9 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
           <div className="glass rounded-2xl p-6 sm:p-10 max-w-lg text-center space-y-4">
-            <p className="text-4xl">💥</p>
+            <p className="flex justify-center accent-bad">
+              <Crashed size={ICON_SIZE.display} strokeWidth={1.25} />
+            </p>
             {/* a class component has no hooks, so it reads the active
                 language through the module-level helper */}
             <p className="font-semibold t-strong">{translateCurrent("error.title")}</p>
