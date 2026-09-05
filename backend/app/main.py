@@ -29,6 +29,7 @@ from .config import FRONTEND_DIST, LOG_PATH, load_settings
 from .database import init_db
 from .routers import (
     analytics,
+    events,
     maintenance,
     profiles,
     properties,
@@ -38,6 +39,7 @@ from .routers import (
     system,
 )
 from .services import scheduler, telegram_bot
+from .services.events import hub as event_hub
 
 # Log both to console and rotating file: the scheduler runs overnight without
 # anyone at the terminal, and without a log file it would be impossible to diagnose
@@ -70,6 +72,8 @@ async def lifespan(app: FastAPI):
     telegram_bot.start_polling()
     yield
     telegram_bot.stop_polling()
+    # Before the scheduler, because the sampler reads what the scheduler owns.
+    await event_hub.aclose()
     scheduler.shutdown()
 
 
@@ -190,6 +194,7 @@ app.include_router(scans.router)
 app.include_router(maintenance.router)
 app.include_router(settings.router)
 app.include_router(system.router)
+app.include_router(events.router)
 
 
 def _is_spa_route(path: str, scope: Scope) -> bool:

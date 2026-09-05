@@ -48,9 +48,9 @@ cd frontend && npm run e2e
 python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/api.ts
 ```
 
-Expected today: **1015 passed + 1 skipped** (1016 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **81 frontend tests**,
-**43 browser tests** (23 journeys, then 20 that hold the run to the control inventory),
+Expected today: **1025 passed + 1 skipped** (1026 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **86 frontend tests**,
+**47 browser tests** (27 journeys, then 20 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **222 interactive elements, 230 inventoried actions**, of which **228 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
@@ -107,7 +107,7 @@ least one regression test. To audit an invariant:
 | 11 | Health alert fires on a streak, once | `services/scanner.py` `_update_profile_health` | `test_scanner.py` |
 | 12 | *retired with the inbox import (see [`invariants.md`](invariants.md))* | — | — |
 | 13 | StaticFiles mount stays last in `main.py` | `main.py` (bottom: after every `include_router`) | `test_static_frontend.py` |
-| 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook) | `test_api_auth.py`, `test_telegram_actions.py` |
+| 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook); `routers/events.py` (outbound stream under `/api`, no inbound port) | `test_api_auth.py`, `test_telegram_actions.py`, `test_events.py` |
 | 15 | *retired as written; the sync-`def` + module-lock rule now binds the availability check* | `services/availability_check.py`, `routers/properties.py` | `test_availability_check.py` |
 | 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_availability_check.py`, `test_scrapers.py` |
 | 17 | Settings tests must not read real `settings.json` | `tests/conftest.py` | (all tests) |
@@ -321,7 +321,7 @@ portal, 0.4 s between pages, two portals, 80-property demo corpus):
 | the grid, one page (`limit=50`) | 9 queries | |
 | the grid, unbounded (`limit=0`, the map and "select all") | 9 queries | **the number that matters**: it does not move with the size of the result set. `selectinload` batches the three relationships and every annotation is one set-wide query, so there is no N+1 to find |
 | one property's card | 8 queries | |
-| the poll (`/api/scrapers/status`, every 4 s during a scan) | 2 queries | two aggregates, which is what makes polling it cheap enough to be the "did anything change?" channel |
+| the "did anything change?" tick (`services/events.py`, once a second while a browser is connected) | 3 queries | three aggregates — two for the property fingerprint, one for scraper health. Cheap enough to sample for the *machine*, which is what lets one shared task replace a poll per open tab |
 | market velocity / scraper health / searches | 3 / 2 / 1 queries | |
 
 The plans, for the statements the grid page issues: `SCAN properties` twice — the grid's own

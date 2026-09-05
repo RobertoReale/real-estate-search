@@ -13,6 +13,7 @@
 import { expect, test } from "./fixtures";
 import { cards, resultCount, waitForResults } from "./harness/dashboard";
 import { press, setTicked } from "./harness/drive";
+import { fakeEventStream } from "./harness/stream";
 
 import type { Page } from "@playwright/test";
 
@@ -20,27 +21,18 @@ const isGrid = (url: string) => new URL(url).pathname === "/api/properties";
 
 /**
  * Puts the backend's "did anything change?" fingerprint under the test's
- * control, and pins the poll to its scanning cadence so a change shows up in
- * seconds rather than in the idle half-minute.
+ * control, down the channel that now carries it.
  *
- * The status itself is the real one — only the two fields this is about are
- * rewritten on the way through. Returns the setter for the fingerprint.
+ * It used to be rewritten into the status poll on its way past. There is no
+ * status poll any more — the fingerprint arrives on the event stream — so the
+ * fake stream is where it is set instead. Everything downstream of it is
+ * unchanged, and that is the point: the grid still re-reads itself when this
+ * moves, and still does not when it has not.
  */
 async function fingerprint(page: Page, initial: string): Promise<(v: string) => void> {
-  let version = initial;
-  await page.route(
-    (url) => url.pathname === "/api/scrapers/status",
-    async (route) => {
-      try {
-        const response = await route.fetch();
-        const body = await response.json();
-        await route.fulfill({ json: { ...body, running: true, data_version: version } });
-      } catch {
-        // the page went away while this was in the air
-      }
-    },
-  );
-  return (v: string) => { version = v; };
+  const stream = await fakeEventStream(page);
+  stream.push({ data_version: initial });
+  return (v: string) => stream.push({ data_version: v });
 }
 
 /** Every grid request the browser makes, from now on. */
@@ -129,19 +121,20 @@ test("the grid re-reads itself when the fingerprint moves, and not before", asyn
 
   await page.goto("/");
   await waitForResults(page);
-  // let the first load and the first poll settle, so what follows is the
+  // let the first load and the first frame settle, so what follows is the
   // steady state rather than the arrival
   await page.waitForTimeout(6000);
   const settled = grid.length;
 
-  // Several polls at the scanning cadence with the fingerprint unchanged. The
-  // status is asked for; the grid is not. Before the fingerprint existed this
-  // window re-downloaded the whole filtered set — market position, deal score
-  // and provenance computed per row — every four seconds.
+  // Nine seconds of the stream saying the fingerprint is what it already was —
+  // which includes every reconnection in that window, each of which reopens by
+  // resending the whole world. That resend must read as "nothing changed", or a
+  // dropped socket would cost a full re-download of the filtered set: market
+  // position, deal score and provenance computed per row.
   await page.waitForTimeout(9000);
   expect(
     grid.length,
-    "the grid was refetched by a poll that had reported nothing had changed",
+    "the grid was refetched by a frame that had reported nothing had changed",
   ).toBe(settled);
 
   setVersion("after");

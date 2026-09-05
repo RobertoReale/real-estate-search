@@ -24,6 +24,7 @@ import { useOnReveal } from "./hooks/useOnReveal";
 import {
   useDataVersionSync, useProfiles, useScanStatus, useTags, useTriggerScan,
 } from "./queries/dashboard";
+import { useEventStream } from "./queries/events";
 import { useGeocodeMissing } from "./queries/maintenance";
 import {
   useAddTag, useAvailabilityProgress, useBulkProperties, useCancelPropertiesCheck,
@@ -157,6 +158,10 @@ export default function App() {
   const tags = useTags().data ?? [];
   const settings = useSettings().data ?? null;
   const scanStatus = useScanStatus().data ?? null;
+  // One connection, opened here because this is the layout route: it stays
+  // mounted while the URL moves between the grid, a property and Settings, so
+  // the stream is not torn down and reopened on every navigation.
+  useEventStream();
   // The grid is re-read when the backend's fingerprint of the property set
   // moves, and only then.
   useDataVersionSync(scanStatus ?? undefined);

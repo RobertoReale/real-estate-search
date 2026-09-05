@@ -674,13 +674,20 @@ export interface paths {
         };
         /**
          * Scraper Status
-         * @description Everything the dashboard needs to poll for, in one answer.
+         * @description Everything the dashboard needs, in one answer.
+         *
+         *     `GET /api/events` is how the dashboard normally learns all of this now, and
+         *     this route is what it falls back to when that stream cannot be opened at all
+         *     â€” an old backend behind a new build, a proxy that will not carry a streaming
+         *     response. It is also the honest answer to "what is happening?" for anything
+         *     that is not a browser, so it stays a plain request/response route and keeps
+         *     the shape the stream's `status` topic sends.
          *
          *     The live progress rides along rather than getting a route of its own
-         *     precisely because this endpoint is *already* the one polled every 4s during
-         *     a scan: a second poll beside it would double the traffic to say something
-         *     about the same moment. The journal is the opposite case â€” it changes once
-         *     per search, is read when somebody asks, and has its own route below.
+         *     precisely because this endpoint is the one a fallback client polls: a second
+         *     poll beside it would double the traffic to say something about the same
+         *     moment. The journal is the opposite case â€” it changes once per search, is
+         *     read when somebody asks, and has its own route below.
          */
         get: operations["scraper_status_api_scrapers_status_get"];
         put?: never;
@@ -1288,6 +1295,32 @@ export interface paths {
          *     injection.
          */
         get: operations["logs_tail_api_logs_tail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event Stream
+         * @description Push, instead of the four timers the dashboard used to run.
+         *
+         *     Outbound-only and same-origin (invariant 14): the browser opens this and the
+         *     server writes down it. There is no port to open, no address to register and
+         *     nothing for anything outside this machine to call. The optional
+         *     `api_auth_token` gate applies exactly as it does to every other `/api` route
+         *     â€” this handler does nothing special to earn it, and must not.
+         */
+        get: operations["event_stream_api_events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5228,6 +5261,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    event_stream_api_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
         };
