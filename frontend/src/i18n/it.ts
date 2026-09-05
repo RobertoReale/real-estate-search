@@ -1022,6 +1022,9 @@ export const it: Dict = {
   "trends.listingsFailed": "Impossibile caricare gli annunci",
   "trends.empty":
     "Nessuno storico da rappresentare. L'app registra una mediana per zona al giorno; una linea di tendenza ha bisogno di almeno due giorni di scansioni prima di dire qualcosa — ripassa tra un paio di giorni.",
+  "trends.chartEmpty": "Nessun dato registrato per questa zona",
+  "trends.chartEmptyHint":
+    "Le mediane vengono scritte una volta al giorno, alla fine di una scansione. Il primo punto compare dopo la prossima.",
   "trends.changeSince": "{pct}% dal {date}",
   "trends.caveat":
     "Prezzo richiesto mediano al metro quadro tra gli annunci che l'app stava monitorando ogni giorno — il tuo campione, non tutto il mercato. Si muove con ciò che monitori tanto quanto con i prezzi.",
@@ -1049,8 +1052,6 @@ export const it: Dict = {
   // ── salute degli scraper ────────────────────────────────────────────────
   "health.title": "Salute degli scraper",
   "health.subtitle": "la pipeline anti-bot riesce ancora a passare?",
-  "health.hide": "Nascondi",
-  "health.show": "Mostra",
   "health.loadFailed": "Impossibile caricare la salute degli scraper",
   "health.window":
     "Ultimi {days} giorni di esiti delle scansioni per portale. La prossima scansione parte da: {transport}.",
@@ -1058,6 +1059,7 @@ export const it: Dict = {
   "health.historyTitle": "Storico — com'è andata giorno per giorno",
   "health.colPortal": "Portale",
   "health.colDays": "Giorni (dal più vecchio a oggi)",
+  "health.noDays": "nessun giorno registrato",
   "health.colScans": "Scansioni",
   "health.colFailureRate": "Tasso di fallimento",
   "health.colFailureRateTitle":

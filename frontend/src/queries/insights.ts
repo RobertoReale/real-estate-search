@@ -6,36 +6,37 @@
  *  "Milano" already filled. All three are the query key now — an answer belongs
  *  to the city it was asked about, so the wrong one has nowhere to land.
  *
- *  They are still fetched only while their panel is open. These are aggregate
- *  queries over the whole table, and a collapsed accordion is not a reason to
- *  run one.
+ *  They used to be fetched only while their panel was open, because all three
+ *  sat collapsed above the grid and an aggregate over the whole table is not
+ *  something to run at somebody who came to look at listings. They have a screen
+ *  of their own now, and arriving on it *is* the request: gating them behind a
+ *  disclosure that no longer exists would only mean a screen that loads nothing
+ *  until it is poked. The one exception is the comparables below, which are a
+ *  full property fetch behind a control the user presses.
  */
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../services/api";
 import { keys } from "./keys";
 
-export function useMarketVelocity(contract: "sale" | "rent", city: string, open: boolean) {
+export function useMarketVelocity(contract: "sale" | "rent", city: string) {
   return useQuery({
     queryKey: keys.marketVelocity(contract, city),
     queryFn: () => api.getMarketVelocity(contract, city),
-    enabled: open,
   });
 }
 
-export function useScraperHealth(open: boolean) {
+export function useScraperHealth() {
   return useQuery({
     queryKey: keys.scraperHealth,
     queryFn: () => api.getScraperHealth(),
-    enabled: open,
   });
 }
 
 /** The areas with enough daily snapshots to plot a line at all. */
-export function useTrendAreas(contract: "sale" | "rent", open: boolean) {
+export function useTrendAreas(contract: "sale" | "rent") {
   return useQuery({
     queryKey: keys.trendAreas(contract),
     queryFn: () => api.getTrendAreas(contract),
-    enabled: open,
   });
 }
 

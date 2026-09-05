@@ -53,7 +53,7 @@ test("the four places are linkable, and keep the filters between them", async ({
   // than a panel: a link to the insights has to work in a tab that has never
   // seen the listings.
   await page.goto("/insights");
-  await expect(page.locator("[data-action='trends.toggle']")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2 })).toHaveCount(3);
   await checkScreen(page, "the insights");
 
   await page.goto("/searches");

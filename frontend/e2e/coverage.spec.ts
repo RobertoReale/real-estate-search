@@ -147,7 +147,9 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
   // The four places, each reached from the navigation and each leaving an
   // address behind. Listings last, so what follows runs on the grid.
   await press(page, "nav.insights");
-  await expect(control(page, "velocity.toggle")).toBeVisible();
+  // Three sections, all open: the panels stopped being disclosures when this
+  // became a destination, so arriving is the whole interaction.
+  await expect(page.getByRole("heading", { level: 2 })).toHaveCount(3);
   expect(new URL(page.url()).pathname).toBe("/insights");
 
   await press(page, "nav.searches");
@@ -878,26 +880,20 @@ test("the three insight panels", async ({ page }) => {
       ],
     } }));
 
-  // Straight to the address, without pressing anything to get there: the three
-  // panels are a screen of their own now, and a screen that only exists at the
-  // end of a click is one nobody can link to.
+  // Straight to the address, and everything is already on it: the three panels
+  // are a screen of their own now, and a screen that only exists at the end of
+  // a click is one nobody can link to. Nothing here is behind a disclosure
+  // either, so the chart is drawn before anything is pressed.
   await page.goto("/insights");
-  await expect(control(page, "health.toggle")).toBeVisible();
-
-  await press(page, "health.toggle");
-  await press(page, "health.toggle");
-  await press(page, "velocity.toggle");
-  await press(page, "velocity.toggle");
-
-  await press(page, "trends.toggle");
   await expect(control(page, "trends.area")).toBeVisible();
+  await expect(page.locator("figure svg polyline")).toBeVisible();
   await choose(page, "trends.area", "Milano|Isola");
   await choose(page, "trends.area", "Milano|Navigli");
 
   await press(page, "trends.comparables");
   await expect(control(page, "trends.openProperty")).toBeVisible();
   await reachableByKeyboard(page, "the trends panel", [
-    "trends.toggle", "trends.area", "trends.comparables", "trends.openProperty",
+    "trends.area", "trends.comparables", "trends.openProperty",
   ]);
   await press(page, "trends.comparables");
   await expect(control(page, "trends.openProperty")).toBeHidden();
