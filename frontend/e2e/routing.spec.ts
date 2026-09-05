@@ -84,7 +84,7 @@ test("Back and Forward move through filter changes", async ({ page }) => {
   const all = await resultCount(page);
 
   const ceiling = page.getByLabel(/^Max price €/);
-  const favorites = page.getByLabel("⭐ Favorites");
+  const favorites = page.getByRole("checkbox", { name: "Favorites", exact: true });
 
   await ceiling.fill(CEILING);
   await expect.poll(() => resultCount(page)).toBeLessThan(all);
@@ -125,7 +125,7 @@ test("a reload keeps the grid where it was", async ({ page, offlineGuard }) => {
   const narrowed = await resultCount(page);
 
   const onTheMap = page.getByText(/\d+ of \d+ properties on the map/);
-  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "🗺 Map" }).click();
+  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Map" }).click();
   await expect(onTheMap).toBeVisible();
 
   await page.reload();

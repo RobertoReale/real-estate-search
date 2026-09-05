@@ -3,7 +3,8 @@
  * It was a bare `<article onClick>`: no focus, no key handling, so opening a
  * listing was available to pointer users only. That was first fixed by making
  * the whole card a `role="button"`, which worked but made the card a widget
- * containing other widgets — the ⭐/✕ quick actions and the tag picker all live
+ * containing other widgets — the favourite and hide quick actions and the tag
+ * picker all live
  * inside it, and a control that contains controls is ambiguous to a screen
  * reader. The door is now the title button, and Enter and Space come from the
  * platform rather than from a key handler of ours.
@@ -77,7 +78,7 @@ describe("PropertyCard keyboard access", () => {
   });
 
   it("leaves the quick-action buttons alone", () => {
-    // the ⭐ button lives inside the card, which opens the property on click;
+    // the favourite button lives inside the card, which opens the property on click;
     // pressing it must favourite the property and nothing else
     const onClick = vi.fn();
     renderCard(onClick);

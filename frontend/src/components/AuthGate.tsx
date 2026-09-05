@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
+import { Locked } from "../ui/icons";
 import { useVerifyToken } from "../queries/settings";
 import { authToken, setAuthRequiredHandler } from "../services/api";
 
@@ -38,7 +39,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           <form data-action="auth.submit" onSubmit={submit}
             className="glass rounded-2xl max-w-sm w-full p-6 space-y-4">
             <div>
-              <h2 className="text-lg font-bold">{t("auth.title")}</h2>
+              <h2 className="flex items-center gap-1.5 text-lg font-bold">
+                <Locked className="shrink-0" /> {t("auth.title")}
+              </h2>
               <p className="text-xs t-dim mt-1">{t("auth.hint")}</p>
             </div>
             {/* The one failure that stays on the form rather than becoming a

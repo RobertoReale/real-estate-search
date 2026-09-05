@@ -3,6 +3,7 @@ import { formatDate, formatNumber, translateCurrent, useT } from "../i18n";
 import { useTrend, useTrendAreas, useTrendComparables } from "../queries/insights";
 import { formatPrice } from "../services/api";
 import type { PricingTrend, Property } from "../types";
+import { ICON_SIZE, PriceDrop, PriceRise, Trend, Warning } from "../ui/icons";
 
 interface Props {
   contract: "sale" | "rent";
@@ -127,7 +128,8 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
       <button data-action="trends.toggle"
         className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
         onClick={() => setOpen(!open)}>
-        <h2 className="font-semibold text-base">
+        <h2 className="flex items-center gap-1.5 font-semibold text-base">
+          <Trend className="shrink-0" />
           {t("trends.title")}{" "}
           <span className="t-muted text-sm font-normal">{t("trends.subtitle")}</span>
         </h2>
@@ -139,11 +141,11 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
           {areasQuery.isPending && !areas.length && (
             <p className="text-sm t-muted">{t("common.loading")}</p>
           )}
-          {error && <p className="accent-bad text-sm">⚠️ {error}</p>}
+          {error && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {error}</p>}
 
           {!areasQuery.isPending && !error && areas.length === 0 && (
             <div className="panel rounded-xl p-6 text-center text-sm t-muted">
-              <p className="text-2xl mb-2">⏳</p>
+              <p className="flex justify-center mb-2 t-dim"><Trend size={ICON_SIZE.display} strokeWidth={1.25} /></p>
               {t("trends.empty")}
             </div>
           )}
@@ -170,9 +172,10 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
                       })}
                     </span>
                     {stats && (
-                      <span className={stats.changePct >= 0 ? "accent-bad" : "accent-good"}>
+                      <span className={`inline-flex items-center gap-1
+                        ${stats.changePct >= 0 ? "accent-bad" : "accent-good"}`}>
+                        {stats.changePct >= 0 ? <PriceRise /> : <PriceDrop />}
                         {t("trends.changeSince", {
-                          arrow: stats.changePct >= 0 ? "▲" : "▼",
                           pct: Math.abs(stats.changePct).toFixed(1),
                           date: formatDate(trend.points[0].captured_on),
                         })}

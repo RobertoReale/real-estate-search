@@ -26,7 +26,7 @@ test("a first run says what to do instead of showing an empty page", async ({ pa
 
   // …and step one is actionable from here: all three ways to create a search
   // are on this screen, not behind a menu the text does not mention.
-  for (const way of ["💬 Just describe it", "🧭 Build a search", "🔗 Paste a URL"]) {
+  for (const way of ["Just describe it", "Build a search", "Paste a URL"]) {
     await expect(page.getByRole("button", { name: way })).toBeVisible();
   }
 

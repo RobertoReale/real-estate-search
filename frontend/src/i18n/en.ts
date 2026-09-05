@@ -47,16 +47,16 @@ export const en = {
   "card.scopeCity": "city",
   "card.belowAverage": "{pct}% below {scope} average",
   "card.aboveAverage": "{pct}% above {scope} average",
-  "card.matchBadge": "🎯 {score}% match",
+  "card.matchBadge": "{score}% match",
   "card.matchBadgeTitle": "Compatibility with your dream-home settings",
   "card.dealScore": "Deal Score",
-  "card.dealBelowMarket": "🎯 {pct}% below market",
-  "card.dealAboveMarket": "🎯 {pct}% above market",
-  "card.new": "🆕 new",
+  "card.dealBelowMarket": "{pct}% below market",
+  "card.dealAboveMarket": "{pct}% above market",
+  "card.new": "new",
   "card.newTitle": "First appeared since your last visit to the dashboard",
-  "card.rent": "🔑 rent",
+  "card.rent": "rent",
   "card.mergedListings": "{count} merged listings",
-  "card.email": "✉️ email",
+  "card.email": "email",
   "card.emailTitle": "Imported from your email inbox (not from a monitored search)",
   "card.deselect": "Deselect",
   "card.selectForBatch": "Select for batch check",
@@ -64,14 +64,14 @@ export const en = {
   "card.addFavorite": "Add to favorites",
   "card.hideTitle": "Hide this property (it will never come back on its own)",
   "card.hideAria": "Hide this property",
-  "card.filteredReason": "🚫 Filtered: {reason}",
-  "card.noLongerAvailable": "💨 No longer available",
-  "card.sold": "🔑 Sold",
-  "card.rentedOut": "🔑 Rented out",
+  "card.filteredReason": "Filtered: {reason}",
+  "card.noLongerAvailable": "No longer available",
+  "card.sold": "Sold",
+  "card.rentedOut": "Rented out",
   "card.untitled": "Untitled",
   "card.locationUnknown": "Location N/A",
-  "card.notes": "📝 notes",
-  "card.notOnMap": "🗺️✗ not on map",
+  "card.notes": "notes",
+  "card.notOnMap": "not on map",
   "card.notOnMapTitle":
     "No map coordinates yet — this listing won't appear on the map or inside a drawn zone until located (open it and use 'View on map', or run 'Find coordinates').",
   "card.commuteTitle": "Travel time to {name}",
@@ -107,56 +107,56 @@ export const en = {
   "modal.locateFailed":
     "Could not place this property — the portal's location is too vague to find coordinates for it.",
   "modal.locateError": "Could not locate this property",
-  "modal.checkGone": "🔴 Removed / Gone (404)",
-  "modal.checkOnline": "🟢 Online (just verified)",
-  "modal.checkUnknown": "⚠️ Could not verify (blocked by the portal or timeout)",
+  "modal.checkGone": "Removed / Gone (404)",
+  "modal.checkOnline": "Online (just verified)",
+  "modal.checkUnknown": "Could not verify (blocked by the portal or timeout)",
   "modal.checkError": "Error during the online check",
   "modal.notesError": "Could not save notes",
-  "modal.dealScoreTitle": "🎯 Deal Score:",
+  "modal.dealScoreTitle": "Deal Score:",
   "modal.dealBelowLocal": "below the local market",
   "modal.dealAboveLocal": "above the local market",
-  "modal.suggestedProposal": "💬 Suggested proposal:",
+  "modal.suggestedProposal": "Suggested proposal:",
   "modal.dealDisclaimer":
     "An estimate from the area's median €/sqm, the listing's condition cues, and the agency's usual discount — a starting point for your own judgement, not an appraisal.",
   "modal.foundListings": "Found listings ({count})",
-  "modal.open": "Open ↗",
+  "modal.open": "Open",
   "modal.priceHistory": "Price history",
-  "modal.commute": "🚏 Commute",
-  "modal.foundBySearch": "🔍 Found by search",
-  "modal.foundBySearches": "🔍 Found by {count} searches",
-  "modal.notLinked": "🔍 Not linked to any monitored search — imported from your inbox.",
-  "modal.tags": "🏷️ Tags",
-  "modal.notes": "📝 Personal notes",
+  "modal.commute": "Commute",
+  "modal.foundBySearch": "Found by search",
+  "modal.foundBySearches": "Found by {count} searches",
+  "modal.notLinked": "Not linked to any monitored search — imported from your inbox.",
+  "modal.tags": "Tags",
+  "modal.notes": "Personal notes",
   "modal.notesPlaceholder":
     'e.g. "called agent on Monday — viewing scheduled for Friday", "needs 15k renovation"',
   "modal.saveNotes": "Save notes",
   "modal.description": "Description",
-  "modal.checkOnlineButton": "🔎 Check if still online",
+  "modal.checkOnlineButton": "Check if still online",
   "modal.checkOnlineTitle":
     "Probes the portal URL right now to verify if this listing is still online or removed (404)",
-  "modal.viewOnMap": "🗺️ View on map",
+  "modal.viewOnMap": "View on map",
   "modal.viewOnMapTitle": "Open this property on the map",
   "modal.locateAndViewTitle": "Find this property's coordinates and open it on the map",
-  "modal.restore": "👁 Restore property",
+  "modal.restore": "Restore property",
   "modal.restoreGone":
     'Restore this property? Use this if the availability check marked it "no longer available" by mistake.',
   "modal.restoreSold":
     "Restore this property? Use this if you marked it sold by mistake — it goes back to active lists.",
   "modal.restoreHidden": "Restore this property? It will appear in active lists again.",
   "modal.restoreFailed": "Restore failed",
-  "modal.markSold": "🔑 Mark sold",
-  "modal.markRented": "🔑 Mark rented",
+  "modal.markSold": "Mark sold",
+  "modal.markRented": "Mark rented",
   "modal.confirmSold":
     "Mark this property as sold? It leaves the active lists but is kept as a confirmed sale for market statistics.",
   "modal.confirmRented":
     "Mark this property as rented out? It leaves the active lists but is kept as a confirmed close for market statistics.",
   "modal.markSoldFailed": "Mark sold failed",
-  "modal.hide": "🙈 Hide property",
+  "modal.hide": "Hide property",
   "modal.hideFailed": "Hide failed",
 
   // ── property modal: the optional listing audit ──────────────────────────
-  "audit.title": "🧠 What the listing says",
-  "audit.button": "🧠 Read the listing",
+  "audit.title": "What the listing says",
+  "audit.button": "Read the listing",
   "audit.reading": "Reading…",
   "audit.again": "Ask again",
   "audit.buttonTitle":
@@ -176,7 +176,7 @@ export const en = {
   "audit.concerns": "Worth checking",
   "audit.negotiation": "Useful when negotiating",
   "audit.footer": "Read by {model} on {date}",
-  "audit.stale": "⚠️ The ad has changed since this reading — ask again for the current text.",
+  "audit.stale": "The ad has changed since this reading — ask again for the current text.",
   "audit.disclaimer":
     "A re-reading of the ad's own words by a language model, not an appraisal or legal advice — check anything that matters with the agency.",
 
@@ -190,11 +190,11 @@ export const en = {
   // ── navbar ──────────────────────────────────────────────────────────────
   "nav.title": "Real Estate Search",
   "nav.subtitle": "Immobiliare.it + Idealista, without duplicates",
-  "nav.scanning": "⏳ Scan in progress…",
-  "nav.paused": "⏸ Automatic scans paused",
+  "nav.scanning": "Scan in progress…",
+  "nav.paused": "Automatic scans paused",
   "nav.nextScan": "Next automatic scan: {time}",
-  "nav.scanNowShort": "▶ Scan",
-  "nav.scanNow": "▶ Start Scan Now",
+  "nav.scanNowShort": "Scan",
+  "nav.scanNow": "Start Scan Now",
   "nav.scanNowAria": "Start scan now",
   "nav.running": "Running…",
   "nav.toLight": "Switch to light theme",
@@ -243,36 +243,36 @@ export const en = {
   "app.noMatchesHint": "Try switching the Buy/Rent toggle or relaxing the filters.",
   "app.welcome": "Welcome! Three steps to get started:",
   "app.step1":
-    'Add a search above — describe it in words with "💬 Just describe it", build one with "🧭 Build a search", or paste a results URL from Immobiliare.it / Idealista.',
+    'Add a search above — describe it in words with "Just describe it", build one with "Build a search", or paste a results URL from Immobiliare.it / Idealista.',
   "app.step1Tip": "Tip:",
   "app.step1TipBody":
-    'to use every portal filter (bathrooms, floor, elevator, energy class, exclude auctions…), set them on the portal and use "🔗 Paste a URL" — the app monitors exactly that search.',
+    'to use every portal filter (bathrooms, floor, elevator, energy class, exclude auctions…), set them on the portal and use "Paste a URL" — the app monitors exactly that search.',
   "app.step2":
-    'Press "▶ Start Scan Now" — the first scan builds your baseline (no notification flood).',
+    'Press "Start Scan Now" — the first scan builds your baseline (no notification flood).',
   "app.step3":
-    "Optional: open ⚙️ Settings to enable Telegram or Email alerts for new listings and price drops.",
+    "Optional: open Settings to enable Telegram or Email alerts for new listings and price drops.",
   "app.showMoreCount": "Show more ({count} more)",
 
   // ── bulk selection bar ──────────────────────────────────────────────────
-  "app.selectMultiple": "☐ Select multiple properties",
-  "app.closeMultiSelect": "✕ Close multi-select",
+  "app.selectMultiple": "Select multiple properties",
+  "app.closeMultiSelect": "Close multi-select",
   "app.selectAll": "Select all ({selected} of {total})",
-  "app.hideSelected": "🙈 Hide selected ({count})",
+  "app.hideSelected": "Hide selected ({count})",
   "app.hideSelectedTitle":
     "Hidden properties leave the dashboard for good and never come back on their own, even if a scan finds them again. Use Restore to bring one back.",
-  "app.markSold": "🔑 Mark sold ({count})",
-  "app.addFavorites": "⭐ Add to favorites",
-  "app.removeFavorites": "❌ Remove from favorites",
-  "app.checkAvailability": "🔎 Check online availability ({count})",
-  "app.checking": "⏳ Checking…",
-  "app.stopping": "⏳ Stopping…",
-  "app.stop": "⏹ Stop",
+  "app.markSold": "Mark sold ({count})",
+  "app.addFavorites": "Add to favorites",
+  "app.removeFavorites": "Remove from favorites",
+  "app.checkAvailability": "Check online availability ({count})",
+  "app.checking": "Checking…",
+  "app.stopping": "Stopping…",
+  "app.stop": "Stop",
   "app.confirmHideOne":
     "Hide this property? It will never appear in lists or notifications again.",
   "app.confirmHideMany":
-    "Hide {count} properties? They will disappear from lists and notifications (recoverable from 🙈 Discarded → Restore).",
+    "Hide {count} properties? They will disappear from lists and notifications (recoverable from Discarded → Restore).",
   "app.confirmSoldMany":
-    "Mark {count} properties as sold/rented out? They leave the active lists but are kept as confirmed sales for the market statistics (recoverable from 🔑 Sold → Restore).",
+    "Mark {count} properties as sold/rented out? They leave the active lists but are kept as confirmed sales for the market statistics (recoverable from Sold → Restore).",
   "app.batchCheckFailed": "Batch check failed",
 
   // ── availability batch progress / summary ───────────────────────────────
@@ -284,14 +284,14 @@ export const en = {
     "A safety pause runs between requests to protect the IP from DataDome blocks.",
   "app.checkTransport": "Transport: {transport}",
   "app.checkLastIssue": "Last issue from the portal: {error}",
-  "app.summaryChecked": "🔎 Checked:",
+  "app.summaryChecked": "Checked:",
   "app.summaryGone": "{count} removed or sold (moved to Gone)",
   "app.summaryOnline": "{count} still online",
   "app.summaryUnknown": " ({count} not verifiable from the portal)",
   "app.summaryCancelled":
-    "⏹ Stopped — the rest of the selection was left unchecked. Select it again to resume.",
+    "Stopped — the rest of the selection was left unchecked. Select it again to resume.",
   "app.summaryAborted":
-    "⚠️ The portal blocked the requests: check stopped to protect the IP. Try again later.",
+    "The portal blocked the requests: check stopped to protect the IP. Try again later.",
   "app.summaryAbortedService":
     "Ran via {transport}. The browser window setting is on, but a background Windows service has no desktop to show a window on. To solve a CAPTCHA yourself, stop the service and run the app normally (start.bat / serve.bat) for this check.",
   "app.summaryAbortedNoWindow":
@@ -304,8 +304,8 @@ export const en = {
   "filters.searchPlaceholder": "Search by zone, address, title, floor or ad text…",
   "filters.clearSearch": "Clear search",
   "filters.market": "Market",
-  "filters.buy": "🏠 Buy",
-  "filters.rent": "🔑 Rent",
+  "filters.buy": "Buy",
+  "filters.rent": "Rent",
   "filters.city": "City",
   "filters.cityPlaceholder": "e.g. Milan",
   "filters.zone": "Zone",
@@ -328,29 +328,29 @@ export const en = {
   "filters.sortPriceAsc": "Price ascending",
   "filters.sortPriceDesc": "Price descending",
   "filters.sortSqmPrice": "Lowest €/sqm",
-  "filters.sortMatch": "🎯 Best match",
+  "filters.sortMatch": "Best match",
   "filters.status": "Status",
   "filters.statusForSale": "For sale",
   "filters.statusForRent": "For rent",
-  "filters.statusFiltered": "🚫 Filtered",
-  "filters.statusGone": "💨 Gone",
-  "filters.statusSold": "🔑 Sold",
-  "filters.statusRentedOut": "🔑 Rented out",
-  "filters.statusHidden": "🙈 Discarded",
+  "filters.statusFiltered": "Filtered",
+  "filters.statusGone": "Gone",
+  "filters.statusSold": "Sold",
+  "filters.statusRentedOut": "Rented out",
+  "filters.statusHidden": "Discarded",
   "filters.statusAll": "All",
   "filters.origin": "Origin",
   "filters.originAll": "All sources",
-  "filters.originScan": "🔎 Monitored search",
-  "filters.originEmail": "✉️ Email import",
+  "filters.originScan": "Monitored search",
+  "filters.originEmail": "Email import",
   "filters.tag": "Tag",
   "filters.allTags": "All tags",
   "filters.limitToSearch": "Limit to a search",
   "filters.limitToSearchTitle":
     "Show only the properties this saved search found (its 'Found by' provenance). Email imports, which no search found, drop out. This narrows the list — it does not reorder it.",
   "filters.allSearches": "All searches",
-  "filters.priceDrops": "📉 Price drops",
-  "filters.favorites": "⭐ Favorites",
-  "filters.more": "⚙️ More filters",
+  "filters.priceDrops": "Price drops",
+  "filters.favorites": "Favorites",
+  "filters.more": "More filters",
   "filters.moreTitle": "More filters",
   "filters.moreHint": "· narrow the grid by portal, agency, deal quality or €/sqm",
   "filters.portal": "Portal",
@@ -359,17 +359,17 @@ export const en = {
   "filters.agencyPlaceholder": "e.g. Tecnocasa",
   "filters.deal": "Deal",
   "filters.anyDeal": "Any deal",
-  "filters.dealUndervalued": "💎 Undervalued only",
-  "filters.dealFairPlus": "👍 Fair or better",
+  "filters.dealUndervalued": "Undervalued only",
+  "filters.dealFairPlus": "Fair or better",
   "filters.minSqmPrice": "Min €/sqm",
   "filters.maxSqmPrice": "Max €/sqm",
-  "filters.mergedOnly": "🔗 Merged only (same home on several portals/agencies)",
+  "filters.mergedOnly": "Merged only (same home on several portals/agencies)",
   "filters.countProperties": "{count} properties",
   "filters.reset": "↺ Reset filters",
   "filters.resetTitle": "Clear every filter and go back to the default view",
   "filters.view": "View",
   "filters.viewGrid": "▦ Grid",
-  "filters.viewMap": "🗺 Map",
+  "filters.viewMap": "Map",
   "filters.export": "Export",
   "filters.exportTitle": "Download the {count} filtered properties as {format}",
   "filters.exportPdfTitle":
@@ -381,12 +381,12 @@ export const en = {
 
   // ── maintenance actions ─────────────────────────────────────────────────
   "filters.maintenance": "Maintenance",
-  "filters.findCoords": "📍 Find coordinates",
-  "filters.locating": "⏳ Locating…",
+  "filters.findCoords": "Find coordinates",
+  "filters.locating": "Locating…",
   "filters.findCoordsTitle":
     "Find map coordinates for listings that have an address or zone but no pin (uses OpenStreetMap; can take a while)",
-  "filters.retryFailed": "🧹 Retry failed lookups",
-  "filters.clearing": "⏳ Clearing…",
+  "filters.retryFailed": "Retry failed lookups",
+  "filters.clearing": "Clearing…",
   "filters.retryFailedTitle":
     "Forget failed geocoding lookups so 'Find coordinates' retries addresses a temporary OpenStreetMap outage froze as 'not found'. Never moves existing pins.",
   "filters.backendTooOld":
@@ -407,22 +407,22 @@ export const en = {
   "filters.geocodeLocated": "Located {geocoded} of {scanned} listings without a pin",
   "filters.geocodeNotFound": " · {count} could not be resolved",
   "filters.geocodeCancelled":
-    '⏹ Stopped — remaining properties were left without pins. Click "Find coordinates" again to resume.',
+    'Stopped — remaining properties were left without pins. Click "Find coordinates" again to resume.',
   "filters.geocodeRemaining": "{count} left — run it again to continue.",
   "filters.cacheClearedNone":
     "No stuck lookups to clear — every failed address had already been forgotten or never cached.",
   "filters.cacheCleared":
-    "🧹 Cleared {count} failed lookups. Click 📍 Find coordinates to retry them.",
+    "Cleared {count} failed lookups. Click Find coordinates to retry them.",
   "filters.cacheClearedOne":
-    "🧹 Cleared {count} failed lookup. Click 📍 Find coordinates to retry it.",
+    "Cleared {count} failed lookup. Click Find coordinates to retry it.",
 
   // ── settings: shell & secrets ───────────────────────────────────────────
-  "settings.title": "⚙️ Settings",
+  "settings.title": "Settings",
   "settings.testNote":
     "Each test button saves your changes first, so what it tests is exactly what you typed.",
-  "settings.secretDirty": "✎ Unsaved change — will replace the stored value",
-  "settings.secretSaved": "✓ Saved",
-  "settings.secretSavedOn": "✓ Saved · {date}",
+  "settings.secretDirty": "Unsaved change — will replace the stored value",
+  "settings.secretSaved": "Saved",
+  "settings.secretSavedOn": "Saved · {date}",
   "settings.secretSavedTitle": "A value is currently stored",
   "settings.secretLastSaved": "Last saved: {date}",
   "settings.secretNotSet": "○ Not set",
@@ -434,7 +434,7 @@ export const en = {
   "settings.errNetwork": "{error} — could not reach the server. Check the host name and port.",
 
   // ── settings: telegram ──────────────────────────────────────────────────
-  "settings.telegramTitle": "📨 Telegram notifications",
+  "settings.telegramTitle": "Telegram notifications",
   "settings.telegramHelp": "How do I set up Telegram? (step-by-step)",
   "settings.tgStep1": "Open Telegram and search for @BotFather.",
   "settings.tgStep2": 'Send "/newbot" and follow the prompts; copy the token it gives you.',
@@ -456,7 +456,7 @@ export const en = {
   "settings.telegramTestSent": "Test message sent — check your Telegram chat.",
 
   // ── settings: email ─────────────────────────────────────────────────────
-  "settings.emailTitle": "✉️ Email notifications",
+  "settings.emailTitle": "Email notifications",
   "settings.emailHelp": "How do I set up Email alerts? (works with Gmail)",
   "settings.emStep1":
     "For Gmail: host smtp.gmail.com, port 587, username = your Gmail address.",
@@ -483,7 +483,7 @@ export const en = {
 
 
   // ── settings: scanning ──────────────────────────────────────────────────
-  "settings.scanTitle": "🔄 Automatic scan",
+  "settings.scanTitle": "Automatic scan",
   "settings.frequency": "Frequency",
   "settings.every30m": "Every 30 minutes",
   "settings.everyHour": "Every hour",
@@ -493,7 +493,7 @@ export const en = {
   "settings.pauseScans": "Pause automatic scans",
   "settings.pauseScansNote":
     'Stops scheduled scans from touching the portals — useful for resting the connection while you are away. "Scan now" still works on demand.',
-  "settings.healthTitle": "🚨 Scraper health alerts",
+  "settings.healthTitle": "Scraper health alerts",
   "settings.healthNote":
     "A broken scraper is silent: no listings looks exactly like a quiet market. Get notified when a search fails this many scans in a row. Portals block scrapers occasionally, so a value of 1 will cry wolf.",
   "settings.alertAfter": "Alert after",
@@ -501,10 +501,10 @@ export const en = {
   "settings.nFailures": "{count} consecutive failures",
 
   // ── settings: keywords & match score ────────────────────────────────────
-  "settings.keywordsTitle": "🚫 Excluded keywords (global)",
+  "settings.keywordsTitle": "Excluded keywords (global)",
   "settings.keywordsNote":
     "Listings containing these words are automatically discarded (whole words only, accents ignored). Separate with commas. Each search profile can add its own extra keywords on top of these.",
-  "settings.matchTitle": "🎯 Smart Match Score (dream home)",
+  "settings.matchTitle": "Smart Match Score (dream home)",
   "settings.matchEnable":
     "Show a compatibility % on each card, scored against the wishes below",
   "settings.matchNote":
@@ -518,7 +518,7 @@ export const en = {
   "settings.dreamZones": "Preferred zones or cities (comma-separated)",
 
   // ── settings: commute times ─────────────────────────────────────────────
-  "settings.commuteTitle": "🚏 Commute times",
+  "settings.commuteTitle": "Commute times",
   "settings.commuteEnable": "Show travel time from each property to the places below",
   "settings.commuteNote":
     "Work, the university, the nearest metro stop — routed offline-friendly through OpenStreetMap. Times appear on a card only after you press Compute below, and only for listings that already have map coordinates.",
@@ -543,7 +543,7 @@ export const en = {
   "settings.commuteRemaining": " · {count} left, run it again to continue",
 
   // ── settings: assistant backend ─────────────────────────────────────────
-  "settings.assistantTitle": "🧠 Search assistant backend",
+  "settings.assistantTitle": "Search assistant backend",
   "settings.assistantNote":
     'How the "describe your search in words" box turns text into a search. The default parser is offline and instant. An LLM understands freer phrasing; it falls back to the offline parser on any error, and nothing else on your PC ever leaves it.',
   "settings.backendBuiltin": "Built-in parser (offline, default)",
@@ -556,13 +556,13 @@ export const en = {
   "settings.llmModel": "Model (e.g. llama3.1)",
   "settings.llmKeySaved": "API key saved (leave empty to keep)",
   "settings.llmKeyPlaceholder": "API key (blank for local Ollama)",
-  "settings.auditTitle": "🧠 Read listing texts (optional)",
+  "settings.auditTitle": "Read listing texts (optional)",
   "settings.auditEnable": "Let the model read a listing when I ask",
   "settings.auditNote":
     "Adds a “Read the listing” button to a property's detail view: the model reports what the ad's text says about extra costs, a sitting tenant, the condition, and what is usable when negotiating. Nothing is read automatically — one press, one listing, using the same model configured above. Answers are remembered, so opening the card again is free.",
 
   // ── settings: scraping & bypass ─────────────────────────────────────────
-  "settings.scrapingTitle": "🛡️ Advanced Scraping & Bypass",
+  "settings.scrapingTitle": "Advanced Scraping & Bypass",
   "settings.scrapingHelp": "How to resolve DataDome blocks? (instructions)",
   "settings.ddStep1": "DataDome blocks raw HTTP requests to individual ad pages on your home IP.",
   "settings.ddStep2":
@@ -579,7 +579,7 @@ export const en = {
   "settings.proxyPool": "Proxy pool (optional, one URL per line)",
   "settings.proxyPoolNote":
     "With more than one proxy, a blocked exit IP is rested for a while and the next attempt leaves through a different one — one burned address no longer takes every scan down with it.",
-  "settings.idealistaApiTitle": "🔑 Idealista official API",
+  "settings.idealistaApiTitle": "Idealista official API",
   "settings.idealistaApiNote":
     "Optional, and the only option here that is not a workaround: with a key and secret, Idealista searches ask the portal for its own data instead of reading its pages, so nothing can block them. Keys are issued by hand after you describe your project at",
   "settings.idealistaKeySaved": "Key already saved (leave empty to keep)",
@@ -589,7 +589,7 @@ export const en = {
   "settings.idealistaMaxPages": "Requests per search, per scan",
   "settings.idealistaMaxPagesNote":
     "Each one returns up to 50 listings and counts against the monthly quota agreed for your key — so the default is a single request. Raise it once you know your own limit. Searches the API cannot express exactly (a neighbourhood, a room count, a feature filter) keep using the normal scraper, and so does anything the API refuses.",
-  "settings.scrapeApiTitle": "🌐 Scraping API (solves DataDome for you)",
+  "settings.scrapeApiTitle": "Scraping API (solves DataDome for you)",
   "settings.scrapeApiNote":
     "Optional. With a provider key set, scans route each portal page through the provider — which returns the already-solved HTML — so blocks stop hitting your home IP. Free tiers (~1,000 calls/month) can cover a small personal scanner. Leave empty to keep the local (free, offline) path.",
   "settings.scrapeKeySaved": "Key already saved (leave empty to keep)",
@@ -604,10 +604,10 @@ export const en = {
   "settings.cookiePlaceholder": "Paste datadome cookie value",
 
   // ── settings: cookie harvester & browser ────────────────────────────────
-  "settings.harvestTitle": "🤖 Grab the cookie automatically",
+  "settings.harvestTitle": "Grab the cookie automatically",
   "settings.harvestNote":
     "Opens a local browser, earns a fresh cookie, and saves it — no copy/paste. A window may open: if the portal shows a CAPTCHA, solve it once and it is remembered next time.",
-  "settings.grabCookie": "🔄 Grab a fresh cookie now",
+  "settings.grabCookie": "Grab a fresh cookie now",
   "settings.openingBrowser": "Opening browser…",
   "settings.cookieGrabbed": "Fresh DataDome cookie saved ({preview}).",
   "settings.autoRefreshCookie": "Refresh the cookie automatically before each scan (headless)",
@@ -623,29 +623,29 @@ export const en = {
   "settings.engineChromium": "Chromium",
   "settings.camoufoxNote":
     "Camoufox is a stealth Firefox that hides the automation signals DataDome looks for, so the check is challenged far less often.",
-  "settings.camoufoxInstalled": "Installed ✓",
+  "settings.camoufoxInstalled": "Installed",
   "settings.camoufoxMissing": "Not installed — one-click adds it (~150 MB, one time):",
-  "settings.installCamoufox": "⚡ One-Click Install Camoufox",
-  "settings.installingCamoufox": "⚡ Installing Camoufox (~1-3 min)…",
+  "settings.installCamoufox": "One-Click Install Camoufox",
+  "settings.installingCamoufox": "Installing Camoufox (~1-3 min)…",
   "settings.camoufoxInstalledMsg": "Camoufox installed successfully!",
   "settings.harvesterMissing":
     "Not installed yet in this Python environment. You can install Playwright and Chromium automatically with one click:",
-  "settings.installHarvester": "⚡ One-Click Install Playwright & Chromium",
-  "settings.installingHarvester": "⚡ Installing Playwright & Chromium (~1-2 min)…",
+  "settings.installHarvester": "One-Click Install Playwright & Chromium",
+  "settings.installingHarvester": "Installing Playwright & Chromium (~1-2 min)…",
   "settings.harvesterInstalledMsg": "Playwright & Chromium installed successfully!",
   "settings.manualInstall":
     "Or install manually from terminal using `install-playwright.bat` inside the project folder, or run: ",
 
   // ── settings: API token & backend restart ───────────────────────────────
-  "settings.apiTokenTitle": "🔒 API access token",
+  "settings.apiTokenTitle": "API access token",
   "settings.apiTokenNote":
     "By default the dashboard is reachable by anyone who can reach its address (that is why it binds to localhost). Set a token to require it on every request — then it is safe to expose the app on your LAN or Tailscale. Leave empty to keep it open. You stay logged in on this device; other devices are asked for the token once.",
   "settings.apiTokenPlaceholder": "No token (open access)",
-  "settings.backendTitle": "🔄 Backend",
+  "settings.backendTitle": "Backend",
   "settings.backendNote":
     "Restart the backend process — use this after updating the app so new features take effect, instead of closing and re-opening the terminal window. The dashboard goes offline for a few seconds and then reloads on its own.",
-  "settings.restart": "🔄 Restart backend",
-  "settings.restarting": "⏳ Restarting… (waiting for the backend)",
+  "settings.restart": "Restart backend",
+  "settings.restarting": "Restarting… (waiting for the backend)",
   "settings.restartConfirm":
     "Restart the backend now? The dashboard is unavailable for a few seconds, then reloads itself.",
   "settings.restartTooOld":
@@ -654,13 +654,13 @@ export const en = {
     "The backend did not come back on its own — check its terminal window (or re-run start.bat / serve.bat).",
 
   // ── settings: backups ───────────────────────────────────────────────────
-  "settings.backupsTitle": "💾 Backups",
+  "settings.backupsTitle": "Backups",
   "settings.backupsNote":
     "A copy of your database is taken once a day, and again before an update changes its structure. Download one to keep it somewhere else, or put one back — restoring replaces everything you have now, so a copy of the current state is saved first.",
   "settings.backupsFolder": "They are kept in {folder}",
   "settings.backupsEmpty": "No copies yet — the first one is taken the next time the app starts.",
-  "settings.backupTakeNow": "💾 Take a copy now",
-  "settings.backupImport": "📥 Bring one in",
+  "settings.backupTakeNow": "Take a copy now",
+  "settings.backupImport": "Bring one in",
   "settings.backupDownload": "Download",
   "settings.backupRestore": "Restore this one",
   "settings.backupKind.daily": "Daily copy",
@@ -679,7 +679,7 @@ export const en = {
     "Restored {name} · what it replaced was saved as {backup}. Reloading…",
 
   // ── settings: data management ───────────────────────────────────────────
-  "settings.dataTitle": "🧹 Data management",
+  "settings.dataTitle": "Data management",
   "settings.dataNote": "Irreversible. Your notification and login settings are always kept.",
   "settings.clearDashboardName": "Clear dashboard",
   "settings.clearDashboardBody":
@@ -705,14 +705,14 @@ export const en = {
   "settings.resetNothing": "nothing",
 
   // ── monitored searches: shell & modes ───────────────────────────────────
-  "profiles.title": "🔍 Monitored searches",
+  "profiles.title": "Monitored searches",
   "profiles.statusOk": "OK",
   "profiles.statusNoResults": "No matches",
   "profiles.statusBlocked": "Blocked (will retry)",
   "profiles.statusError": "Error",
-  "profiles.modeAssistant": "💬 Just describe it",
-  "profiles.modeBuilder": "🧭 Build a search",
-  "profiles.modeUrl": "🔗 Paste a URL",
+  "profiles.modeAssistant": "Just describe it",
+  "profiles.modeBuilder": "Build a search",
+  "profiles.modeUrl": "Paste a URL",
   "profiles.empty":
     "No search profiles configured. Build a search with your criteria or paste a results URL from Immobiliare.it / Idealista to get started.",
   "profiles.untitled": "Untitled search",
@@ -743,18 +743,18 @@ export const en = {
     "a cap of 5 or more rooms (its largest bucket is “5 or more”)",
 
   // ── monitored searches: notification channels ───────────────────────────
-  "profiles.chAll": "🔔 All channels",
+  "profiles.chAll": "All channels",
   "profiles.chAllWarn":
-    "No notification channel is set up yet — the searches that ask for one won't send alerts. Configure Telegram or Email in ⚙️ Settings.",
-  "profiles.chTelegram": "📨 Telegram only",
-  "profiles.chTelegramOff": "📨 Telegram only (not set up)",
+    "No notification channel is set up yet — the searches that ask for one won't send alerts. Configure Telegram or Email in Settings.",
+  "profiles.chTelegram": "Telegram only",
+  "profiles.chTelegramOff": "Telegram only (not set up)",
   "profiles.chTelegramWarn":
-    "Telegram is not set up — the searches that notify by Telegram won't send alerts. Add the bot token and chat ID in ⚙️ Settings.",
-  "profiles.chEmail": "✉️ Email only",
-  "profiles.chEmailOff": "✉️ Email only (not set up)",
+    "Telegram is not set up — the searches that notify by Telegram won't send alerts. Add the bot token and chat ID in Settings.",
+  "profiles.chEmail": "Email only",
+  "profiles.chEmailOff": "Email only (not set up)",
   "profiles.chEmailWarn":
-    "Email is not set up — the searches that notify by email won't send alerts. Configure SMTP in ⚙️ Settings.",
-  "profiles.chNone": "🔕 No notifications",
+    "Email is not set up — the searches that notify by email won't send alerts. Configure SMTP in Settings.",
+  "profiles.chNone": "No notifications",
 
   // ── monitored searches: assistant ───────────────────────────────────────
   "profiles.assistantIntro":
@@ -768,7 +768,7 @@ export const en = {
     "There was nothing to read in that. Describe what you are looking for — a city at least.",
   "profiles.multiIntro":
     "I read {count} alternative searches in your sentence. Check each one (open the links to verify the results), then create all the profiles at once.",
-  "profiles.reword": "✏️ Reword",
+  "profiles.reword": "Reword",
   "profiles.searchNumber": "Search {n}",
   "profiles.editInBuilder": "Adjust this search in the builder form",
   "profiles.dropAlternative": "Drop this alternative",
@@ -783,12 +783,12 @@ export const en = {
   "profiles.urlIntro":
     "Go to Immobiliare.it or Idealista, set zone and filters on the map, then copy the results page URL here.",
   "profiles.urlTip":
-    "💡 This is how you use every portal filter — bathrooms, floor, elevator, terrace, energy class, property type, exclude auctions, and so on. Set them on the portal, then paste the URL: the app monitors exactly that search. The two helpers above (\"Just describe it\" / \"Build a search\") only cover city, price, rooms and surface.",
+    "This is how you use every portal filter — bathrooms, floor, elevator, terrace, energy class, property type, exclude auctions, and so on. Set them on the portal, then paste the URL: the app monitors exactly that search. The two helpers above (\"Just describe it\" / \"Build a search\") only cover city, price, rooms and surface.",
   "profiles.namePlaceholder": "Name (e.g. 3 rooms South Milan)",
   "profiles.keywordsPlaceholder": "Extra excluded keywords (optional, comma-separated)",
   "profiles.urlPlaceholder":
     "https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…",
-  "profiles.extractParams": "🪄 Extract parameters",
+  "profiles.extractParams": "Extract parameters",
   "profiles.extractParamsTitle": "Extract city and filters into the Builder form",
   "profiles.saveChanges": "Save changes",
   "profiles.saveProfile": "Save profile",
@@ -811,7 +811,7 @@ export const en = {
   "profiles.moreCriteriaHint": "· applied to both portals",
   "profiles.condition": "Condition",
   "profiles.builderTipPrefix":
-    "💡 Need bathrooms, terrace, energy class, property type or another filter? Set it on the portal and ",
+    "Need bathrooms, terrace, energy class, property type or another filter? Set it on the portal and ",
   "profiles.builderTipLink": "paste the results URL",
   "profiles.builderTipSuffix": " instead — that captures every filter the portal offers.",
   "profiles.profileNamePlaceholder": "Profile name (optional)",
@@ -830,11 +830,11 @@ export const en = {
   "profiles.selectAll": "Select all",
   "profiles.selectRow": "Select {name}",
   "profiles.selectedCount": "{count} selected",
-  "profiles.activate": "▶️ Activate",
-  "profiles.pause": "⏸️ Pause",
+  "profiles.activate": "Activate",
+  "profiles.pause": "Pause",
   "profiles.notificationsAction": "Notifications →",
-  "profiles.deleteAction": "🗑 Delete",
-  "profiles.mergeSelected": "🔗 Merge selected",
+  "profiles.deleteAction": "Delete",
+  "profiles.mergeSelected": "Merge selected",
   "profiles.mergeSelectedTitle": "Merge the selected portals into a single search box",
   "profiles.mergePrompt":
     "Enter the single name to merge the selected searches under one box:",
@@ -844,18 +844,18 @@ export const en = {
   "profiles.separateConfirm": 'Separate the portals of "{name}" into distinct search boxes?',
   "profiles.excludesTitle":
     "Listings mentioning any of these words are discarded (Settings + this search's own extras)",
-  "profiles.excludes": "🚫 Excludes: {words}",
-  "profiles.globalKeywords": "🌐 Always excluded for every search (from Settings): {words}",
+  "profiles.excludes": "Excludes: {words}",
+  "profiles.globalKeywords": "Always excluded for every search (from Settings): {words}",
   "profiles.notifyTitle": "Where to send notifications for this search",
   "profiles.notifyFor": "Notifications for {name}",
   "profiles.active": "Active",
   "profiles.editBox": "Edit this search box",
   "profiles.separateBox": "Separate the portals into independent boxes",
   "profiles.deleteBox": "Delete this search box (all its portals)",
-  "profiles.chipRent": "🔑 Rent",
-  "profiles.chipBuy": "🏠 Buy",
-  "profiles.chipRooms": "🛏️ {range} rooms",
-  "profiles.chipMinSqm": "📐 ≥ {value} sqm",
+  "profiles.chipRent": "Rent",
+  "profiles.chipBuy": "Buy",
+  "profiles.chipRooms": "{range} rooms",
+  "profiles.chipMinSqm": "≥ {value} sqm",
 
   // ── monitored searches: delete dialog ───────────────────────────────────
   "profiles.deleteOne": "Delete “{name}”?",
@@ -879,11 +879,11 @@ export const en = {
   "profiles.deleteWith": "Delete with {count} properties",
 
   // ── map view ────────────────────────────────────────────────────────────
-  "map.pinDrop": "📉 Price drop",
-  "map.pinFavorite": "★ Favorite",
-  "map.pinFiltered": "🚫 Filtered",
-  "map.pinGone": "💨 No longer available",
-  "map.pinSold": "🔑 Sold / rented out",
+  "map.pinDrop": "Price drop",
+  "map.pinFavorite": "Favorite",
+  "map.pinFiltered": "Filtered",
+  "map.pinGone": "No longer available",
+  "map.pinSold": "Sold / rented out",
   "map.pinActive": "Active listing",
   "map.pinApproximate": "{count} placed approximately",
   "map.pinApproximateTitle":
@@ -897,12 +897,12 @@ export const en = {
   "map.drawingRadius": "◯ Click centre, drag handle…",
   "map.drawRadiusTitle":
     "Click the map to set the centre, then drag the handle to size the radius.",
-  "map.drawArea": "⬠ Draw area",
-  "map.finishArea": "⬠ Finish area",
+  "map.drawArea": "Draw area",
+  "map.finishArea": "Finish area",
   "map.drawAreaTitle":
     "Click to add each corner; double-click or press Finish to close the area.",
   "map.polyHint": "{count} point(s) — need ≥ 3, then double-click to close",
-  "map.clearZone": "✕ Clear zone",
+  "map.clearZone": "Clear zone",
   "map.radiusActive": "Radius {km} km active",
   "map.areaActive": "Area filter active",
   "map.zoneWarning":
@@ -917,7 +917,7 @@ export const en = {
     "Click a pin to open the property. Map data © OpenStreetMap contributors (tiles are fetched online).",
 
   // ── market velocity ─────────────────────────────────────────────────────
-  "velocity.title": "📊 Market velocity",
+  "velocity.title": "Market velocity",
   "velocity.subtitleSale": "how fast listings leave the market, and how agencies price them",
   "velocity.subtitleRent": "how fast rentals leave the market, and how agencies price them",
   "velocity.loadFailed": "Could not load statistics",
@@ -962,7 +962,7 @@ export const en = {
     "“Left market” means no scan has seen the listing for a week: sold, rented, withdrawn, or republished under a new id — not proof of a sale. Days-on-market are counted from the day this app first saw the listing, so properties that were already online when you added the search look younger than they are. Both distortions fade as the database ages.",
 
   // ── price trends ────────────────────────────────────────────────────────
-  "trends.title": "📈 Price trends",
+  "trends.title": "Price trends",
   "trends.subtitle": "how the median €/sqm has moved over time in your tracked areas",
   "trends.wholeCity": "{city} · whole city",
   "trends.areaOption": "{label} ({days} days)",
@@ -973,13 +973,13 @@ export const en = {
   "trends.listingsFailed": "Could not load the listings",
   "trends.empty":
     "No history to chart yet. The app records one median per area per day; a trend line needs at least two days of scans before it means anything — come back in a couple of days.",
-  "trends.changeSince": "{arrow} {pct}% since {date}",
+  "trends.changeSince": "{pct}% since {date}",
   "trends.caveat":
     "Median asking price per square meter among the listings this app was tracking each day — your own sample, not the whole market. It moves with what you monitor as much as with prices.",
   "trends.oneDayOnly":
     "Only one day recorded for this area so far — the line appears once there are at least two.",
-  "trends.showComparables": "🔍 Show the listings behind this median ▼",
-  "trends.hideComparables": "Hide the listings behind this median ▲",
+  "trends.showComparables": "Show the listings behind this median",
+  "trends.hideComparables": "Hide the listings behind this median",
   "trends.comparablesEmpty": "No priced listings in this area right now.",
   "trends.comparablesNote":
     "The {count} listings currently priced in this area — the live set today's median is computed from. Earlier points on the chart kept only their count, so their exact listings can no longer be shown. Click one to open its details.",
@@ -988,7 +988,7 @@ export const en = {
   "trends.vsMedian": " ({sign}{pct}% vs median)",
 
   // ── backend log viewer ──────────────────────────────────────────────────
-  "logs.title": "📜 Backend log",
+  "logs.title": "Backend log",
   "logs.filterPlaceholder": "Filter (e.g. availability_check, blocked, error)",
   "logs.autoRefresh": "Auto-refresh (3s)",
   "logs.lineCount": "{visible} / {total} lines",
@@ -998,10 +998,10 @@ export const en = {
   "logs.source": "Source: {path}",
 
   // ── scraper health ──────────────────────────────────────────────────────
-  "health.title": "🩺 Scraper health",
+  "health.title": "Scraper health",
   "health.subtitle": "is the anti-bot pipeline still getting through?",
-  "health.hide": "Hide ▲",
-  "health.show": "Show ▼",
+  "health.hide": "Hide",
+  "health.show": "Show",
   "health.loadFailed": "Could not load scraper health",
   "health.window":
     "Last {days} days of scan outcomes per portal. Next scan starts on: {transport}.",
@@ -1030,7 +1030,7 @@ export const en = {
     "A short streak is routine (transient anti-bot blocks). A long one means the free path is down: consider a proxy pool or a scrape-API key in Settings.",
 
   // ── calculators (property modal) ────────────────────────────────────────
-  "calc.mortgageTitle": "🧮 Mortgage estimator",
+  "calc.mortgageTitle": "Mortgage estimator",
   "calc.downPayment": "Down payment",
   "calc.interestRate": "Interest rate",
   "calc.perYear": "%/yr",
@@ -1038,7 +1038,7 @@ export const en = {
   "calc.years": "years",
   "calc.loanAmount": "Loan amount",
   "calc.monthlyPayment": "Monthly payment",
-  "calc.yieldTitle": "📈 Rental yield (investment)",
+  "calc.yieldTitle": "Rental yield (investment)",
   "calc.expectedRent": "Expected rent",
   "calc.perMonthUnit": "€/mo",
   "calc.costsVacancy": "Costs & vacancy",
@@ -1053,7 +1053,7 @@ export const en = {
   "error.title": "Something went wrong displaying the page.",
   "error.dataSafe": "Your data is safe on the backend — reloading is enough.",
   "error.reload": "⟳ Reload",
-  "auth.title": "🔒 Authentication required",
+  "auth.title": "Authentication required",
   "auth.hint": "This dashboard is protected by an API token. Enter it to continue.",
   "auth.placeholder": "API token",
   "auth.rejected": "That token was not accepted. Check it and try again.",

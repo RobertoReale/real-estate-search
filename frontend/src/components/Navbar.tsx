@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LANGUAGE_NAMES, useI18n } from "../i18n";
 import type { ScanStatus } from "../types";
+import { Brand, Cog, Language, Logs, Paused, Run, ThemeDark, ThemeLight } from "../ui/icons";
 
 interface Props {
   scanStatus: ScanStatus | null;
@@ -36,7 +37,7 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
       {/* min-w-0 lets the title truncate instead of pushing the buttons off a
           phone screen: the controls are what must survive the narrow layout */}
       <div className="flex items-center gap-2 mr-auto min-w-0">
-        <span className="text-2xl">🏠</span>
+        <Brand size={24} className="shrink-0 text-accent-ink" />
         <div className="min-w-0">
           <h1 className="font-bold text-base sm:text-lg leading-tight truncate">
             {t("nav.title")}
@@ -49,13 +50,15 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
 
       <div className="text-right text-xs t-muted hidden sm:block">
         {running ? (
-          <span className="accent-link animate-pulse">{t("nav.scanning")}</span>
+          <span className="inline-flex items-center gap-1 accent-link animate-pulse">
+            <Run /> {t("nav.scanning")}
+          </span>
         ) : (
           <>
             {scanStatus?.last_summary && <div>{scanStatus.last_summary}</div>}
             {scanStatus?.paused ? (
               <div className="text-caution-ink">
-                {t("nav.paused")}
+                <Paused /> {t("nav.paused")}
               </div>
             ) : (
               nextRun && <div>{t("nav.nextScan", { time: nextRun })}</div>
@@ -70,6 +73,7 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
           t("nav.running")
         ) : (
           <>
+            <Run />
             <span className="sm:hidden">{t("nav.scanNowShort")}</span>
             <span className="hidden sm:inline">{t("nav.scanNow")}</span>
           </>
@@ -88,20 +92,21 @@ export default function Navbar({ scanStatus, onScanNow, onOpenSettings, onOpenLo
       <button data-action="nav.language" className="btn-ghost shrink-0 !px-2 sm:!px-3 font-semibold text-xs"
         onClick={() => setLang(otherLang)}
         title={switchLangLabel} aria-label={switchLangLabel}>
-        🌐 {lang.toUpperCase()}
+        <Language size={16} />
+        {lang.toUpperCase()}
       </button>
       <button data-action="nav.theme" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={() => setDark(!dark)}
         title={dark ? t("nav.toLight") : t("nav.toDark")}
         aria-label={dark ? t("nav.toLight") : t("nav.toDark")}>
-        {dark ? "☀️" : "🌙"}
+        {dark ? <ThemeLight size={18} /> : <ThemeDark size={18} />}
       </button>
       <button data-action="nav.logs" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenLogs}
         title={t("nav.viewLog")} aria-label={t("nav.viewLog")}>
-        📜
+        <Logs size={18} />
       </button>
       <button data-action="nav.settings" className="btn-ghost shrink-0 !px-2 sm:!px-4" onClick={onOpenSettings}
         title={t("nav.settings")} aria-label={t("nav.settings")}>
-        ⚙️
+        <Cog size={18} />
       </button>
     </nav>
   );

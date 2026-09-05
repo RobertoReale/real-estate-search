@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
 import { useLogTail } from "../queries/maintenance";
+import { Close, Logs } from "../ui/icons";
 
 interface Props {
   onClose: () => void;
@@ -53,8 +54,10 @@ export default function LogViewer({ onClose }: Props) {
       <div data-action="logs.panel" className="glass rounded-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3 gap-3">
-          <h2 className="text-lg font-bold shrink-0">{t("logs.title")}</h2>
-          <button data-action="logs.close" className="btn-ghost shrink-0" aria-label={t("common.close")} onClick={onClose}>✕</button>
+          <h2 className="flex items-center gap-1.5 text-lg font-bold shrink-0">
+            <Logs className="shrink-0" /> {t("logs.title")}
+          </h2>
+          <button data-action="logs.close" className="btn-ghost shrink-0" aria-label={t("common.close")} onClick={onClose}><Close size={16} /></button>
         </div>
 
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-3">

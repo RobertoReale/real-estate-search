@@ -32,6 +32,7 @@ import {
 } from "react";
 import { translateCurrent, useT } from "../i18n";
 import { ApiError } from "../services/api";
+import { Close, ICON_SIZE, Success, Warning } from "../ui/icons";
 
 /** How long a confirmation stays up. Sized by the Undo it may be carrying: the
  *  user has to notice the toast, read it, and decide — under four seconds and
@@ -218,7 +219,9 @@ function ToastCard({ toast, onDismiss }: {
         animate-fade-in flex items-start gap-3 text-sm ${failed
           ? "border-negative-line bg-negative-tint"
           : "border-positive-line bg-positive-tint"}`}>
-      <span aria-hidden="true" className="shrink-0 leading-6">{failed ? "⚠️" : "✅"}</span>
+      <span className="shrink-0 leading-6">
+        {failed ? <Warning size={ICON_SIZE.lead} /> : <Success size={ICON_SIZE.lead} />}
+      </span>
       <div className="min-w-0 flex-1">
         <p className={`font-medium break-words ${failed
           ? "text-negative-ink-strong"
@@ -247,7 +250,7 @@ function ToastCard({ toast, onDismiss }: {
         className="btn-ghost shrink-0 py-0.5 px-2 leading-none"
         aria-label={t("toast.dismiss")}
         onClick={() => onDismiss(toast.id)}>
-        ✕
+        <Close size={16} />
       </button>
     </div>
   );

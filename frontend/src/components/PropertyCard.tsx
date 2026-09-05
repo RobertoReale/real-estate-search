@@ -5,6 +5,26 @@ import { COMMUTE_ICONS, formatDistance, formatDuration, humanizeFloor } from "..
 import { PortalBadge } from "./PortalBadge";
 import TagPicker from "./TagPicker";
 import type { Property, Tag } from "../types";
+import {
+  Area,
+  Atlas,
+  Close,
+  Deal,
+  Email,
+  Favorite,
+  Filtered,
+  Floor,
+  Gone,
+  Merged,
+  NoImage,
+  Notes,
+  Place,
+  PriceDrop,
+  Rooms,
+  Sold,
+  Ticked,
+  Unticked,
+} from "../ui/icons";
 
 interface Props {
   property: Property;
@@ -34,12 +54,16 @@ export function CommuteChips(
   if (!p.commutes?.length) return null;
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
-      {p.commutes.map((c) => (
-        <span key={`${c.name}-${c.mode}`} title={t("card.commuteTitle", { name: c.name })}>
-          {COMMUTE_ICONS[c.mode]} {c.name} {formatDuration(c.duration_s)}
-          {detailed && ` · ${formatDistance(c.distance_m)}`}
-        </span>
-      ))}
+      {p.commutes.map((c) => {
+        const Mode = COMMUTE_ICONS[c.mode];
+        return (
+          <span key={`${c.name}-${c.mode}`} className="inline-flex items-center gap-1"
+            title={t("card.commuteTitle", { name: c.name })}>
+            <Mode /> {c.name} {formatDuration(c.duration_s)}
+            {detailed && ` · ${formatDistance(c.distance_m)}`}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -68,7 +92,7 @@ export function MarketBadge({ property: p }: { property: Property }) {
   );
 }
 
-/** "🎯 92% match" badge: compatibility with the user's "dream home" settings.
+/** The "92% match" badge: compatibility with the user's "dream home" settings.
  *  Only rendered when the Smart Match Score feature is on (score is non-null).
  *  Colour tracks the score so a strong match reads at a glance. */
 export function MatchBadge({ score }: { score: number | null }) {
@@ -76,14 +100,15 @@ export function MatchBadge({ score }: { score: number | null }) {
   if (score === null || score === undefined) return null;
   const chip = score >= 80 ? "chip-positive" : score >= 50 ? "chip-caution" : "chip-neutral";
   return (
-    <span className={`text-2xs font-semibold px-2 py-0.5 rounded-lg ${chip}`}
+    <span className={`inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5
+      rounded-lg ${chip}`}
       title={t("card.matchBadgeTitle")}>
-      {t("card.matchBadge", { score })}
+      <Deal /> {t("card.matchBadge", { score })}
     </span>
   );
 }
 
-/** "🎯 16% below market" badge from the Deal Score. Shown only when the
+/** The "16% below market" badge from the Deal Score. Shown only when the
  *  verdict is decisive (undervalued/overpriced); "fair" adds no signal. A
  *  positive score means priced below the local market. */
 export function DealBadge({ property: p }: { property: Property }) {
@@ -107,10 +132,10 @@ export function DealBadge({ property: p }: { property: Property }) {
   const under = p.deal_label === "undervalued";
   return (
     <span
-      className={`text-2xs font-semibold px-2 py-0.5 rounded-lg ${
-        under ? "chip-positive" : "chip-caution"
-      }`}
+      className={`inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5
+        rounded-lg ${under ? "chip-positive" : "chip-caution"}`}
       title={(p.deal_reasons ?? []).join(" · ") || t("card.dealScore")}>
+      <Deal />{" "}
       {t(under ? "card.dealBelowMarket" : "card.dealAboveMarket", {
         pct: Math.abs(p.deal_score),
       })}
@@ -161,16 +186,11 @@ export default function PropertyCard({
         ) : (
           <div className="w-full h-full flex items-center justify-center
             text-ink-faint">
-            {/* Drawn rather than typed: an emoji renders as a different picture
-                on every platform and cannot be sized or coloured to match the
-                box it sits in. */}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.25}
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-              className="w-12 h-12">
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
-              <path d="M10 21v-6h4v6" />
-            </svg>
+            {/* Drawn rather than typed, and drawn by the icon set rather than by
+                hand: one stroke weight, `currentColor`, and a size this box
+                chooses. An emoji here rendered as a different picture on every
+                platform and could be given neither. */}
+            <NoImage size={48} strokeWidth={1.25} />
           </div>
         )}
         {/* right padding reserves the quick-action corner, which is wider on
@@ -194,19 +214,22 @@ export default function PropertyCard({
             <PortalBadge key={portal} portal={portal} variant="overlay" />
           ))}
           {p.contract === "rent" && (
-            <span className="text-3xs font-bold uppercase px-2 py-0.5 rounded bg-rent-deep text-on-solid">
-              {t("card.rent")}
+            <span className="inline-flex items-center gap-1 text-3xs font-bold uppercase
+              px-2 py-0.5 rounded bg-rent-deep text-on-solid">
+              <Sold /> {t("card.rent")}
             </span>
           )}
           {p.listings.length > 1 && (
-            <span className="text-3xs font-bold px-2 py-0.5 rounded bg-tag text-on-solid">
-              {t("card.mergedListings", { count: p.listings.length })}
+            <span className="inline-flex items-center gap-1 text-3xs font-bold px-2 py-0.5
+              rounded bg-tag text-on-solid">
+              <Merged /> {t("card.mergedListings", { count: p.listings.length })}
             </span>
           )}
           {p.source === "email" && (
-            <span className="text-3xs font-bold px-2 py-0.5 rounded bg-info text-on-solid"
+            <span className="inline-flex items-center gap-1 text-3xs font-bold px-2 py-0.5
+              rounded bg-info text-on-solid"
               title={t("card.emailTitle")}>
-              {t("card.email")}
+              <Email /> {t("card.email")}
             </span>
           )}
         </div>
@@ -223,8 +246,12 @@ export default function PropertyCard({
                   : "bg-veil text-ink-faint hover:text-accent"
               }`}
               title={selected ? t("card.deselect") : t("card.selectForBatch")}
+              // The tick used to be the state, readable as text. It is a drawing
+              // now, so the state has to be announced rather than looked at —
+              // which is what a screen reader needed all along.
+              aria-pressed={selected}
               onClick={onToggleSelect}>
-              {selected ? "✓" : "☐"}
+              {selected ? <Ticked size={16} /> : <Unticked size={16} />}
             </button>
           )}
           <button data-action="property.favorite"
@@ -237,7 +264,7 @@ export default function PropertyCard({
             title={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
             aria-label={p.is_favorite ? t("card.removeFavorite") : t("card.addFavorite")}
             onClick={onToggleFavorite}>
-            {p.is_favorite ? "★" : "☆"}
+            <Favorite size={16} fill={p.is_favorite ? "currentColor" : "none"} />
           </button>
           {p.status !== "hidden" && (
             <button data-action="property.hide"
@@ -247,30 +274,34 @@ export default function PropertyCard({
               title={t("card.hideTitle")}
               aria-label={t("card.hideAria")}
               onClick={onQuickHide}>
-              ✕
+              <Close size={16} />
             </button>
           )}
         </div>
 
         <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
           {drop !== null && (
-            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-positive text-on-solid">
-              📉 {drop.toFixed(1)}%
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1
+              rounded-lg bg-positive text-on-solid">
+              <PriceDrop /> {drop.toFixed(1)}%
             </span>
           )}
           {p.status === "filtered" && (
-            <span className="text-xs px-2 py-1 rounded-lg bg-negative-deep text-on-solid">
-              {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg
+              bg-negative-deep text-on-solid">
+              <Filtered /> {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
             </span>
           )}
           {p.status === "gone" && (
-            <span className="text-xs px-2 py-1 rounded-lg bg-neutral-solid text-on-solid">
-              {t("card.noLongerAvailable")}
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg
+              bg-neutral-solid text-on-solid">
+              <Gone /> {t("card.noLongerAvailable")}
             </span>
           )}
           {p.status === "sold" && (
-            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-caution text-on-solid">
-              {t(p.contract === "rent" ? "card.rentedOut" : "card.sold")}
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1
+              rounded-lg bg-caution text-on-solid">
+              <Sold /> {t(p.contract === "rent" ? "card.rentedOut" : "card.sold")}
             </span>
           )}
         </div>
@@ -308,20 +339,39 @@ export default function PropertyCard({
             {p.title || t("card.untitled")}
           </button>
         </h3>
-        <p className="text-xs t-muted mt-1 truncate">
-          📍 {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("card.locationUnknown")}
+        <p className="flex items-center gap-1 text-xs t-muted mt-1">
+          <Place className="shrink-0" />
+          <span className="truncate">
+            {[p.city, p.zone, p.address].filter(Boolean).join(" · ") || t("card.locationUnknown")}
+          </span>
         </p>
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs t-body">
-          {p.rooms && <span>🚪 {t("common.rooms", { count: p.rooms })}</span>}
-          {p.sqm && <span>📐 {t("common.sqm", { value: p.sqm.toFixed(0) })}</span>}
-          {p.floor && <span>🏢 {humanizeFloor(p.floor)}</span>}
-          {p.notes && <span title={p.notes}>{t("card.notes")}</span>}
+          {p.rooms && (
+            <span className="inline-flex items-center gap-1">
+              <Rooms /> {t("common.rooms", { count: p.rooms })}
+            </span>
+          )}
+          {p.sqm && (
+            <span className="inline-flex items-center gap-1">
+              <Area /> {t("common.sqm", { value: p.sqm.toFixed(0) })}
+            </span>
+          )}
+          {p.floor && (
+            <span className="inline-flex items-center gap-1">
+              <Floor /> {humanizeFloor(p.floor)}
+            </span>
+          )}
+          {p.notes && (
+            <span className="inline-flex items-center gap-1" title={p.notes}>
+              <Notes /> {t("card.notes")}
+            </span>
+          )}
           {/* Whether the property is placeable on the map. Called out because a
               zone filter silently drops the un-pinned ones (invariant 19), and
               from the grid there was no way to tell which cards those are. */}
           {(p.latitude === null || p.longitude === null) && (
-            <span className="t-dim" title={t("card.notOnMapTitle")}>
-              {t("card.notOnMap")}
+            <span className="inline-flex items-center gap-1 t-dim" title={t("card.notOnMapTitle")}>
+              <Atlas /> {t("card.notOnMap")}
             </span>
           )}
         </div>

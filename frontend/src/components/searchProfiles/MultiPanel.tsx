@@ -5,6 +5,7 @@
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { PortalBadge } from "../PortalBadge";
 import { GlobalKeywordsHint } from "./helpers";
+import { Close, External, Hint, Warning } from "../../ui/icons";
 
 export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, multi, setMulti, setMode, usePortals, setUsePortals, keywords, setKeywords,
@@ -41,16 +42,18 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
               title={t("profiles.dropAlternative")}
               aria-label={t("profiles.dropAlternative")}
               onClick={() => setMulti((m) => m.filter((_, i) => i !== idx))}>
-              ✕
+              <Close size={14} />
             </button>
           </div>
           {search.notes.map((note) => (
-            <p key={note} className="text-xs t-muted">ℹ️ {note}</p>
+            <p key={note} className="flex items-start gap-1.5 text-xs t-muted">
+              <Hint className="shrink-0 mt-0.5" /> {note}
+            </p>
           ))}
           {search.warnings.map((warning) => (
             <p key={warning}
-              className="text-xs text-caution-ink">
-              ⚠️ {warning}
+              className="flex items-start gap-1.5 text-xs text-caution-ink">
+              <Warning className="shrink-0 mt-0.5" /> {warning}
             </p>
           ))}
           {(["immobiliare", "idealista"] as const).map((portal) => {
@@ -61,8 +64,8 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
                 <PortalBadge portal={portal} />
                 <span className="t-muted truncate flex-1">{urls[portal]}</span>
                 <a href={urls[portal]} target="_blank" rel="noreferrer"
-                  className="accent-link shrink-0">
-                  {t("modal.open")}
+                  className="inline-flex items-center gap-1 accent-link shrink-0">
+                  {t("modal.open")} <External />
                 </a>
               </div>
             );

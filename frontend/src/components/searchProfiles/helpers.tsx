@@ -6,6 +6,7 @@
 import { useT, type TFunction } from "../../i18n";
 import type { AssistantSearch, SearchBuilderParams, SearchProfile, Settings } from "../../types";
 import { EMPTY_BUILDER } from "./constants";
+import { Filtered } from "../../ui/icons";
 
 /** The assistant answers with numbers; the builder form holds strings. */
 export function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
@@ -69,7 +70,8 @@ export function GlobalKeywordsHint({ settings }: { settings: Settings | null }) 
   const words = settings?.excluded_keywords ?? [];
   if (!words.length) return null;
   return (
-    <p className="text-xs t-dim -mt-1.5">
+    <p className="flex items-center gap-1 text-xs t-dim -mt-1.5">
+      <Filtered className="shrink-0" />
       {t("profiles.globalKeywords", { words: words.join(", ") })}
     </p>
   );

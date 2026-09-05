@@ -172,6 +172,21 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   `Sheet` remember the opener themselves (`ui/returnFocus.ts`), since Radix restores focus
   through its own `Trigger` and both of these are opened from a piece of state instead.
 
+- **Icons come from `ui/icons.tsx`, and never from `lucide-react` directly.** The barrel
+  names each drawing for the role it plays — `Delete`, not `Trash2` — for the same reason
+  `tone.ts` names roles and not colours: a screen that imports `Wallet` to mean "asking
+  price" has hidden the meaning in a call site nobody greps for, and a redrawn icon then
+  costs a sweep instead of a line. Every icon defaults to `1em` and to `aria-hidden`, which
+  is the whole accessibility contract: an icon beside a label would be read out twice, and
+  an icon *without* a label is an `IconButton`, which cannot be built without the name.
+
+  What this replaced was emoji, and emoji were never an icon set — the operating system
+  drew them, differently on each one, at a size the font chose, in a colour nothing could
+  change. They were also in the dictionaries rather than in the components (`"⚙️ Settings"`),
+  which is why `ui/icons.test.ts` reads the source of `src/components`, `src/ui`,
+  `src/routes`, `src/i18n` and `src/App.tsx` and fails on any `\p{Extended_Pictographic}`.
+  A label is interface wherever it is stored.
+
   Two things stay out of `src/ui/`. Strings — every label a user reads is a prop, because
   the interface is Italian and a primitive that spelt its own close button would be one
   English word nobody could find. And decisions — `components/Toast.tsx` still owns *when* a
@@ -196,7 +211,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (181 in thirty-four files: vitest +
+- **The frontend has unit tests too** (274 in thirty-five files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export

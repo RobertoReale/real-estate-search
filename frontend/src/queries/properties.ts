@@ -8,7 +8,7 @@
  *
  *  Every write here ends the same way: invalidate and let the backend answer.
  *  Editing the list in place was how the grid used to keep up, and it is what
- *  made a favourite toggled under the ⭐ filter, a hidden card and a bulk action
+ *  made a favourite toggled under the favourites filter, a hidden card and a bulk action
  *  three different code paths for the same fact — the row changed, so re-read it.
  */
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

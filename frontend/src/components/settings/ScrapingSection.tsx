@@ -6,6 +6,7 @@ import {
 import type { Settings } from "../../types";
 import { useToasts } from "../Toast";
 import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
+import { Bypass, Credential, Harvester, Restart } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -135,7 +136,7 @@ export function ScrapingSection(
 
   return (
     <>
-      <SectionHeading>{t("settings.scrapingTitle")}</SectionHeading>
+      <SectionHeading icon={Bypass}>{t("settings.scrapingTitle")}</SectionHeading>
       <HelpSteps
         summary={t("settings.scrapingHelp")}
         steps={[
@@ -168,7 +169,9 @@ export function ScrapingSection(
         {/* Idealista's own API: the only option here that is not a workaround,
             so it sits above the ones that are. */}
         <div className="rounded-xl panel p-3 space-y-2">
-          <p className="text-xs font-medium t-body">{t("settings.idealistaApiTitle")}</p>
+          <p className="flex items-center gap-1.5 text-xs font-medium t-body">
+            <Credential className="shrink-0" /> {t("settings.idealistaApiTitle")}
+          </p>
           <p className="text-xs t-dim">
             {t("settings.idealistaApiNote")}{" "}
             <Link href="https://developers.idealista.com/">developers.idealista.com</Link>
@@ -206,7 +209,9 @@ export function ScrapingSection(
           <p className="text-xs t-dim">{t("settings.idealistaMaxPagesNote")}</p>
         </div>
         <div className="rounded-xl panel p-3 space-y-2">
-          <p className="text-xs font-medium t-body">{t("settings.scrapeApiTitle")}</p>
+          <p className="flex items-center gap-1.5 text-xs font-medium t-body">
+            <Bypass className="shrink-0" /> {t("settings.scrapeApiTitle")}
+          </p>
           <p className="text-xs t-dim">{t("settings.scrapeApiNote")}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <select data-action="settings.scraping.apiProvider" className="input w-full" value={values.apiProvider}
@@ -251,14 +256,16 @@ export function ScrapingSection(
             otherwise the button would just error. The manual paste above
             always stays as the zero-dependency fallback. */}
         <div className="rounded-xl panel p-3 space-y-2">
-          <p className="text-xs font-medium t-body">{t("settings.harvestTitle")}</p>
+          <p className="flex items-center gap-1.5 text-xs font-medium t-body">
+            <Harvester className="shrink-0" /> {t("settings.harvestTitle")}
+          </p>
           {settings.datadome_harvester_available ? (
             <>
               <p className="text-xs t-dim">{t("settings.harvestNote")}</p>
               <div className="flex items-center gap-2">
                 <button data-action="settings.scraping.grabCookie" className="btn-ghost" onClick={grabCookie}
                   disabled={grabbing || shell.anyBusy}>
-                  {grabbing ? t("settings.openingBrowser") : t("settings.grabCookie")}
+                  <Restart /> {grabbing ? t("settings.openingBrowser") : t("settings.grabCookie")}
                 </button>
                 {grabbing && (
                   <button data-action="settings.scraping.stopGrab" className="btn-ghost" onClick={stopGrabbingCookie}

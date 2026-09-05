@@ -3,6 +3,7 @@ import { useT } from "../i18n";
 import { useSaveSettings, useSettingsForm } from "../queries/settings";
 import { authToken } from "../services/api";
 import type { Settings } from "../types";
+import { Close } from "../ui/icons";
 import { AssistantSection, useAssistantSection } from "./settings/AssistantSection";
 import { CommuteSection, useCommuteSection } from "./settings/CommuteSection";
 import { EmailSection, useEmailSection } from "./settings/EmailSection";
@@ -33,7 +34,7 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold">{t("settings.title")}</h2>
-          <button data-action="settings.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}>✕</button>
+          <button data-action="settings.close" className="btn-ghost" aria-label={t("common.close")} onClick={onClose}><Close size={16} /></button>
         </div>
         {children}
       </div>

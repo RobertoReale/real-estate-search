@@ -49,7 +49,7 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 ```
 
 Expected today: **1025 passed + 1 skipped** (1026 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **181 frontend tests**,
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **274 frontend tests**,
 **48 browser tests** (28 journeys, then 20 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **221 interactive elements, 229 inventoried actions**, of which **227 exercised

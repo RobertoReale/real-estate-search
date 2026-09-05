@@ -2,6 +2,7 @@ import { useT } from "../../i18n";
 import { useTelegramTest } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Result, SecretStatus, SectionHeading } from "./controls";
+import { Telegram } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
 interface Values {
@@ -44,7 +45,7 @@ export function TelegramSection(
 
   return (
     <>
-      <SectionHeading first>{t("settings.telegramTitle")}</SectionHeading>
+      <SectionHeading first icon={Telegram}>{t("settings.telegramTitle")}</SectionHeading>
       <HelpSteps
         summary={t("settings.telegramHelp")}
         steps={[

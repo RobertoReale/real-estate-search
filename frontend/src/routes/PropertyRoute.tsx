@@ -29,7 +29,7 @@ export default function PropertyRoute() {
 
   // The copy it was opened with stays on screen while a newer one is on its way.
   // A property can leave the filtered set while its own detail is open — a
-  // favourite toggled under the ⭐ filter does it — and closing the thing the
+  // favourite toggled under the favourites filter does it — and closing the thing the
   // user is reading, to reopen it a moment later, reads as the app losing its
   // place. Same reasoning as the grid's `lastAnswer`: an answer that did arrive
   // beats a blank.

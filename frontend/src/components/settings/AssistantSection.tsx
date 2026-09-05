@@ -1,6 +1,7 @@
 import { useT } from "../../i18n";
 import type { Settings } from "../../types";
 import { Link, SecretStatus, SectionHeading } from "./controls";
+import { Describe } from "../../ui/icons";
 import { useSectionState, type Section } from "./state";
 
 interface Values {
@@ -46,7 +47,7 @@ export function AssistantSection(
 
   return (
     <>
-      <SectionHeading>{t("settings.assistantTitle")}</SectionHeading>
+      <SectionHeading icon={Describe}>{t("settings.assistantTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.assistantNote")}</p>
       <select data-action="settings.assistant.backend" className="input w-full" value={values.backend}
         aria-label={t("settings.assistantTitle")}
@@ -55,7 +56,7 @@ export function AssistantSection(
         <option value="llm">{t("settings.backendLlm")}</option>
       </select>
 
-      <SectionHeading>{t("settings.auditTitle")}</SectionHeading>
+      <SectionHeading icon={Describe}>{t("settings.auditTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
         <input data-action="settings.assistant.audit" type="checkbox" checked={values.audit}
           onChange={(e) => set("audit", e.target.checked)} />

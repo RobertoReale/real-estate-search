@@ -48,16 +48,16 @@ export const it: Dict = {
   "card.scopeCity": "città",
   "card.belowAverage": "{pct}% sotto la media della {scope}",
   "card.aboveAverage": "{pct}% sopra la media della {scope}",
-  "card.matchBadge": "🎯 {score}% di corrispondenza",
+  "card.matchBadge": "{score}% di corrispondenza",
   "card.matchBadgeTitle": "Compatibilità con le impostazioni della casa dei sogni",
   "card.dealScore": "Punteggio affare",
-  "card.dealBelowMarket": "🎯 {pct}% sotto mercato",
-  "card.dealAboveMarket": "🎯 {pct}% sopra mercato",
-  "card.new": "🆕 nuovo",
+  "card.dealBelowMarket": "{pct}% sotto mercato",
+  "card.dealAboveMarket": "{pct}% sopra mercato",
+  "card.new": "nuovo",
   "card.newTitle": "Comparso dopo la tua ultima visita alla dashboard",
-  "card.rent": "🔑 affitto",
+  "card.rent": "affitto",
   "card.mergedListings": "{count} annunci unificati",
-  "card.email": "✉️ email",
+  "card.email": "email",
   "card.emailTitle": "Importato dalla tua casella email (non da una ricerca monitorata)",
   "card.deselect": "Deseleziona",
   "card.selectForBatch": "Seleziona per la verifica in blocco",
@@ -65,14 +65,14 @@ export const it: Dict = {
   "card.addFavorite": "Aggiungi ai preferiti",
   "card.hideTitle": "Nascondi questo immobile (non tornerà mai da solo)",
   "card.hideAria": "Nascondi questo immobile",
-  "card.filteredReason": "🚫 Filtrato: {reason}",
-  "card.noLongerAvailable": "💨 Non più disponibile",
-  "card.sold": "🔑 Venduto",
-  "card.rentedOut": "🔑 Affittato",
+  "card.filteredReason": "Filtrato: {reason}",
+  "card.noLongerAvailable": "Non più disponibile",
+  "card.sold": "Venduto",
+  "card.rentedOut": "Affittato",
   "card.untitled": "Senza titolo",
   "card.locationUnknown": "Posizione N/D",
-  "card.notes": "📝 note",
-  "card.notOnMap": "🗺️✗ non sulla mappa",
+  "card.notes": "note",
+  "card.notOnMap": "non sulla mappa",
   "card.commuteTitle": "Tempo di viaggio verso {name}",
 
   // ── riferimenti di prezzo (i due valori affiancati, mai fusi) ────────────
@@ -109,57 +109,57 @@ export const it: Dict = {
   "modal.locateFailed":
     "Impossibile posizionare questo immobile — la località indicata dal portale è troppo vaga per ricavarne le coordinate.",
   "modal.locateError": "Impossibile localizzare questo immobile",
-  "modal.checkGone": "🔴 Rimosso / Sparito (404)",
-  "modal.checkOnline": "🟢 Online (appena verificato)",
-  "modal.checkUnknown": "⚠️ Impossibile verificare (bloccato dal portale o timeout)",
+  "modal.checkGone": "Rimosso / Sparito (404)",
+  "modal.checkOnline": "Online (appena verificato)",
+  "modal.checkUnknown": "Impossibile verificare (bloccato dal portale o timeout)",
   "modal.checkError": "Errore durante la verifica online",
   "modal.notesError": "Impossibile salvare le note",
-  "modal.dealScoreTitle": "🎯 Punteggio affare:",
+  "modal.dealScoreTitle": "Punteggio affare:",
   "modal.dealBelowLocal": "sotto il mercato locale",
   "modal.dealAboveLocal": "sopra il mercato locale",
-  "modal.suggestedProposal": "💬 Proposta suggerita:",
+  "modal.suggestedProposal": "Proposta suggerita:",
   "modal.dealDisclaimer":
     "Una stima ricavata dalla mediana €/mq della zona, dagli indizi sullo stato dell'immobile e dallo sconto abituale dell'agenzia — un punto di partenza per il tuo giudizio, non una perizia.",
   "modal.foundListings": "Annunci trovati ({count})",
-  "modal.open": "Apri ↗",
+  "modal.open": "Apri",
   "modal.priceHistory": "Storico dei prezzi",
-  "modal.commute": "🚏 Percorrenza",
-  "modal.foundBySearch": "🔍 Trovato da una ricerca",
-  "modal.foundBySearches": "🔍 Trovato da {count} ricerche",
+  "modal.commute": "Percorrenza",
+  "modal.foundBySearch": "Trovato da una ricerca",
+  "modal.foundBySearches": "Trovato da {count} ricerche",
   "modal.notLinked":
-    "🔍 Non collegato a nessuna ricerca monitorata — importato dalla tua casella email.",
-  "modal.tags": "🏷️ Etichette",
-  "modal.notes": "📝 Note personali",
+    "Non collegato a nessuna ricerca monitorata — importato dalla tua casella email.",
+  "modal.tags": "Etichette",
+  "modal.notes": "Note personali",
   "modal.notesPlaceholder":
     'es. "chiamata l\'agenzia lunedì — visita fissata per venerdì", "servono 15k di ristrutturazione"',
   "modal.saveNotes": "Salva le note",
   "modal.description": "Descrizione",
-  "modal.checkOnlineButton": "🔎 Verifica se è ancora online",
+  "modal.checkOnlineButton": "Verifica se è ancora online",
   "modal.checkOnlineTitle":
     "Interroga subito l'URL del portale per verificare se questo annuncio è ancora online o è stato rimosso (404)",
-  "modal.viewOnMap": "🗺️ Mostra sulla mappa",
+  "modal.viewOnMap": "Mostra sulla mappa",
   "modal.viewOnMapTitle": "Apri questo immobile sulla mappa",
   "modal.locateAndViewTitle": "Trova le coordinate di questo immobile e aprilo sulla mappa",
-  "modal.restore": "👁 Ripristina l'immobile",
+  "modal.restore": "Ripristina l'immobile",
   "modal.restoreGone":
     'Ripristinare questo immobile? Usalo se la verifica di disponibilità lo ha segnato "non più disponibile" per sbaglio.',
   "modal.restoreSold":
     "Ripristinare questo immobile? Usalo se lo hai segnato come venduto per sbaglio — torna negli elenchi attivi.",
   "modal.restoreHidden": "Ripristinare questo immobile? Tornerà negli elenchi attivi.",
   "modal.restoreFailed": "Ripristino non riuscito",
-  "modal.markSold": "🔑 Segna come venduto",
-  "modal.markRented": "🔑 Segna come affittato",
+  "modal.markSold": "Segna come venduto",
+  "modal.markRented": "Segna come affittato",
   "modal.confirmSold":
     "Segnare questo immobile come venduto? Esce dagli elenchi attivi ma resta come vendita confermata per le statistiche di mercato.",
   "modal.confirmRented":
     "Segnare questo immobile come affittato? Esce dagli elenchi attivi ma resta come contratto confermato per le statistiche di mercato.",
   "modal.markSoldFailed": "Impossibile segnarlo come venduto",
-  "modal.hide": "🙈 Nascondi l'immobile",
+  "modal.hide": "Nascondi l'immobile",
   "modal.hideFailed": "Impossibile nasconderlo",
 
   // ── modale immobile: lettura opzionale dell'annuncio ────────────────────
-  "audit.title": "🧠 Cosa dice l'annuncio",
-  "audit.button": "🧠 Leggi l'annuncio",
+  "audit.title": "Cosa dice l'annuncio",
+  "audit.button": "Leggi l'annuncio",
   "audit.reading": "Lettura in corso…",
   "audit.again": "Rileggi",
   "audit.buttonTitle":
@@ -179,7 +179,7 @@ export const it: Dict = {
   "audit.concerns": "Da verificare",
   "audit.negotiation": "Utile in trattativa",
   "audit.footer": "Letto da {model} il {date}",
-  "audit.stale": "⚠️ L'annuncio è cambiato dopo questa lettura — rileggilo per il testo attuale.",
+  "audit.stale": "L'annuncio è cambiato dopo questa lettura — rileggilo per il testo attuale.",
   "audit.disclaimer":
     "È una rilettura delle parole dell'annuncio fatta da un modello linguistico, non una valutazione né un parere legale — verifica con l'agenzia ciò che conta.",
 
@@ -193,11 +193,11 @@ export const it: Dict = {
   // ── barra di navigazione ────────────────────────────────────────────────
   "nav.title": "Ricerca Immobili",
   "nav.subtitle": "Immobiliare.it + Idealista, senza duplicati",
-  "nav.scanning": "⏳ Scansione in corso…",
-  "nav.paused": "⏸ Scansioni automatiche in pausa",
+  "nav.scanning": "Scansione in corso…",
+  "nav.paused": "Scansioni automatiche in pausa",
   "nav.nextScan": "Prossima scansione automatica: {time}",
-  "nav.scanNowShort": "▶ Scansiona",
-  "nav.scanNow": "▶ Avvia scansione",
+  "nav.scanNowShort": "Scansiona",
+  "nav.scanNow": "Avvia scansione",
   "nav.scanNowAria": "Avvia subito la scansione",
   "nav.running": "In corso…",
   "nav.toLight": "Passa al tema chiaro",
@@ -247,36 +247,36 @@ export const it: Dict = {
     "Prova a cambiare Compra/Affitto o ad allentare i filtri.",
   "app.welcome": "Benvenuto! Tre passi per iniziare:",
   "app.step1":
-    'Aggiungi una ricerca qui sopra — descrivila a parole con "💬 Descrivila e basta", costruiscila con "🧭 Costruisci una ricerca", oppure incolla l\'URL dei risultati da Immobiliare.it / Idealista.',
+    'Aggiungi una ricerca qui sopra — descrivila a parole con "Descrivila e basta", costruiscila con "Costruisci una ricerca", oppure incolla l\'URL dei risultati da Immobiliare.it / Idealista.',
   "app.step1Tip": "Suggerimento:",
   "app.step1TipBody":
-    'per usare tutti i filtri del portale (bagni, piano, ascensore, classe energetica, escludi aste…), impostali sul portale e usa "🔗 Incolla un URL" — l\'app monitora esattamente quella ricerca.',
+    'per usare tutti i filtri del portale (bagni, piano, ascensore, classe energetica, escludi aste…), impostali sul portale e usa "Incolla un URL" — l\'app monitora esattamente quella ricerca.',
   "app.step2":
-    'Premi "▶ Avvia scansione" — la prima scansione crea la tua base di partenza (nessuna raffica di notifiche).',
+    'Premi "Avvia scansione" — la prima scansione crea la tua base di partenza (nessuna raffica di notifiche).',
   "app.step3":
-    "Facoltativo: apri ⚙️ Impostazioni per attivare gli avvisi Telegram o Email su nuovi annunci e cali di prezzo.",
+    "Facoltativo: apri Impostazioni per attivare gli avvisi Telegram o Email su nuovi annunci e cali di prezzo.",
   "app.showMoreCount": "Mostra altri ({count} rimanenti)",
 
   // ── barra di selezione multipla ─────────────────────────────────────────
-  "app.selectMultiple": "☐ Seleziona più immobili",
-  "app.closeMultiSelect": "✕ Chiudi selezione multipla",
+  "app.selectMultiple": "Seleziona più immobili",
+  "app.closeMultiSelect": "Chiudi selezione multipla",
   "app.selectAll": "Seleziona tutti ({selected} di {total})",
-  "app.hideSelected": "🙈 Nascondi selezionati ({count})",
+  "app.hideSelected": "Nascondi selezionati ({count})",
   "app.hideSelectedTitle":
     "Gli immobili nascosti lasciano la dashboard definitivamente e non tornano da soli, nemmeno se una scansione li ritrova. Usa Ripristina per riportarne indietro uno.",
-  "app.markSold": "🔑 Segna come venduto ({count})",
-  "app.addFavorites": "⭐ Aggiungi ai preferiti",
-  "app.removeFavorites": "❌ Togli dai preferiti",
-  "app.checkAvailability": "🔎 Verifica disponibilità online ({count})",
-  "app.checking": "⏳ Verifica in corso…",
-  "app.stopping": "⏳ Interruzione…",
-  "app.stop": "⏹ Ferma",
+  "app.markSold": "Segna come venduto ({count})",
+  "app.addFavorites": "Aggiungi ai preferiti",
+  "app.removeFavorites": "Togli dai preferiti",
+  "app.checkAvailability": "Verifica disponibilità online ({count})",
+  "app.checking": "Verifica in corso…",
+  "app.stopping": "Interruzione…",
+  "app.stop": "Ferma",
   "app.confirmHideOne":
     "Nascondere questo immobile? Non comparirà mai più negli elenchi né nelle notifiche.",
   "app.confirmHideMany":
-    "Nascondere {count} immobili? Spariranno dagli elenchi e dalle notifiche (recuperabili da 🙈 Scartati → Ripristina).",
+    "Nascondere {count} immobili? Spariranno dagli elenchi e dalle notifiche (recuperabili da Scartati → Ripristina).",
   "app.confirmSoldMany":
-    "Segnare {count} immobili come venduti/affittati? Escono dagli elenchi attivi ma restano come vendite confermate per le statistiche di mercato (recuperabili da 🔑 Venduti → Ripristina).",
+    "Segnare {count} immobili come venduti/affittati? Escono dagli elenchi attivi ma restano come vendite confermate per le statistiche di mercato (recuperabili da Venduti → Ripristina).",
   "app.batchCheckFailed": "Verifica in blocco non riuscita",
 
   // ── avanzamento e riepilogo della verifica ──────────────────────────────
@@ -288,14 +288,14 @@ export const it: Dict = {
     "Tra una richiesta e l'altra c'è una pausa di sicurezza per proteggere l'IP dai blocchi DataDome.",
   "app.checkTransport": "Trasporto: {transport}",
   "app.checkLastIssue": "Ultimo problema segnalato dal portale: {error}",
-  "app.summaryChecked": "🔎 Verificati:",
+  "app.summaryChecked": "Verificati:",
   "app.summaryGone": "{count} rimossi o venduti (spostati in Spariti)",
   "app.summaryOnline": "{count} ancora online",
   "app.summaryUnknown": " ({count} non verificabili dal portale)",
   "app.summaryCancelled":
-    "⏹ Interrotta — il resto della selezione non è stato verificato. Riselezionalo per riprendere.",
+    "Interrotta — il resto della selezione non è stato verificato. Riselezionalo per riprendere.",
   "app.summaryAborted":
-    "⚠️ Il portale ha bloccato le richieste: verifica interrotta per proteggere l'IP. Riprova più tardi.",
+    "Il portale ha bloccato le richieste: verifica interrotta per proteggere l'IP. Riprova più tardi.",
   "app.summaryAbortedService":
     "Eseguita tramite {transport}. L'opzione della finestra del browser è attiva, ma un servizio Windows in background non ha un desktop su cui mostrarla. Per risolvere un CAPTCHA a mano, ferma il servizio e avvia l'app normalmente (start.bat / serve.bat) per questa verifica.",
   "app.summaryAbortedNoWindow":
@@ -308,8 +308,8 @@ export const it: Dict = {
   "filters.searchPlaceholder": "Cerca per zona, indirizzo, titolo, piano o testo dell'annuncio…",
   "filters.clearSearch": "Cancella la ricerca",
   "filters.market": "Mercato",
-  "filters.buy": "🏠 Compra",
-  "filters.rent": "🔑 Affitta",
+  "filters.buy": "Compra",
+  "filters.rent": "Affitta",
   "filters.city": "Città",
   "filters.cityPlaceholder": "es. Milano",
   "filters.zone": "Zona",
@@ -332,29 +332,29 @@ export const it: Dict = {
   "filters.sortPriceAsc": "Prezzo crescente",
   "filters.sortPriceDesc": "Prezzo decrescente",
   "filters.sortSqmPrice": "€/mq più basso",
-  "filters.sortMatch": "🎯 Corrispondenza migliore",
+  "filters.sortMatch": "Corrispondenza migliore",
   "filters.status": "Stato",
   "filters.statusForSale": "In vendita",
   "filters.statusForRent": "In affitto",
-  "filters.statusFiltered": "🚫 Filtrati",
-  "filters.statusGone": "💨 Spariti",
-  "filters.statusSold": "🔑 Venduti",
-  "filters.statusRentedOut": "🔑 Affittati",
-  "filters.statusHidden": "🙈 Scartati",
+  "filters.statusFiltered": "Filtrati",
+  "filters.statusGone": "Spariti",
+  "filters.statusSold": "Venduti",
+  "filters.statusRentedOut": "Affittati",
+  "filters.statusHidden": "Scartati",
   "filters.statusAll": "Tutti",
   "filters.origin": "Provenienza",
   "filters.originAll": "Tutte le provenienze",
-  "filters.originScan": "🔎 Ricerca monitorata",
-  "filters.originEmail": "✉️ Import da email",
+  "filters.originScan": "Ricerca monitorata",
+  "filters.originEmail": "Import da email",
   "filters.tag": "Etichetta",
   "filters.allTags": "Tutte le etichette",
   "filters.limitToSearch": "Limita a una ricerca",
   "filters.limitToSearchTitle":
     "Mostra solo gli immobili trovati da questa ricerca salvata (la sua provenienza 'Trovato da'). Gli import da email, che nessuna ricerca ha trovato, escono. Questo restringe l'elenco — non lo riordina.",
   "filters.allSearches": "Tutte le ricerche",
-  "filters.priceDrops": "📉 Cali di prezzo",
-  "filters.favorites": "⭐ Preferiti",
-  "filters.more": "⚙️ Altri filtri",
+  "filters.priceDrops": "Cali di prezzo",
+  "filters.favorites": "Preferiti",
+  "filters.more": "Altri filtri",
   "filters.moreTitle": "Altri filtri",
   "filters.moreHint": "· restringi per portale, agenzia, qualità dell'affare o €/mq",
   "filters.portal": "Portale",
@@ -363,17 +363,17 @@ export const it: Dict = {
   "filters.agencyPlaceholder": "es. Tecnocasa",
   "filters.deal": "Affare",
   "filters.anyDeal": "Qualsiasi affare",
-  "filters.dealUndervalued": "💎 Solo sottovalutati",
-  "filters.dealFairPlus": "👍 Equo o migliore",
+  "filters.dealUndervalued": "Solo sottovalutati",
+  "filters.dealFairPlus": "Equo o migliore",
   "filters.minSqmPrice": "€/mq min",
   "filters.maxSqmPrice": "€/mq max",
-  "filters.mergedOnly": "🔗 Solo unificati (stessa casa su più portali/agenzie)",
+  "filters.mergedOnly": "Solo unificati (stessa casa su più portali/agenzie)",
   "filters.countProperties": "{count} immobili",
   "filters.reset": "↺ Azzera i filtri",
   "filters.resetTitle": "Cancella tutti i filtri e torna alla vista predefinita",
   "filters.view": "Vista",
   "filters.viewGrid": "▦ Griglia",
-  "filters.viewMap": "🗺 Mappa",
+  "filters.viewMap": "Mappa",
   "filters.export": "Esporta",
   "filters.exportTitle": "Scarica i {count} immobili filtrati in {format}",
   "filters.exportPdfTitle":
@@ -385,12 +385,12 @@ export const it: Dict = {
 
   // ── azioni di manutenzione ──────────────────────────────────────────────
   "filters.maintenance": "Manutenzione",
-  "filters.findCoords": "📍 Trova le coordinate",
-  "filters.locating": "⏳ Localizzazione…",
+  "filters.findCoords": "Trova le coordinate",
+  "filters.locating": "Localizzazione…",
   "filters.findCoordsTitle":
     "Trova le coordinate sulla mappa per gli annunci che hanno un indirizzo o una zona ma nessun segnaposto (usa OpenStreetMap; può richiedere tempo)",
-  "filters.retryFailed": "🧹 Riprova le ricerche fallite",
-  "filters.clearing": "⏳ Pulizia…",
+  "filters.retryFailed": "Riprova le ricerche fallite",
+  "filters.clearing": "Pulizia…",
   "filters.retryFailedTitle":
     "Dimentica le geocodifiche fallite così \"Trova le coordinate\" riprova gli indirizzi che un disservizio temporaneo di OpenStreetMap ha congelato come \"non trovati\". Non sposta mai i segnaposti esistenti.",
   "filters.backendTooOld":
@@ -411,22 +411,22 @@ export const it: Dict = {
   "filters.geocodeLocated": "Localizzati {geocoded} di {scanned} annunci senza segnaposto",
   "filters.geocodeNotFound": " · {count} non risolti",
   "filters.geocodeCancelled":
-    '⏹ Interrotta — gli immobili rimanenti sono rimasti senza segnaposto. Premi di nuovo "Trova le coordinate" per riprendere.',
+    'Interrotta — gli immobili rimanenti sono rimasti senza segnaposto. Premi di nuovo "Trova le coordinate" per riprendere.',
   "filters.geocodeRemaining": "Ne restano {count} — rilanciala per continuare.",
   "filters.cacheClearedNone":
     "Nessuna ricerca bloccata da cancellare — ogni indirizzo fallito era già stato dimenticato o non era mai stato messo in cache.",
   "filters.cacheCleared":
-    "🧹 Cancellate {count} ricerche fallite. Premi 📍 Trova le coordinate per riprovarle.",
+    "Cancellate {count} ricerche fallite. Premi Trova le coordinate per riprovarle.",
   "filters.cacheClearedOne":
-    "🧹 Cancellata {count} ricerca fallita. Premi 📍 Trova le coordinate per riprovarla.",
+    "Cancellata {count} ricerca fallita. Premi Trova le coordinate per riprovarla.",
 
   // ── impostazioni: struttura e segreti ───────────────────────────────────
-  "settings.title": "⚙️ Impostazioni",
+  "settings.title": "Impostazioni",
   "settings.testNote":
     "Ogni pulsante di test salva prima le tue modifiche, così ciò che verifica è esattamente ciò che hai scritto.",
-  "settings.secretDirty": "✎ Modifica non salvata — sostituirà il valore memorizzato",
-  "settings.secretSaved": "✓ Salvato",
-  "settings.secretSavedOn": "✓ Salvato · {date}",
+  "settings.secretDirty": "Modifica non salvata — sostituirà il valore memorizzato",
+  "settings.secretSaved": "Salvato",
+  "settings.secretSavedOn": "Salvato · {date}",
   "settings.secretSavedTitle": "Un valore è attualmente memorizzato",
   "settings.secretLastSaved": "Ultimo salvataggio: {date}",
   "settings.secretNotSet": "○ Non impostato",
@@ -439,7 +439,7 @@ export const it: Dict = {
     "{error} — impossibile raggiungere il server. Controlla nome host e porta.",
 
   // ── impostazioni: telegram ──────────────────────────────────────────────
-  "settings.telegramTitle": "📨 Notifiche Telegram",
+  "settings.telegramTitle": "Notifiche Telegram",
   "settings.telegramHelp": "Come configuro Telegram? (passo per passo)",
   "settings.tgStep1": "Apri Telegram e cerca @BotFather.",
   "settings.tgStep2": 'Invia "/newbot" e segui le istruzioni; copia il token che ti dà.',
@@ -462,7 +462,7 @@ export const it: Dict = {
   "settings.telegramTestSent": "Messaggio di test inviato — controlla la chat Telegram.",
 
   // ── impostazioni: email ─────────────────────────────────────────────────
-  "settings.emailTitle": "✉️ Notifiche email",
+  "settings.emailTitle": "Notifiche email",
   "settings.emailHelp": "Come configuro gli avvisi via email? (funziona con Gmail)",
   "settings.emStep1":
     "Per Gmail: host smtp.gmail.com, porta 587, utente = il tuo indirizzo Gmail.",
@@ -490,7 +490,7 @@ export const it: Dict = {
 
 
   // ── impostazioni: scansioni ─────────────────────────────────────────────
-  "settings.scanTitle": "🔄 Scansione automatica",
+  "settings.scanTitle": "Scansione automatica",
   "settings.frequency": "Frequenza",
   "settings.every30m": "Ogni 30 minuti",
   "settings.everyHour": "Ogni ora",
@@ -500,7 +500,7 @@ export const it: Dict = {
   "settings.pauseScans": "Metti in pausa le scansioni automatiche",
   "settings.pauseScansNote":
     'Impedisce alle scansioni programmate di contattare i portali — utile per far riposare la connessione quando sei via. "Scansiona ora" continua a funzionare su richiesta.',
-  "settings.healthTitle": "🚨 Avvisi sulla salute degli scraper",
+  "settings.healthTitle": "Avvisi sulla salute degli scraper",
   "settings.healthNote":
     "Uno scraper rotto è silenzioso: nessun annuncio somiglia in tutto e per tutto a un mercato fermo. Ricevi un avviso quando una ricerca fallisce questo numero di scansioni di fila. I portali bloccano gli scraper ogni tanto, quindi il valore 1 grida al lupo.",
   "settings.alertAfter": "Avvisa dopo",
@@ -508,10 +508,10 @@ export const it: Dict = {
   "settings.nFailures": "{count} fallimenti consecutivi",
 
   // ── impostazioni: parole chiave e punteggio ─────────────────────────────
-  "settings.keywordsTitle": "🚫 Parole chiave escluse (globali)",
+  "settings.keywordsTitle": "Parole chiave escluse (globali)",
   "settings.keywordsNote":
     "Gli annunci che contengono queste parole vengono scartati automaticamente (solo parole intere, accenti ignorati). Separale con virgole. Ogni ricerca può aggiungere le proprie parole extra oltre a queste.",
-  "settings.matchTitle": "🎯 Smart Match Score (casa dei sogni)",
+  "settings.matchTitle": "Smart Match Score (casa dei sogni)",
   "settings.matchEnable":
     "Mostra una percentuale di compatibilità su ogni scheda, calcolata sui desideri qui sotto",
   "settings.matchNote":
@@ -525,7 +525,7 @@ export const it: Dict = {
   "settings.dreamZones": "Zone o città preferite (separate da virgola)",
 
   // ── impostazioni: tempi di percorrenza ──────────────────────────────────
-  "settings.commuteTitle": "🚏 Tempi di percorrenza",
+  "settings.commuteTitle": "Tempi di percorrenza",
   "settings.commuteEnable": "Mostra il tempo di viaggio da ogni immobile ai luoghi qui sotto",
   "settings.commuteNote":
     "Il lavoro, l'università, la fermata della metro — calcolati con OpenStreetMap. I tempi compaiono su una scheda solo dopo aver premuto Calcola qui sotto, e solo per gli annunci che hanno già le coordinate sulla mappa.",
@@ -550,7 +550,7 @@ export const it: Dict = {
   "settings.commuteRemaining": " · ne restano {count}, rilancia per continuare",
 
   // ── impostazioni: motore dell'assistente ────────────────────────────────
-  "settings.assistantTitle": "🧠 Motore dell'assistente di ricerca",
+  "settings.assistantTitle": "Motore dell'assistente di ricerca",
   "settings.assistantNote":
     'Come il campo "descrivi la ricerca a parole" trasforma il testo in una ricerca. L\'interprete predefinito è offline e istantaneo. Un LLM capisce formulazioni più libere; in caso di errore ricade sull\'interprete offline, e nient\'altro lascia mai il tuo PC.',
   "settings.backendBuiltin": "Interprete integrato (offline, predefinito)",
@@ -563,13 +563,13 @@ export const it: Dict = {
   "settings.llmModel": "Modello (es. llama3.1)",
   "settings.llmKeySaved": "Chiave API salvata (lascia vuoto per mantenerla)",
   "settings.llmKeyPlaceholder": "Chiave API (vuota per Ollama locale)",
-  "settings.auditTitle": "🧠 Lettura degli annunci (opzionale)",
+  "settings.auditTitle": "Lettura degli annunci (opzionale)",
   "settings.auditEnable": "Fai leggere un annuncio al modello quando lo chiedo",
   "settings.auditNote":
     "Aggiunge il pulsante “Leggi l'annuncio” nella scheda di un immobile: il modello riporta ciò che il testo dice su spese oltre il prezzo, immobile locato, stato e punti utili in trattativa. Nulla viene letto in automatico — un clic, un annuncio, con lo stesso modello configurato qui sopra. Le risposte restano salvate, quindi riaprire la scheda non costa nulla.",
 
   // ── impostazioni: scraping e aggiramento blocchi ────────────────────────
-  "settings.scrapingTitle": "🛡️ Scraping avanzato e aggiramento blocchi",
+  "settings.scrapingTitle": "Scraping avanzato e aggiramento blocchi",
   "settings.scrapingHelp": "Come risolvere i blocchi DataDome? (istruzioni)",
   "settings.ddStep1":
     "DataDome blocca le richieste HTTP dirette alle singole pagine degli annunci dal tuo IP di casa.",
@@ -589,7 +589,7 @@ export const it: Dict = {
   "settings.proxyPool": "Pool di proxy (facoltativo, un URL per riga)",
   "settings.proxyPoolNote":
     "Con più di un proxy, un IP di uscita bloccato riposa per un po' e il tentativo successivo esce da un altro — un indirizzo bruciato non manda più giù tutte le scansioni.",
-  "settings.idealistaApiTitle": "🔑 API ufficiale di Idealista",
+  "settings.idealistaApiTitle": "API ufficiale di Idealista",
   "settings.idealistaApiNote":
     "Facoltativa, ed è l'unica opzione qui che non sia un aggiramento: con una chiave e un segreto, le ricerche su Idealista chiedono al portale i suoi stessi dati invece di leggerne le pagine, quindi nulla può bloccarle. Le chiavi vengono rilasciate a mano dopo aver descritto il proprio progetto su",
   "settings.idealistaKeySaved": "Chiave già salvata (lascia vuoto per mantenerla)",
@@ -599,7 +599,7 @@ export const it: Dict = {
   "settings.idealistaMaxPages": "Richieste per ricerca, a ogni scansione",
   "settings.idealistaMaxPagesNote":
     "Ognuna restituisce fino a 50 annunci e consuma la quota mensile concordata per la tua chiave — perciò il valore predefinito è una sola richiesta. Alzalo quando conosci il tuo limite. Le ricerche che l'API non sa esprimere con esattezza (un quartiere, un numero di locali, un filtro sulle caratteristiche) continuano a usare il normale scraper, e così anche tutto ciò che l'API rifiuta.",
-  "settings.scrapeApiTitle": "🌐 API di scraping (risolve DataDome per te)",
+  "settings.scrapeApiTitle": "API di scraping (risolve DataDome per te)",
   "settings.scrapeApiNote":
     "Facoltativa. Con una chiave del provider impostata, le scansioni instradano ogni pagina del portale attraverso il provider — che restituisce l'HTML già risolto — così i blocchi smettono di colpire il tuo IP di casa. I piani gratuiti (~1.000 chiamate al mese) bastano per uno scanner personale. Lascia vuoto per mantenere il percorso locale (gratuito, offline).",
   "settings.scrapeKeySaved": "Chiave già salvata (lascia vuoto per mantenerla)",
@@ -614,10 +614,10 @@ export const it: Dict = {
   "settings.cookiePlaceholder": "Incolla il valore del cookie datadome",
 
   // ── impostazioni: raccolta cookie e browser ─────────────────────────────
-  "settings.harvestTitle": "🤖 Ottieni il cookie automaticamente",
+  "settings.harvestTitle": "Ottieni il cookie automaticamente",
   "settings.harvestNote":
     "Apre un browser locale, ottiene un cookie fresco e lo salva — senza copia/incolla. Potrebbe aprirsi una finestra: se il portale mostra un CAPTCHA, risolvilo una volta e verrà ricordato.",
-  "settings.grabCookie": "🔄 Ottieni subito un cookie fresco",
+  "settings.grabCookie": "Ottieni subito un cookie fresco",
   "settings.openingBrowser": "Apertura del browser…",
   "settings.cookieGrabbed": "Nuovo cookie DataDome salvato ({preview}).",
   "settings.autoRefreshCookie":
@@ -634,30 +634,30 @@ export const it: Dict = {
   "settings.engineChromium": "Chromium",
   "settings.camoufoxNote":
     "Camoufox è un Firefox stealth che nasconde i segnali di automazione che DataDome cerca, così la verifica viene sfidata molto meno spesso.",
-  "settings.camoufoxInstalled": "Installato ✓",
+  "settings.camoufoxInstalled": "Installato",
   "settings.camoufoxMissing":
     "Non installato — un clic lo aggiunge (~150 MB, una tantum):",
-  "settings.installCamoufox": "⚡ Installa Camoufox con un clic",
-  "settings.installingCamoufox": "⚡ Installazione di Camoufox (~1-3 min)…",
+  "settings.installCamoufox": "Installa Camoufox con un clic",
+  "settings.installingCamoufox": "Installazione di Camoufox (~1-3 min)…",
   "settings.camoufoxInstalledMsg": "Camoufox installato con successo!",
   "settings.harvesterMissing":
     "Non ancora installato in questo ambiente Python. Puoi installare Playwright e Chromium automaticamente con un clic:",
-  "settings.installHarvester": "⚡ Installa Playwright e Chromium con un clic",
-  "settings.installingHarvester": "⚡ Installazione di Playwright e Chromium (~1-2 min)…",
+  "settings.installHarvester": "Installa Playwright e Chromium con un clic",
+  "settings.installingHarvester": "Installazione di Playwright e Chromium (~1-2 min)…",
   "settings.harvesterInstalledMsg": "Playwright e Chromium installati con successo!",
   "settings.manualInstall":
     "Oppure installali a mano da terminale con `install-playwright.bat` nella cartella del progetto, o esegui: ",
 
   // ── impostazioni: token API e riavvio ───────────────────────────────────
-  "settings.apiTokenTitle": "🔒 Token di accesso all'API",
+  "settings.apiTokenTitle": "Token di accesso all'API",
   "settings.apiTokenNote":
     "Per impostazione predefinita la dashboard è raggiungibile da chiunque arrivi al suo indirizzo (per questo si lega a localhost). Imposta un token per richiederlo a ogni richiesta — così è sicuro esporre l'app sulla tua LAN o su Tailscale. Lascia vuoto per tenerla aperta. Su questo dispositivo resti autenticato; agli altri il token viene chiesto una volta.",
   "settings.apiTokenPlaceholder": "Nessun token (accesso libero)",
-  "settings.backendTitle": "🔄 Backend",
+  "settings.backendTitle": "Backend",
   "settings.backendNote":
     "Riavvia il processo del backend — usalo dopo aver aggiornato l'app perché le novità abbiano effetto, invece di chiudere e riaprire la finestra del terminale. La dashboard va offline per qualche secondo e poi si ricarica da sola.",
-  "settings.restart": "🔄 Riavvia il backend",
-  "settings.restarting": "⏳ Riavvio… (in attesa del backend)",
+  "settings.restart": "Riavvia il backend",
+  "settings.restarting": "Riavvio… (in attesa del backend)",
   "settings.restartConfirm":
     "Riavviare ora il backend? La dashboard resta non disponibile per qualche secondo, poi si ricarica da sola.",
   "settings.restartTooOld":
@@ -666,14 +666,14 @@ export const it: Dict = {
     "Il backend non è tornato da solo — controlla la finestra del terminale (o rilancia start.bat / serve.bat).",
 
   // ── impostazioni: copie di sicurezza ────────────────────────────────────
-  "settings.backupsTitle": "💾 Copie di sicurezza",
+  "settings.backupsTitle": "Copie di sicurezza",
   "settings.backupsNote":
     "Una copia del database viene salvata una volta al giorno, e un'altra prima che un aggiornamento ne cambi la struttura. Scaricane una per conservarla altrove, oppure rimettine una: il ripristino sostituisce tutto quello che hai adesso, per questo lo stato attuale viene copiato prima.",
   "settings.backupsFolder": "Si trovano in {folder}",
   "settings.backupsEmpty":
     "Ancora nessuna copia — la prima viene salvata al prossimo avvio dell'app.",
-  "settings.backupTakeNow": "💾 Salva una copia adesso",
-  "settings.backupImport": "📥 Portane una qui",
+  "settings.backupTakeNow": "Salva una copia adesso",
+  "settings.backupImport": "Portane una qui",
   "settings.backupDownload": "Scarica",
   "settings.backupRestore": "Ripristina questa",
   "settings.backupKind.daily": "Copia giornaliera",
@@ -692,7 +692,7 @@ export const it: Dict = {
     "Ripristinata {name} · quello che ha sostituito è stato salvato come {backup}. Ricaricamento…",
 
   // ── impostazioni: gestione dei dati ─────────────────────────────────────
-  "settings.dataTitle": "🧹 Gestione dei dati",
+  "settings.dataTitle": "Gestione dei dati",
   "settings.dataNote":
     "Irreversibile. Le impostazioni di notifica e di accesso vengono sempre mantenute.",
   "settings.clearDashboardName": "Svuota la dashboard",
@@ -721,14 +721,14 @@ export const it: Dict = {
   "settings.resetNothing": "nulla",
 
   // ── ricerche monitorate: struttura e modalità ───────────────────────────
-  "profiles.title": "🔍 Ricerche monitorate",
+  "profiles.title": "Ricerche monitorate",
   "profiles.statusOk": "OK",
   "profiles.statusNoResults": "Nessun risultato",
   "profiles.statusBlocked": "Bloccata (riproverà)",
   "profiles.statusError": "Errore",
-  "profiles.modeAssistant": "💬 Descrivila e basta",
-  "profiles.modeBuilder": "🧭 Costruisci una ricerca",
-  "profiles.modeUrl": "🔗 Incolla un URL",
+  "profiles.modeAssistant": "Descrivila e basta",
+  "profiles.modeBuilder": "Costruisci una ricerca",
+  "profiles.modeUrl": "Incolla un URL",
   "profiles.empty":
     "Nessuna ricerca configurata. Costruiscine una con i tuoi criteri oppure incolla l'URL dei risultati da Immobiliare.it / Idealista per iniziare.",
   "profiles.untitled": "Ricerca senza nome",
@@ -759,18 +759,18 @@ export const it: Dict = {
     "un tetto di 5 o più locali (la sua fascia più alta è “5 o più”)",
 
   // ── ricerche monitorate: canali di notifica ─────────────────────────────
-  "profiles.chAll": "🔔 Tutti i canali",
+  "profiles.chAll": "Tutti i canali",
   "profiles.chAllWarn":
-    "Nessun canale di notifica è ancora configurato — le ricerche che ne chiedono uno non invieranno avvisi. Configura Telegram o Email in ⚙️ Impostazioni.",
-  "profiles.chTelegram": "📨 Solo Telegram",
-  "profiles.chTelegramOff": "📨 Solo Telegram (non configurato)",
+    "Nessun canale di notifica è ancora configurato — le ricerche che ne chiedono uno non invieranno avvisi. Configura Telegram o Email in Impostazioni.",
+  "profiles.chTelegram": "Solo Telegram",
+  "profiles.chTelegramOff": "Solo Telegram (non configurato)",
   "profiles.chTelegramWarn":
-    "Telegram non è configurato — le ricerche che notificano via Telegram non invieranno avvisi. Aggiungi il token del bot e il chat ID in ⚙️ Impostazioni.",
-  "profiles.chEmail": "✉️ Solo Email",
-  "profiles.chEmailOff": "✉️ Solo Email (non configurata)",
+    "Telegram non è configurato — le ricerche che notificano via Telegram non invieranno avvisi. Aggiungi il token del bot e il chat ID in Impostazioni.",
+  "profiles.chEmail": "Solo Email",
+  "profiles.chEmailOff": "Solo Email (non configurata)",
   "profiles.chEmailWarn":
-    "L'email non è configurata — le ricerche che notificano via email non invieranno avvisi. Configura l'SMTP in ⚙️ Impostazioni.",
-  "profiles.chNone": "🔕 Nessuna notifica",
+    "L'email non è configurata — le ricerche che notificano via email non invieranno avvisi. Configura l'SMTP in Impostazioni.",
+  "profiles.chNone": "Nessuna notifica",
 
   // ── ricerche monitorate: assistente ─────────────────────────────────────
   "profiles.assistantIntro":
@@ -784,7 +784,7 @@ export const it: Dict = {
     "Non c'era nulla da leggere. Descrivi che cosa cerchi — almeno una città.",
   "profiles.multiIntro":
     "Ho letto {count} ricerche alternative nella tua frase. Controllale una per una (apri i link per verificare i risultati), poi crea tutti i profili in un colpo solo.",
-  "profiles.reword": "✏️ Riformula",
+  "profiles.reword": "Riformula",
   "profiles.searchNumber": "Ricerca {n}",
   "profiles.editInBuilder": "Modifica questa ricerca nel modulo guidato",
   "profiles.dropAlternative": "Elimina questa alternativa",
@@ -799,13 +799,13 @@ export const it: Dict = {
   "profiles.urlIntro":
     "Vai su Immobiliare.it o Idealista, imposta zona e filtri sulla mappa, poi copia qui l'URL della pagina dei risultati.",
   "profiles.urlTip":
-    '💡 È così che usi tutti i filtri del portale — bagni, piano, ascensore, terrazzo, classe energetica, tipologia, escludi aste e così via. Impostali sul portale, poi incolla l\'URL: l\'app monitora esattamente quella ricerca. I due strumenti qui sopra ("Descrivila e basta" / "Costruisci una ricerca") coprono solo città, prezzo, locali e superficie.',
+    'È così che usi tutti i filtri del portale — bagni, piano, ascensore, terrazzo, classe energetica, tipologia, escludi aste e così via. Impostali sul portale, poi incolla l\'URL: l\'app monitora esattamente quella ricerca. I due strumenti qui sopra ("Descrivila e basta" / "Costruisci una ricerca") coprono solo città, prezzo, locali e superficie.',
   "profiles.namePlaceholder": "Nome (es. Trilocali Milano Sud)",
   "profiles.keywordsPlaceholder":
     "Parole chiave escluse aggiuntive (facoltative, separate da virgola)",
   "profiles.urlPlaceholder":
     "https://www.immobiliare.it/vendita-case/milano/?prezzoMassimo=300000…",
-  "profiles.extractParams": "🪄 Estrai i parametri",
+  "profiles.extractParams": "Estrai i parametri",
   "profiles.extractParamsTitle": "Estrai città e filtri nel modulo guidato",
   "profiles.saveChanges": "Salva le modifiche",
   "profiles.saveProfile": "Salva la ricerca",
@@ -829,7 +829,7 @@ export const it: Dict = {
   "profiles.moreCriteriaHint": "· applicati a entrambi i portali",
   "profiles.condition": "Stato",
   "profiles.builderTipPrefix":
-    "💡 Ti servono bagni, terrazzo, classe energetica, tipologia o un altro filtro? Impostalo sul portale e ",
+    "Ti servono bagni, terrazzo, classe energetica, tipologia o un altro filtro? Impostalo sul portale e ",
   "profiles.builderTipLink": "incolla l'URL dei risultati",
   "profiles.builderTipSuffix": " — così catturi tutti i filtri offerti dal portale.",
   "profiles.profileNamePlaceholder": "Nome della ricerca (facoltativo)",
@@ -848,11 +848,11 @@ export const it: Dict = {
   "profiles.selectAll": "Seleziona tutte",
   "profiles.selectRow": "Seleziona {name}",
   "profiles.selectedCount": "{count} selezionate",
-  "profiles.activate": "▶️ Attiva",
-  "profiles.pause": "⏸️ Metti in pausa",
+  "profiles.activate": "Attiva",
+  "profiles.pause": "Metti in pausa",
   "profiles.notificationsAction": "Notifiche →",
-  "profiles.deleteAction": "🗑 Elimina",
-  "profiles.mergeSelected": "🔗 Accorpa i selezionati",
+  "profiles.deleteAction": "Elimina",
+  "profiles.mergeSelected": "Accorpa i selezionati",
   "profiles.mergeSelectedTitle": "Accorpa i portali selezionati in un unico box di ricerca",
   "profiles.mergePrompt":
     "Inserisci il nome univoco per accorpare le ricerche selezionate in un solo box:",
@@ -863,19 +863,19 @@ export const it: Dict = {
     'Vuoi separare i portali di "{name}" in box di ricerca distinti?',
   "profiles.excludesTitle":
     "Gli annunci che citano una di queste parole vengono scartati (Impostazioni + gli extra di questa ricerca)",
-  "profiles.excludes": "🚫 Esclude: {words}",
+  "profiles.excludes": "Esclude: {words}",
   "profiles.globalKeywords":
-    "🌐 Sempre escluse per ogni ricerca (dalle Impostazioni): {words}",
+    "Sempre escluse per ogni ricerca (dalle Impostazioni): {words}",
   "profiles.notifyTitle": "Dove inviare le notifiche di questa ricerca",
   "profiles.notifyFor": "Notifiche di {name}",
   "profiles.active": "Attiva",
   "profiles.editBox": "Modifica questo box di ricerca",
   "profiles.separateBox": "Separa i portali in box singoli indipendenti",
   "profiles.deleteBox": "Elimina questo box di ricerca (tutti i portali associati)",
-  "profiles.chipRent": "🔑 Affitto",
-  "profiles.chipBuy": "🏠 Acquisto",
-  "profiles.chipRooms": "🛏️ {range} locali",
-  "profiles.chipMinSqm": "📐 ≥ {value} mq",
+  "profiles.chipRent": "Affitto",
+  "profiles.chipBuy": "Acquisto",
+  "profiles.chipRooms": "{range} locali",
+  "profiles.chipMinSqm": "≥ {value} mq",
 
   // ── ricerche monitorate: dialogo di eliminazione ────────────────────────
   "profiles.deleteOne": "Eliminare “{name}”?",
@@ -900,11 +900,11 @@ export const it: Dict = {
   "profiles.deleteWith": "Elimina con {count} immobili",
 
   // ── mappa ───────────────────────────────────────────────────────────────
-  "map.pinDrop": "📉 Calo di prezzo",
-  "map.pinFavorite": "★ Preferito",
-  "map.pinFiltered": "🚫 Filtrato",
-  "map.pinGone": "💨 Non più disponibile",
-  "map.pinSold": "🔑 Venduto / affittato",
+  "map.pinDrop": "Calo di prezzo",
+  "map.pinFavorite": "Preferito",
+  "map.pinFiltered": "Filtrato",
+  "map.pinGone": "Non più disponibile",
+  "map.pinSold": "Venduto / affittato",
   "map.pinActive": "Annuncio attivo",
   "map.pinApproximate": "{count} in posizione approssimata",
   "map.pinApproximateTitle":
@@ -918,12 +918,12 @@ export const it: Dict = {
   "map.drawingRadius": "◯ Clicca il centro, trascina la maniglia…",
   "map.drawRadiusTitle":
     "Clicca sulla mappa per fissare il centro, poi trascina la maniglia per dimensionare il raggio.",
-  "map.drawArea": "⬠ Disegna un'area",
-  "map.finishArea": "⬠ Chiudi l'area",
+  "map.drawArea": "Disegna un'area",
+  "map.finishArea": "Chiudi l'area",
   "map.drawAreaTitle":
     "Clicca per aggiungere ogni vertice; fai doppio clic o premi Chiudi per chiudere l'area.",
   "map.polyHint": "{count} punti — ne servono ≥ 3, poi doppio clic per chiudere",
-  "map.clearZone": "✕ Rimuovi la zona",
+  "map.clearZone": "Rimuovi la zona",
   "map.radiusActive": "Raggio di {km} km attivo",
   "map.areaActive": "Filtro per area attivo",
   "map.zoneWarning":
@@ -938,7 +938,7 @@ export const it: Dict = {
     "Clicca un segnaposto per aprire l'immobile. Dati della mappa © contributori OpenStreetMap (le tile sono scaricate online).",
 
   // ── velocità del mercato ────────────────────────────────────────────────
-  "velocity.title": "📊 Velocità del mercato",
+  "velocity.title": "Velocità del mercato",
   "velocity.subtitleSale":
     "quanto in fretta gli annunci lasciano il mercato, e come li prezzano le agenzie",
   "velocity.subtitleRent":
@@ -985,7 +985,7 @@ export const it: Dict = {
     "“Usciti dal mercato” significa che nessuna scansione vede l'annuncio da una settimana: venduto, affittato, ritirato o ripubblicato con un nuovo id — non è la prova di una vendita. I giorni sul mercato si contano dal giorno in cui questa app ha visto l'annuncio per la prima volta, quindi gli immobili già online quando hai aggiunto la ricerca sembrano più giovani di quanto siano. Entrambe le distorsioni si attenuano col tempo.",
 
   // ── andamento dei prezzi ────────────────────────────────────────────────
-  "trends.title": "📈 Andamento dei prezzi",
+  "trends.title": "Andamento dei prezzi",
   "trends.subtitle": "come si è mosso nel tempo il €/mq mediano nelle zone che segui",
   "trends.wholeCity": "{city} · tutta la città",
   "trends.areaOption": "{label} ({days} giorni)",
@@ -996,13 +996,13 @@ export const it: Dict = {
   "trends.listingsFailed": "Impossibile caricare gli annunci",
   "trends.empty":
     "Nessuno storico da rappresentare. L'app registra una mediana per zona al giorno; una linea di tendenza ha bisogno di almeno due giorni di scansioni prima di dire qualcosa — ripassa tra un paio di giorni.",
-  "trends.changeSince": "{arrow} {pct}% dal {date}",
+  "trends.changeSince": "{pct}% dal {date}",
   "trends.caveat":
     "Prezzo richiesto mediano al metro quadro tra gli annunci che l'app stava monitorando ogni giorno — il tuo campione, non tutto il mercato. Si muove con ciò che monitori tanto quanto con i prezzi.",
   "trends.oneDayOnly":
     "Per questa zona è registrato un solo giorno — la linea compare quando ce ne sono almeno due.",
-  "trends.showComparables": "🔍 Mostra gli annunci dietro questa mediana ▼",
-  "trends.hideComparables": "Nascondi gli annunci dietro questa mediana ▲",
+  "trends.showComparables": "Mostra gli annunci dietro questa mediana",
+  "trends.hideComparables": "Nascondi gli annunci dietro questa mediana",
   "trends.comparablesEmpty": "In questa zona non c'è al momento nessun annuncio con prezzo.",
   "trends.comparablesNote":
     "I {count} annunci attualmente prezzati in questa zona — l'insieme attuale da cui si calcola la mediana di oggi. I punti precedenti del grafico hanno conservato solo il conteggio, quindi i loro annunci esatti non sono più mostrabili. Cliccane uno per aprirne i dettagli.",
@@ -1011,7 +1011,7 @@ export const it: Dict = {
   "trends.vsMedian": " ({sign}{pct}% rispetto alla mediana)",
 
   // ── log del backend ─────────────────────────────────────────────────────
-  "logs.title": "📜 Log del backend",
+  "logs.title": "Log del backend",
   "logs.filterPlaceholder": "Filtra (es. availability_check, blocked, error)",
   "logs.autoRefresh": "Aggiornamento automatico (3s)",
   "logs.lineCount": "{visible} / {total} righe",
@@ -1021,10 +1021,10 @@ export const it: Dict = {
   "logs.source": "Origine: {path}",
 
   // ── salute degli scraper ────────────────────────────────────────────────
-  "health.title": "🩺 Salute degli scraper",
+  "health.title": "Salute degli scraper",
   "health.subtitle": "la pipeline anti-bot riesce ancora a passare?",
-  "health.hide": "Nascondi ▲",
-  "health.show": "Mostra ▼",
+  "health.hide": "Nascondi",
+  "health.show": "Mostra",
   "health.loadFailed": "Impossibile caricare la salute degli scraper",
   "health.window":
     "Ultimi {days} giorni di esiti delle scansioni per portale. La prossima scansione parte da: {transport}.",
@@ -1054,7 +1054,7 @@ export const it: Dict = {
     "Una serie breve è normale (blocchi anti-bot transitori). Una lunga significa che la via gratuita è caduta: valuta un pool di proxy o una chiave scrape-API nelle Impostazioni.",
 
   // ── calcolatori (scheda dettaglio) ──────────────────────────────────────
-  "calc.mortgageTitle": "🧮 Stima del mutuo",
+  "calc.mortgageTitle": "Stima del mutuo",
   "calc.downPayment": "Anticipo",
   "calc.interestRate": "Tasso d'interesse",
   "calc.perYear": "%/anno",
@@ -1062,7 +1062,7 @@ export const it: Dict = {
   "calc.years": "anni",
   "calc.loanAmount": "Importo del mutuo",
   "calc.monthlyPayment": "Rata mensile",
-  "calc.yieldTitle": "📈 Rendimento da affitto (investimento)",
+  "calc.yieldTitle": "Rendimento da affitto (investimento)",
   "calc.expectedRent": "Affitto previsto",
   "calc.perMonthUnit": "€/mese",
   "calc.costsVacancy": "Spese e sfitto",
@@ -1077,7 +1077,7 @@ export const it: Dict = {
   "error.title": "Qualcosa è andato storto nel mostrare la pagina.",
   "error.dataSafe": "I tuoi dati sono al sicuro nel backend — basta ricaricare.",
   "error.reload": "⟳ Ricarica",
-  "auth.title": "🔒 Autenticazione richiesta",
+  "auth.title": "Autenticazione richiesta",
   "auth.hint": "Questa dashboard è protetta da un token API. Inseriscilo per continuare.",
   "auth.placeholder": "Token API",
   "auth.rejected": "Il token non è stato accettato. Controllalo e riprova.",

@@ -1,12 +1,22 @@
 import type { ReactNode } from "react";
 import { formatDate, formatDateTime, useT } from "../../i18n";
 import type { Feedback, SectionName } from "./state";
+import { Edit, type Icon, Success, Ticked } from "../../ui/icons";
 
 /** The standard section title. `first` drops the top margin, since the opening
- *  section sits directly under the dialog's intro line. */
-export function SectionHeading({ first, children }: { first?: boolean; children: ReactNode }) {
+ *  section sits directly under the dialog's intro line. `icon` is what the
+ *  section is about — passed as a component rather than an element so the
+ *  heading keeps control of the size, and left out where a drawing would say
+ *  less than the words already do. */
+export function SectionHeading({ first, icon: Glyph, children }: {
+  first?: boolean;
+  icon?: Icon;
+  children: ReactNode;
+}) {
   return (
-    <h3 className={`font-semibold text-sm uppercase t-muted mb-2 ${first ? "" : "mt-6"}`}>
+    <h3 className={`flex items-center gap-1.5 font-semibold text-sm uppercase t-muted mb-2
+      ${first ? "" : "mt-6"}`}>
+      {Glyph && <Glyph className="shrink-0" />}
       {children}
     </h3>
   );
@@ -44,7 +54,7 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
   if (dirty) {
     return (
       <span className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-caution">
-        {t("settings.secretDirty")}
+        <Edit /> {t("settings.secretDirty")}
       </span>
     );
   }
@@ -54,6 +64,7 @@ export function SecretStatus({ set, since, dirty }: { set?: boolean; since?: str
         ? t("settings.secretLastSaved", { date: formatDateTime(since) })
         : t("settings.secretSavedTitle")}
         className="inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full chip-positive">
+        <Ticked />
         {since
           ? t("settings.secretSavedOn", { date: formatDate(since) })
           : t("settings.secretSaved")}
@@ -75,9 +86,9 @@ export function Result({ feedback, where }: { feedback: Feedback | null; where: 
   if (!feedback || feedback.where !== where) return null;
   return (
     <p role="status"
-      className="text-sm mt-3 rounded-lg px-3 py-2
+      className="flex items-start gap-1.5 text-sm mt-3 rounded-lg px-3 py-2
         bg-positive-tint text-positive-ink">
-      ✅ {feedback.text}
+      <Success className="shrink-0 mt-0.5" /> {feedback.text}
     </p>
   );
 }

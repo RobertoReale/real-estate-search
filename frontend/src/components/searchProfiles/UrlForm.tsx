@@ -4,6 +4,7 @@
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { GlobalKeywordsHint } from "./helpers";
+import { Extract } from "../../ui/icons";
 
 export function UrlForm({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, name, setName, keywords, setKeywords, url, setUrl,
@@ -31,7 +32,7 @@ export function UrlForm({ sp }: { sp: SearchProfilesState }) {
             type="button"
             title={t("profiles.extractParamsTitle")}
             onClick={extractParamsFromUrl}>
-            {t("profiles.extractParams")}
+            <Extract /> {t("profiles.extractParams")}
           </button>
         )}
       </div>

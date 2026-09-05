@@ -1,5 +1,6 @@
 import { useT } from "../../i18n";
 import { SectionHeading } from "./controls";
+import { Deal } from "../../ui/icons";
 import { splitList, useSectionState, type Section } from "./state";
 
 interface Values {
@@ -42,7 +43,7 @@ export function MatchSection({ section }: { section: Section<Values> }) {
 
   return (
     <>
-      <SectionHeading>{t("settings.matchTitle")}</SectionHeading>
+      <SectionHeading icon={Deal}>{t("settings.matchTitle")}</SectionHeading>
       <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
         <input data-action="settings.match.enable" type="checkbox" checked={values.enabled}
           onChange={(e) => set("enabled", e.target.checked)} />

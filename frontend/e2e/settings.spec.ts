@@ -12,14 +12,14 @@ test("Settings opens over the grid and closes back to it", async ({ page }) => {
   await waitForResults(page);
 
   await page.getByRole("button", { name: "Settings" }).click();
-  await expect(page.getByRole("heading", { name: "⚙️ Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   // Loaded, not merely opened: the dialog cannot render a field until the
   // backend answers, and a failed load used to leave it blank.
   await expect(page.getByRole("button", { name: "Save settings" })).toBeVisible();
   await checkScreen(page, "the settings dialog");
 
   await page.getByRole("button", { name: "Close" }).first().click();
-  await expect(page.getByRole("heading", { name: "⚙️ Settings" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeHidden();
   await waitForResults(page);
 });
 
@@ -35,7 +35,7 @@ test("switching language repaints the grid, and the choice survives a reload", a
   await page.getByRole("button", { name: "Switch to Italiano" }).click();
 
   await expect(page.getByText(`${count} immobili`)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "🔍 Ricerche monitorate" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ricerche monitorate" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "it");
   await checkScreen(page, "the grid in Italian");
 

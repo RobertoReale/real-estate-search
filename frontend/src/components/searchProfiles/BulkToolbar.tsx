@@ -4,6 +4,7 @@
  * reads as "nothing selected" while a bulk bar is on screen. */
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
+import { Delete, Merged, Paused, Run } from "../../ui/icons";
 
 export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
   const { t, profiles, selected, setSelected, allSelected, selectedProfiles, bulkBusy,
@@ -29,11 +30,11 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
           </span>
           <button data-action="profiles.bulk.activate" className="btn-ghost !text-xs" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "activate")}>
-            {t("profiles.activate")}
+            <Run /> {t("profiles.activate")}
           </button>
           <button data-action="profiles.bulk.pause" className="btn-ghost !text-xs" disabled={bulkBusy}
             onClick={() => runBulk([...selected], "pause")}>
-            {t("profiles.pause")}
+            <Paused /> {t("profiles.pause")}
           </button>
           {/* value stays on the placeholder: this is an action, not a state
               — the selection can hold searches with different channels */}
@@ -50,7 +51,7 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
             className="btn-ghost !text-xs hover:!text-negative-ink"
             disabled={bulkBusy}
             onClick={() => askDelete(selectedProfiles)}>
-            {t("profiles.deleteAction")}
+            <Delete /> {t("profiles.deleteAction")}
           </button>
           {selectedProfiles.length > 1 && (
             <button data-action="profiles.bulk.merge"
@@ -58,7 +59,7 @@ export function BulkToolbar({ sp }: { sp: SearchProfilesState }) {
               disabled={bulkBusy}
               title={t("profiles.mergeSelectedTitle")}
               onClick={() => groupSelected(selectedProfiles)}>
-              {t("profiles.mergeSelected")}
+              <Merged /> {t("profiles.mergeSelected")}
             </button>
           )}
           <button data-action="profiles.bulk.clear" className="text-xs accent-link"

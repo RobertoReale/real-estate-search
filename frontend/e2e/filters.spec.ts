@@ -42,16 +42,16 @@ test("filtering by city, by price and by contract, then resetting", async ({ pag
   // Contract — Buy and Rent are separate worlds, and the rent side prices per
   // month. The price ceiling above stays applied, which is what makes the
   // switch visible in the count rather than merely in the label.
-  await page.getByRole("group", { name: "Market" }).getByRole("button", { name: "🔑 Rent" })
+  await page.getByRole("group", { name: "Market" }).getByRole("button", { name: "Rent" })
     .click();
   await waitForResults(page);
   await expect(page.getByText(/^Min price €\s*\/mo$/)).toBeVisible();
-  await expect(cards(page).first()).toContainText("🔑 rent");
+  await expect(cards(page).first()).toContainText("rent");
 
   // Reset — every filter goes, the Buy/Rent world the user is in stays.
   await page.getByRole("button", { name: "↺ Reset filters" }).click();
   await expect(page.getByLabel(/^Max price €/)).toHaveValue("");
-  await page.getByRole("group", { name: "Market" }).getByRole("button", { name: "🏠 Buy" })
+  await page.getByRole("group", { name: "Market" }).getByRole("button", { name: "Buy" })
     .click();
   await expect.poll(() => resultCount(page)).toBe(all);
 });
