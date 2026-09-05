@@ -188,7 +188,7 @@ progetto/
 │   └── src/
 │       ├── App.tsx
 │       ├── components/           # Navbar, SearchProfiles, MaintenanceActions,
-│       │                         # PortalBadge, PropertyCard, PropertyModal,
+│       │                         # PortalBadge, PropertyCard,
 │       │                         # SettingsModal, TagPicker, MapView,
 │       │                         # MarketVelocity, Calculators, ErrorBoundary
 │       │   ├── settings/         # one file per settings section (Telegram, Email,
@@ -201,8 +201,12 @@ progetto/
 │       │                         # DeleteDialog) + its constants and helpers
 │       ├── routes/                 # one folder per screen; params.ts is the URL
 │       │                           # codec and useDashboardUrl reads it
-│       │   └── listings/          # the grid's own regions: FilterRail,
-│       │                          # ActiveFilters, ResultHeader, chips.ts
+│       │   ├── listings/          # the grid's own regions: FilterRail,
+│       │   │                      # ActiveFilters, ResultHeader, chips.ts
+│       │   └── property/          # one property at its own address: the
+│       │                          # route, the two shapes, and one file per
+│       │                          # block (Facts, Benchmarks, Provenance,
+│       │                          # Curation, ListingAudit, Actions)
 │       ├── hooks/                  # useSearchProfiles (the search panel's state
 │       │                           # machine), useDebounced, useOnReveal,
 │       │                           # useMediaQuery

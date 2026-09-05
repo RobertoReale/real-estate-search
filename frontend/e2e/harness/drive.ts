@@ -84,7 +84,7 @@ export async function press(scope: Scope, id: ActionId, opts?: Parameters<Locato
  * `anchor` is where the walk begins, and it has to be said out loud rather than
  * assumed. Tab moves *forward* from wherever focus already is, and this app puts
  * its dialogs at the end of the document, after sixty cards; started from the
- * top of the page, a walk to the property modal would be three hundred presses
+ * top of the page, a walk to a dialog would be three hundred presses
  * of nothing. So the caller names a non-focusable element on the surface under
  * test — a heading, a panel — and clicking it sets the sequential focus
  * navigation starting point there. What is then proved is what the assertion

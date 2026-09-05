@@ -12,6 +12,7 @@ export const en = {
   "common.saving": "Saving…",
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.open": "Open",
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.restore": "Restore",
@@ -96,65 +97,67 @@ export const en = {
   // dictionaries: an attribution is a credit to reproduce, not a caption.
   "benchmark.attribution": "Fonte: Agenzia Entrate – OMI",
 
-  // ── commute units (shared by the card and the modal) ─────────────────────
+  // ── commute units (shared by the card and the detail) ───────────────────
   "commute.minutes": "{count} min",
   "commute.hours": "{count} h",
   "commute.hoursMinutes": "{hours} h {minutes} min",
   "commute.metres": "{count} m",
   "commute.kilometres": "{count} km",
 
-  // ── property modal ──────────────────────────────────────────────────────
-  "modal.locateFailed":
+  // ── the property detail ─────────────────────────────────────────────────
+  "detail.previous": "Previous result (k, or the left arrow)",
+  "detail.next": "Next result (j, or the right arrow)",
+  "detail.position": "{position} of {total}",
+  "detail.locateFailed":
     "Could not place this property — the portal's location is too vague to find coordinates for it.",
-  "modal.locateError": "Could not locate this property",
-  "modal.checkGone": "Removed / Gone (404)",
-  "modal.checkOnline": "Online (just verified)",
-  "modal.checkUnknown": "Could not verify (blocked by the portal or timeout)",
-  "modal.checkError": "Error during the online check",
-  "modal.notesError": "Could not save notes",
-  "modal.dealScoreTitle": "Deal Score:",
-  "modal.dealBelowLocal": "below the local market",
-  "modal.dealAboveLocal": "above the local market",
-  "modal.suggestedProposal": "Suggested proposal:",
-  "modal.dealDisclaimer":
+  "detail.locateError": "Could not locate this property",
+  "detail.checkGone": "Removed / Gone (404)",
+  "detail.checkOnline": "Online (just verified)",
+  "detail.checkUnknown": "Could not verify (blocked by the portal or timeout)",
+  "detail.checkError": "Error during the online check",
+  "detail.notesError": "Could not save notes",
+  "detail.dealScoreTitle": "Deal Score:",
+  "detail.dealBelowLocal": "below the local market",
+  "detail.dealAboveLocal": "above the local market",
+  "detail.suggestedProposal": "Suggested proposal:",
+  "detail.dealDisclaimer":
     "An estimate from the area's median €/sqm, the listing's condition cues, and the agency's usual discount — a starting point for your own judgement, not an appraisal.",
-  "modal.foundListings": "Found listings ({count})",
-  "modal.open": "Open",
-  "modal.priceHistory": "Price history",
-  "modal.commute": "Commute",
-  "modal.foundBySearch": "Found by search",
-  "modal.foundBySearches": "Found by {count} searches",
-  "modal.notLinked": "Not linked to any monitored search — imported from your inbox.",
-  "modal.tags": "Tags",
-  "modal.notes": "Personal notes",
-  "modal.notesPlaceholder":
+  "detail.foundListings": "Found listings ({count})",
+  "detail.priceHistory": "Price history",
+  "detail.commute": "Commute",
+  "detail.foundBySearch": "Found by search",
+  "detail.foundBySearches": "Found by {count} searches",
+  "detail.notLinked": "Not linked to any monitored search — imported from your inbox.",
+  "detail.tags": "Tags",
+  "detail.notes": "Personal notes",
+  "detail.notesPlaceholder":
     'e.g. "called agent on Monday — viewing scheduled for Friday", "needs 15k renovation"',
-  "modal.saveNotes": "Save notes",
-  "modal.description": "Description",
-  "modal.checkOnlineButton": "Check if still online",
-  "modal.checkOnlineTitle":
+  "detail.saveNotes": "Save notes",
+  "detail.description": "Description",
+  "detail.checkOnlineButton": "Check if still online",
+  "detail.checkOnlineTitle":
     "Probes the portal URL right now to verify if this listing is still online or removed (404)",
-  "modal.viewOnMap": "View on map",
-  "modal.viewOnMapTitle": "Open this property on the map",
-  "modal.locateAndViewTitle": "Find this property's coordinates and open it on the map",
-  "modal.restore": "Restore property",
-  "modal.restoreGone":
+  "detail.viewOnMap": "View on map",
+  "detail.viewOnMapTitle": "Open this property on the map",
+  "detail.locateAndViewTitle": "Find this property's coordinates and open it on the map",
+  "detail.restore": "Restore property",
+  "detail.restoreGone":
     'Restore this property? Use this if the availability check marked it "no longer available" by mistake.',
-  "modal.restoreSold":
+  "detail.restoreSold":
     "Restore this property? Use this if you marked it sold by mistake — it goes back to active lists.",
-  "modal.restoreHidden": "Restore this property? It will appear in active lists again.",
-  "modal.restoreFailed": "Restore failed",
-  "modal.markSold": "Mark sold",
-  "modal.markRented": "Mark rented",
-  "modal.confirmSold":
+  "detail.restoreHidden": "Restore this property? It will appear in active lists again.",
+  "detail.restoreFailed": "Restore failed",
+  "detail.markSold": "Mark sold",
+  "detail.markRented": "Mark rented",
+  "detail.confirmSold":
     "Mark this property as sold? It leaves the active lists but is kept as a confirmed sale for market statistics.",
-  "modal.confirmRented":
+  "detail.confirmRented":
     "Mark this property as rented out? It leaves the active lists but is kept as a confirmed close for market statistics.",
-  "modal.markSoldFailed": "Mark sold failed",
-  "modal.hide": "Hide property",
-  "modal.hideFailed": "Hide failed",
+  "detail.markSoldFailed": "Mark sold failed",
+  "detail.hide": "Hide property",
+  "detail.hideFailed": "Hide failed",
 
-  // ── property modal: the optional listing audit ──────────────────────────
+  // ── the property detail: the optional listing audit ─────────────────────
   "audit.title": "What the listing says",
   "audit.button": "Read the listing",
   "audit.reading": "Reading…",
@@ -1052,7 +1055,7 @@ export const en = {
   "health.failingHint":
     "A short streak is routine (transient anti-bot blocks). A long one means the free path is down: consider a proxy pool or a scrape-API key in Settings.",
 
-  // ── calculators (property modal) ────────────────────────────────────────
+  // ── calculators (the property detail) ───────────────────────────────────
   "calc.mortgageTitle": "Mortgage estimator",
   "calc.downPayment": "Down payment",
   "calc.interestRate": "Interest rate",

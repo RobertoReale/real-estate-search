@@ -522,10 +522,10 @@ test("the card's own controls", async ({ page }) => {
   // so it is clicked directly rather than looked for inside itself.
   await card.click({ position: { x: 8, y: 60 } });
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  await press(page, "modal.close");
+  await press(page, "detail.close");
   await press(card, "property.open");
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  await press(page, "modal.close");
+  await press(page, "detail.close");
 
   await reachableByKeyboard(page, "a card", [
     "property.open", "property.favorite", "property.hide", "tags.add",
@@ -539,7 +539,7 @@ test("the card's own controls", async ({ page }) => {
   await choose(page, "filters.status", "hidden");
   await waitForResults(page);
   await page.locator("article", { hasText: title }).click();
-  await press(page, "modal.restore");
+  await press(page, "detail.restore");
   await choose(page, "filters.status", "active");
   await expect.poll(() => resultCount(page)).toBe(before);
 
@@ -590,7 +590,7 @@ test("the card's own controls", async ({ page }) => {
   await expect.poll(() => cards(page).count()).toBeGreaterThan(30);
 });
 
-test("the property modal, end to end", async ({ page, request, offlineGuard }) => {
+test("the property detail, end to end", async ({ page, request, offlineGuard }) => {
   acceptDialogs(page);
   // "View on the map" ends on the map, whose tiles the harness blocks.
   offlineGuard.expectBlocked(/tile\.openstreetmap\.org/);
@@ -615,20 +615,29 @@ test("the property modal, end to end", async ({ page, request, offlineGuard }) =
 
   await page.goto("/");
   await waitForResults(page);
-  await cards(page).first().click();
-  await expect(control(page, "modal.close")).toBeVisible();
+  // The second card rather than the first: both arrows are live either side of
+  // it, and a disabled arrow is a control this walk could not press.
+  await cards(page).nth(1).click();
+  await expect(control(page, "detail.close")).toBeVisible();
 
-  // Clicking inside the modal must not close it.
-  await press(page, "modal.panel", { position: { x: 8, y: 8 } });
-  await expect(control(page, "modal.close")).toBeVisible();
+  // Moving through the set without leaving the screen, and the address follows.
+  const at = () => page.url();
+  const opened = at();
+  await expect(page.getByText(/^2 of \d+$/)).toBeVisible();
+  await press(page, "detail.next");
+  await expect(page.getByText(/^3 of \d+$/)).toBeVisible();
+  expect(at()).not.toBe(opened);
+  await press(page, "detail.prev");
+  await expect(page.getByText(/^2 of \d+$/)).toBeVisible();
+  expect(at()).toBe(opened);
 
-  await press(page, "modal.favorite");
-  await expect(control(page, "modal.favorite")).toHaveAttribute("aria-label", "Remove from favorites");
-  await press(page, "modal.favorite");
+  await press(page, "detail.favorite");
+  await expect(control(page, "detail.favorite")).toHaveAttribute("aria-label", "Remove from favorites");
+  await press(page, "detail.favorite");
 
-  await fill(page, "modal.notes", "seen on a Tuesday");
-  await press(page, "modal.notes.save");
-  await expect(control(page, "modal.notes.save")).toBeHidden();
+  await fill(page, "detail.notes", "seen on a Tuesday");
+  await press(page, "detail.notes.save");
+  await expect(control(page, "detail.notes.save")).toBeHidden();
 
   // The calculators are pure client-side arithmetic, so their effect is the
   // number beside them changing.
@@ -648,37 +657,40 @@ test("the property modal, end to end", async ({ page, request, offlineGuard }) =
   await fill(page, "calc.yield.costs", "35");
   await expect.poll(() => page.getByText(/Net yield/i).locator("..").innerText()).not.toBe(gross);
 
-  await press(page, "modal.checkOnline");
-  await expect(control(page, "modal.checkOnline")).toBeEnabled();
+  await press(page, "detail.checkOnline");
+  await expect(control(page, "detail.checkOnline")).toBeEnabled();
 
-  await reachableByKeyboard(page, "the property modal", [
-    "modal.close", "modal.favorite", "modal.notes", "modal.checkOnline", "modal.viewOnMap",
-    "modal.markSold", "modal.hide", "tags.add",
-  ], insideDialog(page, "modal.panel"));
+  await reachableByKeyboard(page, "the property detail", [
+    "detail.prev", "detail.next", "detail.close", "detail.favorite", "detail.notes",
+    "detail.checkOnline", "detail.viewOnMap", "detail.markSold", "detail.hide", "tags.add",
+  ], page.locator("h2").first());
 
-  // View on the map takes the modal down and puts the map up on that property.
-  await press(page, "modal.viewOnMap");
+  // View on the map takes the detail down and puts the map up on that property.
+  await press(page, "detail.viewOnMap");
   await expect(page.locator(".leaflet-container")).toBeVisible();
   await press(page, "view.grid");
   await waitForResults(page);
 
-  // Closing, both ways round.
+  // Closing, both ways round: the button, and the browser's own Back — which is
+  // the one a page has to answer to and a dialog never did.
   await cards(page).first().click();
-  await press(page, "modal.close.backdrop", { position: { x: 5, y: 5 } });
-  await expect(control(page, "modal.close")).toBeHidden();
+  await expect(control(page, "detail.close")).toBeVisible();
+  await page.goBack();
+  await expect(control(page, "detail.close")).toBeHidden();
+  await waitForResults(page);
 
   // Mark sold, then hide — each on its own property, each confirmed first, and
   // each proved by the property leaving the grid.
   const sold = cards(page).first();
   const soldTitle = (await sold.getAttribute("aria-label")) ?? "";
   await sold.click();
-  await press(page, "modal.markSold");
+  await press(page, "detail.markSold");
   await expect(page.locator("article", { hasText: soldTitle })).toBeHidden();
 
   const hidden = cards(page).first();
   const hiddenTitle = (await hidden.getAttribute("aria-label")) ?? "";
   await hidden.click();
-  await press(page, "modal.hide");
+  await press(page, "detail.hide");
   await expect(page.locator("article", { hasText: hiddenTitle })).toBeHidden();
 });
 
@@ -706,9 +718,9 @@ test("the listing reader, when one is configured", async ({ page }) => {
   await press(page, "settings.close");
 
   await cards(page).first().click();
-  await press(page, "modal.audit.read");
+  await press(page, "detail.audit.read");
   await expect(page.getByText("A quiet flat needing a new kitchen.")).toBeVisible();
-  await press(page, "modal.close");
+  await press(page, "detail.close");
 
   await openSettings(page);
   await setTicked(page, "settings.assistant.audit", false);
@@ -891,12 +903,12 @@ test("the three insight panels", async ({ page }) => {
   await expect(control(page, "trends.openProperty")).toBeHidden();
 
   // A comparable is a property, and a property opens where properties are: the
-  // listings screen, with the reader over it. That leaves this screen behind,
-  // so it is the last thing the journey asks of the panel.
+  // listings screen, at that property's own address. That leaves this screen
+  // behind, so it is the last thing the journey asks of the panel.
   await press(page, "trends.comparables");
   await press(page, "trends.openProperty");
-  await expect(control(page, "modal.close")).toBeVisible();
-  await press(page, "modal.close");
+  await expect(control(page, "detail.close")).toBeVisible();
+  await press(page, "detail.close");
   await waitForResults(page);
 });
 

@@ -49,10 +49,10 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 ```
 
 Expected today: **1025 passed + 1 skipped** (1026 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **276 frontend tests**,
-**49 browser tests** (28 journeys, then 21 that hold the run to the control inventory),
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **316 frontend tests**,
+**53 browser tests** (31 journeys, then 22 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
-reading: **204 interactive elements, 234 inventoried actions**, of which **232 exercised
+reading: **206 interactive elements, 236 inventoried actions**, of which **234 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
 a failure — it is a documentation trigger (see §4).
 
@@ -115,7 +115,7 @@ least one regression test. To audit an invariant:
 | 19 | `Property.source` upgrade-only ("email" now historical) | `services/deduplicator.py` | `test_dashboard_management.py` |
 | 20 | Delete-a-search removes only provably-its-own | `services/data_reset.py` `profile_results` | `test_data_reset.py` |
 | 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py`, `test_features.py` |
-| 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/components/PropertyModal.tsx` `PriceBenchmarks` | `test_omi_benchmark.py` |
+| 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/routes/property/Benchmarks.tsx` | `test_omi_benchmark.py` |
 
 ---
 

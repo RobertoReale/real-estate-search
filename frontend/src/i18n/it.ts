@@ -13,6 +13,7 @@ export const it: Dict = {
   "common.saving": "Salvataggio…",
   "common.cancel": "Annulla",
   "common.close": "Chiudi",
+  "common.open": "Apri",
   "common.delete": "Elimina",
   "common.edit": "Modifica",
   "common.restore": "Ripristina",
@@ -106,58 +107,60 @@ export const it: Dict = {
     "Nessuna coordinata sulla mappa — questo annuncio non comparirà sulla mappa né dentro una zona disegnata finché non viene localizzato (aprilo e usa \"Mostra sulla mappa\", oppure lancia \"Trova le coordinate\").",
 
   // ── scheda dettaglio ────────────────────────────────────────────────────
-  "modal.locateFailed":
+  "detail.previous": "Risultato precedente (k, o la freccia sinistra)",
+  "detail.next": "Risultato successivo (j, o la freccia destra)",
+  "detail.position": "{position} di {total}",
+  "detail.locateFailed":
     "Impossibile posizionare questo immobile — la località indicata dal portale è troppo vaga per ricavarne le coordinate.",
-  "modal.locateError": "Impossibile localizzare questo immobile",
-  "modal.checkGone": "Rimosso / Sparito (404)",
-  "modal.checkOnline": "Online (appena verificato)",
-  "modal.checkUnknown": "Impossibile verificare (bloccato dal portale o timeout)",
-  "modal.checkError": "Errore durante la verifica online",
-  "modal.notesError": "Impossibile salvare le note",
-  "modal.dealScoreTitle": "Punteggio affare:",
-  "modal.dealBelowLocal": "sotto il mercato locale",
-  "modal.dealAboveLocal": "sopra il mercato locale",
-  "modal.suggestedProposal": "Proposta suggerita:",
-  "modal.dealDisclaimer":
+  "detail.locateError": "Impossibile localizzare questo immobile",
+  "detail.checkGone": "Rimosso / Sparito (404)",
+  "detail.checkOnline": "Online (appena verificato)",
+  "detail.checkUnknown": "Impossibile verificare (bloccato dal portale o timeout)",
+  "detail.checkError": "Errore durante la verifica online",
+  "detail.notesError": "Impossibile salvare le note",
+  "detail.dealScoreTitle": "Punteggio affare:",
+  "detail.dealBelowLocal": "sotto il mercato locale",
+  "detail.dealAboveLocal": "sopra il mercato locale",
+  "detail.suggestedProposal": "Proposta suggerita:",
+  "detail.dealDisclaimer":
     "Una stima ricavata dalla mediana €/mq della zona, dagli indizi sullo stato dell'immobile e dallo sconto abituale dell'agenzia — un punto di partenza per il tuo giudizio, non una perizia.",
-  "modal.foundListings": "Annunci trovati ({count})",
-  "modal.open": "Apri",
-  "modal.priceHistory": "Storico dei prezzi",
-  "modal.commute": "Percorrenza",
-  "modal.foundBySearch": "Trovato da una ricerca",
-  "modal.foundBySearches": "Trovato da {count} ricerche",
-  "modal.notLinked":
+  "detail.foundListings": "Annunci trovati ({count})",
+  "detail.priceHistory": "Storico dei prezzi",
+  "detail.commute": "Percorrenza",
+  "detail.foundBySearch": "Trovato da una ricerca",
+  "detail.foundBySearches": "Trovato da {count} ricerche",
+  "detail.notLinked":
     "Non collegato a nessuna ricerca monitorata — importato dalla tua casella email.",
-  "modal.tags": "Etichette",
-  "modal.notes": "Note personali",
-  "modal.notesPlaceholder":
+  "detail.tags": "Etichette",
+  "detail.notes": "Note personali",
+  "detail.notesPlaceholder":
     'es. "chiamata l\'agenzia lunedì — visita fissata per venerdì", "servono 15k di ristrutturazione"',
-  "modal.saveNotes": "Salva le note",
-  "modal.description": "Descrizione",
-  "modal.checkOnlineButton": "Verifica se è ancora online",
-  "modal.checkOnlineTitle":
+  "detail.saveNotes": "Salva le note",
+  "detail.description": "Descrizione",
+  "detail.checkOnlineButton": "Verifica se è ancora online",
+  "detail.checkOnlineTitle":
     "Interroga subito l'URL del portale per verificare se questo annuncio è ancora online o è stato rimosso (404)",
-  "modal.viewOnMap": "Mostra sulla mappa",
-  "modal.viewOnMapTitle": "Apri questo immobile sulla mappa",
-  "modal.locateAndViewTitle": "Trova le coordinate di questo immobile e aprilo sulla mappa",
-  "modal.restore": "Ripristina l'immobile",
-  "modal.restoreGone":
+  "detail.viewOnMap": "Mostra sulla mappa",
+  "detail.viewOnMapTitle": "Apri questo immobile sulla mappa",
+  "detail.locateAndViewTitle": "Trova le coordinate di questo immobile e aprilo sulla mappa",
+  "detail.restore": "Ripristina l'immobile",
+  "detail.restoreGone":
     'Ripristinare questo immobile? Usalo se la verifica di disponibilità lo ha segnato "non più disponibile" per sbaglio.',
-  "modal.restoreSold":
+  "detail.restoreSold":
     "Ripristinare questo immobile? Usalo se lo hai segnato come venduto per sbaglio — torna negli elenchi attivi.",
-  "modal.restoreHidden": "Ripristinare questo immobile? Tornerà negli elenchi attivi.",
-  "modal.restoreFailed": "Ripristino non riuscito",
-  "modal.markSold": "Segna come venduto",
-  "modal.markRented": "Segna come affittato",
-  "modal.confirmSold":
+  "detail.restoreHidden": "Ripristinare questo immobile? Tornerà negli elenchi attivi.",
+  "detail.restoreFailed": "Ripristino non riuscito",
+  "detail.markSold": "Segna come venduto",
+  "detail.markRented": "Segna come affittato",
+  "detail.confirmSold":
     "Segnare questo immobile come venduto? Esce dagli elenchi attivi ma resta come vendita confermata per le statistiche di mercato.",
-  "modal.confirmRented":
+  "detail.confirmRented":
     "Segnare questo immobile come affittato? Esce dagli elenchi attivi ma resta come contratto confermato per le statistiche di mercato.",
-  "modal.markSoldFailed": "Impossibile segnarlo come venduto",
-  "modal.hide": "Nascondi l'immobile",
-  "modal.hideFailed": "Impossibile nasconderlo",
+  "detail.markSoldFailed": "Impossibile segnarlo come venduto",
+  "detail.hide": "Nascondi l'immobile",
+  "detail.hideFailed": "Impossibile nasconderlo",
 
-  // ── modale immobile: lettura opzionale dell'annuncio ────────────────────
+  // ── scheda dettaglio: lettura opzionale dell'annuncio ───────────────────
   "audit.title": "Cosa dice l'annuncio",
   "audit.button": "Leggi l'annuncio",
   "audit.reading": "Lettura in corso…",

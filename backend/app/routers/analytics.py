@@ -64,7 +64,7 @@ def pricing_trend_comparables(
     the chart's latest point summarises. Snapshots keep only the median and the
     count, so this is necessarily the set as it stands today, not a past point's
     (see pricing_stats.area_comparables). Same properties, annotated exactly like
-    the grid, so the same detail modal opens from the chart."""
+    the grid, so the same property detail opens from the chart."""
     props = area_comparables(db, city=city, zone=zone, contract=contract)
     annotate(db, props)
     return props

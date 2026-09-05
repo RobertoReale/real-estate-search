@@ -197,7 +197,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   and each is a decision rather than a leftover. **Native `<select>` stays native**: the
   browser suite drives a dropdown with Playwright's `selectOption`, which only works on a
   real `<select>`, and on a phone the platform picker is better than any listbox this app
-  could draw. **The modal frames stay hand-rolled** — `PropertyModal`, `SettingsModal`,
+  could draw. **The remaining modal frames stay hand-rolled** — `SettingsModal`,
   `LogViewer` and the search-profile delete dialog carry inventoried ids on their backdrop
   and their panel, and neither can be forwarded onto Radix's overlay. **The two
   select-all checkboxes stay native**, because their indeterminate state is set from a ref
@@ -269,7 +269,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   timer never has two requests for the same thing in the air at once, since the older one
   answering last is the older one winning (`LogViewer.test.tsx`), and that the OMI band
   never reaches the screen undated, unmarked when out of date, or uncredited
-  (`PropertyModal.test.tsx` — the attribution is a licence obligation, so a refactor that
+  (`routes/property/Benchmarks.test.tsx` — the attribution is a licence obligation, so a refactor that
   drops the line is a legal defect and not a cosmetic one, and the figures around it would
   still be right), and that a failure reaches the screen carrying what to do about it and
   a way to do it (`Toast.test.tsx`: a backend that never answered and one that considered

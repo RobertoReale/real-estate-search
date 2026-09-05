@@ -9,7 +9,7 @@ import { ICON_SIZE, PriceDrop, PriceRise, Trend, Warning } from "../ui/icons";
 interface Props {
   contract: "sale" | "rent";
   city: string;
-  /** Open a comparable in the shared detail modal (App owns the selection). */
+  /** Open a comparable at its own address (App owns the navigation). */
   onOpenProperty: (p: Property) => void;
 }
 

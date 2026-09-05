@@ -3,7 +3,7 @@ import type { CommuteMode } from "../types";
 import { ByBike, ByCar, type Icon, OnFoot } from "../ui/icons";
 
 /** The backend sends OSRM's raw metres and seconds, so the rounding lives here
- *  — one place, shared by the card and the modal, rather than two `toFixed`
+ *  — one place, shared by the card and the detail, rather than two `toFixed`
  *  calls that would drift the moment one of them gained an hours case. */
 export function formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);

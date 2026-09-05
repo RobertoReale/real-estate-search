@@ -45,12 +45,12 @@
      energy class), set it on the portal and paste the URL.
 2. **Add Profile**: Open **Searches** in the navigation, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list. To remove one, click **🗑** — see *Deleting a search* below, since you get to decide what happens to the listings it found.
    - *No accidental duplicates*: a search that resolves to the same portal URL and the same excluded keywords as one you already monitor is refused (the comparison ignores irrelevant differences like trailing slashes, tracking parameters, or keyword order/case), so the same listings aren't scanned and notified twice. Any pre-existing duplicates are merged into the oldest copy at startup, preserving which searches found what.
-   - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening a modal.
+   - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening anything.
 3. **Start Scanning**: Click **"Start Scan Now"** (or let the automatic scheduler scan in the background).
 4. **Browse Listings**: Merged listings will show a purple badge (e.g., *"2 merged listings"*), showing that duplicates across different portals or agencies have been successfully grouped together. Properties that appeared since your last visit carry a **🆕 new** badge, so a scan's findings are obvious at a glance; it clears itself the next time you reload the dashboard on that device (it is remembered per-browser, like the theme and the optional auth token — the same device shows it once).
 5. **Curation (Hide, Discard & Mark sold)**:
-   - If you see a listing you do not want to track, click on the card to open its modal, then click **`Hide property`**.
-   - Hidden listings are permanently excluded from searches and notifications. If you want to review or retrieve them, select the **`Discarded`** option in the **Status** filter at the top of the dashboard. Inside the detail modal of a discarded property, you can click **`Restore property`** to move it back to active status.
+   - If you see a listing you do not want to track, click on the card to open it, then click **`Hide property`**.
+   - Hidden listings are permanently excluded from searches and notifications. If you want to review or retrieve them, select the **`Discarded`** option in the **Status** filter at the top of the dashboard. On the detail page of a discarded property, you can click **`Restore property`** to move it back to active status.
    - **Mark as sold**: agencies often keep an ad online for weeks after the deal
      closes — reusing the photo with a big *"VENDUTO"* / *"VENDUTO IN 30 GIORNI"*
      overlay as advertising. Since the ad is still live, no scan will ever remove
@@ -114,6 +114,12 @@ to somebody else or kept for later:
   clean dashboard is just `/listings`.
 - **Back and Forward work.** Each filter you set is one step back, and typing a
   price counts as one step rather than one per digit.
+- **One property at a time, without losing your place.** On a laptop a
+  property takes the whole screen; `j` and `k` — or the arrow keys — move to
+  the next and previous result without going back to the grid in between, and
+  the address follows as you go. Back returns you to the grid at the row you
+  left rather than at the top. On a phone the same thing arrives as a sheet
+  over the grid.
 - **A reload lands where you left.** The filters, the sort and the grid/map
   choice all survive it, and survive being bookmarked.
 
