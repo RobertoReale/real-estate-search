@@ -12,6 +12,7 @@
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { createPortal } from "react-dom";
 import { getBaseName } from "../../utils/searchProfiles";
+import { Button } from "../../ui";
 
 export function DeleteDialog({ sp }: { sp: SearchProfilesState }) {
   const { t, deleting, setDeleting, results, deleteBusy, deleteError, confirmDelete } = sp;
@@ -83,21 +84,22 @@ export function DeleteDialog({ sp }: { sp: SearchProfilesState }) {
         {deleteError && <p className="accent-bad text-xs mt-3">{deleteError}</p>}
 
         <div className="flex flex-wrap gap-2 mt-5">
-          <button data-action="profiles.delete.cancel" className="btn-ghost" disabled={deleteBusy}
+          <Button data-action="profiles.delete.cancel" disabled={deleteBusy}
             onClick={() => setDeleting(null)}>
             {t("common.cancel")}
-          </button>
-          <button data-action="profiles.delete.keepResults" className="btn-ghost flex-1" disabled={deleteBusy}
+          </Button>
+          <Button data-action="profiles.delete.keepResults" className="flex-1" disabled={deleteBusy}
             onClick={() => confirmDelete(false)}>
             {t("profiles.keepResults")}
-          </button>
-          <button data-action="profiles.delete.withResults" className="btn-primary flex-1 !bg-negative hover:!bg-negative-hover"
+          </Button>
+          <Button data-action="profiles.delete.withResults" variant="solid" tone="negative"
+            className="flex-1"
             disabled={deleteBusy || !results || results.deletable === 0}
             onClick={() => confirmDelete(true)}>
             {deleteBusy
               ? t("profiles.deleting")
               : t("profiles.deleteWith", { count: results?.deletable ?? 0 })}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

@@ -5,6 +5,7 @@
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { PortalBadge } from "../PortalBadge";
 import { GlobalKeywordsHint } from "./helpers";
+import { Button, Checkbox, Chip, IconButton, Input } from "../../ui";
 import { Close, External, Hint, Warning } from "../../ui/icons";
 
 export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
@@ -24,26 +25,22 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
       {multi.map((search, idx) => (
         <div key={idx} className="p-3 rounded-xl panel space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-3xs font-bold uppercase px-2 py-0.5 rounded chip-accent">
+            <Chip tone="accent" className="uppercase">
               {t("profiles.searchNumber", { n: idx + 1 })}
-            </span>
+            </Chip>
             {search.interpretation.map((part) => (
-              <span key={part}
-                className="text-xs chip-positive px-2 py-1 rounded-lg font-medium">
-                {part}
-              </span>
+              <Chip key={part} tone="positive" size="md">{part}</Chip>
             ))}
             <button data-action="profiles.multi.edit" className="text-xs accent-link ml-auto"
               title={t("profiles.editInBuilder")}
               onClick={() => editInBuilder(search)}>
               {t("common.edit")}
             </button>
-            <button data-action="profiles.multi.drop" className="t-dim hover:text-negative-ink transition text-xs btn-focus"
-              title={t("profiles.dropAlternative")}
-              aria-label={t("profiles.dropAlternative")}
+            <IconButton data-action="profiles.multi.drop" variant="ghost" tone="negative" size="sm"
+              label={t("profiles.dropAlternative")}
               onClick={() => setMulti((m) => m.filter((_, i) => i !== idx))}>
               <Close size={14} />
-            </button>
+            </IconButton>
           </div>
           {search.notes.map((note) => (
             <p key={note} className="flex items-start gap-1.5 text-xs t-muted">
@@ -74,21 +71,21 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
       ))}
       <div className="flex flex-wrap items-center gap-3">
         {(["immobiliare", "idealista"] as const).map((portal) => (
-          <label key={portal}
-            className="flex items-center gap-1.5 text-xs t-muted cursor-pointer">
-            <input data-action="profiles.multi.usePortal" type="checkbox" checked={usePortals[portal]}
-              onChange={(e) =>
-                setUsePortals((u) => ({ ...u, [portal]: e.target.checked }))} />
-            {portal}
-          </label>
+          <Checkbox key={portal} data-action="profiles.multi.usePortal"
+            checked={usePortals[portal]}
+            onCheckedChange={(v) =>
+              setUsePortals((u) => ({ ...u, [portal]: v === true }))}
+            label={portal} />
         ))}
-        <input data-action="profiles.multi.keywords" className="input flex-1 basis-full sm:basis-auto sm:min-w-[14rem]"
+        <Input data-action="profiles.multi.keywords"
+          className="flex-1 basis-full sm:basis-auto sm:min-w-[14rem]"
+          aria-label={t("profiles.keywordsPlaceholder")}
           placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
       {error && <p className="accent-bad text-xs">{error}</p>}
-      <button data-action="profiles.multi.create" className="btn-primary" onClick={createFromMulti}
+      <Button data-action="profiles.multi.create" variant="solid" tone="accent" onClick={createFromMulti}
         disabled={
           saving
           || multi.every((s) => !s.urls)
@@ -101,7 +98,7 @@ export function MultiPanel({ sp }: { sp: SearchProfilesState }) {
                 multi.filter((s) => s.urls).length *
                 (Number(usePortals.immobiliare) + Number(usePortals.idealista)),
             })}
-      </button>
+      </Button>
     </div>
   );
 }

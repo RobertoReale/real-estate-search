@@ -2,6 +2,7 @@ import { useT } from "../../i18n";
 import { useTelegramTest } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { HelpSteps, Result, SecretStatus, SectionHeading } from "./controls";
+import { Button, Checkbox, Input } from "../../ui";
 import { Telegram } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
@@ -59,32 +60,26 @@ export function TelegramSection(
       />
       <div className="space-y-3">
         <div>
-          <input data-action="settings.telegram.token" className="input w-full" type="password"
+          <Input data-action="settings.telegram.token" type="password"
             placeholder={t(settings.telegram_token_set ? "settings.tokenSaved" : "settings.tokenPlaceholder")}
             value={values.token} onChange={(e) => set("token", e.target.value)} />
           <div className="mt-1">
             <SecretStatus set={settings.telegram_token_set} dirty={!!values.token.trim()} />
           </div>
         </div>
-        <input data-action="settings.telegram.chatId" className="input w-full" placeholder={t("settings.chatIdPlaceholder")}
+        <Input data-action="settings.telegram.chatId" placeholder={t("settings.chatIdPlaceholder")}
           value={values.chatId} onChange={(e) => set("chatId", e.target.value)} />
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input data-action="settings.telegram.actions" type="checkbox" checked={values.actions}
-            onChange={(e) => set("actions", e.target.checked)} />
-          {t("settings.telegramActions")}
-        </label>
+        <Checkbox data-action="settings.telegram.actions" label={t("settings.telegramActions")}
+          checked={values.actions} onCheckedChange={(v) => set("actions", v === true)} />
         <p className="text-xs opacity-70 -mt-2">{t("settings.telegramActionsHelp")}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input data-action="settings.telegram.enable" type="checkbox" checked={values.enabled}
-              onChange={(e) => set("enabled", e.target.checked)} />
-            {t("settings.enableTelegram")}
-          </label>
-          <button data-action="settings.telegram.test" className="btn-ghost" disabled={shell.anyBusy}
+          <Checkbox data-action="settings.telegram.enable" label={t("settings.enableTelegram")}
+            checked={values.enabled} onCheckedChange={(v) => set("enabled", v === true)} />
+          <Button data-action="settings.telegram.test" disabled={shell.anyBusy}
             onClick={() => shell.saveAndTest("telegram", () => test.mutateAsync(),
               () => t("settings.telegramTestSent"))}>
             {shell.busy === "telegram" ? t("settings.sending") : t("settings.saveAndTest")}
-          </button>
+          </Button>
         </div>
         <Result feedback={shell.feedback} where="telegram" />
       </div>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { translateCurrent, useT } from "../i18n";
 import { useScraperHealth } from "../queries/insights";
 import type { ScraperHealthDay } from "../types";
+import { Card, EmptyState } from "../ui";
 import { Dot, Health, ICON_SIZE, Warning } from "../ui/icons";
 
 /** Scraper Health panel: the anti-bot pipeline degrades
@@ -60,123 +61,124 @@ export default function ScraperHealthPanel() {
   const empty = data && data.portals.length === 0;
 
   return (
-    <section className="glass rounded-2xl p-4 sm:p-5">
-      <button data-action="health.toggle"
-        className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
-        onClick={() => setOpen(!open)}>
-        <h2 className="flex items-center gap-1.5 font-semibold text-base">
-          <Health className="shrink-0" />
-          {t("health.title")}{" "}
-          <span className="t-muted text-sm font-normal">{t("health.subtitle")}</span>
-        </h2>
-        <span className="t-muted text-sm">{open ? t("health.hide") : t("health.show")}</span>
-      </button>
+    <Card asChild padding="lg">
+      <section>
+        <button data-action="health.toggle"
+          className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
+          onClick={() => setOpen(!open)}>
+          <h2 className="flex items-center gap-1.5 font-semibold text-base">
+            <Health className="shrink-0" />
+            {t("health.title")}{" "}
+            <span className="t-muted text-sm font-normal">{t("health.subtitle")}</span>
+          </h2>
+          <span className="t-muted text-sm">{open ? t("health.hide") : t("health.show")}</span>
+        </button>
 
-      {open && (
-        <div className="mt-4 space-y-5">
-          {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
+        {open && (
+          <div className="mt-4 space-y-5">
+            {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
+            {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
 
-          {data && (
-            <p className="text-xs t-muted">
-              {t("health.window", {
-                days: data.window_days,
-                transport: data.transport,
-              })}
-            </p>
-          )}
+            {data && (
+              <p className="text-xs t-muted">
+                {t("health.window", {
+                  days: data.window_days,
+                  transport: data.transport,
+                })}
+              </p>
+            )}
 
-          {empty && (
-            <div className="panel rounded-xl p-6 text-center text-sm t-muted">
-              <p className="flex justify-center mb-2 t-dim"><Health size={ICON_SIZE.display} strokeWidth={1.25} /></p>
-              {t("health.empty")}
-            </div>
-          )}
+            {empty && (
+              <EmptyState className="panel rounded-xl"
+                icon={<Health size={ICON_SIZE.display} strokeWidth={1.25} />}
+                title={t("health.empty")} />
+            )}
 
-          {data && data.portals.length > 0 && (
-            <div className="overflow-x-auto">
-              {/* Labelled as history explicitly, and the streak below as the
-                  live state. The two are different kinds of number sitting on
-                  the same panel: a day's `blocked` count is a total that stays
-                  on the record for ever, while a streak is what is true right
-                  now and clears on the next scan that gets through. Unlabelled,
-                  a historical total reads as a current problem. */}
-              <h3 className="font-medium text-sm mb-2">{t("health.historyTitle")}</h3>
-              <table className="w-full text-sm">
-                <thead className="t-muted text-xs text-left">
-                  <tr className="border-b border-line">
-                    <th className="py-2 pr-3 font-medium">{t("health.colPortal")}</th>
-                    <th className="py-2 px-3 font-medium">{t("health.colDays")}</th>
-                    <th className="py-2 px-3 font-medium text-right">{t("health.colScans")}</th>
-                    <th
-                      className="py-2 px-3 font-medium text-right"
-                      title={t("health.colFailureRateTitle")}>
-                      {t("health.colFailureRate")}
-                    </th>
-                    <th className="py-2 pl-3 font-medium">{t("health.colTransport")}</th>
-                  </tr>
-                </thead>
-                <tbody className="tnum">
-                  {data.portals.map((p) => (
-                    <tr
-                      key={p.portal}
-                      className="border-b border-line-subtle">
-                      <td className="py-2 pr-3 t-strong capitalize">{p.portal}</td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-end gap-[2px]" aria-hidden={false}>
-                          {dayCells(p.days).map((c) => (
-                            <span
-                              key={c.day.date}
-                              title={c.label}
-                              className={`inline-block w-2.5 h-4 rounded-[3px] ${c.cls}`}
-                            />
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-right t-body">{p.attempts}</td>
-                      <td
-                        className={`py-2 px-3 text-right font-medium ${
-                          p.block_rate >= 0.5
-                            ? "accent-bad"
-                            : p.block_rate > 0
-                              ? "text-caution-ink"
-                              : "accent-good"
-                        }`}>
-                        {(p.block_rate * 100).toFixed(0)}%
-                      </td>
-                      <td className="py-2 pl-3 t-body">{p.last_transport || "—"}</td>
+            {data && data.portals.length > 0 && (
+              <div className="overflow-x-auto">
+                {/* Labelled as history explicitly, and the streak below as the
+                    live state. The two are different kinds of number sitting on
+                    the same panel: a day's `blocked` count is a total that stays
+                    on the record for ever, while a streak is what is true right
+                    now and clears on the next scan that gets through. Unlabelled,
+                    a historical total reads as a current problem. */}
+                <h3 className="font-medium text-sm mb-2">{t("health.historyTitle")}</h3>
+                <table className="w-full text-sm">
+                  <thead className="t-muted text-xs text-left">
+                    <tr className="border-b border-line">
+                      <th className="py-2 pr-3 font-medium">{t("health.colPortal")}</th>
+                      <th className="py-2 px-3 font-medium">{t("health.colDays")}</th>
+                      <th className="py-2 px-3 font-medium text-right">{t("health.colScans")}</th>
+                      <th
+                        className="py-2 px-3 font-medium text-right"
+                        title={t("health.colFailureRateTitle")}>
+                        {t("health.colFailureRate")}
+                      </th>
+                      <th className="py-2 pl-3 font-medium">{t("health.colTransport")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-xs t-dim mt-2">{t("health.legend")}</p>
-            </div>
-          )}
+                  </thead>
+                  <tbody className="tnum">
+                    {data.portals.map((p) => (
+                      <tr
+                        key={p.portal}
+                        className="border-b border-line-subtle">
+                        <td className="py-2 pr-3 t-strong capitalize">{p.portal}</td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-end gap-[2px]" aria-hidden={false}>
+                            {dayCells(p.days).map((c) => (
+                              <span
+                                key={c.day.date}
+                                title={c.label}
+                                className={`inline-block w-2.5 h-4 rounded-[3px] ${c.cls}`}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 text-right t-body">{p.attempts}</td>
+                        <td
+                          className={`py-2 px-3 text-right font-medium ${
+                            p.block_rate >= 0.5
+                              ? "accent-bad"
+                              : p.block_rate > 0
+                                ? "text-caution-ink"
+                                : "accent-good"
+                          }`}>
+                          {(p.block_rate * 100).toFixed(0)}%
+                        </td>
+                        <td className="py-2 pl-3 t-body">{p.last_transport || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-xs t-dim mt-2">{t("health.legend")}</p>
+              </div>
+            )}
 
-          {failingProfiles.length > 0 && (
-            <div>
-              <h3 className="font-medium text-sm">{t("health.failingTitle")}</h3>
-              <p className="text-xs t-dim mb-2">{t("health.failingSubtitle")}</p>
-              <ul className="text-sm space-y-1">
-                {failingProfiles.map((p) => (
-                  <li key={p.profile_id} className="flex items-center gap-2">
-                    <span className="accent-bad"><Dot size={10} fill="currentColor" /></span>
-                    <span className="t-strong">{p.name}</span>
-                    <span className="t-muted">
-                      {t("health.failingRow", {
-                        portal: p.portal,
-                        count: p.consecutive_failures,
-                        status: p.last_run_status || t("health.failingStatusFallback"),
-                      })}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs t-dim mt-2">{t("health.failingHint")}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </section>
+            {failingProfiles.length > 0 && (
+              <div>
+                <h3 className="font-medium text-sm">{t("health.failingTitle")}</h3>
+                <p className="text-xs t-dim mb-2">{t("health.failingSubtitle")}</p>
+                <ul className="text-sm space-y-1">
+                  {failingProfiles.map((p) => (
+                    <li key={p.profile_id} className="flex items-center gap-2">
+                      <span className="accent-bad"><Dot size={10} fill="currentColor" /></span>
+                      <span className="t-strong">{p.name}</span>
+                      <span className="t-muted">
+                        {t("health.failingRow", {
+                          portal: p.portal,
+                          count: p.consecutive_failures,
+                          status: p.last_run_status || t("health.failingStatusFallback"),
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs t-dim mt-2">{t("health.failingHint")}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </Card>
   );
 }

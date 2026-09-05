@@ -1,5 +1,6 @@
 import { useT } from "../../i18n";
 import { SectionHeading } from "./controls";
+import { Checkbox, Field, Input } from "../../ui";
 import { Deal } from "../../ui/icons";
 import { splitList, useSectionState, type Section } from "./state";
 
@@ -44,54 +45,41 @@ export function MatchSection({ section }: { section: Section<Values> }) {
   return (
     <>
       <SectionHeading icon={Deal}>{t("settings.matchTitle")}</SectionHeading>
-      <label className="flex items-center gap-2 text-xs t-body cursor-pointer">
-        <input data-action="settings.match.enable" type="checkbox" checked={values.enabled}
-          onChange={(e) => set("enabled", e.target.checked)} />
-        {t("settings.matchEnable")}
-      </label>
+      <Checkbox data-action="settings.match.enable" label={t("settings.matchEnable")}
+        checked={values.enabled} onCheckedChange={(v) => set("enabled", v === true)} />
       <p className="text-xs t-dim mt-1 mb-2">{t("settings.matchNote")}</p>
       {values.enabled && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <label className="text-xs t-muted col-span-2 sm:col-span-1">
-              {t("settings.dreamMaxPrice")}
-              <input data-action="settings.match.maxPrice" className="input w-full mt-1" type="number" min={0}
+            <Field label={t("settings.dreamMaxPrice")} className="col-span-2 sm:col-span-1">
+              <Input data-action="settings.match.maxPrice" type="number" min={0}
                 value={values.maxPrice}
                 onChange={(e) => set("maxPrice", Number(e.target.value))} />
-            </label>
-            <label className="text-xs t-muted">
-              {t("settings.dreamMinRooms")}
-              <input data-action="settings.match.minRooms" className="input w-full mt-1" type="number" min={0}
+            </Field>
+            <Field label={t("settings.dreamMinRooms")}>
+              <Input data-action="settings.match.minRooms" type="number" min={0}
                 value={values.minRooms}
                 onChange={(e) => set("minRooms", Number(e.target.value))} />
-            </label>
-            <label className="text-xs t-muted">
-              {t("settings.dreamMinSqm")}
-              <input data-action="settings.match.minSqm" className="input w-full mt-1" type="number" min={0}
+            </Field>
+            <Field label={t("settings.dreamMinSqm")}>
+              <Input data-action="settings.match.minSqm" type="number" min={0}
                 value={values.minSqm}
                 onChange={(e) => set("minSqm", Number(e.target.value))} />
-            </label>
-            <label className="text-xs t-muted">
-              {t("settings.dreamMinFloor")}
-              <input data-action="settings.match.minFloor" className="input w-full mt-1" type="number" min={0}
+            </Field>
+            <Field label={t("settings.dreamMinFloor")}>
+              <Input data-action="settings.match.minFloor" type="number" min={0}
                 value={values.minFloor}
                 onChange={(e) => set("minFloor", Number(e.target.value))} />
-            </label>
+            </Field>
           </div>
-          <div>
-            <label className="text-xs t-muted block mb-1" htmlFor="match-features">
-              {t("settings.dreamFeatures")}
-            </label>
-            <input data-action="settings.match.features" id="match-features" className="input w-full" value={values.keywords}
+          <Field label={t("settings.dreamFeatures")}>
+            <Input data-action="settings.match.features" value={values.keywords}
               onChange={(e) => set("keywords", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs t-muted block mb-1" htmlFor="match-zones">
-              {t("settings.dreamZones")}
-            </label>
-            <input data-action="settings.match.zones" id="match-zones" className="input w-full" value={values.zones}
+          </Field>
+          <Field label={t("settings.dreamZones")}>
+            <Input data-action="settings.match.zones" value={values.zones}
               onChange={(e) => set("zones", e.target.value)} />
-          </div>
+          </Field>
         </div>
       )}
     </>

@@ -8,6 +8,7 @@ import { api, authToken, AuthError, fetchBackup } from "../../services/api";
 import type { BackupFile, Settings } from "../../types";
 import { errorText, useToasts } from "../Toast";
 import { Result, SecretStatus, SectionHeading } from "./controls";
+import { Button, Input } from "../../ui";
 import { Backup, Import, Locked, Restart } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
@@ -222,7 +223,7 @@ export function SystemSection(
     <>
       <SectionHeading icon={Locked}>{t("settings.apiTokenTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.apiTokenNote")}</p>
-      <input data-action="settings.system.apiToken" className="input w-full" type="password"
+      <Input data-action="settings.system.apiToken" type="password"
         placeholder={t("settings.apiTokenPlaceholder")}
         value={values.apiToken} onChange={(e) => set("apiToken", e.target.value)} />
       <div className="mt-1">
@@ -235,25 +236,29 @@ export function SystemSection(
 
       <SectionHeading icon={Restart}>{t("settings.backendTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.backendNote")}</p>
-      <button data-action="settings.system.restart" className="btn-ghost w-full sm:w-auto" onClick={restartBackend}
+      <Button data-action="settings.system.restart" className="w-full sm:w-auto" onClick={restartBackend}
         disabled={restarting || shell.anyBusy}>
         <Restart /> {restarting ? t("settings.restarting") : t("settings.restart")}
-      </button>
+      </Button>
 
       <SectionHeading icon={Backup}>{t("settings.backupsTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-3">{t("settings.backupsNote")}</p>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button data-action="settings.system.backupNow" className="btn-ghost w-full sm:w-auto" onClick={takeBackup} disabled={shell.anyBusy}>
+        <Button data-action="settings.system.backupNow" className="w-full sm:w-auto" onClick={takeBackup}
+          disabled={shell.anyBusy}>
           <Backup /> {t("settings.backupTakeNow")}
-        </button>
-        <button data-action="settings.system.backupImport" className="btn-ghost w-full sm:w-auto"
+        </Button>
+        <Button data-action="settings.system.backupImport" className="w-full sm:w-auto"
           onClick={() => filePicker.current?.click()} disabled={shell.anyBusy}>
           <Import /> {t("settings.backupImport")}
-        </button>
+        </Button>
         {/* .db only as a hint: the file is proved to be one of ours by the
             backend before anything live is touched, never by its name */}
-        <input data-action="settings.system.backupFile" ref={filePicker} type="file" accept=".db,.sqlite,application/vnd.sqlite3"
-          className="hidden" onChange={importPicked} />
+        {/* Not the `Input` primitive: this one is never drawn — it is the file
+            picker the button above opens — so a control surface would style
+            nothing, and it needs a ref, which the primitive does not forward. */}
+        <input data-action="settings.system.backupFile" ref={filePicker} type="file"
+          accept=".db,.sqlite,application/vnd.sqlite3" className="hidden" onChange={importPicked} />
       </div>
       {folder && <p className="text-2xs t-dim mt-2 break-all">{t("settings.backupsFolder", { folder })}</p>}
       {/* In place of the list rather than in a toast: this is what there is to
@@ -278,14 +283,14 @@ export function SystemSection(
                 </div>
               </div>
               <div className="flex gap-2">
-                <button data-action="settings.system.backupDownload" className="btn-ghost text-xs" disabled={shell.anyBusy}
+                <Button data-action="settings.system.backupDownload" size="sm" disabled={shell.anyBusy}
                   onClick={() => download(file.name)}>
                   {t("settings.backupDownload")}
-                </button>
-                <button data-action="settings.system.backupRestore" className="btn-ghost text-xs text-negative-ink"
+                </Button>
+                <Button data-action="settings.system.backupRestore" size="sm" tone="negative"
                   disabled={shell.anyBusy} onClick={() => restore(file)}>
                   {t("settings.backupRestore")}
-                </button>
+                </Button>
               </div>
             </li>
           ))}
@@ -304,33 +309,34 @@ export function SystemSection(
               <span className="font-medium">{t("settings.clearDashboardName")}</span>
               {t("settings.clearDashboardBody")}
             </div>
-            <button data-action="settings.system.resetDashboard" className="btn-ghost w-full sm:w-auto text-negative-ink"
+            <Button data-action="settings.system.resetDashboard" tone="negative" className="w-full sm:w-auto"
               disabled={shell.anyBusy}
               onClick={() => runReset("dashboard", t("settings.clearDashboardConfirm"))}>
               {t("settings.clearDashboardButton")}
-            </button>
+            </Button>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <div className="flex-1 text-xs t-body">
               <span className="font-medium">{t("settings.clearTrendsName")}</span>
               {t("settings.clearTrendsBody")}
             </div>
-            <button data-action="settings.system.resetTrends" className="btn-ghost w-full sm:w-auto text-negative-ink"
+            <Button data-action="settings.system.resetTrends" tone="negative" className="w-full sm:w-auto"
               disabled={shell.anyBusy}
               onClick={() => runReset("pricing-snapshots", t("settings.clearTrendsConfirm"))}>
               {t("settings.clearTrendsButton")}
-            </button>
+            </Button>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <div className="flex-1 text-xs t-body">
               <span className="font-medium">{t("settings.factoryName")}</span>
               {t("settings.factoryBody")}
             </div>
-            <button data-action="settings.system.resetFactory" className="btn-ghost w-full sm:w-auto text-on-solid bg-negative hover:bg-negative-hover border-negative"
+            <Button data-action="settings.system.resetFactory" variant="solid" tone="negative"
+              className="w-full sm:w-auto"
               disabled={shell.anyBusy}
               onClick={() => runReset("factory", t("settings.factoryConfirm"), true)}>
               {t("settings.factoryButton")}
-            </button>
+            </Button>
           </div>
         </div>
         <Result feedback={shell.feedback} where="data" />

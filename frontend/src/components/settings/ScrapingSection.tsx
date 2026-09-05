@@ -6,6 +6,7 @@ import {
 import type { Settings } from "../../types";
 import { useToasts } from "../Toast";
 import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
+import { Button, Checkbox, Field, Input, Textarea } from "../../ui";
 import { Bypass, Credential, Harvester, Restart } from "../../ui/icons";
 import { useSectionState, type Section, type SettingsShell } from "./state";
 
@@ -154,18 +155,15 @@ export function ScrapingSection(
         ]}
       />
       <div className="space-y-3">
-        <div>
-          <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-url">{t("settings.proxyUrl")}</label>
-          <input data-action="settings.scraping.proxyUrl" id="scraping-proxy-url" className="input w-full" placeholder={t("settings.proxyUrlPlaceholder")}
+        <Field label={t("settings.proxyUrl")}>
+          <Input data-action="settings.scraping.proxyUrl" placeholder={t("settings.proxyUrlPlaceholder")}
             value={values.proxyUrl} onChange={(e) => set("proxyUrl", e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs t-muted block mb-1" htmlFor="scraping-proxy-pool">{t("settings.proxyPool")}</label>
-          <textarea data-action="settings.scraping.proxyPool" id="scraping-proxy-pool" className="input w-full font-mono text-xs" rows={3}
+        </Field>
+        <Field label={t("settings.proxyPool")} hint={t("settings.proxyPoolNote")}>
+          <Textarea data-action="settings.scraping.proxyPool" className="font-mono text-xs" rows={3}
             placeholder={"http://user:pass@proxy1:8000\nhttp://user:pass@proxy2:8000"}
             value={values.proxyUrls} onChange={(e) => set("proxyUrls", e.target.value)} />
-          <p className="text-xs t-dim mt-1">{t("settings.proxyPoolNote")}</p>
-        </div>
+        </Field>
         {/* Idealista's own API: the only option here that is not a workaround,
             so it sits above the ones that are. */}
         <div className="rounded-xl panel p-3 space-y-2">
@@ -178,7 +176,7 @@ export function ScrapingSection(
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <input data-action="settings.scraping.idealistaKey" className="input w-full" type="password"
+              <Input data-action="settings.scraping.idealistaKey" type="password"
                 placeholder={t(settings.idealista_api_key_set
                   ? "settings.idealistaKeySaved" : "settings.idealistaKeyPlaceholder")}
                 value={values.idealistaKey}
@@ -189,7 +187,7 @@ export function ScrapingSection(
               </div>
             </div>
             <div>
-              <input data-action="settings.scraping.idealistaSecret" className="input w-full" type="password"
+              <Input data-action="settings.scraping.idealistaSecret" type="password"
                 placeholder={t(settings.idealista_api_secret_set
                   ? "settings.idealistaSecretSaved" : "settings.idealistaSecretPlaceholder")}
                 value={values.idealistaSecret}
@@ -200,13 +198,11 @@ export function ScrapingSection(
               </div>
             </div>
           </div>
-          <label className="text-xs t-muted block">
-            {t("settings.idealistaMaxPages")}
-            <input data-action="settings.scraping.idealistaMaxPages" className="input w-full sm:w-24 mt-1 block" type="number" min={1}
+          <Field label={t("settings.idealistaMaxPages")} hint={t("settings.idealistaMaxPagesNote")}>
+            <Input data-action="settings.scraping.idealistaMaxPages" className="sm:w-24" type="number" min={1}
               value={values.idealistaMaxPages}
               onChange={(e) => set("idealistaMaxPages", Number(e.target.value))} />
-          </label>
-          <p className="text-xs t-dim">{t("settings.idealistaMaxPagesNote")}</p>
+          </Field>
         </div>
         <div className="rounded-xl panel p-3 space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-medium t-body">
@@ -222,7 +218,7 @@ export function ScrapingSection(
               <option value="zyte">Zyte</option>
             </select>
             <div className="sm:col-span-2">
-              <input data-action="settings.scraping.apiKey" className="input w-full" type="password"
+              <Input data-action="settings.scraping.apiKey" type="password"
                 placeholder={t(settings.scrape_api_key_set ? "settings.scrapeKeySaved" : "settings.scrapeKeyPlaceholder")}
                 value={values.apiKey} onChange={(e) => set("apiKey", e.target.value)} />
               <div className="mt-1">
@@ -242,7 +238,7 @@ export function ScrapingSection(
         </div>
         <div>
           <label className="text-xs t-muted block mb-1" htmlFor="scraping-cookie">{t("settings.cookieLabel")}</label>
-          <input data-action="settings.scraping.cookie" id="scraping-cookie" className="input w-full" type="password"
+          <Input data-action="settings.scraping.cookie" id="scraping-cookie" type="password"
             placeholder={t(settings.datadome_cookie_set ? "settings.cookieSaved" : "settings.cookiePlaceholder")}
             value={values.cookie} onChange={(e) => set("cookie", e.target.value)} />
           <div className="mt-1">
@@ -263,38 +259,29 @@ export function ScrapingSection(
             <>
               <p className="text-xs t-dim">{t("settings.harvestNote")}</p>
               <div className="flex items-center gap-2">
-                <button data-action="settings.scraping.grabCookie" className="btn-ghost" onClick={grabCookie}
+                <Button data-action="settings.scraping.grabCookie" onClick={grabCookie}
                   disabled={grabbing || shell.anyBusy}>
                   <Restart /> {grabbing ? t("settings.openingBrowser") : t("settings.grabCookie")}
-                </button>
+                </Button>
                 {grabbing && (
-                  <button data-action="settings.scraping.stopGrab" className="btn-ghost" onClick={stopGrabbingCookie}
+                  <Button data-action="settings.scraping.stopGrab" onClick={stopGrabbingCookie}
                     disabled={stoppingGrab}>
                     {stoppingGrab ? t("app.stopping") : t("app.stop")}
-                  </button>
+                  </Button>
                 )}
               </div>
-              <label className="flex items-center gap-2 text-xs t-body cursor-pointer pt-1">
-                <input data-action="settings.scraping.autoRefresh" type="checkbox" checked={values.autoRefresh}
-                  onChange={(e) => set("autoRefresh", e.target.checked)} />
-                {t("settings.autoRefreshCookie")}
-              </label>
-              <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input data-action="settings.scraping.browserFirst" type="checkbox" checked={values.browserFirst} className="mt-0.5"
-                  onChange={(e) => set("browserFirst", e.target.checked)} />
-                <span>{t("settings.browserFirst")}</span>
-              </label>
-              <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input data-action="settings.scraping.browserHeadful" type="checkbox" checked={values.browserHeadful} className="mt-0.5"
-                  onChange={(e) => set("browserHeadful", e.target.checked)} />
-                <span>{t("settings.browserHeadful")}</span>
-              </label>
-
-              <label className="flex items-start gap-2 text-xs t-body cursor-pointer pt-1">
-                <input data-action="settings.scraping.humanize" type="checkbox" checked={values.humanize} className="mt-0.5"
-                  onChange={(e) => set("humanize", e.target.checked)} />
-                <span>{t("settings.browserHumanize")}</span>
-              </label>
+              <Checkbox data-action="settings.scraping.autoRefresh" className="pt-1"
+                label={t("settings.autoRefreshCookie")}
+                checked={values.autoRefresh} onCheckedChange={(v) => set("autoRefresh", v === true)} />
+              <Checkbox data-action="settings.scraping.browserFirst" className="pt-1"
+                label={t("settings.browserFirst")}
+                checked={values.browserFirst} onCheckedChange={(v) => set("browserFirst", v === true)} />
+              <Checkbox data-action="settings.scraping.browserHeadful" className="pt-1"
+                label={t("settings.browserHeadful")}
+                checked={values.browserHeadful} onCheckedChange={(v) => set("browserHeadful", v === true)} />
+              <Checkbox data-action="settings.scraping.humanize" className="pt-1"
+                label={t("settings.browserHumanize")}
+                checked={values.humanize} onCheckedChange={(v) => set("humanize", v === true)} />
 
               <div className="pt-2 mt-1 border-t border-line space-y-1.5">
                 <label className="flex items-center gap-2 text-xs t-body">
@@ -314,26 +301,26 @@ export function ScrapingSection(
                     : "settings.camoufoxMissing")}
                 </p>
                 {!settings.camoufox_available && (
-                  <button data-action="settings.scraping.installCamoufox" className="btn-ghost text-xs w-full sm:w-auto"
+                  <Button data-action="settings.scraping.installCamoufox" size="sm" className="w-full sm:w-auto"
                     onClick={() => install("camoufox", t("settings.camoufoxInstalledMsg"))}
                     disabled={installing !== null || shell.anyBusy}>
                     {installing === "camoufox"
                       ? t("settings.installingCamoufox")
                       : t("settings.installCamoufox")}
-                  </button>
+                  </Button>
                 )}
               </div>
             </>
           ) : (
             <div className="space-y-2.5 pt-1">
               <p className="text-xs t-dim">{t("settings.harvesterMissing")}</p>
-              <button data-action="settings.scraping.installHarvester" className="btn-ghost text-xs w-full sm:w-auto"
+              <Button data-action="settings.scraping.installHarvester" size="sm" className="w-full sm:w-auto"
                 onClick={() => install("harvester", t("settings.harvesterInstalledMsg"))}
                 disabled={installing !== null || shell.anyBusy}>
                 {installing === "harvester"
                   ? t("settings.installingHarvester")
                   : t("settings.installHarvester")}
-              </button>
+              </Button>
               <p className="text-2xs t-muted pt-1">
                 {t("settings.manualInstall")}
                 <code className="px-1 py-0.5 rounded bg-wash select-all">

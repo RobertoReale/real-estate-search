@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber, translateCurrent, useT, type TranslationKey } from "../i18n";
 import { formatPrice } from "../services/api";
 import type { GeoFilter, Property } from "../types";
+import { Button, Card, Chip } from "../ui";
 import { Close, DrawnArea } from "../ui/icons";
 
 interface Props {
@@ -373,105 +374,102 @@ export default function MapView({
   const approximateCount = geolocated.filter(isApproximate).length;
 
   return (
-    <section className="glass rounded-2xl p-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm t-muted">
-          {t("map.onMap", { shown: geolocated.length, total: properties.length })}
-          {missing > 0 && (
-            <span
-              className="ml-2 text-xs chip-caution px-2 py-0.5 rounded-lg"
-              title={t("map.missingTitle")}>
-              {t("map.missing", { count: missing })}
+    <Card asChild padding="md">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm t-muted">
+            {t("map.onMap", { shown: geolocated.length, total: properties.length })}
+            {missing > 0 && (
+              <span title={t("map.missingTitle")}>
+                <Chip tone="caution" className="ml-2">
+                  {t("map.missing", { count: missing })}
+                </Chip>
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-3 text-xs t-muted">
+            {legend.map((kind) => (
+              <span key={kind} className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full border border-hairline"
+                  style={{ background: PIN_STYLE[kind].color }} />
+                {t(PIN_STYLE[kind].label)}
+              </span>
+            ))}
+            {approximateCount > 0 && (
+              <span className="flex items-center gap-1.5" title={t("map.pinApproximateTitle")}>
+                <span className="w-3 h-3 rounded-full border border-dashed border-current" />
+                {t("map.pinApproximate", { count: approximateCount })}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Drawing toolbar: produces a radius or polygon filter that flows into
+            the grid/export like any other filter. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button data-action="map.drawRadius"
+            onClick={drawMode === "radius" ? cancelDrawing : startRadius}
+            className={drawMode === "radius" ? "ring-2 ring-info-marker" : undefined}
+            title={t("map.drawRadiusTitle")}>
+            {t(drawMode === "radius" ? "map.drawingRadius" : "map.drawRadius")}
+          </Button>
+          <Button data-action="map.drawArea"
+            onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
+            className={drawMode === "polygon" ? "ring-2 ring-info-marker" : undefined}
+            title={t("map.drawAreaTitle")}>
+            <DrawnArea /> {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
+          </Button>
+          {drawMode === "polygon" && (
+            <span className="text-xs t-dim">
+              {t("map.polyHint", { count: polyCount })}
             </span>
           )}
-        </p>
-        <div className="flex flex-wrap gap-3 text-xs t-muted">
-          {legend.map((kind) => (
-            <span key={kind} className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full border border-hairline"
-                style={{ background: PIN_STYLE[kind].color }} />
-              {t(PIN_STYLE[kind].label)}
-            </span>
-          ))}
-          {approximateCount > 0 && (
-            <span className="flex items-center gap-1.5" title={t("map.pinApproximateTitle")}>
-              <span className="w-3 h-3 rounded-full border border-dashed border-current" />
-              {t("map.pinApproximate", { count: approximateCount })}
-            </span>
+          {(hasZone || drawMode) && (
+            <Button data-action="map.clearZone" onClick={clearZone}>
+              <Close /> {t("map.clearZone")}
+            </Button>
+          )}
+          {hasZone && (
+            <Chip tone="info">
+              {activeGeo.geo_mode === "radius"
+                ? t("map.radiusActive", {
+                    km: (Number(activeGeo.radius_m) / 1000).toFixed(2),
+                  })
+                : t("map.areaActive")}
+            </Chip>
           )}
         </div>
-      </div>
 
-      {/* Drawing toolbar: produces a radius or polygon filter that flows into
-          the grid/export like any other filter. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button data-action="map.drawRadius"
-          type="button"
-          onClick={drawMode === "radius" ? cancelDrawing : startRadius}
-          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "radius" ? "ring-2 ring-info-marker" : ""}`}
-          title={t("map.drawRadiusTitle")}>
-          {t(drawMode === "radius" ? "map.drawingRadius" : "map.drawRadius")}
-        </button>
-        <button data-action="map.drawArea"
-          type="button"
-          onClick={drawMode === "polygon" ? finishPolygon : startPolygon}
-          className={`btn-ghost min-h-11 sm:min-h-0 text-sm ${drawMode === "polygon" ? "ring-2 ring-info-marker" : ""}`}
-          title={t("map.drawAreaTitle")}>
-          <DrawnArea /> {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
-        </button>
-        {drawMode === "polygon" && (
-          <span className="text-xs t-dim">
-            {t("map.polyHint", { count: polyCount })}
-          </span>
+        {/* The mandatory caveat: a geographic filter silently drops every property
+            without coordinates. Keep it loud whenever a zone is active. */}
+        {hasZone && missing > 0 && (
+          <div className="text-xs rounded-lg chip-caution px-3 py-2 flex flex-wrap items-center gap-2">
+            <span>
+              {t(missing === 1 ? "map.zoneWarningOne" : "map.zoneWarning", { count: missing })}
+            </span>
+            {onFindCoordinates && (
+              <Button data-action="map.findCoordinates"
+                size="sm"
+                onClick={onFindCoordinates}
+                disabled={geocoding}
+                className="underline">
+                {t(geocoding ? "map.findingCoordinates" : "map.findCoordinates")}
+              </Button>
+            )}
+          </div>
         )}
-        {(hasZone || drawMode) && (
-          <button data-action="map.clearZone"
-            type="button"
-            onClick={clearZone}
-            className="btn-ghost min-h-11 sm:min-h-0 text-sm">
-            <Close /> {t("map.clearZone")}
-          </button>
+
+        {/* dvh keeps the map from resizing (and Leaflet from re-fitting) every
+            time a mobile browser collapses or restores its address bar */}
+        <div ref={containerRef}
+          className="h-[60dvh] min-h-[320px] sm:h-[70dvh] sm:min-h-[420px] rounded-xl overflow-hidden z-0" />
+
+        {geolocated.length === 0 && (
+          <p className="text-sm t-muted text-center py-2">{t("map.noneGeolocated")}</p>
         )}
-        {hasZone && (
-          <span className="text-xs chip-info px-2 py-0.5 rounded-lg">
-            {activeGeo.geo_mode === "radius"
-              ? t("map.radiusActive", {
-                  km: (Number(activeGeo.radius_m) / 1000).toFixed(2),
-                })
-              : t("map.areaActive")}
-          </span>
-        )}
-      </div>
-
-      {/* The mandatory caveat: a geographic filter silently drops every property
-          without coordinates. Keep it loud whenever a zone is active. */}
-      {hasZone && missing > 0 && (
-        <div className="text-xs rounded-lg chip-caution px-3 py-2 flex flex-wrap items-center gap-2">
-          <span>
-            {t(missing === 1 ? "map.zoneWarningOne" : "map.zoneWarning", { count: missing })}
-          </span>
-          {onFindCoordinates && (
-            <button data-action="map.findCoordinates"
-              type="button"
-              onClick={onFindCoordinates}
-              disabled={geocoding}
-              className="btn-ghost min-h-8 sm:min-h-0 text-xs underline disabled:opacity-60">
-              {t(geocoding ? "map.findingCoordinates" : "map.findCoordinates")}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* dvh keeps the map from resizing (and Leaflet from re-fitting) every
-          time a mobile browser collapses or restores its address bar */}
-      <div ref={containerRef}
-        className="h-[60dvh] min-h-[320px] sm:h-[70dvh] sm:min-h-[420px] rounded-xl overflow-hidden z-0" />
-
-      {geolocated.length === 0 && (
-        <p className="text-sm t-muted text-center py-2">{t("map.noneGeolocated")}</p>
-      )}
-      <p className="text-xs t-dim">{t("map.attribution")}</p>
-    </section>
+        <p className="text-xs t-dim">{t("map.attribution")}</p>
+      </section>
+    </Card>
   );
 }
 

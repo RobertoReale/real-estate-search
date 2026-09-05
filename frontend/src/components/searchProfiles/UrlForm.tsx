@@ -4,6 +4,7 @@
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { GlobalKeywordsHint } from "./helpers";
+import { Button, Input } from "../../ui";
 import { Extract } from "../../ui/icons";
 
 export function UrlForm({ sp }: { sp: SearchProfilesState }) {
@@ -17,31 +18,33 @@ export function UrlForm({ sp }: { sp: SearchProfilesState }) {
           filter is honored, including the ones the builder cannot express. */}
       <p className="text-xs rounded-lg px-3 py-2 chip-accent">{t("profiles.urlTip")}</p>
       <div className="grid sm:grid-cols-2 gap-3">
-        <input data-action="profiles.url.name" className="input w-full" placeholder={t("profiles.namePlaceholder")}
+        <Input data-action="profiles.url.name" aria-label={t("profiles.namePlaceholder")}
+          placeholder={t("profiles.namePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
-        <input data-action="profiles.url.keywords" className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
+        <Input data-action="profiles.url.keywords" aria-label={t("profiles.keywordsPlaceholder")}
+          placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
       <div className="flex flex-wrap sm:flex-nowrap gap-2">
-        <input data-action="profiles.url.url" className="input w-full"
+        <Input data-action="profiles.url.url" aria-label={t("profiles.urlPlaceholder")}
           placeholder={t("profiles.urlPlaceholder")}
           value={url} onChange={(e) => setUrl(e.target.value)} />
         {url.trim() && (
-          <button data-action="profiles.url.extract" className="btn-secondary whitespace-nowrap text-xs px-3"
-            type="button"
+          <Button data-action="profiles.url.extract" size="sm" className="whitespace-nowrap"
             title={t("profiles.extractParamsTitle")}
             onClick={extractParamsFromUrl}>
             <Extract /> {t("profiles.extractParams")}
-          </button>
+          </Button>
         )}
       </div>
       {error && <p className="accent-bad text-xs">{error}</p>}
-      <button data-action="profiles.url.save" className="btn-primary" onClick={submitUrl} disabled={saving || !url}>
+      <Button data-action="profiles.url.save" variant="solid" tone="accent" onClick={submitUrl}
+        disabled={saving || !url}>
         {saving
           ? t("common.saving")
           : t(editingId !== null ? "profiles.saveChanges" : "profiles.saveProfile")}
-      </button>
+      </Button>
     </div>
   );
 }

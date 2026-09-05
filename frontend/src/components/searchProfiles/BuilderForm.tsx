@@ -10,6 +10,7 @@ import { PortalBadge } from "../PortalBadge";
 import type { SearchBuilderParams } from "../../types";
 import { CONDITIONS, FEATURES, FLOORS, UNSUPPORTED_LABELS } from "./constants";
 import { GlobalKeywordsHint } from "./helpers";
+import { Button, Checkbox, Chip, Field, Input } from "../../ui";
 import { External, Hint, Warning } from "../../ui/icons";
 
 export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
@@ -22,10 +23,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs t-muted">{t("profiles.understood")}</span>
             {assistant.interpretation.map((part) => (
-              <span key={part}
-                className="text-xs chip-positive px-2 py-1 rounded-lg font-medium">
-                {part}
-              </span>
+              <Chip key={part} tone="positive" size="md">{part}</Chip>
             ))}
             <button data-action="profiles.builder.reword" className="text-xs accent-link ml-auto"
               onClick={() => setMode("assistant")}>
@@ -65,35 +63,26 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
             <option value="rent">{t("filters.rent")}</option>
           </select>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-city">{t("profiles.cityRequired")}</label>
-          <input data-action="profiles.builder.city" id="builder-city" className="input w-full sm:w-40" placeholder={t("filters.cityPlaceholder")}
+        <Field label={t("profiles.cityRequired")}>
+          <Input data-action="profiles.builder.city" className="sm:w-40" placeholder={t("filters.cityPlaceholder")}
             value={params.city} onChange={(e) => setParam({ city: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-province" title={t("profiles.provinceTitle")}>
-            {t("profiles.province")}
-          </label>
-          <input data-action="profiles.builder.province" id="builder-province" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+        </Field>
+        <Field label={<span title={t("profiles.provinceTitle")}>{t("profiles.province")}</span>}>
+          <Input data-action="profiles.builder.province" className="sm:w-32" placeholder={t("profiles.optional")}
             value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-zone" title={t("profiles.zoneTitle")}>
-            {t("filters.zone")}
-          </label>
-          <input data-action="profiles.builder.zone" id="builder-zone" className="input w-full sm:w-32" placeholder={t("profiles.optional")}
+        </Field>
+        <Field label={<span title={t("profiles.zoneTitle")}>{t("filters.zone")}</span>}>
+          <Input data-action="profiles.builder.zone" className="sm:w-32" placeholder={t("profiles.optional")}
             value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-min-price">{t("filters.minPrice")}</label>
-          <input data-action="profiles.builder.minPrice" id="builder-min-price" className="input w-full sm:w-24" type="number" value={params.min_price}
+        </Field>
+        <Field label={t("filters.minPrice")}>
+          <Input data-action="profiles.builder.minPrice" className="sm:w-24" type="number" value={params.min_price}
             onChange={(e) => setParam({ min_price: e.target.value })} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-max-price">{t("filters.maxPrice")}</label>
-          <input data-action="profiles.builder.maxPrice" id="builder-max-price" className="input w-full sm:w-24" type="number" value={params.max_price}
+        </Field>
+        <Field label={t("filters.maxPrice")}>
+          <Input data-action="profiles.builder.maxPrice" className="sm:w-24" type="number" value={params.max_price}
             onChange={(e) => setParam({ max_price: e.target.value })} />
-        </div>
+        </Field>
         <div className="flex flex-col gap-1">
           <label className="text-xs t-muted" htmlFor="builder-min-rooms">{t("profiles.minRooms")}</label>
           <select data-action="profiles.builder.minRooms" id="builder-min-rooms" className="input w-full sm:w-24" value={params.min_rooms}
@@ -102,11 +91,10 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
             {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+</option>)}
           </select>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs t-muted" htmlFor="builder-min-sqm">{t("filters.minSqm")}</label>
-          <input data-action="profiles.builder.minSqm" id="builder-min-sqm" className="input w-full sm:w-20" type="number" value={params.min_sqm}
+        <Field label={t("filters.minSqm")}>
+          <Input data-action="profiles.builder.minSqm" className="sm:w-20" type="number" value={params.min_sqm}
             onChange={(e) => setParam({ min_sqm: e.target.value })} />
-        </div>
+        </Field>
       </div>
       {/* Everything below is applied to BOTH portals. It is deliberately a
           small, verified set: each token is measured on both Immobiliare
@@ -139,11 +127,9 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
 
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {FEATURES.map(([key, label]) => (
-          <label key={key} className="flex items-center gap-2 text-sm min-h-11 sm:min-h-0">
-            <input data-action="profiles.builder.feature" type="checkbox" checked={params[key]}
-              onChange={(e) => setParam({ [key]: e.target.checked })} />
-            {t(label)}
-          </label>
+          <Checkbox key={key} data-action="profiles.builder.feature" className="min-h-11 sm:min-h-0"
+            label={t(label)} checked={params[key]}
+            onCheckedChange={(v) => setParam({ [key]: v === true })} />
         ))}
       </div>
 
@@ -157,18 +143,20 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <input data-action="profiles.builder.name" className="input w-full" placeholder={t("profiles.profileNamePlaceholder")}
+        <Input data-action="profiles.builder.name" aria-label={t("profiles.profileNamePlaceholder")}
+          placeholder={t("profiles.profileNamePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
-        <input data-action="profiles.builder.keywords" className="input w-full" placeholder={t("profiles.keywordsPlaceholder")}
+        <Input data-action="profiles.builder.keywords" aria-label={t("profiles.keywordsPlaceholder")}
+          placeholder={t("profiles.keywordsPlaceholder")}
           value={keywords} onChange={(e) => setKeywords(e.target.value)} />
       </div>
       <GlobalKeywordsHint settings={settings} />
 
       {!built && (
-        <button data-action="profiles.builder.generate" className="btn-primary" onClick={generate}
+        <Button data-action="profiles.builder.generate" variant="solid" tone="accent" onClick={generate}
           disabled={generating || !params.city.trim()}>
           {generating ? t("profiles.generating") : t("profiles.generate")}
-        </button>
+        </Button>
       )}
 
       {built && (
@@ -206,12 +194,13 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
             </p>
           ) : null}
           {error && <p className="accent-bad text-xs">{error}</p>}
-          <button data-action="profiles.builder.create" className="btn-primary" onClick={createFromBuilder}
+          <Button data-action="profiles.builder.create" variant="solid" tone="accent"
+            onClick={createFromBuilder}
             disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
             {saving
               ? t("common.saving")
               : t(editingId !== null ? "profiles.saveChanges" : "profiles.createProfilesButton")}
-          </button>
+          </Button>
         </div>
       )}
       {!built && error && <p className="accent-bad text-xs">{error}</p>}
