@@ -36,6 +36,16 @@ const HANDLER = /\bon(Click|Change|Submit|KeyDown)\s*=/;
  *  why `Card` and `Field`, which pass their children through, are not on it. */
 const CONTROLS = new Set(["Button", "IconButton", "Input", "Textarea", "Select", "Checkbox"]);
 
+/** Controls whose handler is the navigation itself. A `NavLink` carries no
+ *  `onClick` — going somewhere is what it is for — so the handler test would let
+ *  it through unnamed, and a shell built out of them would be a header full of
+ *  controls the inventory had never heard of. Router links only: an `<a href>`
+ *  to a portal leaves the app entirely and is not a control of it. */
+const NAVIGATIONS = new Set(["NavLink"]);
+
+/** The one file under `src/ui/` that is scanned. See `interactiveElements`. */
+const SHELL = "AppShell.tsx";
+
 export interface Element {
   /** Repo-relative path, forward slashes, for a message someone can act on. */
   readonly file: string;
@@ -137,21 +147,28 @@ function sources(dir: string, found: string[] = []): string[] {
  * that decides for itself what to do with it. Requiring an id there would mean
  * requiring one on something that never reaches the page.
  *
- * `src/ui/` itself is skipped. A primitive is not a control: it has no meaning
- * until a screen uses it, and the id belongs to the use — `selection.hide` is a
- * fact about the batch bar, not about `Button`. Scanning the directory would
- * demand an id from every element the primitives are built out of, which is a
- * list of ids for controls that do not exist.
+ * `src/ui/` itself is skipped, with one exception. A primitive is not a control:
+ * it has no meaning until a screen uses it, and the id belongs to the use —
+ * `selection.hide` is a fact about the batch bar, not about `Button`. Scanning
+ * the directory would demand an id from every element the primitives are built
+ * out of, which is a list of ids for controls that do not exist.
+ *
+ * `AppShell.tsx` is the exception, because it is not a primitive: it is the one
+ * screen that is on every screen, and every control in it — the four
+ * destinations, the scan, the language, the theme, the log — is one a user
+ * operates directly. Skipping it would have quietly dropped five inventoried
+ * controls out of the count on the day the navigation moved there.
  */
 export function interactiveElements(root: string): Element[] {
   const out: Element[] = [];
   const primitives = path.join(root, "ui") + path.sep;
   for (const file of sources(root)) {
-    if (file.startsWith(primitives)) continue;
+    if (file.startsWith(primitives) && path.basename(file) !== SHELL) continue;
     const src = fs.readFileSync(file, "utf8");
     for (const tag of tags(src)) {
-      if (!/^[a-z]/.test(tag.name) && !CONTROLS.has(tag.name)) continue;
-      if (!HANDLER.test(tag.attrs) && tag.name !== "form") continue;
+      const navigates = NAVIGATIONS.has(tag.name);
+      if (!/^[a-z]/.test(tag.name) && !CONTROLS.has(tag.name) && !navigates) continue;
+      if (!HANDLER.test(tag.attrs) && tag.name !== "form" && !navigates) continue;
       const literal = /data-action\s*=\s*"([^"]*)"/.exec(tag.attrs);
       const any = /data-action\s*=/.test(tag.attrs);
       out.push({

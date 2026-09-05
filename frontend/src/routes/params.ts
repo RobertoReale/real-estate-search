@@ -42,10 +42,16 @@ const DEALS = ["", "undervalued", "fair_plus"] as const;
 const GEO_MODES = ["", "radius", "polygon"] as const;
 const VIEWS = ["grid", "map"] as const;
 
-/** The dashboard itself, and the two things that open on top of it. Written as
- *  constants because they are also what a component navigates to: a path
- *  spelled out at the call site is one nobody renames with the route. */
+/** The four places, and the log that opens on top of them. Written as constants
+ *  because they are also what a component navigates to: a path spelled out at
+ *  the call site is one nobody renames with the route.
+ *
+ *  `LISTINGS` is first because it is the default: "/" and anything unrecognised
+ *  land there, and a user with data therefore sees properties rather than
+ *  configuration. */
 export const LISTINGS = "/listings";
+export const INSIGHTS = "/insights";
+export const SEARCHES = "/searches";
 export const SETTINGS = "/settings";
 export const LOGS = "/logs";
 

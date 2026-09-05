@@ -190,12 +190,18 @@ export const it: Dict = {
   "tags.namePlaceholder": "Nome dell'etichetta…",
   "tags.create": '+ crea "{name}"',
 
-  // ── barra di navigazione ────────────────────────────────────────────────
+  // ── la struttura: intestazione, le quattro destinazioni, stato scansione ─
   "nav.title": "Ricerca Immobili",
   "nav.subtitle": "Immobiliare.it + Idealista, senza duplicati",
+  "nav.primary": "Navigazione principale",
+  "nav.listings": "Immobili",
+  "nav.insights": "Analisi",
+  "nav.searches": "Ricerche",
   "nav.scanning": "Scansione in corso…",
   "nav.paused": "Scansioni automatiche in pausa",
+  "nav.pausedShort": "Scansioni in pausa",
   "nav.nextScan": "Prossima scansione automatica: {time}",
+  "nav.nextScanShort": "Prossima {time}",
   "nav.scanNowShort": "Scansiona",
   "nav.scanNow": "Avvia scansione",
   "nav.scanNowAria": "Avvia subito la scansione",
@@ -247,7 +253,8 @@ export const it: Dict = {
     "Prova a cambiare Compra/Affitto o ad allentare i filtri.",
   "app.welcome": "Benvenuto! Tre passi per iniziare:",
   "app.step1":
-    'Aggiungi una ricerca qui sopra — descrivila a parole con "Descrivila e basta", costruiscila con "Costruisci una ricerca", oppure incolla l\'URL dei risultati da Immobiliare.it / Idealista.',
+    'Aggiungi una ricerca in Ricerche — descrivila a parole con "Descrivila e basta", costruiscila con "Costruisci una ricerca", oppure incolla l\'URL dei risultati da Immobiliare.it / Idealista.',
+  "app.addSearch": "Aggiungi una ricerca",
   "app.step1Tip": "Suggerimento:",
   "app.step1TipBody":
     'per usare tutti i filtri del portale (bagni, piano, ascensore, classe energetica, escludi aste…), impostali sul portale e usa "Incolla un URL" — l\'app monitora esattamente quella ricerca.',
@@ -936,6 +943,11 @@ export const it: Dict = {
     "Nessuno degli immobili attuali ha coordinate — lancia una scansione o torna alla vista a griglia.",
   "map.attribution":
     "Clicca un segnaposto per aprire l'immobile. Dati della mappa © contributori OpenStreetMap (le tile sono scaricate online).",
+
+  // ── analisi (la schermata che unisce i tre pannelli) ────────────────────
+  "insights.empty": "Non c'è ancora niente da analizzare",
+  "insights.emptyHint":
+    "Salute degli scraper, velocità del mercato e andamento dei prezzi si costruiscono tutti su ciò che le scansioni raccolgono. Salva prima una ricerca e questa schermata si riempirà da sola.",
 
   // ── velocità del mercato ────────────────────────────────────────────────
   "velocity.title": "Velocità del mercato",

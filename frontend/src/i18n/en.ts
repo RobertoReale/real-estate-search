@@ -187,12 +187,18 @@ export const en = {
   "tags.namePlaceholder": "Tag name…",
   "tags.create": '+ create "{name}"',
 
-  // ── navbar ──────────────────────────────────────────────────────────────
+  // ── the shell: the header, the four destinations, the scan status ───────
   "nav.title": "Real Estate Search",
   "nav.subtitle": "Immobiliare.it + Idealista, without duplicates",
+  "nav.primary": "Main navigation",
+  "nav.listings": "Listings",
+  "nav.insights": "Insights",
+  "nav.searches": "Searches",
   "nav.scanning": "Scan in progress…",
   "nav.paused": "Automatic scans paused",
+  "nav.pausedShort": "Scans paused",
   "nav.nextScan": "Next automatic scan: {time}",
+  "nav.nextScanShort": "Next scan {time}",
   "nav.scanNowShort": "Scan",
   "nav.scanNow": "Start Scan Now",
   "nav.scanNowAria": "Start scan now",
@@ -243,7 +249,8 @@ export const en = {
   "app.noMatchesHint": "Try switching the Buy/Rent toggle or relaxing the filters.",
   "app.welcome": "Welcome! Three steps to get started:",
   "app.step1":
-    'Add a search above — describe it in words with "Just describe it", build one with "Build a search", or paste a results URL from Immobiliare.it / Idealista.',
+    'Add a search under Searches — describe it in words with "Just describe it", build one with "Build a search", or paste a results URL from Immobiliare.it / Idealista.',
+  "app.addSearch": "Add a search",
   "app.step1Tip": "Tip:",
   "app.step1TipBody":
     'to use every portal filter (bathrooms, floor, elevator, energy class, exclude auctions…), set them on the portal and use "Paste a URL" — the app monitors exactly that search.',
@@ -915,6 +922,11 @@ export const en = {
     "None of the current properties has coordinates yet — run a scan, or switch back to the grid view.",
   "map.attribution":
     "Click a pin to open the property. Map data © OpenStreetMap contributors (tiles are fetched online).",
+
+  // ── insights (the screen the three analysis panels share) ───────────────
+  "insights.empty": "Nothing to analyse yet",
+  "insights.emptyHint":
+    "Scraper health, market velocity and price trends are all built from what the scans collect. Save a search first and this screen fills itself in.",
 
   // ── market velocity ─────────────────────────────────────────────────────
   "velocity.title": "Market velocity",
