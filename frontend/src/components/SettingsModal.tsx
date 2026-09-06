@@ -3,7 +3,7 @@ import { useT } from "../i18n";
 import { useSaveSettings, useSettingsForm } from "../queries/settings";
 import { authToken } from "../services/api";
 import type { Settings } from "../types";
-import { Button, IconButton } from "../ui";
+import { Button, IconButton, Skeleton } from "../ui";
 import { Close } from "../ui/icons";
 import { AssistantSection, useAssistantSection } from "./settings/AssistantSection";
 import { CommuteSection, useCommuteSection } from "./settings/CommuteSection";
@@ -180,7 +180,10 @@ export default function SettingsModal({ onClose }: Props) {
   if (!settings) {
     return (
       <Shell onClose={onClose}>
-        <p className="text-sm t-muted">{t("common.loading")}</p>
+        <Skeleton className="h-4 w-1/3" label={t("common.loading")} />
+        <Skeleton className="mt-4 h-9 w-full" />
+        <Skeleton className="mt-3 h-9 w-full" />
+        <Skeleton className="mt-3 h-9 w-2/3" />
       </Shell>
     );
   }

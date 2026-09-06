@@ -32,6 +32,8 @@ export { Dialog } from "./Dialog";
 export type { DialogProps } from "./Dialog";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
+export { ErrorState } from "./ErrorState";
+export type { ErrorStateProps } from "./ErrorState";
 export { Field, useFieldWiring } from "./Field";
 export type { FieldProps, FieldWiring } from "./Field";
 export { IconButton } from "./IconButton";

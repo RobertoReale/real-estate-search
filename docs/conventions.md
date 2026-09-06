@@ -72,12 +72,25 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   is the same in each case — the message belongs where the user is already looking:
   a surface's own read state (the log tail, the scraper health strip, the backups list)
   renders in place, muted, not as an alert; form validation stays on the field it is about,
-  with `aria-invalid` and `aria-describedby`; and the dashboard grid is the one operation
-  that *does* toast, because it keeps the last answer on screen rather than blanking, so
-  there is no hole to put a message in. Anything destructive that the backend can reverse
+  with `aria-invalid` and `aria-describedby`; and the dashboard grid toasts *while it still
+  holds an answer*, because a refresh that failed over results already on screen has no hole
+  to put a message in. Anything destructive that the backend can reverse
   (`hide`, "no longer on the market", the bulk equivalents) ships an Undo on its success
   toast — `bulk_action` accepting `restore` is what makes that possible, and it is the only
   caller of it, since no button sends `restore` on its own.
+
+- **Nothing renders as an unexplained blank region.** Anything that waits on a read has
+  three states and they are not interchangeable: still asking draws a `Skeleton` in the
+  shape of what is coming, refused draws an `ErrorState` where the content would have been,
+  and genuinely empty draws an `EmptyState` that says what to do about it. Read off the data
+  alone, the first two both look like the third — an empty grid, a searches page with no
+  searches, a settings dialog with no fields — and the user is told a confident falsehood
+  about their own database. `ErrorState` is `EmptyState` under `role="alert"`, since a
+  reader who has already moved past the region still has to hear why it is empty. Neither
+  owns its button: `action` is a slot, so the retry carries the failing surface's own
+  `data-action` id (`app.loadError.retry`, `profiles.loadError.retry`, one per insights
+  panel) and asks again for that surface's data rather than reloading the screen. A panel
+  refusing says nothing about the panel beside it, so each recovers on its own.
 
 - **Windows-only code carries a targeted type-check suppression.** `ctypes.windll` and
   friends do not exist off Windows, and the types are checked on Linux as well — CI runs
@@ -158,9 +171,9 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   dark than in light, which is what a dark ground costs rather than an oversight.
 
 - **A screen composes a primitive; it does not draw a control.** `src/ui/` holds the
-  sixteen — `Button`, `IconButton`, `Chip`, `Card`, `Field`, `Input`, `Select`, `Checkbox`,
-  `Dialog`, `Sheet`, `Popover`, `Tooltip`, `Tabs`, `Toast`, `Skeleton`, `EmptyState` — and a
-  new screen reaches for one rather than for a class string. Loudness is two declared axes,
+  seventeen — `Button`, `IconButton`, `Chip`, `Card`, `Field`, `Input`, `Select`, `Checkbox`,
+  `Dialog`, `Sheet`, `Popover`, `Tooltip`, `Tabs`, `Toast`, `Skeleton`, `EmptyState`,
+  `ErrorState` — and a new screen reaches for one rather than for a class string. Loudness is two declared axes,
   `variant` (`solid`/`outline`/`ghost`) × `tone` (`neutral`/`accent`/`positive`/`caution`/
   `negative`), written as a union in `ui/tone.ts` so a combination with no correct drawing
   fails `tsc` instead of rendering an undrawn one. That is the rule the batch bar broke:
@@ -283,7 +296,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   `axe-core` find anything in the tree it produces (`src/test/axe.ts`). The keyboard half is
   the point — an overlay is only as good as the way out of it, so the dialog test presses
   Escape, tabs round the trap and asserts the opener has the focus back, and the toast test
-  reaches the Undo through the viewport hotkey. Three of the sixteen draw nothing
+  reaches the Undo through the viewport hotkey. Three of the seventeen draw nothing
   interactive (`Chip`, `Card`, `Skeleton`); their keyboard test asserts the honest thing,
   which is that Tab passes them by rather than stopping on decoration.
 

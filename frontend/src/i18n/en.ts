@@ -310,6 +310,8 @@ export const en = {
     "The searches are set up; the next scan is what fills this page in.",
   "app.addSearch": "Add a search",
   "app.showMoreCount": "Show more ({count} more)",
+  "app.loadingResults": "Loading the results…",
+  "app.resultsFailed": "The results could not be loaded",
 
   // ── the guided first run ────────────────────────────────────────────────
   "onboarding.title": "Getting started",
@@ -980,8 +982,10 @@ export const en = {
   "profiles.modeAssistant": "Just describe it",
   "profiles.modeBuilder": "Build a search",
   "profiles.modeUrl": "Paste a URL",
+  "profiles.emptyTitle": "No searches configured",
   "profiles.empty":
-    "No search profiles configured. Build a search with your criteria or paste a results URL from Immobiliare.it / Idealista to get started.",
+    "Build a search with your criteria, or paste a results URL from Immobiliare.it / Idealista, to get started.",
+  "profiles.loadFailed": "The searches could not be loaded",
   "profiles.untitled": "Untitled search",
   "profiles.defaultName": "Monitored search",
   "profiles.labelRent": "Rent",

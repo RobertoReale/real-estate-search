@@ -15,11 +15,13 @@
  *  without unmounting it. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { ActiveFilters, EmptyResults, FilterRail, ResultHeader } from "./routes/listings";
+import {
+  ActiveFilters, EmptyResults, FilterRail, ResultHeader, ResultsPending,
+} from "./routes/listings";
 import MapView from "./components/MapView";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
-import { useToasts } from "./components/Toast";
+import { errorText, useToasts } from "./components/Toast";
 import { useDebounced } from "./hooks/useDebounced";
 import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery";
 import { useOnReveal } from "./hooks/useOnReveal";
@@ -37,7 +39,7 @@ import type { DashboardContext } from "./routes/context";
 import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
-import { Button, Card, Checkbox, IconButton, type Emphasis } from "./ui";
+import { Button, Card, Checkbox, ErrorState, IconButton, type Emphasis } from "./ui";
 import { Close, Favorite, Hidden, Sold, Unticked, Verify } from "./ui/icons";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
@@ -206,6 +208,9 @@ export default function App() {
   // the grid, "select all", and the export all mean this number.
   const answeredTotal = (onMap ? wholeSet.data?.total : grid.data?.pages[0]?.total) ?? 0;
   const loadFailed = onMap ? wholeSet.isError : grid.isError;
+  // Nothing has come back yet — which is not the same as nothing being there,
+  // and the results column below is where the difference is drawn.
+  const loadPending = onMap ? wholeSet.isPending : grid.isPending;
 
   // A refused refresh must not blank the grid. The answer that did arrive is
   // still the best thing on offer, and the banner above it says it is stale —
@@ -266,6 +271,7 @@ export default function App() {
   // the stale grid it is about stays readable underneath.
   const refetchProperties = onMap ? wholeSet.refetch : grid.refetch;
   const loadError = onMap ? wholeSet.error : grid.error;
+  const loadRetrying = onMap ? wholeSet.isFetching : grid.isFetching;
   useEffect(() => {
     if (!loadError) return;
     toasts.fail(loadError, {
@@ -483,7 +489,33 @@ export default function App() {
               matchEnabled={settings?.match_score_enabled ?? false} />
           )}
 
-          {properties.length === 0 && !loadFailed && (
+          {/* An empty column has three quite different meanings and used to have
+              one appearance. Still asking is a shape where the cards will be;
+              asked and refused is the failure and the way to ask again — it
+              rendered as nothing at all, a blank column under a toast that
+              would shortly leave; and only the third is `EmptyResults`, which
+              is the one that talks about filters. */}
+          {properties.length === 0 && loadPending && <ResultsPending view={view} />}
+
+          {properties.length === 0 && !loadPending && loadFailed && (
+            <Card padding="none">
+              <ErrorState headingLevel={2}
+                title={t("app.resultsFailed")}
+                description={errorText(loadError)}
+                /* A query that failed stays failed while it is being asked
+                   again, so without `aria-busy` the press has no visible answer
+                   until the new one lands. */
+                action={(
+                  <Button data-action="app.loadError.retry" variant="solid" tone="accent"
+                    aria-busy={loadRetrying}
+                    onClick={() => { void refetchProperties(); }}>
+                    {loadRetrying ? t("common.loading") : t("common.retry")}
+                  </Button>
+                )} />
+            </Card>
+          )}
+
+          {properties.length === 0 && !loadPending && !loadFailed && (
             <EmptyResults hasProfiles={hasProfiles} collected={collected}
               filters={filters} search={search} />
           )}

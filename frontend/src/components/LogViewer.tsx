@@ -32,7 +32,7 @@ export default function LogViewer({ onClose }: Props) {
   // One key, so one tail is ever in flight: an abandoned request cannot land on
   // top of a newer one, which on a backend slow enough to make anyone open this
   // viewer used to mean the older tail winning.
-  const { data, error: failure } = useLogTail(500, autoRefresh);
+  const { data, error: failure, isPending } = useLogTail(500, autoRefresh);
   const lines = data?.lines ?? [];
   const path = data?.path ?? "";
   const error = failure
@@ -85,9 +85,19 @@ export default function LogViewer({ onClose }: Props) {
         {error && <div className="text-xs t-muted mb-2">{error}</div>}
 
         <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-console text-console-ink p-3 font-mono text-2xs leading-relaxed">
+          {/* An empty console has four reasons and they are not the same news:
+              the tail has not come back yet, it refused, the log really is
+              empty, or the filter matched nothing. Read off `lines` alone, the
+              first two both claimed the log was empty. */}
           {visible.length === 0 ? (
             <p className="t-dim">
-              {lines.length === 0 ? t("logs.empty") : t("logs.noMatch")}
+              {isPending
+                ? t("common.loading")
+                : failure
+                  ? t("logs.loadFailed")
+                  : lines.length === 0
+                    ? t("logs.empty")
+                    : t("logs.noMatch")}
             </p>
           ) : (
             visible.map((line, i) => (

@@ -167,6 +167,10 @@ export const ACTIONS = {
     does: "carries the criteria to the searches screen and opens a search form "
       + "on the ones a portal can express, naming the ones it cannot",
   },
+  "app.loadError.retry": {
+    what: "Try again, on a grid whose results refused to load",
+    does: "asks the backend for the results again, without a reload",
+  },
   "grid.loadMore": { what: "Show N more", does: "appends the next page of results to the grid" },
   "property.card": { what: "the card itself", does: "opens that property, or selects it while multi-select is on" },
   "property.open": { what: "the card's title button", does: "opens the property from the keyboard" },
@@ -327,8 +331,17 @@ export const ACTIONS = {
   "trends.area": { what: "the area select", does: "redraws the chart for that area" },
   "trends.comparables": { what: "Show the listings behind it", does: "loads and hides the comparable listings" },
   "trends.openProperty": { what: "a comparable listing", does: "opens that property" },
+  // One retry per panel, because one panel refusing says nothing about the
+  // other two: they are three different reads of three different tables.
+  "health.loadError.retry": { what: "Try again, on a scraper-health panel that could not be loaded", does: "asks for the health figures again" },
+  "velocity.loadError.retry": { what: "Try again, on a market-velocity panel that could not be loaded", does: "asks for the statistics again" },
+  "trends.loadError.retry": { what: "Try again, on a price-trends panel with no areas to plot", does: "asks for the areas again" },
 
   // ── Monitored searches ──────────────────────────────────────────────────
+  "profiles.loadError.retry": {
+    what: "Try again, on a searches screen whose searches refused to load",
+    does: "asks for them again, rather than leaving a screen that looks like it has none",
+  },
   "profiles.mode.assistant": { what: "Describe it", does: "opens the plain-language box, and closes it again" },
   "profiles.mode.builder": { what: "Build it", does: "opens the guided form, and closes it again" },
   "profiles.mode.url": { what: "Paste a URL", does: "opens the URL form, and closes it again" },

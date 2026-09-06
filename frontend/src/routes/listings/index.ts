@@ -11,5 +11,6 @@ export { default as ActiveFilters } from "./ActiveFilters";
 export { default as EmptyResults } from "./EmptyResults";
 export { default as FilterRail } from "./FilterRail";
 export { default as ResultHeader } from "./ResultHeader";
+export { default as ResultsPending } from "./ResultsPending";
 export { activeFilterChips } from "./chips";
 export type { FilterChip } from "./chips";

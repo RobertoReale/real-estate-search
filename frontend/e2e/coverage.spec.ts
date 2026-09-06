@@ -1507,6 +1507,66 @@ test("the app stays usable when the backend refuses everything", async ({ page }
   await expect(control(page, "settings.loadError.close")).toBeHidden();
 });
 
+/** Refuses one endpoint and leaves every other request to the harness backend.
+ *  Returns the way to stop refusing, so the retry beside the message is a real
+ *  assertion: a button that re-rendered without re-asking would leave the
+ *  failure on screen. */
+async function refusing(page: Page, matches: (url: URL) => boolean): Promise<() => void> {
+  let refuse = true;
+  await page.route(matches, (route) => refuse
+    ? route.fulfill({ status: 500, json: { detail: "refused, on purpose" } })
+    : route.fallback());
+  return () => { refuse = false; };
+}
+
+test("results that could not be loaded say so, rather than reading as none", async ({ page }) => {
+  const relent = await refusing(page, (url) => url.pathname === "/api/properties");
+
+  await page.goto("/");
+  await expect(page.getByText("The results could not be loaded")).toBeVisible();
+  // The distinction the whole state exists for: "nothing collected yet" is a
+  // claim about an answer, and no answer came.
+  await expect(page.getByText("Nothing collected yet.")).toBeHidden();
+
+  relent();
+  await press(page, "app.loadError.retry");
+  await waitForResults(page);
+});
+
+test("each insights panel reports its own refusal where its own content would be", async ({ page }) => {
+  const relent = [
+    await refusing(page, (url) => url.pathname === "/api/scraper-health"),
+    await refusing(page, (url) => url.pathname === "/api/market-velocity"),
+    await refusing(page, (url) => url.pathname === "/api/pricing-trends/areas"),
+  ];
+
+  await page.goto("/insights");
+  await expect(page.getByText("Could not load scraper health")).toBeVisible();
+  await expect(page.getByText("Could not load statistics")).toBeVisible();
+  await expect(page.getByText("Could not load trends")).toBeVisible();
+
+  // Three reads of three different tables: one refusing says nothing about the
+  // other two, so each recovers on its own without reloading the screen.
+  for (const stop of relent) stop();
+  for (const id of ["health.loadError.retry", "velocity.loadError.retry", "trends.loadError.retry"] as const) {
+    await press(page, id);
+    await expect(control(page, id)).toBeHidden();
+  }
+});
+
+test("searches that could not be loaded do not look like a screen with none", async ({ page }) => {
+  const relent = await refusing(page, (url) => url.pathname === "/api/search-profiles");
+
+  await page.goto("/searches");
+  await expect(page.getByText("The searches could not be loaded")).toBeVisible();
+  await expect(page.getByText("No searches configured")).toBeHidden();
+
+  relent();
+  await press(page, "profiles.loadError.retry");
+  await expect(control(page, "profiles.loadError.retry")).toBeHidden();
+  await expect(control(page, "profiles.mode.builder")).toBeVisible();
+});
+
 test("a refused write says what to do, and the retry does it", async ({ page }) => {
   await page.goto("/");
   await waitForResults(page);
