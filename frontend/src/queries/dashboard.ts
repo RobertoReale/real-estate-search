@@ -44,6 +44,27 @@ export function useScanStatus() {
   });
 }
 
+/** What the last few scans did, newest first.
+ *
+ *  Not pushed — the stream carries no journal topic, and it should not: forty
+ *  rows re-sent on every reconnection to say that none of them changed is the
+ *  traffic the stream was built to remove. What *is* pushed is the health
+ *  fingerprint, and it moves at exactly the moment a search finishes, which is
+ *  exactly when a row is written. `queries/events.ts` turns that into one
+ *  invalidation of this key, so an outcome lands while the scan is still going
+ *  rather than all of them at the end.
+ *
+ *  The interval is the fallback and nothing else, on the same rule as
+ *  `useScanStatus`: with no stream there is nothing to say a search finished. */
+export function useScanJournal() {
+  const polling = usePollingFallback();
+  return useQuery({
+    queryKey: keys.scanJournal,
+    queryFn: () => api.getScanJournal(),
+    refetchInterval: polling ? 15000 : false,
+  });
+}
+
 /**
  * Re-reads the dashboard when the backend says its property set moved.
  *

@@ -212,9 +212,58 @@ export const it: Dict = {
   "nav.toLight": "Passa al tema chiaro",
   "nav.toDark": "Passa al tema scuro",
   "nav.viewLog": "Mostra il log del backend",
+  "nav.viewActivity": "Cosa sta facendo la scansione",
   "nav.settings": "Impostazioni",
   "nav.language": "Lingua",
   "nav.languageSwitchTo": "Passa a {language}",
+
+  // ── attività: la scansione in corso e quelle appena concluse ────────────
+  "activity.liveTitle": "Scansione in corso",
+  "activity.idleTitle": "Nessuna scansione in corso",
+  "activity.idleBody":
+    "Al momento non si sta scaricando nulla. Qui sotto c'è cosa hanno fatto le ultime scansioni.",
+  "activity.loading": "Lettura di cosa sta facendo la scansione…",
+  "activity.start": "Scansiona ora",
+  "activity.lastFinished": "Ultima scansione conclusa alle {time}.",
+  "activity.nextScan": "Prossima scansione automatica: {time}",
+  "activity.paused": "Le scansioni automatiche sono in pausa.",
+  "activity.searchOf": "Ricerca {index} di {total}",
+  "activity.phaseStarting": "Avvio della scansione",
+  "activity.phaseLocating": "Posizionamento dei nuovi annunci sulla mappa",
+  "activity.phaseFetching": "Lettura dei risultati, pagina {page}",
+  "activity.phaseWaiting": "Pausa di {seconds}s prima della pagina successiva",
+  "activity.phaseSaving": "Salvataggio di quello che è arrivato",
+  "activity.phaseScanning": "Scansione in corso",
+  "activity.waitingWhy":
+    "La pausa è voluta: chiedere le pagine una dopo l'altra è ciò che porta il portale a smettere di rispondere. È qui che passa la maggior parte del tempo di una scansione.",
+  "activity.pagesLabel": "Pagine lette",
+  "activity.pageOf": "Pagina {done} di {total}",
+  "activity.pageCount": "Pagina {page}",
+  "activity.pagesUnknown": "il portale non ha detto quante sono",
+  "activity.found": "{count} annunci raccolti finora",
+  "activity.foundOf": "{count} annunci raccolti su {total}",
+  "activity.transport": "Trasporto:",
+  "activity.streamDown":
+    "La connessione in tempo reale non è disponibile, quindi l'aggiornamento avviene a intervalli. I dati restano corretti, solo un po' meno immediati.",
+
+  "activity.journalTitle": "Le ultime scansioni",
+  "activity.journalEmpty": "Non è ancora stata fatta nessuna scansione",
+  "activity.journalEmptyHint":
+    "Ogni ricerca che viene eseguita lascia una riga qui: cosa ha letto, cosa ha trovato e com'è finita. Resta anche dopo la fine della scansione.",
+  "activity.outcomeOk": "Conclusa",
+  "activity.outcomeNoResults": "Nessun risultato",
+  "activity.outcomeBlocked": "Bloccata",
+  "activity.outcomeError": "Non riuscita",
+  "activity.outcomeUnknown": "Terminata",
+  "activity.entryCounts": "{pages} pagine, {listings} annunci",
+  "activity.modeFull": "scansione completa",
+  "activity.modeQuick": "scansione rapida",
+  "activity.stoppedBecause": "Si è fermata perché: {reason}.",
+
+  "activity.diagnostics": "Diagnostica",
+  "activity.diagnosticsBody":
+    "Il log del backend è il resoconto riga per riga di quello che ha fatto il programma. È il posto giusto in cui guardare quando il riepilogo qui sopra non spiega qualcosa.",
+  "activity.openLog": "Apri il log",
 
   // ── avvisi: cosa non ha funzionato e cosa fare ──────────────────────────
   "toast.region": "Messaggi",
@@ -450,6 +499,7 @@ export const it: Dict = {
   "app.batchCheckFailed": "Verifica in blocco non riuscita",
 
   // ── avanzamento e riepilogo della verifica ──────────────────────────────
+  "app.checkProgressLabel": "Verifica disponibilità",
   "app.checkProgress":
     "Verifica annuncio {done} di {total} — {online} online, {gone} rimossi/venduti",
   "app.checkProgressUnknown": ", {count} non verificabili",
@@ -579,6 +629,7 @@ export const it: Dict = {
 
   // ── esiti della manutenzione ────────────────────────────────────────────
   "maintenance.geocodeRunning": "Ricerca delle coordinate in background…",
+  "maintenance.geocodeProgressLabel": "Ricerca delle coordinate",
   "maintenance.geocodeProgress":
     "Localizzazione annuncio {done} di {total} — {geocoded} localizzati, {cached} dalla cache",
   "maintenance.geocodeProgressNotFound": ", {count} non trovati",

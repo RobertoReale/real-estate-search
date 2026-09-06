@@ -143,6 +143,11 @@ export function applyEvent(client: QueryClient, { topic, data }: StreamEvent): v
       // answering. The profile rows carry the same state as the panel.
       void client.invalidateQueries({ queryKey: keys.scraperHealth });
       void client.invalidateQueries({ queryKey: keys.profiles });
+      // The fingerprint is built from each search's last run, so it moves once
+      // per search finishing — which is once per journal row being written.
+      // That is what puts a portal's outcome on the activity screen as it
+      // lands, instead of all of them when the whole scan ends.
+      void client.invalidateQueries({ queryKey: keys.scanJournal });
       break;
   }
 }

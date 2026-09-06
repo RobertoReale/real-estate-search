@@ -34,11 +34,11 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { LANGUAGE_NAMES, useI18n, type TranslationKey } from "../i18n";
 import { useDataVersionSync, useScanStatus, useTriggerScan } from "../queries/dashboard";
 import { useEventStream } from "../queries/events";
-import { INSIGHTS, LISTINGS, LOGS, SEARCHES, SETTINGS, withSearch } from "../routes/params";
+import { ACTIVITY, INSIGHTS, LISTINGS, SEARCHES, SETTINGS, withSearch } from "../routes/params";
 import { useToasts } from "../components/Toast";
 import { Button } from "./Button";
 import {
-  Brand, Cog, Insights, Language, Listings, Logs, Paused, Run, Scheduled,
+  Activity, Brand, Cog, Insights, Language, Listings, Paused, Run, Scheduled,
   Searches, ThemeDark, ThemeLight, type Icon,
 } from "./icons";
 import { cx } from "./tone";
@@ -214,11 +214,15 @@ export default function AppShell() {
         </Button>
         {/* `asChild`, with the id on the anchor rather than on the wrapper: the
             element that navigates is the one the user operates, and it is the
-            one the inventory has to name. */}
+            one the inventory has to name.
+
+            It used to open the backend log, which is a developer's answer to a
+            user's question. The log is still one press further in, from the
+            screen that answers the question the user was actually asking. */}
         <Button className="shrink-0 !px-2 sm:!px-4" asChild>
-          <NavLink data-action="nav.logs" to={withSearch(LOGS, search)}
-            title={t("nav.viewLog")} aria-label={t("nav.viewLog")}>
-            <Logs size={18} />
+          <NavLink data-action="nav.activity" to={withSearch(ACTIVITY, search)}
+            title={t("nav.viewActivity")} aria-label={t("nav.viewActivity")}>
+            <Activity size={18} />
           </NavLink>
         </Button>
       </header>

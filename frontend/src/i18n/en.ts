@@ -209,9 +209,60 @@ export const en = {
   "nav.toLight": "Switch to light theme",
   "nav.toDark": "Switch to dark theme",
   "nav.viewLog": "View backend log",
+  "nav.viewActivity": "What the scanner is doing",
   "nav.settings": "Settings",
   "nav.language": "Language",
   "nav.languageSwitchTo": "Switch to {language}",
+
+  // ── the activity screen: the scan in flight, and the ones before it ─────
+  "activity.liveTitle": "Scan in progress",
+  "activity.idleTitle": "No scan running",
+  "activity.idleBody":
+    "Nothing is being fetched right now. What the last few scans did is below.",
+  "activity.loading": "Reading what the scanner is doing…",
+  "activity.start": "Scan now",
+  "activity.lastFinished": "Last scan finished at {time}.",
+  "activity.nextScan": "Next automatic scan: {time}",
+  "activity.paused": "Automatic scans are paused.",
+  "activity.searchOf": "Search {index} of {total}",
+  // The phases. Anything a newer backend adds falls back to the vague one
+  // rather than to the backend's own English.
+  "activity.phaseStarting": "Starting the scan",
+  "activity.phaseLocating": "Placing the new listings on the map",
+  "activity.phaseFetching": "Reading the results, page {page}",
+  "activity.phaseWaiting": "Pausing {seconds}s before the next page",
+  "activity.phaseSaving": "Saving what came back",
+  "activity.phaseScanning": "Scanning",
+  "activity.waitingWhy":
+    "The pause is deliberate: requesting pages back to back is what gets the portal to stop answering. Most of a scan is spent here.",
+  "activity.pagesLabel": "Pages read",
+  "activity.pageOf": "Page {done} of {total}",
+  "activity.pageCount": "Page {page}",
+  "activity.pagesUnknown": "the portal did not say how many there are",
+  "activity.found": "{count} listings collected so far",
+  "activity.foundOf": "{count} of {total} listings collected",
+  "activity.transport": "Transport:",
+  "activity.streamDown":
+    "The live connection is unavailable, so this is being refreshed on a timer instead. It stays accurate, just less promptly.",
+
+  "activity.journalTitle": "The last few scans",
+  "activity.journalEmpty": "Nothing has been scanned yet",
+  "activity.journalEmptyHint":
+    "Every search that runs writes a line here: what it read, what it found and how it ended. It stays after the scan finishes.",
+  "activity.outcomeOk": "Done",
+  "activity.outcomeNoResults": "Nothing found",
+  "activity.outcomeBlocked": "Blocked",
+  "activity.outcomeError": "Failed",
+  "activity.outcomeUnknown": "Finished",
+  "activity.entryCounts": "{pages} pages, {listings} listings",
+  "activity.modeFull": "full scan",
+  "activity.modeQuick": "quick scan",
+  "activity.stoppedBecause": "Stopped because {reason}.",
+
+  "activity.diagnostics": "Diagnostics",
+  "activity.diagnosticsBody":
+    "The backend log is the line-by-line record of what the process did. It is the right place to look when the account above does not explain something.",
+  "activity.openLog": "Open the log",
 
   // ── toasts: what failed, and what to do about it ────────────────────────
   "toast.region": "Messages",
@@ -445,6 +496,10 @@ export const en = {
   "app.batchCheckFailed": "Batch check failed",
 
   // ── availability batch progress / summary ───────────────────────────────
+  // The bar's own name, for a screen reader. Deliberately not the running
+  // commentary beside it: that changes on every listing, and a bar renamed on
+  // every tick is announced from the start on every tick.
+  "app.checkProgressLabel": "Availability check",
   "app.checkProgress":
     "Checking listing {done} of {total} — {online} online, {gone} removed/sold",
   "app.checkProgressUnknown": ", {count} not verifiable",
@@ -574,6 +629,7 @@ export const en = {
 
   // ── maintenance result banners ──────────────────────────────────────────
   "maintenance.geocodeRunning": "Locating coordinates in background…",
+  "maintenance.geocodeProgressLabel": "Coordinate lookup",
   "maintenance.geocodeProgress":
     "Locating listing {done} of {total} — {geocoded} located, {cached} from cache",
   "maintenance.geocodeProgressNotFound": ", {count} not found",

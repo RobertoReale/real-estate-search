@@ -21,11 +21,12 @@ import App from "../App";
 import LogViewer from "../components/LogViewer";
 import SettingsModal from "../components/SettingsModal";
 import AppShell from "../ui/AppShell";
+import { ActivityRoute } from "./activity";
 import { useDashboard } from "./context";
 import InsightsRoute from "./insights/InsightsRoute";
 import { OnboardingRoute, shouldGuide } from "./onboarding";
 import {
-  INSIGHTS, LISTINGS, LOGS, ONBOARDING, SEARCHES, SETTINGS, SETUP, withSearch,
+  ACTIVITY, INSIGHTS, LISTINGS, LOGS, ONBOARDING, SEARCHES, SETTINGS, SETUP, withSearch,
 } from "./params";
 import PropertyRoute from "./property/PropertyRoute";
 import { useProfiles } from "../queries/dashboard";
@@ -91,6 +92,12 @@ export default function AppRoutes() {
           </Route>
           <Route path={INSIGHTS} element={<InsightsRoute />} />
           <Route path={SEARCHES} element={<SearchesRoute />} />
+          {/* Beside the grid rather than inside it: someone watching a scan is
+              watching the scan, and the journal has to be readable when nothing
+              is running. The log stays under `App` — it draws itself as an
+              overlay over the grid, and moving it out would leave a blank page
+              behind it. */}
+          <Route path={ACTIVITY} element={<ActivityRoute />} />
           {/* Inside the shell, so a user who lands here still has the
               navigation and can leave without finishing. The capability setup
               is beside it for the same reason and one more: it is reached from

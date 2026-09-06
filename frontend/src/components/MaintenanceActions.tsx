@@ -120,6 +120,7 @@ export default function MaintenanceActions() {
               </Button>
             </div>
             <ProgressBar
+              label={t("maintenance.geocodeProgressLabel")}
               done={geocodeProgress?.done ?? 0}
               total={geocodeProgress?.total ?? 0}
               indeterminate={!geocodeProgress || geocodeProgress.total <= 0}>
