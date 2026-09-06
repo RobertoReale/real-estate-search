@@ -209,6 +209,8 @@ own browser, on the same connection, with no proxy.
 
 **Where to look while diagnosing:** the **Scraper health** panel on the dashboard
 names the transport that carried each day's scans — a day labelled
-`local (curl_cffi)` with no blocks is the cheap rung doing its job. The **📜** log
-viewer in the top bar carries the rotation lines (`switching impersonation ->`)
-and the filter warnings above.
+`local (curl_cffi)` with no blocks is the cheap rung doing its job. The activity
+screen, reached from the top bar, names the transport of the scan running *now*
+and keeps a per-search account of the last few; the log viewer under
+*Diagnostics* at the bottom of it carries the rotation lines
+(`switching impersonation ->`) and the filter warnings above.

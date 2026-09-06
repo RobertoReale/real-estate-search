@@ -68,7 +68,10 @@ export const ACTIONS = {
     what: "the light/dark toggle",
     does: "puts `dark` on the document element and remembers it across a reload",
   },
-  "nav.logs": { what: "the log button in the header", does: "opens the log viewer" },
+  "nav.activity": {
+    what: "the activity button in the header",
+    does: "goes to the account of what the scanner is doing, and of what it did",
+  },
   "nav.settings": {
     what: "Settings, in the navigation",
     does: "opens the settings dialog over the grid",
@@ -482,6 +485,16 @@ export const ACTIONS = {
   "settings.system.resetDashboard": { what: "Clear the dashboard", does: "asks first, then deletes the collected properties" },
   "settings.system.resetTrends": { what: "Clear the price history", does: "asks first, then deletes the pricing snapshots" },
   "settings.system.resetFactory": { what: "Factory reset", does: "asks twice, then empties everything" },
+
+  // ── Activity: the running scan, the journal, the way down to the log ────
+  "activity.scan": {
+    what: "Scan now, on the activity screen",
+    does: "starts a scan from the screen that reports one, and disables itself while it runs",
+  },
+  "activity.openLog": {
+    what: "Open the log, under Diagnostics",
+    does: "opens the backend log over the grid, which is where it belongs now",
+  },
 
   // ── The log viewer ──────────────────────────────────────────────────────
   "logs.panel": { what: "the log viewer's panel", does: "keeps a click inside it from closing the viewer", guard: true },

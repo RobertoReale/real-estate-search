@@ -7,7 +7,8 @@ import type {
   BackupFile, CommuteProgress, CommuteSummary,
   GeocodeProgress, GeocodeSummary, ListingAudit, LogTail, MarketVelocity, PricingTrend,
   ProfileBulkResult,
-  ProfileResults, Property, PropertyFilters, PropertyPage, ScanStatus, ScraperHealth,
+  ProfileResults, Property, PropertyFilters, PropertyPage, ScanJournalEntry, ScanStatus,
+  ScraperHealth,
   SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
 } from "../types";
@@ -361,6 +362,12 @@ export const api = {
   /** Poll the status, progress, and next scheduled run time of the scraper background task. */
   getScanStatus(): Promise<ScanStatus> {
     return request("/scrapers/status");
+  },
+  /** What the last few scans did, one row per search, newest first. Its own
+   *  route rather than a field on the status: it changes once per search, not
+   *  on every frame of the progress. */
+  getScanJournal(): Promise<ScanJournalEntry[]> {
+    return request("/scans/journal");
   },
   /** Backfill map coordinates for properties with an address/zone but no pin,
    *  via Nominatim (opt-in, batched, paced, cached). */

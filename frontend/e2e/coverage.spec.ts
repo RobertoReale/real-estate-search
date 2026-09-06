@@ -175,7 +175,14 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
   await press(page, "scan.now");
   await expect(control(page, "scan.now")).toBeEnabled();
 
-  await press(page, "nav.logs");
+  // The log is two presses in now, and that is the point of the header button
+  // having changed: what it opens is the account of the scan, and the log is
+  // the diagnostic underneath it.
+  await press(page, "nav.activity");
+  expect(new URL(page.url()).pathname).toBe("/activity");
+  await press(page, "activity.scan");
+  await expect(control(page, "activity.scan")).toBeEnabled();
+  await press(page, "activity.openLog");
   await expect(control(page, "logs.filter")).toBeVisible();
   await fill(page, "logs.filter", "INFO");
   await toggle(page, "logs.autoRefresh");
@@ -189,7 +196,8 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
   await press(page, "logs.close");
   await expect(control(page, "logs.filter")).toBeHidden();
 
-  await press(page, "nav.logs");
+  await press(page, "nav.activity");
+  await press(page, "activity.openLog");
   await press(page, "logs.close.backdrop", { position: { x: 5, y: 5 } });
   await expect(control(page, "logs.filter")).toBeHidden();
 
@@ -200,7 +208,7 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
 
   await reachableByKeyboard(page, "the shell", [
     "nav.listings", "nav.insights", "nav.searches", "nav.settings",
-    "scan.now", "nav.language", "nav.theme", "nav.logs",
+    "scan.now", "nav.language", "nav.theme", "nav.activity",
   ]);
 });
 
@@ -1409,12 +1417,12 @@ test("the app stays usable when the backend refuses everything", async ({ page }
   const skip: ActionId[] = [
     // Each of these takes the page away from under the sweep, or hands it to
     // the browser rather than to the app.
-    "nav.listings", "nav.insights", "nav.searches",
+    "nav.listings", "nav.insights", "nav.searches", "nav.activity",
     "nav.language", "nav.theme", "view.map",
     "export.pdf", "export.html", "export.markdown", "export.csv",
     // ...each of these puts an overlay over everything the sweep has left to
     // press, which would turn the rest of it into two hundred timeouts,
-    "nav.settings", "nav.logs", "property.card", "property.open",
+    "nav.settings", "property.card", "property.open",
     "profiles.row.delete", "profiles.bulk.delete", "trends.openProperty",
     // ...and each of these asks a question the sweep is not there to answer.
     "property.hide", "selection.hide", "selection.markSold",

@@ -541,6 +541,7 @@ export default function App() {
               {checkingBatch && (
                 <ProgressBar
                   className="pt-2 border-t border-line"
+                  label={t("app.checkProgressLabel")}
                   done={batchProgress?.done ?? 0}
                   total={batchProgress?.total ?? 0}
                   indeterminate={!batchProgress || batchProgress.total <= 0}>

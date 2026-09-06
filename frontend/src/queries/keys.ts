@@ -37,6 +37,11 @@ export const keys = {
   profileResults: (ids: readonly number[]) => ["search-profiles", "results", ids] as const,
   tags: ["tags"] as const,
   scanStatus: ["scan-status"] as const,
+  /** Outside `scanStatus` on purpose. The status is rewritten several times a
+   *  second while a scan runs; the journal gains one row per search and is
+   *  read by somebody looking back at what happened. Sharing a key would mean
+   *  re-fetching the history on every frame of the progress. */
+  scanJournal: ["scan-journal"] as const,
   settings: ["settings"] as const,
 
   marketVelocity: (contract: string, city: string) =>

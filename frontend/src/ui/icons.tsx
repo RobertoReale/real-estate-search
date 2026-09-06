@@ -33,6 +33,7 @@
  * makes a swap a one-line change rather than a sweep.
  */
 import {
+  Activity as Pulse,
   Ban,
   Bed,
   Bell,
@@ -165,6 +166,8 @@ export const Language = icon(Globe, "Language");
 export const ThemeDark = icon(Moon, "ThemeDark");
 /** Switch to the light theme. */
 export const ThemeLight = icon(Sun, "ThemeLight");
+/** What the scanner is doing now, and what the last few scans did. */
+export const Activity = icon(Pulse, "Activity");
 /** The backend log. */
 export const Logs = icon(ScrollText, "Logs");
 /** Settings, and the "more filters" disclosure that leads to the same idea. */

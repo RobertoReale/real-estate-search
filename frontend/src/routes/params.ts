@@ -42,9 +42,15 @@ const DEALS = ["", "undervalued", "fair_plus"] as const;
 const GEO_MODES = ["", "radius", "polygon"] as const;
 const VIEWS = ["grid", "map"] as const;
 
-/** The four places, and the log that opens on top of them. Written as constants
- *  because they are also what a component navigates to: a path spelled out at
- *  the call site is one nobody renames with the route.
+/** The four places, what the scanner is doing, and the log that opens on top of
+ *  the grid. Written as constants because they are also what a component
+ *  navigates to: a path spelled out at the call site is one nobody renames with
+ *  the route.
+ *
+ *  `ACTIVITY` is reached from the header rather than from the navigation, and
+ *  that is a decision about width rather than about importance: a fifth item in
+ *  the bottom bar leaves the Italian labels about 56px each at 390px, and
+ *  "Impostazioni" does not fit in 56px.
  *
  *  `LISTINGS` is first because it is the default: anything unrecognised lands
  *  there, and a user with data therefore sees properties rather than
@@ -59,6 +65,7 @@ export const LISTINGS = "/listings";
 export const INSIGHTS = "/insights";
 export const SEARCHES = "/searches";
 export const SETTINGS = "/settings";
+export const ACTIVITY = "/activity";
 export const LOGS = "/logs";
 export const ONBOARDING = "/start";
 export const SETUP = "/setup";

@@ -49,10 +49,10 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 ```
 
 Expected today: **1027 passed + 1 skipped** (1028 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **395 frontend tests**,
-**57 browser tests** (33 journeys, then 24 that hold the run to the control inventory),
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **409 frontend tests**,
+**61 browser tests** (37 journeys, then 24 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
-reading: **217 interactive elements, 251 inventoried actions**, of which **249 exercised
+reading: **219 interactive elements, 253 inventoried actions**, of which **251 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
 a failure — it is a documentation trigger (see §4).
 
@@ -65,7 +65,7 @@ route sends and did not regenerate.
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
 locally and red on the very next push.
 
-`npm run e2e` is the slow one — around five minutes against the six seconds the rest of this
+`npm run e2e` is the slow one — around ten minutes against the six seconds the rest of this
 list costs — and it is on it anyway, because it is the only gate that runs the *assembled*
 product and the only one that can notice a control that quietly stopped working. Two things
 turn it red that nothing else here can: a screen that scrolls sideways or fails an `axe-core`
