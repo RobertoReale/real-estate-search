@@ -1,7 +1,7 @@
 import { useScraperHealth } from "../../queries/insights";
 import DayStrip from "./DayStrip";
-import { translateCurrent, useT } from "../../i18n";
-import { Card, cx, EmptyState, FOCUS_RING } from "../../ui";
+import { useT } from "../../i18n";
+import { Button, Card, cx, EmptyState, ErrorState, FOCUS_RING, Skeleton } from "../../ui";
 import { Dot, Health, ICON_SIZE, Warning } from "../../ui/icons";
 
 /** Scraper Health: the anti-bot pipeline degrades silently — a blocked scraper
@@ -11,10 +11,10 @@ import { Dot, Health, ICON_SIZE, Warning } from "../../ui/icons";
 
 export default function ScraperHealthPanel() {
   const t = useT();
-  const { data, isError, error, isPending } = useScraperHealth();
-  const message = isError
-    ? (error instanceof Error ? error.message : translateCurrent("health.loadFailed"))
-    : "";
+  const { data, isError, error, isPending, isFetching, refetch } = useScraperHealth();
+  // The title says what could not be loaded; this is what the backend said
+  // about it, and it is allowed to be nothing.
+  const detail = isError && error instanceof Error ? error.message : "";
 
   const failingProfiles = data?.profiles.filter((p) => p.consecutive_failures > 0) ?? [];
   const empty = data && data.portals.length === 0;
@@ -31,8 +31,33 @@ export default function ScraperHealthPanel() {
         </div>
 
         <div className="mt-4 space-y-5">
-          {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
+          {isPending && !data && (
+            <Skeleton className="h-24 w-full" label={t("common.loading")} />
+          )}
+
+          {/* Where the table would be, rather than as a line above the space it
+              left behind: a panel that has refused to load and a panel with
+              nothing in it are the same rectangle otherwise. */}
+          {isError && !data && (
+            <ErrorState className="panel rounded-xl"
+              title={t("health.loadFailed")}
+              description={detail}
+              action={(
+                <Button data-action="health.loadError.retry" aria-busy={isFetching}
+                  onClick={() => { void refetch(); }}>
+                  {isFetching ? t("common.loading") : t("common.retry")}
+                </Button>
+              )} />
+          )}
+
+          {/* A refused refresh over an answer that did arrive keeps the answer:
+              the numbers are stale, not gone, and blanking them would lose the
+              only reading of the scrapers there is. */}
+          {isError && data && (
+            <p className="accent-bad text-sm inline-flex items-center gap-1.5">
+              <Warning /> {detail || t("health.loadFailed")}
+            </p>
+          )}
 
           {data && (
             <p className="text-xs t-muted">

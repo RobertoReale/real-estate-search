@@ -4,7 +4,7 @@ import { useTrend, useTrendAreas, useTrendComparables } from "../../queries/insi
 import { formatPrice } from "../../services/api";
 import TrendChart from "./TrendChart";
 import type { Property } from "../../types";
-import { Card, EmptyState } from "../../ui";
+import { Button, Card, EmptyState, ErrorState, Skeleton } from "../../ui";
 import { ICON_SIZE, PriceDrop, PriceRise, Trend, Warning } from "../../ui/icons";
 
 interface Props {
@@ -50,19 +50,21 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
   const compsQuery = useTrendComparables(contract, area, compsOpen);
   const comps = compsOpen ? compsQuery.data : undefined;
 
-  // One line for whichever of the three refused, in the order the panel reads
-  // them, and each with its own fallback: "the areas could not be listed" and
-  // "the chart could not be drawn" are different failures to the reader.
-  const [failed, fallback] = areasQuery.error
-    ? [areasQuery.error, "trends.areasFailed" as const]
+  // One report for whichever of the three refused, in the order the panel reads
+  // them, and each named for itself: "the areas could not be listed" and "the
+  // chart could not be drawn" are different failures to the reader.
+  const [failed, title, askAgain] = areasQuery.error
+    ? [areasQuery.error, "trends.areasFailed" as const, areasQuery.refetch]
     : trendQuery.error
-      ? [trendQuery.error, "trends.trendFailed" as const]
-      : [compsQuery.error, "trends.listingsFailed" as const];
-  const error = !failed
-    ? ""
-    : failed instanceof Error && failed.message
-      ? failed.message
-      : translateCurrent(fallback);
+      ? [trendQuery.error, "trends.trendFailed" as const, trendQuery.refetch]
+      : [compsQuery.error, "trends.listingsFailed" as const, compsQuery.refetch];
+  const detail = failed instanceof Error ? failed.message : "";
+  // The areas are what the whole panel is drawn from: without them there is no
+  // select, no chart and no comparables, so their failure is the one that
+  // leaves the panel blank and has to be reported in the space it left.
+  const blank = Boolean(areasQuery.error) && areas.length === 0;
+  const retrying =
+    areasQuery.isFetching || trendQuery.isFetching || compsQuery.isFetching;
 
   const stats = useMemo(() => {
     if (!trend || trend.points.length < 2) return null;
@@ -84,11 +86,31 @@ export default function PriceTrends({ contract, city, onOpenProperty }: Props) {
 
         <div className="mt-4 space-y-4">
           {areasQuery.isPending && !areas.length && (
-            <p className="text-sm t-muted">{t("common.loading")}</p>
+            <Skeleton className="h-24 w-full" label={t("common.loading")} />
           )}
-          {error && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {error}</p>}
 
-          {!areasQuery.isPending && !error && areas.length === 0 && (
+          {blank && (
+            <ErrorState className="panel rounded-xl"
+              title={t(title)}
+              description={detail}
+              action={(
+                <Button data-action="trends.loadError.retry" aria-busy={retrying}
+                  onClick={() => { void askAgain(); }}>
+                  {retrying ? t("common.loading") : t("common.retry")}
+                </Button>
+              )} />
+          )}
+
+          {/* The chart or the comparables refusing is a line above what did
+              arrive: the areas are still there to pick from, and blanking the
+              panel would take away the control that recovers it. */}
+          {failed && !blank && (
+            <p className="accent-bad text-sm inline-flex items-center gap-1.5">
+              <Warning /> {detail || t(title)}
+            </p>
+          )}
+
+          {!areasQuery.isPending && !failed && areas.length === 0 && (
             <EmptyState className="panel rounded-xl"
               icon={<Trend size={ICON_SIZE.display} strokeWidth={1.25} />}
               title={t("trends.empty")} />

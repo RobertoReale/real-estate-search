@@ -41,7 +41,7 @@ import { useToasts } from "../../components/Toast";
 import { useT, type TFunction } from "../../i18n";
 import { useSaveSettings, useSettingsForm } from "../../queries/settings";
 import type { Settings } from "../../types";
-import { Button, Card, Checkbox, Chip, Field, Input, Select, cx } from "../../ui";
+import { Button, Card, Checkbox, Chip, Field, Input, Select, Skeleton, cx } from "../../ui";
 import { Note } from "../../ui/icons";
 import { LISTINGS } from "../params";
 
@@ -267,7 +267,14 @@ export default function SetupRoute() {
             onSkip={skip} onSave={(payload) => void commit(payload)}
             saveLabel={atEnd ? t("setup.finish") : t("setup.saveNext")} />
         ) : (
-          <p className="text-sm t-muted">{t("common.loading")}</p>
+          // The shape of the form that is coming, so the step does not read as
+          // a wizard page whose question failed to arrive.
+          <div>
+            <Skeleton className="h-4 w-1/3" label={t("common.loading")} />
+            <Skeleton className="mt-4 h-9 w-full" />
+            <Skeleton className="mt-3 h-9 w-full" />
+            <Skeleton className="mt-4 h-9 w-32" />
+          </div>
         )}
       </section>
     </Card>

@@ -37,9 +37,12 @@ describe("SettingsModal when the settings cannot be loaded", () => {
 
     mount();
 
-    // the message names the underlying failure rather than swallowing it
-    const status = await screen.findByRole("status");
-    expect(status.textContent).toContain("Connection refused");
+    // the message names the underlying failure rather than swallowing it.
+    // Found by its text and then checked for the role, not the other way round:
+    // the dialog announces the load in progress under the same role, and that
+    // one is on screen first.
+    const status = await screen.findByText(/Connection refused/);
+    expect(status.getAttribute("role")).toBe("status");
 
     // and the dialog is dismissable, which the blank render never was
     expect(screen.getAllByRole("button", { name: /close|chiudi/i }).length)

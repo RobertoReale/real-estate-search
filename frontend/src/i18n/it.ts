@@ -311,6 +311,8 @@ export const it: Dict = {
     "Le ricerche sono impostate: sarà la prossima scansione a riempire questa pagina.",
   "app.addSearch": "Aggiungi una ricerca",
   "app.showMoreCount": "Mostra altri ({count} rimanenti)",
+  "app.loadingResults": "Caricamento dei risultati…",
+  "app.resultsFailed": "Non è stato possibile caricare i risultati",
 
   // ── la guida al primo avvio ─────────────────────────────────────────────
   "onboarding.title": "Come iniziare",
@@ -991,8 +993,10 @@ export const it: Dict = {
   "profiles.modeAssistant": "Descrivila e basta",
   "profiles.modeBuilder": "Costruisci una ricerca",
   "profiles.modeUrl": "Incolla un URL",
+  "profiles.emptyTitle": "Nessuna ricerca configurata",
   "profiles.empty":
-    "Nessuna ricerca configurata. Costruiscine una con i tuoi criteri oppure incolla l'URL dei risultati da Immobiliare.it / Idealista per iniziare.",
+    "Costruiscine una con i tuoi criteri oppure incolla l'URL dei risultati da Immobiliare.it / Idealista per iniziare.",
+  "profiles.loadFailed": "Non è stato possibile caricare le ricerche",
   "profiles.untitled": "Ricerca senza nome",
   "profiles.defaultName": "Ricerca monitorata",
   "profiles.labelRent": "Affitto",

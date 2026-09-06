@@ -1,7 +1,7 @@
-import { formatDate, translateCurrent, useT } from "../../i18n";
+import { formatDate, useT } from "../../i18n";
 import { useDebounced } from "../../hooks/useDebounced";
 import { useMarketVelocity } from "../../queries/insights";
-import { Card, Chip, cx, EmptyState, FOCUS_RING } from "../../ui";
+import { Button, Card, Chip, cx, EmptyState, ErrorState, FOCUS_RING, Skeleton } from "../../ui";
 import { ICON_SIZE, NoResults, Velocity, Warning } from "../../ui/icons";
 
 interface Props {
@@ -31,10 +31,9 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
   // than one per letter; which answer reaches the panel is settled by the key,
   // so the request id this used to keep is gone with the mechanism.
   const settledCity = useDebounced(city, 250);
-  const { data, isError, error, isPending } = useMarketVelocity(contract, settledCity);
-  const message = isError
-    ? (error instanceof Error ? error.message : translateCurrent("velocity.loadFailed"))
-    : "";
+  const { data, isError, error, isPending, isFetching, refetch } =
+    useMarketVelocity(contract, settledCity);
+  const detail = isError && error instanceof Error ? error.message : "";
 
   const empty = data && data.areas.length === 0 && data.agencies.length === 0;
 
@@ -52,8 +51,30 @@ export default function MarketVelocityPanel({ contract, city }: Props) {
         </div>
 
         <div className="mt-4 space-y-5">
-          {isPending && !data && <p className="text-sm t-muted">{t("common.loading")}</p>}
-          {message && <p className="accent-bad text-sm inline-flex items-center gap-1.5"><Warning /> {message}</p>}
+          {isPending && !data && (
+            <Skeleton className="h-24 w-full" label={t("common.loading")} />
+          )}
+
+          {/* See `ScraperHealth` for why the failure is rendered where the
+              tables would be, and why an answer already on screen survives a
+              refresh that did not. */}
+          {isError && !data && (
+            <ErrorState className="panel rounded-xl"
+              title={t("velocity.loadFailed")}
+              description={detail}
+              action={(
+                <Button data-action="velocity.loadError.retry" aria-busy={isFetching}
+                  onClick={() => { void refetch(); }}>
+                  {isFetching ? t("common.loading") : t("common.retry")}
+                </Button>
+              )} />
+          )}
+
+          {isError && data && (
+            <p className="accent-bad text-sm inline-flex items-center gap-1.5">
+              <Warning /> {detail || t("velocity.loadFailed")}
+            </p>
+          )}
 
           {data && (
             <p className="text-xs t-muted">

@@ -18,15 +18,19 @@ import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import MaintenanceActions from "../../components/MaintenanceActions";
 import SearchProfiles from "../../components/SearchProfiles";
+import { useT } from "../../i18n";
 import { useProfiles } from "../../queries/dashboard";
 import { useRefreshDashboard } from "../../queries/properties";
 import { useSettings } from "../../queries/settings";
+import { Button, Card, ErrorState, Skeleton } from "../../ui";
 import ChannelBanner from "./ChannelBanner";
 import FromFilters from "./FromFilters";
 import { readHandoff } from "./handoff";
 
 export default function SearchesRoute() {
-  const profiles = useProfiles().data ?? [];
+  const t = useT();
+  const profilesQuery = useProfiles();
+  const profiles = profilesQuery.data ?? [];
   const settings = useSettings().data ?? null;
   const refresh = useRefreshDashboard();
   const [params] = useSearchParams();
@@ -34,6 +38,41 @@ export default function SearchesRoute() {
   // grid's filters on the address. The form opens on what could be carried and
   // the banner above it accounts for the rest.
   const handoff = useMemo(() => readHandoff(params), [params]);
+
+  // Until the searches arrive there is nothing here to be right about: an empty
+  // list, a banner about channels for searches that may not exist, and a panel
+  // saying no search is configured are all claims made from `data ?? []`. The
+  // shape of the list is the only honest thing to show while it is in flight.
+  if (profilesQuery.isPending) {
+    return (
+      <Card padding="lg">
+        <Skeleton className="h-4 w-1/3" label={t("common.loading")} />
+        <Skeleton className="mt-5 h-32 w-full" />
+      </Card>
+    );
+  }
+
+  // The searches are the screen. Without them the maintenance jobs below would
+  // be all that is left, which reads as a page that has loaded and has nothing
+  // on it rather than as a page that could not be loaded.
+  if (profilesQuery.isError) {
+    return (
+      <Card padding="none">
+        <ErrorState headingLevel={2}
+          title={t("profiles.loadFailed")}
+          description={
+            profilesQuery.error instanceof Error ? profilesQuery.error.message : ""
+          }
+          action={(
+            <Button data-action="profiles.loadError.retry" variant="solid" tone="accent"
+              aria-busy={profilesQuery.isFetching}
+              onClick={() => { void profilesQuery.refetch(); }}>
+              {profilesQuery.isFetching ? t("common.loading") : t("common.retry")}
+            </Button>
+          )} />
+      </Card>
+    );
+  }
 
   return (
     <>

@@ -16,8 +16,8 @@ import { DeleteDialog } from "./searchProfiles/DeleteDialog";
 import { MultiPanel } from "./searchProfiles/MultiPanel";
 import { ProfileList } from "./searchProfiles/ProfileList";
 import { UrlForm } from "./searchProfiles/UrlForm";
-import { Button, Card } from "../ui";
-import { BuildSearch, Describe, PasteUrl, Searches } from "../ui/icons";
+import { Button, Card, EmptyState } from "../ui";
+import { BuildSearch, Describe, ICON_SIZE, PasteUrl, Searches } from "../ui/icons";
 
 interface Props {
   profiles: SearchProfile[];
@@ -73,8 +73,15 @@ export default function SearchProfiles({ profiles, settings, onChanged, prefill 
         {mode === "url" && <UrlForm sp={sp} />}
         {mode === "builder" && <BuilderForm sp={sp} />}
 
+        {/* The list is the body of this panel, so with no searches the panel is
+            a heading over nothing. Stated at the size of the thing that is
+            missing, and pointing at the three buttons above it rather than
+            adding a fourth that says the same. */}
         {profiles.length === 0 && mode === "closed" && (
-          <p className="text-sm t-muted">{t("profiles.empty")}</p>
+          <EmptyState
+            icon={<Searches size={ICON_SIZE.display} strokeWidth={1.25} />}
+            title={t("profiles.emptyTitle")}
+            description={t("profiles.empty")} />
         )}
 
         {profiles.length > 1 && <BulkToolbar sp={sp} />}

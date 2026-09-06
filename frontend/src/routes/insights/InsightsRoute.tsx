@@ -25,7 +25,7 @@ import PriceTrends from "./PriceTrends";
 import ScraperHealthPanel from "./ScraperHealth";
 import { useT } from "../../i18n";
 import { useProfiles } from "../../queries/dashboard";
-import { Button, Card, EmptyState } from "../../ui";
+import { Button, Card, EmptyState, Skeleton } from "../../ui";
 import { ICON_SIZE, Insights, Searches } from "../../ui/icons";
 import { filtersFromSearch, propertyPath, SEARCHES, withSearch } from "../params";
 
@@ -34,12 +34,28 @@ export default function InsightsRoute() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const filters = filtersFromSearch(params);
-  const profiles = useProfiles().data ?? [];
+  const profilesQuery = useProfiles();
+  const profiles = profilesQuery.data ?? [];
+
+  // The searches have not arrived yet, and "no searches" is a claim that needs
+  // an answer to make: while it was made from `data ?? []`, every visit to this
+  // screen opened on "Nothing to analyse yet" and then replaced it with three
+  // panels of analysis.
+  if (profilesQuery.isPending) {
+    return (
+      <Card padding="lg">
+        <Skeleton className="h-4 w-1/3" label={t("common.loading")} />
+        <Skeleton className="mt-5 h-40 w-full" />
+      </Card>
+    );
+  }
 
   // Every panel here is an aggregate over what the scans collected. With no
   // search saved there is nothing to aggregate, and three panels each saying so
-  // separately is three ways of reporting the same absence.
-  if (profiles.length === 0) {
+  // separately is three ways of reporting the same absence. A read that failed
+  // is not that: it falls through to the panels, each of which reports its own
+  // failure where its own content would be.
+  if (profilesQuery.isSuccess && profiles.length === 0) {
     return (
       <Card padding="none">
         <EmptyState headingLevel={2}
