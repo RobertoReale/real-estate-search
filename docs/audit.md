@@ -48,11 +48,11 @@ cd frontend && npm run e2e
 python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/api.ts
 ```
 
-Expected today: **1025 passed + 1 skipped** (1026 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **356 frontend tests**,
-**55 browser tests** (31 journeys, then 24 that hold the run to the control inventory),
+Expected today: **1027 passed + 1 skipped** (1028 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **395 frontend tests**,
+**57 browser tests** (33 journeys, then 24 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
-reading: **204 interactive elements, 234 inventoried actions**, of which **232 exercised
+reading: **217 interactive elements, 251 inventoried actions**, of which **249 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
 a failure — it is a documentation trigger (see §4).
 

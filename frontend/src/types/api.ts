@@ -3126,6 +3126,8 @@ export interface components {
             tls_impersonations?: string[] | null;
             /** Repair Agency Prefixes */
             repair_agency_prefixes?: string[] | null;
+            /** Setup Completed */
+            setup_completed?: boolean | null;
             /** Api Auth Token */
             api_auth_token?: string | null;
         };
@@ -3479,6 +3481,11 @@ export interface components {
              * @default
              */
             omi_input_dir: string;
+            /**
+             * Setup Completed
+             * @default false
+             */
+            setup_completed: boolean;
             /**
              * Api Auth Token
              * @default

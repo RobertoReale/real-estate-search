@@ -536,3 +536,47 @@ def test_token_gate_blocks_api_but_not_the_app_shell(client, monkeypatch):
     # no dist/ in a test run, so the SPA mount is absent: the point is only that
     # the middleware did not answer 401 for a non-/api path
     assert api.get("/does-not-exist").status_code != 401
+
+
+# --- the settings round trip the setup wizard writes through ----------------
+
+
+def test_a_saved_secret_survives_a_later_save_that_masks_it_back(client):
+    """The one thing every screen that writes settings has to get right.
+
+    `GET /api/settings` never returns a secret in clear: it answers `"***"` and
+    a `*_set` boolean beside it. So a form that posts what it was given posts
+    the mask, and the mask must mean "keep the stored one" — the setup wizard
+    saves one group at a time and every group after the first re-posts the
+    masked reading of the ones before it. Read as a value, three asterisks would
+    replace a working Idealista key with a string the portal rejects, and
+    nothing on screen would say so: the field still reports "saved".
+    """
+    api = client
+    assert api.put("/api/settings", json={"idealista_api_key": "real-key"}).status_code == 200
+    masked = api.get("/api/settings").json()
+    assert masked["idealista_api_key"] == "***"
+    assert masked["idealista_api_key_set"] is True
+
+    # the next group of the wizard: an unrelated field, plus the masked reading
+    # of the key it was handed
+    saved = api.put(
+        "/api/settings",
+        json={"idealista_api_key": masked["idealista_api_key"], "max_pages_per_search": 4},
+    ).json()
+    assert saved["max_pages_per_search"] == 4
+    assert saved["idealista_api_key_set"] is True
+    assert config.load_settings()["idealista_api_key"] == "real-key"
+
+
+def test_finishing_the_setup_is_remembered_with_the_settings(client):
+    """The "already set up" flag is a setting like any other, which is what
+    makes it survive an upgrade: `settings.json` lives in the data directory and
+    `adopt_existing_data` carries it across. A per-browser flag would ask a
+    returning user to configure a token that is already saved."""
+    api = client
+    assert api.get("/api/settings").json()["setup_completed"] is False
+    assert (
+        api.put("/api/settings", json={"setup_completed": True}).json()["setup_completed"] is True
+    )
+    assert config.load_settings()["setup_completed"] is True

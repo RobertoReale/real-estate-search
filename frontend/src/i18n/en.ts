@@ -298,13 +298,129 @@ export const en = {
     "Most of a scan is spent pausing between pages on purpose — that pause is what keeps the portals answering. You can leave this page; the scan carries on.",
   "onboarding.scanFound": "{count} collected so far",
   "onboarding.scanSearchOf": "Search {index} of {total}",
-  "onboarding.alerts":
-    "Optional, afterwards: open Settings to have new listings and price drops sent to Telegram or Email.",
+  "onboarding.setupBody":
+    "Everything else is off until you switch it on: being told about a new listing, a second source, staying unblocked. Five short questions, all of them skippable.",
+  "onboarding.setupOpen": "Set the rest up",
   "onboarding.phaseStarting": "Starting the scan",
   "onboarding.phaseLocating": "Placing the new listings on the map",
   "onboarding.phaseFetching": "Reading the results, page {page}",
   "onboarding.phaseWaiting": "Pausing before the next page",
   "onboarding.phaseSaving": "Saving what came back",
+
+  // ── the capability setup ────────────────────────────────────────────────
+  "setup.title": "Set up what you need",
+  "setup.intro":
+    "Five questions, grouped by what each one gets you. Nothing here is required — skip anything you don't want, and come back to it from Settings whenever you like.",
+  "setup.optional": "Leave anything blank and it stays as it is. Nothing on this screen is required.",
+  "setup.back": "Back",
+  "setup.skip": "Skip for now",
+  "setup.saveNext": "Save and continue",
+  "setup.finish": "Save and finish",
+
+  "setup.group.unblocked": "Staying unblocked",
+  "setup.group.source": "A second source",
+  "setup.group.told": "Being told",
+  "setup.group.pace": "How much it fetches",
+  "setup.group.engines": "The optional extras",
+
+  "setup.body.unblocked":
+    "The portals defend themselves against automated reading, and Immobiliare is the strict one: without help it answers with a block page instead of the results. Any one of these is enough — a cookie taken from your own browser, a scraping service, or proxies.",
+  "setup.body.source":
+    "Idealista publishes an official API. With a key it is read through that instead of through the site, which is both sanctioned and immune to the blocking above. Keys are free to request and take a couple of days to arrive.",
+  "setup.body.told":
+    "Otherwise the app collects quietly and you find out by opening it. Telegram is the quicker of the two to set up — talk to @BotFather, paste the token, and send your bot a message so it can find your chat id.",
+  "setup.body.pace":
+    "These already have sensible values. Raise them for more coverage per scan, lower them if a portal starts refusing — the delay between requests is the one that matters most.",
+  "setup.body.engines":
+    "None of this is needed for the app to work. Geocoding and travel times put listings on the map and measure the commute; a language model writes the summaries and reads a description into filters.",
+
+  "setup.field.datadome_cookie": "DataDome cookie",
+  "setup.hint.datadome_cookie":
+    "From your browser on immobiliare.it: developer tools, Application, Cookies, the value named 'datadome'. It expires after a few hours.",
+  "setup.field.datadome_auto_refresh": "Fetch that cookie automatically",
+  "setup.hint.datadome_auto_refresh":
+    "Opens a real browser in the background when the stored cookie is old, and takes a fresh one.",
+  "setup.field.browser_engine": "Browser to use for it",
+  "setup.hint.browser_engine":
+    "Camoufox is harder for a portal to recognise; Chromium starts faster.",
+  "setup.field.proxy_urls": "Proxies",
+  "setup.hint.proxy_urls":
+    "One per line, or separated by commas. Requests are spread across them.",
+  "setup.field.scrape_api_key": "Scraping service key",
+  "setup.hint.scrape_api_key":
+    "A paid service that fetches the page for you. Works with ScraperAPI, ScrapingBee and Zyte.",
+  "setup.field.scrape_api_mode": "When to use it",
+  "setup.hint.scrape_api_mode":
+    "Only after a direct request has been refused, or for every request.",
+
+  "setup.field.idealista_api_key": "Idealista API key",
+  "setup.hint.idealista_api_key": "The 'apikey' from the confirmation email.",
+  "setup.field.idealista_api_secret": "Idealista API secret",
+  "setup.hint.idealista_api_secret": "The 'secret' from the same email.",
+
+  "setup.field.telegram_bot_token": "Telegram bot token",
+  "setup.hint.telegram_bot_token": "What @BotFather answers with when you create a bot.",
+  "setup.field.telegram_chat_id": "Telegram chat id",
+  "setup.hint.telegram_chat_id":
+    "Send your bot any message first, otherwise it is not allowed to write to you.",
+  "setup.field.telegram_enabled": "Send me alerts on Telegram",
+  "setup.hint.telegram_enabled": "New listings and price drops, as they are found.",
+  "setup.field.smtp_host": "Mail server",
+  "setup.hint.smtp_host": "For example smtp.gmail.com.",
+  "setup.field.smtp_port": "Port",
+  "setup.hint.smtp_port": "587 for STARTTLS, 465 for SSL.",
+  "setup.field.smtp_user": "Mail username",
+  "setup.hint.smtp_user": "Usually the full address.",
+  "setup.field.smtp_password": "Mail password",
+  "setup.hint.smtp_password":
+    "With Gmail this is an app password, not your account password.",
+  "setup.field.email_from": "Send from",
+  "setup.hint.email_from": "The address the alerts appear to come from.",
+  "setup.field.email_to": "Send to",
+  "setup.hint.email_to": "Several addresses separated by commas are fine.",
+  "setup.field.email_enabled": "Send me alerts by email",
+  "setup.hint.email_enabled": "The same alerts as Telegram, in your inbox.",
+
+  "setup.field.max_pages_per_search": "Pages per search",
+  "setup.hint.max_pages_per_search":
+    "How deep into the results each scan reads. Roughly 25 listings a page.",
+  "setup.field.request_delay_seconds": "Seconds between requests",
+  "setup.hint.request_delay_seconds":
+    "The pause that keeps the portals answering. Below two seconds you will be refused sooner or later.",
+  "setup.field.idealista_api_max_pages": "Pages per search on the Idealista API",
+  "setup.hint.idealista_api_max_pages":
+    "The free tier allows a hundred requests a month, so this is worth keeping low.",
+
+  "setup.field.nominatim_url": "Geocoding server",
+  "setup.hint.nominatim_url":
+    "Turns an address into a point on the map. Leave blank to use the public OpenStreetMap one.",
+  "setup.field.osrm_url": "Routing server",
+  "setup.hint.osrm_url": "Measures the commute by car, on foot or by bike.",
+  "setup.field.llm_base_url": "Language model endpoint",
+  "setup.hint.llm_base_url":
+    "Anything that speaks the OpenAI API, including a local one.",
+  "setup.field.llm_api_key": "Language model key",
+  "setup.hint.llm_api_key": "Not needed by a model running on this machine.",
+  "setup.field.llm_model": "Model",
+  "setup.hint.llm_model": "For example gpt-4o-mini.",
+
+  "setup.option.auto": "Whichever is available",
+  "setup.option.chromium": "Chromium",
+  "setup.option.camoufox": "Camoufox",
+  "setup.option.fallback": "Only when blocked",
+  "setup.option.always": "Every request",
+
+  "setup.detected.harvester": "Browser automation is installed",
+  "setup.detected.noHarvester": "Browser automation is not installed",
+  "setup.detected.camoufox": "Camoufox is installed",
+  "setup.detected.cookie": "A cookie is stored, good for about {minutes} minutes",
+  "setup.detected.noCookie": "No cookie stored yet",
+
+  "setup.section.title": "Guided setup",
+  "setup.section.pending": "These are still switched off:",
+  "setup.section.allOn": "Everything the guided setup offers is switched on.",
+  "setup.section.open": "Set the rest up",
+  "setup.section.reopen": "Go through the setup again",
 
   // ── bulk selection bar ──────────────────────────────────────────────────
   "app.selectMultiple": "Select multiple properties",

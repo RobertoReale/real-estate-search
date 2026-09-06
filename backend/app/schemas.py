@@ -526,6 +526,7 @@ class SettingsIn(BaseModel):
     browser_humanize: bool | None = None
     tls_impersonations: list[str] | None = None
     repair_agency_prefixes: list[str] | None = None
+    setup_completed: bool | None = None
     api_auth_token: str | None = None
 
     @field_validator("health_alert_after_failures")
@@ -1141,4 +1142,5 @@ class SettingsOut(ApiOut):
     browser_humanize: bool = True
     repair_agency_prefixes: list[str] = []
     omi_input_dir: str = ""
+    setup_completed: bool = False
     api_auth_token: str = ""

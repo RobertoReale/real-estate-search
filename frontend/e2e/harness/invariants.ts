@@ -15,9 +15,11 @@
  *       works rather than a style opinion.
  *
  *  Both report *what* failed, not just that something did: the overflow check
- *  names the elements sticking out past the viewport and the axe check names the
- *  rule and the nodes. A failure whose message does not say where to look costs
- *  more than the bug.
+ *  names the elements sticking out past the viewport, and the axe check names
+ *  the rule, the nodes, the measurement axe took and the style the browser had
+ *  resolved at that instant. A failure whose message does not say where to look
+ *  costs more than the bug — a bare "color-contrast (serious)" once sent a
+ *  session after a design token that measured 5.2:1 and was never at fault.
  */
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
@@ -38,6 +40,106 @@ interface Overflowing {
   readonly tag: string;
   readonly right: number;
   readonly text: string;
+}
+
+type AxeResults = Awaited<ReturnType<AxeBuilder["analyze"]>>;
+type ViolationNode = AxeResults["violations"][number]["nodes"][number];
+
+/** What `color-contrast` records under each node's checks: the two colours it
+ *  resolved, the ratio it got, and the ratio it wanted. */
+interface ContrastData {
+  readonly fgColor?: string;
+  readonly bgColor?: string;
+  readonly contrastRatio?: number;
+  readonly expectedContrastRatio?: string;
+  readonly bgOverlap?: number;
+}
+
+/** axe's own measurement for a node, when it took one.
+ *
+ *  A contrast failure that names the rule and not the numbers cannot be acted
+ *  on: "elements must meet minimum contrast" is equally true of every button in
+ *  the app, and the only question worth asking is which pair of colours *this*
+ *  one resolved to at the instant of the check. Without it the reader is left
+ *  reasoning from the stylesheet, which is exactly how a token gets blamed for
+ *  an overlay. */
+function measuredContrast(node: ViolationNode): string | null {
+  for (const check of [...node.any, ...node.all, ...node.none]) {
+    const data = check.data as ContrastData | null | undefined;
+    if (!data || typeof data !== "object" || data.contrastRatio === undefined) continue;
+    const parts = [
+      `fg ${data.fgColor}`,
+      `bg ${data.bgColor}`,
+      `ratio ${data.contrastRatio}`,
+      `needs ${data.expectedContrastRatio}`,
+    ];
+    // Non-zero bgOverlap means axe found something covering the element, so the
+    // bg above is a blend rather than the token the stylesheet names.
+    if (data.bgOverlap !== undefined) parts.push(`bgOverlap ${data.bgOverlap}`);
+    return parts.join(", ");
+  }
+  return null;
+}
+
+/** The browser's own resolved values for the offending node, read at the moment
+ *  the check failed. Read alongside `measuredContrast`, this is what separates
+ *  "the colours really are those two" from "it was measured mid-transition, or
+ *  through an opacity, or against a background that is not what it looks like". */
+async function computedStyleOf(page: Page, selector: string): Promise<string> {
+  return page.evaluate((sel) => {
+    let el: Element | null = null;
+    try {
+      el = document.querySelector(sel);
+    } catch {
+      return `unreadable selector`;
+    }
+    if (!el) return "no longer in the document";
+    const style = getComputedStyle(el);
+    return [
+      `color ${style.color}`,
+      `background-color ${style.backgroundColor}`,
+      `opacity ${style.opacity}`,
+    ].join(", ");
+  }, selector);
+}
+
+/** `target` is a selector, or a frame path ending in one. */
+function selectorOf(node: ViolationNode): string {
+  return node.target.map((part) => (Array.isArray(part) ? part.join(" ") : part)).join(" ");
+}
+
+/** Longest a screen is given to stop moving. A transition in this app is
+ *  measured in milliseconds; this is only here so a bug cannot hang the suite. */
+const SETTLE_TIMEOUT = 2000;
+
+/** Waits until the screen has stopped changing colour — layout re-laid-out *and*
+ *  every running transition finished.
+ *
+ *  Two frames of `requestAnimationFrame` is enough for layout and not enough for
+ *  a transition, and the difference is a real failure this suite produced: the
+ *  onboarding button that becomes the solid accent one keeps its DOM node when
+ *  React swaps its classes, so the class change starts a `background-color` and
+ *  `color` transition. Measured inside it, Chromium reports the interpolated
+ *  `oklab(...)` midpoint rather than either end, and axe scored a passing
+ *  5.11:1 button at 2.75:1. It failed or passed on machine load alone.
+ *
+ *  So the wait is on the browser's own signal. `getAnimations()` returns CSS
+ *  transitions along with everything else, and each one's `finished` resolves
+ *  when it is genuinely over — no frame count can stand in for that. Animations
+ *  that repeat forever (a spinner, a pulsing skeleton) are skipped, because
+ *  waiting for one to finish would mean waiting for ever. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(async (timeout) => {
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+    const running = document
+      .getAnimations()
+      .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+    // `finished` rejects on a cancelled animation, which is a settled screen too.
+    const done = Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+    await Promise.race([done, new Promise((resolve) => setTimeout(resolve, timeout))]);
+  }, SETTLE_TIMEOUT);
 }
 
 /** Elements whose right edge lands past the document's own width — the ones
@@ -82,11 +184,9 @@ export async function checkScreen(page: Page, where: string): Promise<void> {
 
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: HEIGHT });
-    // One frame for the layout to settle: `setViewportSize` resolves before the
-    // browser has re-laid-out, and a measurement taken then is the old one.
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-    );
+    // `setViewportSize` resolves before the browser has re-laid-out, and nothing
+    // measured here — width or colour — means anything until the screen is still.
+    await settle(page);
 
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -106,17 +206,29 @@ export async function checkScreen(page: Page, where: string): Promise<void> {
 
     const results = await new AxeBuilder({ page }).analyze();
     const blocking = results.violations.filter((v) => BLOCKING.has(v.impact ?? ""));
-    expect.soft(
-      blocking.map((v) => `${v.impact} · ${v.id}: ${v.help}`),
-      [
-        `${where} has ${blocking.length} serious or critical accessibility `,
-        `violation(s) at ${width}px:`,
-        ...blocking.flatMap((v) => [
-          `\n  ${v.id} (${v.impact}) — ${v.help}`,
-          ...v.nodes.slice(0, 3).map((n) => `\n    ${n.target.join(" ")}`),
-        ]),
-      ].join(""),
-    ).toEqual([]);
+    if (blocking.length > 0) {
+      // Built only on failure: it reads the page again per node, and on a green
+      // run there is nothing to describe.
+      const detail: string[] = [];
+      for (const violation of blocking) {
+        detail.push(`\n  ${violation.id} (${violation.impact}) — ${violation.help}`);
+        for (const node of violation.nodes.slice(0, 3)) {
+          const selector = selectorOf(node);
+          detail.push(`\n    ${selector}`);
+          const measured = measuredContrast(node);
+          if (measured) detail.push(`\n      axe measured: ${measured}`);
+          detail.push(`\n      computed now: ${await computedStyleOf(page, selector)}`);
+        }
+      }
+      expect.soft(
+        blocking.map((v) => `${v.impact} · ${v.id}: ${v.help}`),
+        [
+          `${where} has ${blocking.length} serious or critical accessibility `,
+          `violation(s) at ${width}px:`,
+          ...detail,
+        ].join(""),
+      ).toEqual([]);
+    }
   }
 
   if (original) await page.setViewportSize(original);
