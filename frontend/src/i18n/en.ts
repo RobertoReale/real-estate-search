@@ -250,18 +250,61 @@ export const en = {
   // ── dashboard shell ─────────────────────────────────────────────────────
   "app.noMatches": "No properties match the current filters.",
   "app.noMatchesHint": "Try switching the Buy/Rent toggle or relaxing the filters.",
-  "app.welcome": "Welcome! Three steps to get started:",
-  "app.step1":
-    'Add a search under Searches — describe it in words with "Just describe it", build one with "Build a search", or paste a results URL from Immobiliare.it / Idealista.',
+  "app.welcome": "Nothing collected yet.",
+  "app.welcomeHint":
+    "A monitored search is what fills this page in — the guide sets the first one up in a couple of minutes.",
   "app.addSearch": "Add a search",
-  "app.step1Tip": "Tip:",
-  "app.step1TipBody":
-    'to use every portal filter (bathrooms, floor, elevator, energy class, exclude auctions…), set them on the portal and use "Paste a URL" — the app monitors exactly that search.',
-  "app.step2":
-    'Press "Start Scan Now" — the first scan builds your baseline (no notification flood).',
-  "app.step3":
-    "Optional: open Settings to enable Telegram or Email alerts for new listings and price drops.",
   "app.showMoreCount": "Show more ({count} more)",
+
+  // ── the guided first run ────────────────────────────────────────────────
+  "onboarding.title": "Getting started",
+  "onboarding.intro":
+    "Three short steps. You can leave at any point and pick it up again later.",
+  "onboarding.stepWhat": "What this is",
+  "onboarding.stepSearch": "Your first search",
+  "onboarding.stepScan": "The first scan",
+  "onboarding.next": "Next",
+  "onboarding.back": "Back",
+  "onboarding.skip": "Skip for now",
+  "onboarding.done": "Go to the listings",
+  "onboarding.whatTitle": "It watches the portals so you don't have to",
+  "onboarding.whatBody":
+    "Say once what you are looking for. The app reads Immobiliare.it and Idealista on a schedule, keeps every listing it finds, and tells you what is new and what has dropped in price.",
+  "onboarding.whatKeeps":
+    "Everything stays on this machine: the database is a file beside the app, and nothing leaves it apart from the requests to the portals themselves.",
+  "onboarding.searchTitle": "Create your first search",
+  "onboarding.searchBody":
+    "Three ways to the same thing — take whichever suits you. You can add more searches afterwards, and change any of them.",
+  "onboarding.wayAssistant": "Just describe it",
+  "onboarding.wayAssistantBody":
+    "Write what you want in a sentence and let the app turn it into a search.",
+  "onboarding.wayBuilder": "Build a search",
+  "onboarding.wayBuilderBody": "Fill in city, price and size on a form.",
+  "onboarding.wayUrl": "Paste a URL",
+  "onboarding.wayUrlBody":
+    "Search on the portal itself, then paste the address of the results.",
+  "onboarding.wayBack": "Choose a different way",
+  "onboarding.urlTip": "Tip:",
+  "onboarding.urlTipBody":
+    "to use every portal filter (bathrooms, floor, elevator, energy class, exclude auctions…), set them on the portal and paste the URL — the app monitors exactly that search.",
+  "onboarding.searchSaved": "Your search is saved.",
+  "onboarding.scanTitle": "Run the first scan",
+  "onboarding.scanBody":
+    "The first run collects everything the portals have for your search right now. It is your baseline, so nothing is sent out for it; from then on you only hear about what changes.",
+  "onboarding.scanStart": "Run the first scan",
+  "onboarding.scanRunning": "Scanning…",
+  "onboarding.scanIdle": "Nothing is running yet.",
+  "onboarding.scanPatience":
+    "Most of a scan is spent pausing between pages on purpose — that pause is what keeps the portals answering. You can leave this page; the scan carries on.",
+  "onboarding.scanFound": "{count} collected so far",
+  "onboarding.scanSearchOf": "Search {index} of {total}",
+  "onboarding.alerts":
+    "Optional, afterwards: open Settings to have new listings and price drops sent to Telegram or Email.",
+  "onboarding.phaseStarting": "Starting the scan",
+  "onboarding.phaseLocating": "Placing the new listings on the map",
+  "onboarding.phaseFetching": "Reading the results, page {page}",
+  "onboarding.phaseWaiting": "Pausing before the next page",
+  "onboarding.phaseSaving": "Saving what came back",
 
   // ── bulk selection bar ──────────────────────────────────────────────────
   "app.selectMultiple": "Select multiple properties",

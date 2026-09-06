@@ -46,14 +46,16 @@ const VIEWS = ["grid", "map"] as const;
  *  because they are also what a component navigates to: a path spelled out at
  *  the call site is one nobody renames with the route.
  *
- *  `LISTINGS` is first because it is the default: "/" and anything unrecognised
- *  land there, and a user with data therefore sees properties rather than
- *  configuration. */
+ *  `LISTINGS` is first because it is the default: anything unrecognised lands
+ *  there, and a user with data therefore sees properties rather than
+ *  configuration. `ONBOARDING` is the one exception, and only for a database
+ *  that has never held a search — `routes/onboarding/steps.ts` owns that rule. */
 export const LISTINGS = "/listings";
 export const INSIGHTS = "/insights";
 export const SEARCHES = "/searches";
 export const SETTINGS = "/settings";
 export const LOGS = "/logs";
+export const ONBOARDING = "/start";
 
 /** The address of one property. What a link, a bookmark or a notification
  *  points at. */
