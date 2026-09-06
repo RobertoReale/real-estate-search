@@ -23,7 +23,7 @@ import { useDashboard } from "./context";
 import InsightsRoute from "./insights/InsightsRoute";
 import { INSIGHTS, LISTINGS, LOGS, SEARCHES, SETTINGS, withSearch } from "./params";
 import PropertyRoute from "./property/PropertyRoute";
-import SearchesRoute from "./SearchesRoute";
+import { SearchesRoute } from "./searches";
 
 function SettingsRoute() {
   return <SettingsModal onClose={useDashboard().close} />;

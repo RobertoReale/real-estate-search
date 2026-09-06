@@ -290,6 +290,8 @@ export const ACTIONS = {
   "profiles.multi.keywords": { what: "the alternatives' exclusion keywords", does: "records the words that disqualify a listing" },
   "profiles.multi.create": { what: "Create N searches", does: "saves every remaining alternative" },
 
+  "notify.toSettings": { what: "the link in the notification banner", does: "goes to Settings, where the missing channel is configured" },
+
   "profiles.row.select": { what: "a search's checkbox", does: "adds it to the bulk selection" },
   "profiles.row.notify": { what: "a search's notification select", does: "changes where that search's alerts go" },
   "profiles.row.active": { what: "a search's Active checkbox", does: "pauses the search without deleting it" },

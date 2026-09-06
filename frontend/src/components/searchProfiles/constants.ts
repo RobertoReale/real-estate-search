@@ -8,17 +8,10 @@
 import type { TranslationKey } from "../../i18n";
 import type { SearchBuilderParams } from "../../types";
 
-/** The four values `SearchProfile.last_run_status` can hold, as the user reads
- *  them. `no_results` is neutral, not a warning: the portal answered, and its
- *  answer was that nothing matches this search — a fact about the market rather
- *  than a fault in the pipeline, which is exactly the distinction it exists to
- *  make. */
-export const statusBadge: Record<string, { label: TranslationKey; cls: string }> = {
-  ok: { label: "profiles.statusOk", cls: "chip-emerald" },
-  no_results: { label: "profiles.statusNoResults", cls: "chip-slate" },
-  blocked: { label: "profiles.statusBlocked", cls: "chip-amber" },
-  error: { label: "profiles.statusError", cls: "chip-rose" },
-};
+// How `last_run_status` reads to a user is `routes/searches/health.ts` now: it
+// is one of the inputs to a search's state rather than a lookup of its own, and
+// the map that used to be here could not see that a search switched off eleven
+// days ago was still reporting the "OK" it left on.
 
 export const EMPTY_BUILDER: SearchBuilderParams = {
   city: "", province: "", zone: "", contract: "sale",

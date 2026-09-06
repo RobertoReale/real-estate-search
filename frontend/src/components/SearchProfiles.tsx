@@ -17,7 +17,7 @@ import { MultiPanel } from "./searchProfiles/MultiPanel";
 import { ProfileList } from "./searchProfiles/ProfileList";
 import { UrlForm } from "./searchProfiles/UrlForm";
 import { Button, Card } from "../ui";
-import { BuildSearch, Describe, PasteUrl, Searches, Warning } from "../ui/icons";
+import { BuildSearch, Describe, PasteUrl, Searches } from "../ui/icons";
 
 interface Props {
   profiles: SearchProfile[];
@@ -29,21 +29,11 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
   const sp = useSearchProfiles({ profiles, settings, onChanged });
   const { t, mode, setMode, resetForm } = sp;
 
-  // Whether a channel is configured is a fact about the account, not about a
-  // search, and it used to be printed once per row: three identical "no
-  // notification channel is set up yet" paragraphs stacked down the list, which
-  // reads as three problems. One warning per distinct unconfigured channel that
-  // some search actually asks for — usually exactly one line, and never a
-  // warning about a channel nobody selected.
-  const channelWarnings = [
-    ...new Set(
-      sp.groupedProfiles
-        .map((g) =>
-          sp.channelOptions.find((o) => o.value === g.notify_channels) ?? sp.channelOptions[0])
-        .filter((c) => !c.ok)
-        .map((c) => c.warn),
-    ),
-  ];
+  // Whether a channel is configured is a fact about the account rather than
+  // about a search, so it is not stated in here at all: `routes/searches/`
+  // renders one banner for the page, above this list. The select in each row
+  // still says which channels are off — that one is about the choice being
+  // made, and it is the only place the distinction belongs.
 
   return (
     <Card asChild padding="lg">
@@ -86,17 +76,6 @@ export default function SearchProfiles({ profiles, settings, onChanged }: Props)
         )}
 
         {profiles.length > 1 && <BulkToolbar sp={sp} />}
-
-        {channelWarnings.length > 0 && (
-          <div className="mb-2 p-3 rounded-xl bg-caution-tint border border-caution-line space-y-1">
-            {channelWarnings.map((warn) => (
-              <p key={warn}
-                className="flex items-start gap-1.5 text-xs text-caution-ink-strong">
-                <Warning className="shrink-0 mt-0.5" /> {warn}
-              </p>
-            ))}
-          </div>
-        )}
 
         <ProfileList sp={sp} />
 

@@ -207,10 +207,14 @@ progetto/
 │       │   │                      # route, the two shapes, and one file per
 │       │   │                      # block (Facts, Benchmarks, Provenance,
 │       │   │                      # Curation, ListingAudit, Actions)
-│       │   └── insights/          # the three analysis sections (ScraperHealth,
-│       │                          # MarketVelocity, PriceTrends) plus the two
-│       │                          # charts they draw with (TrendChart, DayStrip)
-│       │                          # and chart.ts, the geometry behind them
+│       │   ├── insights/          # the three analysis sections (ScraperHealth,
+│       │   │                      # MarketVelocity, PriceTrends) plus the two
+│       │   │                      # charts they draw with (TrendChart, DayStrip)
+│       │   │                      # and chart.ts, the geometry behind them
+│       │   └── searches/          # the searches screen: health.ts derives a
+│       │                          # search's state, ProfileHealth renders it,
+│       │                          # and ChannelBanner is the account's one
+│       │                          # notification warning
 │       ├── hooks/                  # useSearchProfiles (the search panel's state
 │       │                           # machine), useDebounced, useOnReveal,
 │       │                           # useMediaQuery
