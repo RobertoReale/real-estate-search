@@ -33,6 +33,10 @@ export interface UseSearchProfilesArgs {
   profiles: SearchProfile[];
   settings: Settings | null;
   onChanged: () => void;
+  /** What the builder opens on, for a caller that already knows what the user
+   *  is looking for — today, the grid's filters carried over. Read once, as
+   *  initial state; the component is keyed on it so a later one still lands. */
+  prefill?: SearchBuilderParams | null;
 }
 
 /** A URL pair this hook assembled itself, out of what a stored profile already
@@ -51,12 +55,14 @@ function unverifiedUrls(immobiliare: string, idealista: string): SearchBuilderUr
   };
 }
 
-export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchProfilesArgs) {
+export function useSearchProfiles({
+  profiles, settings, onChanged, prefill,
+}: UseSearchProfilesArgs) {
   const t = useT();
   const toasts = useToasts();
   const [mode, setMode] = useState<
     "closed" | "url" | "builder" | "assistant" | "multi"
-  >("closed");
+  >(prefill ? "builder" : "closed");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -71,7 +77,7 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   const [editingGroupIds, setEditingGroupIds] = useState<number[]>([]);
 
   // builder state
-  const [params, setParams] = useState<SearchBuilderParams>(EMPTY_BUILDER);
+  const [params, setParams] = useState<SearchBuilderParams>(prefill ?? EMPTY_BUILDER);
   const [built, setBuilt] = useState<SearchBuilderUrls | null>(null);
   const [usePortals, setUsePortals] = useState({ immobiliare: true, idealista: true });
 

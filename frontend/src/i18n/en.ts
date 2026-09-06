@@ -299,11 +299,15 @@ export const en = {
   "toast.searchDeleteFailed": "The searches could not be deleted.",
 
   // ── dashboard shell ─────────────────────────────────────────────────────
-  "app.noMatches": "No properties match the current filters.",
-  "app.noMatchesHint": "Try switching the Buy/Rent toggle or relaxing the filters.",
+  "app.noMatches": "Nothing collected matches these filters.",
+  "app.noMatchesHint":
+    "None of the {count} listings collected so far fit. Relax the filters — or send these criteria out to the portals, where they can find listings this machine has never seen.",
+  "app.toPortals": "Search the portals for this",
   "app.welcome": "Nothing collected yet.",
   "app.welcomeHint":
     "A monitored search is what fills this page in — the guide sets the first one up in a couple of minutes.",
+  "app.collectedNoneHint":
+    "The searches are set up; the next scan is what fills this page in.",
   "app.addSearch": "Add a search",
   "app.showMoreCount": "Show more ({count} more)",
 
@@ -528,14 +532,18 @@ export const en = {
   "filters.show": "Show the filters",
   "filters.hide": "Hide the filters",
   "filters.railHint": "Everything that narrows the grid",
+  "filters.collected": "{count} listings collected",
   "filters.active": "Active filters",
   "filters.chipValue": "{label}: {value}",
   "filters.chipRemove": "Remove the {label} filter",
   "filters.chipMerged": "Merged only",
   "filters.chipMapArea": "Map area",
-  "filters.search": "Search",
-  "filters.searchPlaceholder": "Search by zone, address, title, floor or ad text…",
-  "filters.clearSearch": "Clear search",
+  // Never "Search": this box looks inside what is already here, and a box
+  // labelled with the verb is exactly what makes a filter read as a portal
+  // search that never ran.
+  "filters.keyword": "Keyword",
+  "filters.keywordPlaceholder": "Narrow by zone, address, title, floor or ad text…",
+  "filters.clearKeyword": "Clear the keyword",
   "filters.market": "Market",
   "filters.buy": "Buy",
   "filters.rent": "Rent",
@@ -939,6 +947,24 @@ export const en = {
   "settings.resetDone": "Done — removed {removed}. Reloading…",
   "settings.resetDoneBackup": "Done — removed {removed} · backup saved: {backup}. Reloading…",
   "settings.resetNothing": "nothing",
+
+  // ── monitored searches: arriving here from the grid's filters ───────────
+  "handoff.title": "Started from the filters you had on Listings",
+  "handoff.lead":
+    "A search goes out to the portals, so it cannot ask for everything a filter can. This is what came across, and what did not.",
+  "handoff.carried": "Carried over",
+  "handoff.approximated": "Carried over, widened",
+  "handoff.dropped": "Not carried over",
+  "handoff.item": "{label} — {note}",
+  "handoff.noteRooms": "the portals take a minimum number of rooms, not an exact one",
+  "handoff.noteMaxSqm": "a portal search takes a minimum size only",
+  "handoff.noteText":
+    "free text reads listings already collected; a portal search asks by place, price and size",
+  "handoff.notePortal": "neither portal can search on it",
+  "handoff.noteLocal":
+    "it describes listings already on this machine, which the portals know nothing about",
+  "handoff.noteArea":
+    "an area drawn on the map has no portal equivalent — name the city and the zone instead",
 
   // ── monitored searches: shell & modes ───────────────────────────────────
   "profiles.title": "Monitored searches",

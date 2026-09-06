@@ -57,6 +57,13 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   await expect.poll(() => path(page)).toBe("/listings");
   await expect(cards(page)).toHaveCount(0);
   await expect(page.getByText("Nothing collected yet.")).toBeVisible();
+  // With nothing collected there is nothing to narrow, and every control in the
+  // rail would describe a set that does not exist. Worse, a form of price and
+  // rooms and zone on an empty screen reads as the place a search is set up —
+  // which is the misunderstanding this whole screen exists to prevent. So the
+  // rail is not on it, and the one useful thing is.
+  await expect(page.locator('[data-action^="filters."]')).toHaveCount(0);
+  await expect(control(page, "app.addSearch")).toBeVisible();
   await checkScreen(page, "the listings, before anything has been collected");
 
   // The bare address again. A user who said "not now" must not meet the guide

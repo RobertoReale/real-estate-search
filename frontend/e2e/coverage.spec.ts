@@ -1003,6 +1003,51 @@ test("the listings page holds no configuration control", async ({ page }) => {
   ).toEqual([]);
 });
 
+/* D.5's rule about the words, which is the other half of D.9: routes separate
+   the two operations, but two identically-worded forms on two pages are still
+   two identical forms. Nothing on this page reaches a portal, so nothing on it
+   is offered with the verb that means going out to one — a box labelled
+   "Search" here is read as the place a search is configured, and the app is
+   then believed to have searched for something it never searched for.
+
+   The verb, not the word: "Limit to a search" and "All searches" name a thing
+   that exists, and a rule that banned those would be a rule people work around
+   with worse wording. */
+test("no control on the listings page is offered with the verb search", async ({ page }) => {
+  await page.goto("/listings");
+  await waitForResults(page);
+  await press(page, "filters.advanced.toggle");
+  await press(page, "selection.toggleMode");
+
+  const named = await page.evaluate(() => {
+    // Close enough to the accessible name for this purpose: what a user reads
+    // on the control, in the order the browser would prefer it.
+    const nameOf = (el: HTMLElement): string => {
+      const explicit = el.id
+        ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(el.id)}"]`)
+        : null;
+      return [
+        el.getAttribute("aria-label"),
+        explicit?.textContent,
+        el.closest("label")?.textContent,
+        el.getAttribute("placeholder"),
+        el.getAttribute("title"),
+        el.textContent,
+      ].map((s) => (s ?? "").trim()).find(Boolean) ?? "";
+    };
+    return Array.from(document.querySelectorAll<HTMLElement>("main [data-action]"))
+      .map((el) => ({ action: el.dataset.action ?? "", name: nameOf(el) }));
+  });
+
+  const VERB = /^(search|cerca)\b/i;
+  expect(
+    named.filter(({ name }) => VERB.test(name)),
+    "Everything on this page looks at listings already on this machine. The one "
+    + "control that legitimately says \"Search the portals\" is the empty "
+    + "state's, and it leaves for the searches screen.",
+  ).toEqual([]);
+});
+
 /* Before the specs that create searches, so it works on the corpus's own three
    rather than on whatever they left behind. Merging is the exception and lives
    with them: see the comment where it is. */

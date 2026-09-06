@@ -22,6 +22,10 @@ export const keys = {
   /** The whole filtered set (`limit: 0`): what the map needs — a pin per
    *  property — and what "select all" has to mean. */
   propertySet: (filters: PropertyFilters) => ["properties", "set", filters] as const,
+  /** How many listings this machine holds in one market, whatever is filtered:
+   *  the size of the set the rail narrows. Under the same prefix, so a scan's
+   *  invalidation moves the number the moment new listings land. */
+  collectedCount: (contract: string) => ["properties", "collected", contract] as const,
   /** One property, by id: what an address opens when the grid has no such row.
    *  Under the same prefix as the grid on purpose — a favourite or a note
    *  written from the detail view invalidates both in one call. */

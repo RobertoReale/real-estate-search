@@ -300,12 +300,15 @@ export const it: Dict = {
   "toast.searchDeleteFailed": "Non è stato possibile eliminare le ricerche.",
 
   // ── struttura della dashboard ───────────────────────────────────────────
-  "app.noMatches": "Nessun immobile corrisponde ai filtri attuali.",
+  "app.noMatches": "Nessun immobile raccolto corrisponde a questi filtri.",
   "app.noMatchesHint":
-    "Prova a cambiare Compra/Affitto o ad allentare i filtri.",
+    "Nessuno dei {count} annunci raccolti finora rientra nei criteri. Allenta i filtri, oppure mandali sui portali, dove possono trovare annunci che questo computer non ha mai visto.",
+  "app.toPortals": "Cerca sui portali con questi criteri",
   "app.welcome": "Non è ancora stato raccolto nulla.",
   "app.welcomeHint":
     "È una ricerca monitorata a riempire questa pagina: la guida ne imposta una in un paio di minuti.",
+  "app.collectedNoneHint":
+    "Le ricerche sono impostate: sarà la prossima scansione a riempire questa pagina.",
   "app.addSearch": "Aggiungi una ricerca",
   "app.showMoreCount": "Mostra altri ({count} rimanenti)",
 
@@ -528,14 +531,18 @@ export const it: Dict = {
   "filters.show": "Mostra i filtri",
   "filters.hide": "Nascondi i filtri",
   "filters.railHint": "Tutto ciò che restringe la griglia",
+  "filters.collected": "{count} annunci raccolti",
   "filters.active": "Filtri attivi",
   "filters.chipValue": "{label}: {value}",
   "filters.chipRemove": "Togli il filtro {label}",
   "filters.chipMerged": "Solo unificati",
   "filters.chipMapArea": "Area sulla mappa",
-  "filters.search": "Cerca",
-  "filters.searchPlaceholder": "Cerca per zona, indirizzo, titolo, piano o testo dell'annuncio…",
-  "filters.clearSearch": "Cancella la ricerca",
+  // Mai "Cerca": questo campo guarda dentro ciò che è già qui, e un campo con
+  // il verbo sopra è proprio ciò che fa leggere un filtro come una ricerca sui
+  // portali mai partita.
+  "filters.keyword": "Parola chiave",
+  "filters.keywordPlaceholder": "Restringi per zona, indirizzo, titolo, piano o testo dell'annuncio…",
+  "filters.clearKeyword": "Cancella la parola chiave",
   "filters.market": "Mercato",
   "filters.buy": "Compra",
   "filters.rent": "Affitta",
@@ -951,6 +958,24 @@ export const it: Dict = {
   "settings.resetDoneBackup":
     "Fatto — rimossi {removed} · backup salvato: {backup}. Ricaricamento…",
   "settings.resetNothing": "nulla",
+
+  // ── ricerche monitorate: arrivando qui dai filtri della griglia ─────────
+  "handoff.title": "Partita dai filtri che avevi sugli Immobili",
+  "handoff.lead":
+    "Una ricerca esce verso i portali, quindi non può chiedere tutto ciò che chiede un filtro. Ecco cosa è passato e cosa no.",
+  "handoff.carried": "Passati",
+  "handoff.approximated": "Passati, ma allargati",
+  "handoff.dropped": "Non passati",
+  "handoff.item": "{label} — {note}",
+  "handoff.noteRooms": "i portali accettano un numero minimo di locali, non uno esatto",
+  "handoff.noteMaxSqm": "una ricerca sui portali accetta solo una superficie minima",
+  "handoff.noteText":
+    "il testo libero legge gli annunci già raccolti; una ricerca sui portali si fa per luogo, prezzo e superficie",
+  "handoff.notePortal": "nessuno dei due portali può cercarlo",
+  "handoff.noteLocal":
+    "descrive annunci già su questo computer, di cui i portali non sanno nulla",
+  "handoff.noteArea":
+    "un'area disegnata sulla mappa non ha un equivalente sui portali: indica invece città e zona",
 
   // ── ricerche monitorate: struttura e modalità ───────────────────────────
   "profiles.title": "Ricerche monitorate",
