@@ -120,33 +120,24 @@ export function useSearchProfiles({ profiles, settings, onChanged }: UseSearchPr
   const deleteError = deleteResults.error ? String(deleteResults.error.message) : "";
 
   const ready = channelReadiness(settings);
+  // Just the options. Whether the account can actually deliver on one of them is
+  // said once, by the banner at the top of the searches page, and these labels
+  // carry only as much of it as a person choosing between them needs: "(not
+  // configured)" beside the channel, so the choice is informed, and no sentence
+  // about how to fix it — that sentence has one home.
   const channelOptions = [
-    {
-      value: "",
-      label: t("profiles.chAll"),
-      ok: ready.telegram || ready.email,
-      warn: t("profiles.chAllWarn"),
-    },
+    { value: "", label: t("profiles.chAll") },
     {
       value: "telegram",
       label: t(ready.telegram ? "profiles.chTelegram" : "profiles.chTelegramOff"),
-      ok: ready.telegram,
-      warn: t("profiles.chTelegramWarn"),
     },
     {
       value: "email",
       label: t(ready.email ? "profiles.chEmail" : "profiles.chEmailOff"),
-      ok: ready.email,
-      warn: t("profiles.chEmailWarn"),
     },
-    {
-      // silence is a choice, not a misconfiguration: keep the search running
-      // and its cards flowing into the dashboard, just never get pinged for it
-      value: "none",
-      label: t("profiles.chNone"),
-      ok: true,
-      warn: "",
-    },
+    // silence is a choice, not a misconfiguration: keep the search running and
+    // its cards flowing into the dashboard, just never get pinged for it
+    { value: "none", label: t("profiles.chNone") },
   ];
 
   const selectedProfiles = profiles.filter((p) => selected.has(p.id));

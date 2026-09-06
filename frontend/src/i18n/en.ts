@@ -727,10 +727,15 @@ export const en = {
 
   // ── monitored searches: shell & modes ───────────────────────────────────
   "profiles.title": "Monitored searches",
-  "profiles.statusOk": "OK",
-  "profiles.statusNoResults": "No matches",
-  "profiles.statusBlocked": "Blocked (will retry)",
-  "profiles.statusError": "Error",
+
+  // A search's state, in one word. "Paused" wins over everything: a search that
+  // is off is not working and not failing, it is not running.
+  "profiles.healthWorking": "Running",
+  "profiles.healthQuiet": "No matches",
+  "profiles.healthBlocked": "Blocked by the portal",
+  "profiles.healthFailing": "Not working",
+  "profiles.healthPaused": "Paused",
+  "profiles.healthUnrun": "Never run",
   "profiles.modeAssistant": "Just describe it",
   "profiles.modeBuilder": "Build a search",
   "profiles.modeUrl": "Paste a URL",
@@ -765,17 +770,21 @@ export const en = {
 
   // ── monitored searches: notification channels ───────────────────────────
   "profiles.chAll": "All channels",
-  "profiles.chAllWarn":
-    "No notification channel is set up yet — the searches that ask for one won't send alerts. Configure Telegram or Email in Settings.",
   "profiles.chTelegram": "Telegram only",
   "profiles.chTelegramOff": "Telegram only (not set up)",
-  "profiles.chTelegramWarn":
-    "Telegram is not set up — the searches that notify by Telegram won't send alerts. Add the bot token and chat ID in Settings.",
   "profiles.chEmail": "Email only",
   "profiles.chEmailOff": "Email only (not set up)",
-  "profiles.chEmailWarn":
-    "Email is not set up — the searches that notify by email won't send alerts. Configure SMTP in Settings.",
   "profiles.chNone": "No notifications",
+
+  // One banner for the account, at the top of the page: what is missing, and a
+  // link to where it is fixed. The remedy is a link, not a sentence.
+  "profiles.channelsNone":
+    "No notification channel is set up: the searches that ask for one keep collecting listings, but they will not alert you.",
+  "profiles.channelsTelegram":
+    "Telegram is not set up: the searches that notify by Telegram keep collecting listings, but they will not alert you.",
+  "profiles.channelsEmail":
+    "Email is not set up: the searches that notify by email keep collecting listings, but they will not alert you.",
+  "profiles.channelsFix": "Set up notifications",
 
   // ── monitored searches: assistant ───────────────────────────────────────
   "profiles.assistantIntro":

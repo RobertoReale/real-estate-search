@@ -910,6 +910,91 @@ test("the three insight panels", async ({ page }) => {
 
 /* ────────────────────────── monitored searches ────────────────────────── */
 
+/* D.5. Health is a state per search, and the account's one problem is stated
+   once. Both run on the corpus's own three searches, which exist to be exactly
+   one per state the list can show, so this goes before anything that creates or
+   pauses one. */
+test("each search states its health, and the notifications warn once", async ({ page }) => {
+  await page.goto("/searches");
+  const rows = page.locator("li", {
+    has: page.locator("[data-action='profiles.row.delete']"),
+  });
+  await expect(rows).toHaveCount(3);
+
+  // One chip per search, and the three of them are three different words: the
+  // corpus is a search that is running, a search the portal is blocking, and a
+  // search that is switched off. The last of those is the one the old badge
+  // could not say — it read "OK", because "OK" is what the run before it was
+  // paused had returned, eleven days earlier.
+  await expect(rows.filter({ hasText: "Running" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(1);
+  const blocked = rows.filter({ hasText: "Blocked by the portal" });
+  await expect(blocked).toHaveCount(1);
+
+  // The streak is on the chip, because four failures in a row is a different
+  // thing from one and it is the number that decides whether to go and look.
+  await expect(blocked).toContainText("×4");
+  // The run's own words are under the state that is asking for something, and
+  // only there: this is the whole of what used to be a loose sentence three
+  // lines below a badge that was reporting the same event.
+  await expect(blocked).toContainText("the portal answered 403");
+  await expect(rows.filter({ hasText: "9 listings" })).toHaveCount(0);
+
+  // Pausing a search is enough to change what it says it is, with no scan in
+  // between — the state is derived, not a field the backend last wrote.
+  await toggle(page, "profiles.row.active");
+  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(2);
+  await toggle(page, "profiles.row.active");
+  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(1);
+
+  // Neither Telegram nor SMTP is configured in the harness and all three
+  // searches ask for "wherever the account sends things", so exactly one banner
+  // is owed — for the account, not for each row that inherits the problem.
+  const banner = page.getByRole("alert");
+  await expect(banner).toHaveCount(1);
+  await expect(banner).toContainText("No notification channel is set up");
+
+  // And it ends where it is fixed. A warning whose remedy is a sentence about
+  // another screen is a warning the reader has to go and find.
+  await press(page, "notify.toSettings");
+  await expect(control(page, "settings.save")).toBeVisible();
+});
+
+/* The acceptance for D.5, and the reason the two sweeps and the search forms
+   moved at all. It is written against the inventory rather than against a list
+   of selectors, so a configuration control added to the grid tomorrow fails
+   here on the day it is added: every control declares a `data-action`, and the
+   domains below are the ones that configure rather than look.
+
+   Scoped to `main`, which is the page. The shell's own header and nav are not
+   the listings screen and are supposed to reach Settings — a *link to* the
+   configuration is what stops it having to live here. */
+test("the listings page holds no configuration control", async ({ page }) => {
+  await page.goto("/listings");
+  await waitForResults(page);
+  // Everything the screen can mount, mounted: the advanced filters are behind a
+  // disclosure and the batch bar behind a mode, and a control that only appears
+  // once opened is still a control on this page.
+  await press(page, "filters.advanced.toggle");
+  await press(page, "selection.toggleMode");
+
+  const mounted = await page.evaluate(() => [
+    ...new Set(
+      Array.from(document.querySelectorAll<HTMLElement>("main [data-action]"))
+        .map((el) => el.dataset.action ?? ""),
+    ),
+  ].filter(Boolean));
+
+  const CONFIGURES = ["profiles.", "maintenance.", "settings.", "notify."];
+  const strays = mounted.filter((id) => CONFIGURES.some((d) => id.startsWith(d)));
+  expect(
+    strays,
+    "The listings page is where a user looks at properties. Anything that sets "
+    + "the app up belongs on Searches or in Settings, and D3–D8 are what happens "
+    + "when it does not: the top of the grid becomes a form.",
+  ).toEqual([]);
+});
+
 /* Before the specs that create searches, so it works on the corpus's own three
    rather than on whatever they left behind. Merging is the exception and lives
    with them: see the comment where it is. */

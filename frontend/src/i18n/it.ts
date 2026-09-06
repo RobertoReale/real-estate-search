@@ -743,10 +743,15 @@ export const it: Dict = {
 
   // ── ricerche monitorate: struttura e modalità ───────────────────────────
   "profiles.title": "Ricerche monitorate",
-  "profiles.statusOk": "OK",
-  "profiles.statusNoResults": "Nessun risultato",
-  "profiles.statusBlocked": "Bloccata (riproverà)",
-  "profiles.statusError": "Errore",
+
+  // Lo stato di una ricerca, una parola sola. "In pausa" vince su tutto: una
+  // ricerca spenta non sta funzionando e non sta fallendo, non sta girando.
+  "profiles.healthWorking": "Attiva",
+  "profiles.healthQuiet": "Nessun risultato",
+  "profiles.healthBlocked": "Bloccata dal portale",
+  "profiles.healthFailing": "Non funziona",
+  "profiles.healthPaused": "In pausa",
+  "profiles.healthUnrun": "Mai eseguita",
   "profiles.modeAssistant": "Descrivila e basta",
   "profiles.modeBuilder": "Costruisci una ricerca",
   "profiles.modeUrl": "Incolla un URL",
@@ -781,17 +786,21 @@ export const it: Dict = {
 
   // ── ricerche monitorate: canali di notifica ─────────────────────────────
   "profiles.chAll": "Tutti i canali",
-  "profiles.chAllWarn":
-    "Nessun canale di notifica è ancora configurato — le ricerche che ne chiedono uno non invieranno avvisi. Configura Telegram o Email in Impostazioni.",
   "profiles.chTelegram": "Solo Telegram",
   "profiles.chTelegramOff": "Solo Telegram (non configurato)",
-  "profiles.chTelegramWarn":
-    "Telegram non è configurato — le ricerche che notificano via Telegram non invieranno avvisi. Aggiungi il token del bot e il chat ID in Impostazioni.",
   "profiles.chEmail": "Solo Email",
   "profiles.chEmailOff": "Solo Email (non configurata)",
-  "profiles.chEmailWarn":
-    "L'email non è configurata — le ricerche che notificano via email non invieranno avvisi. Configura l'SMTP in Impostazioni.",
   "profiles.chNone": "Nessuna notifica",
+
+  // Un solo avviso per l'account, in cima alla pagina: dice che cosa manca e
+  // porta dove si sistema. Il rimedio è un link, non una frase.
+  "profiles.channelsNone":
+    "Nessun canale di notifica è configurato: le ricerche che ne chiedono uno continuano a raccogliere annunci, ma non ti avvisano.",
+  "profiles.channelsTelegram":
+    "Telegram non è configurato: le ricerche che notificano via Telegram continuano a raccogliere annunci, ma non ti avvisano.",
+  "profiles.channelsEmail":
+    "L'email non è configurata: le ricerche che notificano via email continuano a raccogliere annunci, ma non ti avvisano.",
+  "profiles.channelsFix": "Configura le notifiche",
 
   // ── ricerche monitorate: assistente ─────────────────────────────────────
   "profiles.assistantIntro":

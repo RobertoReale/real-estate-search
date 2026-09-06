@@ -4,8 +4,9 @@
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { formatNumber } from "../../i18n";
 import { PortalBadge } from "../PortalBadge";
-import { statusBadge } from "./constants";
 import { combinedKeywords } from "./helpers";
+import ProfileHealth from "../../routes/searches/ProfileHealth";
+import { profileHealth } from "../../routes/searches/health";
 import { Checkbox, Chip, IconButton } from "../../ui";
 import { Area, Delete, Edit, Filtered, Place, Price, Rooms, Split } from "../../ui/icons";
 
@@ -15,7 +16,6 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
   return (
     <ul className="space-y-2">
       {groupedProfiles.map((group) => {
-        const badge = statusBadge[group.last_run_status];
         const isGroupSelected = group.ids.length > 0 && group.ids.every((id) => selected.has(id));
         const isGroupIndeterminate = !isGroupSelected && group.ids.some((id) => selected.has(id));
         const paramsProfile = group.profiles.find((p) => p.params);
@@ -65,7 +65,11 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
               ) : (
                 <div className="space-y-0.5 mt-1">
                   {group.profiles.map((p) => {
-                    const pBadge = statusBadge[p.last_run_status];
+                    // Whether the search is switched on is a fact about the
+                    // group and the row's own chip already states it, so this
+                    // line is derived from the run alone: what it adds is
+                    // *which* portal is the one with the news.
+                    const run = profileHealth({ ...p, is_active: true });
                     return (
                       <div key={p.id} className="flex items-center gap-1.5 text-xs t-dim">
                         <span className="font-semibold uppercase text-3xs w-20 shrink-0 truncate t-muted">
@@ -74,10 +78,9 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                         <a href={p.search_url} target="_blank" rel="noreferrer" className="hover:underline truncate min-w-0 flex-1 text-accent-link" title={p.search_url}>
                           {p.search_url}
                         </a>
-                        {pBadge && p.last_run_status !== "ok" && (
-                          <span className={`text-3xs px-1.5 py-0.2 rounded-full shrink-0 ${pBadge.cls}`}>
-                            {t(pBadge.label)}
-                          </span>
+                        {run.state !== "working" && (
+                          <ProfileHealth className="shrink-0" size="sm" reason={false}
+                            profile={{ ...p, is_active: true }} />
                         )}
                       </div>
                     );
@@ -119,9 +122,9 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   )}
                 </div>
               )}
-              {group.last_run_detail && (
-                <p className="text-xs t-muted mt-1">{group.last_run_detail}</p>
-              )}
+              {/* What the last run said used to be a bare sentence here, three
+                  lines below the badge that was supposedly reporting the same
+                  thing. It goes with the state now — see routes/searches/. */}
               {combinedKeywords(group.profiles[0], settings).length > 0 && (
                 <p className="flex items-center gap-1 text-xs t-dim mt-1 truncate"
                   title={t("profiles.excludesTitle")}>
@@ -132,12 +135,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 </p>
               )}
             </div>
-            {badge && (
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge.cls}`}>
-                {t(badge.label)}
-                {group.consecutive_failures > 1 && ` ×${group.consecutive_failures}`}
-              </span>
-            )}
+            <ProfileHealth className="shrink-0" profile={group} />
             <select data-action="profiles.row.notify"
               className="input !py-1 !px-2 text-xs min-w-0 flex-1 sm:flex-none sm:w-44"
               // A `title` alone is not a label: it never reaches a touch user
