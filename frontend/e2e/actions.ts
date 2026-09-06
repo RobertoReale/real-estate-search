@@ -154,8 +154,9 @@ export const ACTIONS = {
 
   // ── The grid and its cards ──────────────────────────────────────────────
   "app.addSearch": {
-    what: "Add a search, in the first-run steps",
-    does: "goes to the searches, so step one is a click rather than an instruction",
+    what: "Add a search, on a listings screen that has never had one",
+    does: "opens the guided first run, so setting the app up is a click rather "
+      + "than a list of instructions printed on the empty screen",
   },
   "grid.loadMore": { what: "Show N more", does: "appends the next page of results to the grid" },
   "property.card": { what: "the card itself", does: "opens that property, or selects it while multi-select is on" },
@@ -228,6 +229,45 @@ export const ACTIONS = {
       + "refetches, the count is zero and the warning is gone. The state exists "
       + "for one frame and cannot be held still. The sweep behind the button is "
       + "the same one `maintenance.geocode` drives, and that one is exercised.",
+  },
+
+  // ── The guided first run ────────────────────────────────────────────────
+  "onboarding.next": {
+    what: "Next, in the guide",
+    does: "moves on one step, as far as the guide has unlocked",
+  },
+  "onboarding.back": {
+    what: "Back, in the guide",
+    does: "returns to the previous step with nothing lost",
+  },
+  "onboarding.skip": {
+    what: "Skip for now",
+    does: "leaves the guide for the listings, and remembers that it was left, so "
+      + "the next visit does not start it again",
+  },
+  "onboarding.done": {
+    what: "Go to the listings, at the end of the guide",
+    does: "finishes the guide and lands on the screen the app opens on from now on",
+  },
+  "onboarding.wayAssistant": {
+    what: "Just describe it, offered as one of three ways to a first search",
+    does: "opens the plain-language box inside the guide",
+  },
+  "onboarding.wayBuilder": {
+    what: "Build a search, offered as one of three ways to a first search",
+    does: "opens the guided form inside the guide",
+  },
+  "onboarding.wayUrl": {
+    what: "Paste a URL, offered as one of three ways to a first search",
+    does: "opens the URL form inside the guide, with the tip about portal filters",
+  },
+  "onboarding.wayBack": {
+    what: "Choose a different way",
+    does: "puts the three ways back, so a wrong first pick costs one click",
+  },
+  "onboarding.scan": {
+    what: "Run the first scan",
+    does: "starts the scan and turns the step into a live account of what it is doing",
   },
 
   // ── Insights ────────────────────────────────────────────────────────────

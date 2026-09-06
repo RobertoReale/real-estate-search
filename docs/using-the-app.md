@@ -2,6 +2,11 @@
 
 [← Back to README](../README.md)
 
+You do not have to read this to get started: on a fresh install the app opens on
+a guided run that takes you from nothing to a first search and a first scan.
+What follows is the long version — every portal filter, every shortcut, and
+what each option actually does.
+
 1. **Get the Search URL**: Go to Immobiliare.it or Idealista.it. Configure your target area (you can draw custom polygons on the map, choose cities, or filter by specific zones), price ranges, and portals' options, then **copy the URL** from your browser's address bar.
    - **This is how you use *every* portal filter.** Whatever you can set on
      Immobiliare or Idealista — bathrooms, floor, elevator, terrace/balcony,

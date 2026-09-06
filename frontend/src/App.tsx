@@ -14,8 +14,8 @@
  *  screen, and the property detail, the settings and the log open on top of it
  *  without unmounting it. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { ActiveFilters, FilterRail, ResultHeader } from "./routes/listings";
+import { Outlet, useLocation } from "react-router-dom";
+import { ActiveFilters, EmptyResults, FilterRail, ResultHeader } from "./routes/listings";
 import MapView from "./components/MapView";
 import { ProgressBar } from "./components/ProgressBar";
 import PropertyCard from "./components/PropertyCard";
@@ -34,13 +34,11 @@ import {
 import { useSettings } from "./queries/settings";
 import { useT, type TranslationKey } from "./i18n";
 import type { DashboardContext } from "./routes/context";
-import { DEFAULT_FILTERS, SEARCHES, withSearch } from "./routes/params";
+import { DEFAULT_FILTERS } from "./routes/params";
 import { useDashboardUrl } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
-import { Button, Card, Checkbox, Chip, EmptyState, IconButton, type Emphasis } from "./ui";
-import {
-  Close, Favorite, Hidden, ICON_SIZE, NoResults, Searches, Sold, Unticked, Verify,
-} from "./ui/icons";
+import { Button, Card, Checkbox, IconButton, type Emphasis } from "./ui";
+import { Close, Favorite, Hidden, Sold, Unticked, Verify } from "./ui/icons";
 
 /** "New" badge threshold: properties first seen after this instant are flagged
  *  as new for the rest of this browser session, even if a scan completes while
@@ -465,45 +463,7 @@ export default function App() {
             matchEnabled={settings?.match_score_enabled ?? false} />
 
           {properties.length === 0 && !loadFailed && (
-            <Card padding="none">
-              <EmptyState headingLevel={2}
-                className={hasProfiles ? undefined : "!pb-0"}
-                icon={<NoResults size={ICON_SIZE.display} strokeWidth={1.25} />}
-                title={hasProfiles ? t("app.noMatches") : t("app.welcome")}
-                description={hasProfiles ? t("app.noMatchesHint") : undefined} />
-              {!hasProfiles && (
-                <>
-                  <ol className="px-6 pb-6 pt-4 text-sm max-w-md mx-auto space-y-2">
-                    <li className="flex gap-3">
-                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">1</Chip>
-                      <span>
-                        {t("app.step1")}{" "}
-                        <strong>{t("app.step1Tip")}</strong> {t("app.step1TipBody")}
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">2</Chip>
-                      <span>{t("app.step2")}</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <Chip tone="accent" className="shrink-0 h-6 w-6 !px-0 !rounded-pill justify-center font-bold">3</Chip>
-                      <span>{t("app.step3")}</span>
-                    </li>
-                  </ol>
-                  {/* Step one, as a control rather than as a sentence. The searches
-                      are a screen of their own now, so the instruction that used to
-                      end "above" has somewhere to point — and an onboarding step a
-                      user has to go and find is one they do not take. */}
-                  <div className="flex justify-center pb-10">
-                    <Button asChild variant="solid" tone="accent">
-                      <NavLink data-action="app.addSearch" to={withSearch(SEARCHES, search)}>
-                        <Searches /> {t("app.addSearch")}
-                      </NavLink>
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Card>
+            <EmptyResults hasProfiles={hasProfiles} search={search} />
           )}
 
           {/* Batch Selection & Live Availability Check Bar */}

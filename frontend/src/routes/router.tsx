@@ -12,7 +12,9 @@
  *  position or emptying a multi-selection, which is exactly what a table that
  *  swapped one whole screen for another would do. Insights and Searches sit
  *  beside it rather than under it: they *are* whole screens, and a user on them
- *  is not looking at the grid.
+ *  is not looking at the grid. The guided first run is beside them for the same
+ *  reason, with one difference: it is also where "/" leads on an install that
+ *  has never held a search.
  */
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import App from "../App";
@@ -21,8 +23,10 @@ import SettingsModal from "../components/SettingsModal";
 import AppShell from "../ui/AppShell";
 import { useDashboard } from "./context";
 import InsightsRoute from "./insights/InsightsRoute";
-import { INSIGHTS, LISTINGS, LOGS, SEARCHES, SETTINGS, withSearch } from "./params";
+import { OnboardingRoute, shouldGuide } from "./onboarding";
+import { INSIGHTS, LISTINGS, LOGS, ONBOARDING, SEARCHES, SETTINGS, withSearch } from "./params";
 import PropertyRoute from "./property/PropertyRoute";
+import { useProfiles } from "../queries/dashboard";
 import { SearchesRoute } from "./searches";
 
 function SettingsRoute() {
@@ -33,12 +37,33 @@ function LogsRoute() {
   return <LogViewer onClose={useDashboard().close} />;
 }
 
-/** "/" and anything nobody recognises. The filters are carried across, because
- *  the one address a person is most likely to type by hand is the bare one, and
- *  arriving at a grid that has quietly dropped what the link asked for is worse
- *  than a 404. */
+/** Anything nobody recognises. The filters are carried across, because the one
+ *  address a person is most likely to type by hand is the bare one, and arriving
+ *  at a grid that has quietly dropped what the link asked for is worse than a
+ *  404. */
 function ToListings() {
   return <Navigate to={withSearch(LISTINGS, useLocation().search)} replace />;
+}
+
+/** "/", which is one of two places depending on whether this install has ever
+ *  had a search.
+ *
+ *  A fresh database opening on the listings is a grid with nothing in it and no
+ *  filter that would help — the screen is empty because the app has not been
+ *  set up, and the set-up is somewhere else. So the first visit opens the guide
+ *  instead, and only the first: `shouldGuide` also honours a user who left it.
+ *
+ *  Nothing is rendered while the profiles are still being fetched. Redirecting
+ *  on an empty cache would send every reload to the guide for as long as the
+ *  request takes and then, a beat later, snap back — a flash the user reads as
+ *  the app not knowing where it is. */
+function FirstDestination() {
+  const profiles = useProfiles();
+  const { search } = useLocation();
+
+  if (profiles.isPending) return null;
+  const to = shouldGuide((profiles.data ?? []).length > 0) ? ONBOARDING : LISTINGS;
+  return <Navigate to={withSearch(to, search)} replace />;
 }
 
 export default function AppRoutes() {
@@ -63,6 +88,10 @@ export default function AppRoutes() {
           </Route>
           <Route path={INSIGHTS} element={<InsightsRoute />} />
           <Route path={SEARCHES} element={<SearchesRoute />} />
+          {/* Inside the shell, so a user who lands here still has the
+              navigation and can leave without finishing. */}
+          <Route path={ONBOARDING} element={<OnboardingRoute />} />
+          <Route path="/" element={<FirstDestination />} />
         </Route>
         <Route path="*" element={<ToListings />} />
       </Routes>

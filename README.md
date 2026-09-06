@@ -102,17 +102,23 @@ are covered in [Remote Access & Running in the Background](docs/remote-access.md
 
 ## How to Use
 
-1. **Get the search URL** from Immobiliare.it or Idealista.it (or describe the
-   search in plain Italian and let the built-in assistant build both URLs for
-   you), and copy it from the address bar.
-2. **Add Profile**: open **Searches** in the navigation, paste the URL into
-   **"+ Add search profile"**, name it, save.
-3. **Start Scanning**: click **"Start Scan Now"**, or let the scheduler run in
-   the background.
-4. **Browse Listings**: merged duplicates show a purple badge, and properties
+The first time you open it, the app opens on a short guided run — what it does,
+your first search, the first scan — and walks you to a working search without
+you needing anything below. The three ways to create that search are offered side
+by side: describe it in plain Italian, fill in a form, or paste a results URL
+from the portal itself. You can skip the guide at any point, and it will not come
+back.
+
+Afterwards:
+
+1. **Browse Listings**: merged duplicates show a purple badge, and properties
    found since your last visit carry a **🆕 new** badge.
-5. **Curate**: hide listings you don't want, mark ones as sold/rented, search
+2. **Curate**: hide listings you don't want, mark ones as sold/rented, search
    and filter the grid, and clean up in bulk.
+3. **Add more searches**: **Searches** in the navigation holds the same three
+   ways, plus the state of every search you already have.
+4. **Scan on your own terms**: **"Start Scan Now"** whenever you like, or let the
+   scheduler run it in the background.
 
 The full walkthrough — every portal filter, search-building shortcuts, the
 search/filter rail, bulk cleanup, deleting a search (and what happens to the

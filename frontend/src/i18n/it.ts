@@ -254,18 +254,61 @@ export const it: Dict = {
   "app.noMatches": "Nessun immobile corrisponde ai filtri attuali.",
   "app.noMatchesHint":
     "Prova a cambiare Compra/Affitto o ad allentare i filtri.",
-  "app.welcome": "Benvenuto! Tre passi per iniziare:",
-  "app.step1":
-    'Aggiungi una ricerca in Ricerche — descrivila a parole con "Descrivila e basta", costruiscila con "Costruisci una ricerca", oppure incolla l\'URL dei risultati da Immobiliare.it / Idealista.',
+  "app.welcome": "Non è ancora stato raccolto nulla.",
+  "app.welcomeHint":
+    "È una ricerca monitorata a riempire questa pagina: la guida ne imposta una in un paio di minuti.",
   "app.addSearch": "Aggiungi una ricerca",
-  "app.step1Tip": "Suggerimento:",
-  "app.step1TipBody":
-    'per usare tutti i filtri del portale (bagni, piano, ascensore, classe energetica, escludi aste…), impostali sul portale e usa "Incolla un URL" — l\'app monitora esattamente quella ricerca.',
-  "app.step2":
-    'Premi "Avvia scansione" — la prima scansione crea la tua base di partenza (nessuna raffica di notifiche).',
-  "app.step3":
-    "Facoltativo: apri Impostazioni per attivare gli avvisi Telegram o Email su nuovi annunci e cali di prezzo.",
   "app.showMoreCount": "Mostra altri ({count} rimanenti)",
+
+  // ── la guida al primo avvio ─────────────────────────────────────────────
+  "onboarding.title": "Come iniziare",
+  "onboarding.intro":
+    "Tre passi brevi. Puoi uscire quando vuoi e riprendere più tardi.",
+  "onboarding.stepWhat": "Che cos'è",
+  "onboarding.stepSearch": "La tua prima ricerca",
+  "onboarding.stepScan": "La prima scansione",
+  "onboarding.next": "Avanti",
+  "onboarding.back": "Indietro",
+  "onboarding.skip": "Salta per ora",
+  "onboarding.done": "Vai agli immobili",
+  "onboarding.whatTitle": "Controlla i portali al posto tuo",
+  "onboarding.whatBody":
+    "Dici una volta sola che cosa cerchi. L'app legge Immobiliare.it e Idealista a intervalli regolari, conserva ogni annuncio che trova e ti dice che cosa è nuovo e che cosa è calato di prezzo.",
+  "onboarding.whatKeeps":
+    "Tutto resta su questo computer: il database è un file accanto all'app, e non esce nulla oltre alle richieste ai portali stessi.",
+  "onboarding.searchTitle": "Crea la tua prima ricerca",
+  "onboarding.searchBody":
+    "Tre modi per fare la stessa cosa: prendi quello che ti viene più comodo. Potrai aggiungere altre ricerche dopo, e modificarle tutte.",
+  "onboarding.wayAssistant": "Descrivila e basta",
+  "onboarding.wayAssistantBody":
+    "Scrivi in una frase che cosa cerchi e lascia che sia l'app a trasformarla in una ricerca.",
+  "onboarding.wayBuilder": "Costruisci una ricerca",
+  "onboarding.wayBuilderBody": "Compila città, prezzo e dimensioni in un modulo.",
+  "onboarding.wayUrl": "Incolla un URL",
+  "onboarding.wayUrlBody":
+    "Cerca sul portale e poi incolla l'indirizzo dei risultati.",
+  "onboarding.wayBack": "Scegli un altro modo",
+  "onboarding.urlTip": "Suggerimento:",
+  "onboarding.urlTipBody":
+    "per usare tutti i filtri del portale (bagni, piano, ascensore, classe energetica, escludi aste…), impostali sul portale e incolla l'URL — l'app monitora esattamente quella ricerca.",
+  "onboarding.searchSaved": "La tua ricerca è salvata.",
+  "onboarding.scanTitle": "Avvia la prima scansione",
+  "onboarding.scanBody":
+    "La prima esecuzione raccoglie tutto quello che i portali hanno adesso per la tua ricerca. È la tua base di partenza, quindi non manda avvisi; da lì in poi saprai solo che cosa cambia.",
+  "onboarding.scanStart": "Avvia la prima scansione",
+  "onboarding.scanRunning": "Scansione in corso…",
+  "onboarding.scanIdle": "Non è ancora in corso nulla.",
+  "onboarding.scanPatience":
+    "Gran parte di una scansione è pausa tra una pagina e l'altra, di proposito: è quella pausa che tiene i portali disposti a rispondere. Puoi lasciare questa pagina, la scansione continua.",
+  "onboarding.scanFound": "{count} raccolti finora",
+  "onboarding.scanSearchOf": "Ricerca {index} di {total}",
+  "onboarding.alerts":
+    "Facoltativo, più avanti: apri Impostazioni per farti mandare nuovi annunci e cali di prezzo su Telegram o via email.",
+  "onboarding.phaseStarting": "Avvio della scansione",
+  "onboarding.phaseLocating": "Posizionamento dei nuovi annunci sulla mappa",
+  "onboarding.phaseFetching": "Lettura dei risultati, pagina {page}",
+  "onboarding.phaseWaiting": "Pausa prima della pagina successiva",
+  "onboarding.phaseSaving": "Salvataggio di quello che è arrivato",
 
   // ── barra di selezione multipla ─────────────────────────────────────────
   "app.selectMultiple": "Seleziona più immobili",
