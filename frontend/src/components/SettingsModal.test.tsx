@@ -9,10 +9,23 @@
  */
 
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsModal from "./SettingsModal";
 import { api } from "../services/api";
+import { settingsFixture } from "../test/settings";
 import { WithQuery } from "../test/withQuery";
+
+/** The dialog as the app mounts it: inside a router, because the setup section
+ *  links out to the wizard, and inside a cache. Rendering it without the router
+ *  is not a smaller test, it is a different component — `useNavigate` throws. */
+function mount() {
+  return render(
+    <MemoryRouter>
+      <WithQuery><SettingsModal onClose={vi.fn()} /></WithQuery>
+    </MemoryRouter>,
+  );
+}
 
 describe("SettingsModal when the settings cannot be loaded", () => {
   beforeEach(() => {
@@ -21,9 +34,8 @@ describe("SettingsModal when the settings cannot be loaded", () => {
 
   it("shows the error and a way out instead of rendering nothing", async () => {
     vi.spyOn(api, "getSettings").mockRejectedValue(new Error("Connection refused"));
-    const onClose = vi.fn();
 
-    render(<WithQuery><SettingsModal onClose={onClose} /></WithQuery>);
+    mount();
 
     // the message names the underlying failure rather than swallowing it
     const status = await screen.findByRole("status");
@@ -35,14 +47,15 @@ describe("SettingsModal when the settings cannot be loaded", () => {
   });
 
   it("retries the load, and shows the form once the backend answers", async () => {
-    const settings = { excluded_keywords: [] } as unknown as Awaited<
-      ReturnType<typeof api.getSettings>
-    >;
+    // A whole settings object rather than the one field the form used to need:
+    // the sections read what a fresh install answers with, and a stub missing
+    // half of it fails inside a section for a reason that has nothing to do
+    // with the retry this test is about.
     const getSettings = vi.spyOn(api, "getSettings")
       .mockRejectedValueOnce(new Error("Connection refused"))
-      .mockResolvedValueOnce(settings);
+      .mockResolvedValueOnce(settingsFixture());
 
-    render(<WithQuery><SettingsModal onClose={vi.fn()} /></WithQuery>);
+    mount();
     (await screen.findByRole("button", { name: /try again|riprova/i })).click();
 
     await waitFor(() => expect(getSettings).toHaveBeenCalledTimes(2));

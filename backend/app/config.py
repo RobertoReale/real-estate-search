@@ -148,9 +148,11 @@ def adopt_existing_data(
             target.unlink(missing_ok=True)
             continue
 
-        # The settings carry the Telegram token and the DataDome cookie, so
-        # leaving them behind would mean a working database with no way to
-        # notify and a scraper that has to earn its cookie again.
+        # The settings carry the Telegram token, the DataDome cookie and the
+        # record that the capability setup has already been answered, so leaving
+        # them behind would mean a working database with no way to notify, a
+        # scraper that has to earn its cookie again, and a returning user walked
+        # through a wizard they finished months ago.
         settings_source = source_dir / "settings.json"
         if settings_source.is_file() and not (data_dir / "settings.json").exists():
             try:
@@ -434,6 +436,16 @@ DEFAULT_SETTINGS = {
     # them by their title line — their *names* carry the codice fiscale of
     # whoever requested the supply, so nothing here is ever derived from them.
     "omi_input_dir": "",
+    # Whether the capability setup has been walked through once (the wizard at
+    # `/setup`). Stored beside the settings it configures rather than in the
+    # browser, and deliberately so: it is a fact about this *install*, not about
+    # this device. In localStorage a second machine would be asked to configure a
+    # Telegram token that is already saved, and an upgrade — which starts with an
+    # empty browser profile — would ask again. settings.json lives in the data
+    # directory and `adopt_existing_data` copies it, so the answer survives both.
+    # Skipping every step still sets it: being asked once and declining is an
+    # answer, and the wizard stays reachable from Settings afterwards.
+    "setup_completed": False,
     # Optional shared-secret API token. Empty (default) = the API is open and
     # the bind address is the only access control (invariant 14). A non-empty
     # value requires every /api request to carry `Authorization: Bearer <token>`,

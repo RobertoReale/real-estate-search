@@ -302,13 +302,130 @@ export const it: Dict = {
     "Gran parte di una scansione è pausa tra una pagina e l'altra, di proposito: è quella pausa che tiene i portali disposti a rispondere. Puoi lasciare questa pagina, la scansione continua.",
   "onboarding.scanFound": "{count} raccolti finora",
   "onboarding.scanSearchOf": "Ricerca {index} di {total}",
-  "onboarding.alerts":
-    "Facoltativo, più avanti: apri Impostazioni per farti mandare nuovi annunci e cali di prezzo su Telegram o via email.",
+  "onboarding.setupBody":
+    "Tutto il resto è spento finché non lo accendi: farti avvisare di un nuovo annuncio, una seconda fonte, non farti bloccare. Cinque domande brevi, tutte saltabili.",
+  "onboarding.setupOpen": "Configura il resto",
   "onboarding.phaseStarting": "Avvio della scansione",
   "onboarding.phaseLocating": "Posizionamento dei nuovi annunci sulla mappa",
   "onboarding.phaseFetching": "Lettura dei risultati, pagina {page}",
   "onboarding.phaseWaiting": "Pausa prima della pagina successiva",
   "onboarding.phaseSaving": "Salvataggio di quello che è arrivato",
+
+  // ── configurazione guidata ──────────────────────────────────────────────
+  "setup.title": "Configura quello che ti serve",
+  "setup.intro":
+    "Cinque domande, raggruppate per quello che ognuna ti fa ottenere. Niente è obbligatorio: salta quello che non ti interessa e torna a riprenderlo dalle Impostazioni quando vuoi.",
+  "setup.optional":
+    "Quello che lasci vuoto resta com'è. In questa schermata non c'è niente di obbligatorio.",
+  "setup.back": "Indietro",
+  "setup.skip": "Salta per ora",
+  "setup.saveNext": "Salva e continua",
+  "setup.finish": "Salva e concludi",
+
+  "setup.group.unblocked": "Non farti bloccare",
+  "setup.group.source": "Una seconda fonte",
+  "setup.group.told": "Farti avvisare",
+  "setup.group.pace": "Quanto raccoglie",
+  "setup.group.engines": "Gli extra facoltativi",
+
+  "setup.body.unblocked":
+    "I portali si difendono dalla lettura automatica, e Immobiliare è quello severo: senza aiuto risponde con una pagina di blocco invece che con i risultati. Basta una qualsiasi di queste: un cookie preso dal tuo browser, un servizio di scraping o dei proxy.",
+  "setup.body.source":
+    "Idealista pubblica una API ufficiale. Con una chiave viene letto da lì invece che dal sito: è la via autorizzata ed è immune al blocco di cui sopra. Le chiavi sono gratuite e arrivano in un paio di giorni.",
+  "setup.body.told":
+    "Altrimenti l'app raccoglie in silenzio e te ne accorgi solo aprendola. Telegram è il più rapido dei due: scrivi a @BotFather, incolla il token e manda un messaggio al tuo bot perché possa trovare la tua chat.",
+  "setup.body.pace":
+    "Hanno già valori sensati. Alzali per coprire di più a ogni scansione, abbassali se un portale comincia a rifiutare: la pausa tra una richiesta e l'altra è quella che conta di più.",
+  "setup.body.engines":
+    "Niente di tutto questo serve al funzionamento dell'app. Geocodifica e tempi di percorrenza mettono gli annunci sulla mappa e misurano il tragitto; un modello linguistico scrive i riassunti e trasforma una descrizione in filtri.",
+
+  "setup.field.datadome_cookie": "Cookie DataDome",
+  "setup.hint.datadome_cookie":
+    "Dal tuo browser su immobiliare.it: strumenti per sviluppatori, Application, Cookie, il valore che si chiama «datadome». Scade dopo qualche ora.",
+  "setup.field.datadome_auto_refresh": "Prendi il cookie automaticamente",
+  "setup.hint.datadome_auto_refresh":
+    "Apre un browser vero in background quando il cookie salvato è vecchio e ne prende uno nuovo.",
+  "setup.field.browser_engine": "Browser da usare",
+  "setup.hint.browser_engine":
+    "Camoufox è più difficile da riconoscere per un portale; Chromium si avvia più in fretta.",
+  "setup.field.proxy_urls": "Proxy",
+  "setup.hint.proxy_urls":
+    "Uno per riga, oppure separati da virgole. Le richieste vengono distribuite tra loro.",
+  "setup.field.scrape_api_key": "Chiave del servizio di scraping",
+  "setup.hint.scrape_api_key":
+    "Un servizio a pagamento che scarica la pagina al posto tuo. Funziona con ScraperAPI, ScrapingBee e Zyte.",
+  "setup.field.scrape_api_mode": "Quando usarlo",
+  "setup.hint.scrape_api_mode":
+    "Solo dopo che una richiesta diretta è stata rifiutata, oppure a ogni richiesta.",
+
+  "setup.field.idealista_api_key": "Chiave API Idealista",
+  "setup.hint.idealista_api_key": "L'«apikey» che trovi nella email di conferma.",
+  "setup.field.idealista_api_secret": "Secret API Idealista",
+  "setup.hint.idealista_api_secret": "Il «secret» della stessa email.",
+
+  "setup.field.telegram_bot_token": "Token del bot Telegram",
+  "setup.hint.telegram_bot_token": "Quello che ti risponde @BotFather quando crei un bot.",
+  "setup.field.telegram_chat_id": "Id della chat Telegram",
+  "setup.hint.telegram_chat_id":
+    "Manda prima un messaggio qualsiasi al tuo bot, altrimenti non ha il permesso di scriverti.",
+  "setup.field.telegram_enabled": "Mandami gli avvisi su Telegram",
+  "setup.hint.telegram_enabled": "Nuovi annunci e cali di prezzo, appena vengono trovati.",
+  "setup.field.smtp_host": "Server di posta",
+  "setup.hint.smtp_host": "Per esempio smtp.gmail.com.",
+  "setup.field.smtp_port": "Porta",
+  "setup.hint.smtp_port": "587 per STARTTLS, 465 per SSL.",
+  "setup.field.smtp_user": "Utente della posta",
+  "setup.hint.smtp_user": "Di solito l'indirizzo completo.",
+  "setup.field.smtp_password": "Password della posta",
+  "setup.hint.smtp_password":
+    "Con Gmail è una password per le app, non la password del tuo account.",
+  "setup.field.email_from": "Manda da",
+  "setup.hint.email_from": "L'indirizzo da cui sembrano arrivare gli avvisi.",
+  "setup.field.email_to": "Manda a",
+  "setup.hint.email_to": "Puoi mettere più indirizzi separati da virgole.",
+  "setup.field.email_enabled": "Mandami gli avvisi via email",
+  "setup.hint.email_enabled": "Gli stessi avvisi di Telegram, nella tua casella.",
+
+  "setup.field.max_pages_per_search": "Pagine per ricerca",
+  "setup.hint.max_pages_per_search":
+    "Quanto in profondità legge ogni scansione. Circa 25 annunci a pagina.",
+  "setup.field.request_delay_seconds": "Secondi tra una richiesta e l'altra",
+  "setup.hint.request_delay_seconds":
+    "È la pausa che tiene i portali disposti a rispondere. Sotto i due secondi prima o poi vieni rifiutato.",
+  "setup.field.idealista_api_max_pages": "Pagine per ricerca sull'API Idealista",
+  "setup.hint.idealista_api_max_pages":
+    "Il piano gratuito consente cento richieste al mese, quindi conviene tenerlo basso.",
+
+  "setup.field.nominatim_url": "Server di geocodifica",
+  "setup.hint.nominatim_url":
+    "Trasforma un indirizzo in un punto sulla mappa. Lascia vuoto per usare quello pubblico di OpenStreetMap.",
+  "setup.field.osrm_url": "Server di routing",
+  "setup.hint.osrm_url": "Misura il tragitto in auto, a piedi o in bici.",
+  "setup.field.llm_base_url": "Endpoint del modello linguistico",
+  "setup.hint.llm_base_url":
+    "Qualsiasi cosa parli l'API di OpenAI, anche in locale.",
+  "setup.field.llm_api_key": "Chiave del modello linguistico",
+  "setup.hint.llm_api_key": "Non serve a un modello che gira su questa macchina.",
+  "setup.field.llm_model": "Modello",
+  "setup.hint.llm_model": "Per esempio gpt-4o-mini.",
+
+  "setup.option.auto": "Quello che c'è",
+  "setup.option.chromium": "Chromium",
+  "setup.option.camoufox": "Camoufox",
+  "setup.option.fallback": "Solo quando è bloccato",
+  "setup.option.always": "A ogni richiesta",
+
+  "setup.detected.harvester": "L'automazione del browser è installata",
+  "setup.detected.noHarvester": "L'automazione del browser non è installata",
+  "setup.detected.camoufox": "Camoufox è installato",
+  "setup.detected.cookie": "C'è un cookie salvato, buono per circa {minutes} minuti",
+  "setup.detected.noCookie": "Nessun cookie salvato",
+
+  "setup.section.title": "Configurazione guidata",
+  "setup.section.pending": "Questi sono ancora spenti:",
+  "setup.section.allOn": "Tutto quello che la configurazione guidata propone è acceso.",
+  "setup.section.open": "Configura il resto",
+  "setup.section.reopen": "Rifai la configurazione guidata",
 
   // ── barra di selezione multipla ─────────────────────────────────────────
   "app.selectMultiple": "Seleziona più immobili",

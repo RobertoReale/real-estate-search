@@ -11,6 +11,7 @@ import { EmailSection, useEmailSection } from "./settings/EmailSection";
 import { MatchSection, useMatchSection } from "./settings/MatchSection";
 import { ScanningSection, useScanningSection } from "./settings/ScanningSection";
 import { ScrapingSection, useScrapingSection } from "./settings/ScrapingSection";
+import { SetupSection } from "./settings/SetupSection";
 import { SystemSection, useSystemSection } from "./settings/SystemSection";
 import { TelegramSection, useTelegramSection } from "./settings/TelegramSection";
 import { errorText, useToasts } from "./Toast";
@@ -197,6 +198,12 @@ export default function SettingsModal({ onClose }: Props) {
   return (
     <Shell onClose={onClose}>
       <p className="text-xs t-dim mb-5">{t("settings.testNote")}</p>
+
+      {/* First, because it is the shortest route to any of the eight sections
+          below it and the only one that says which of them are still off. It
+          owns no form state: it navigates, and the wizard saves through the
+          same endpoint this dialog does. */}
+      <SetupSection settings={settings} />
 
       <TelegramSection section={telegram} settings={settings} shell={shell} />
       <EmailSection section={email} settings={settings} shell={shell} />

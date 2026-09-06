@@ -93,6 +93,7 @@ const STORED: Settings = {
   browser_engine: "camoufox", camoufox_available: false, browser_humanize: false,
   repair_agency_prefixes: ["gabetti"],
   omi_input_dir: "",
+  setup_completed: true,
   api_auth_token: "s3cret",
 };
 

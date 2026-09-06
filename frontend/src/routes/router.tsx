@@ -24,10 +24,13 @@ import AppShell from "../ui/AppShell";
 import { useDashboard } from "./context";
 import InsightsRoute from "./insights/InsightsRoute";
 import { OnboardingRoute, shouldGuide } from "./onboarding";
-import { INSIGHTS, LISTINGS, LOGS, ONBOARDING, SEARCHES, SETTINGS, withSearch } from "./params";
+import {
+  INSIGHTS, LISTINGS, LOGS, ONBOARDING, SEARCHES, SETTINGS, SETUP, withSearch,
+} from "./params";
 import PropertyRoute from "./property/PropertyRoute";
 import { useProfiles } from "../queries/dashboard";
 import { SearchesRoute } from "./searches";
+import { SetupRoute } from "./setup";
 
 function SettingsRoute() {
   return <SettingsModal onClose={useDashboard().close} />;
@@ -89,8 +92,12 @@ export default function AppRoutes() {
           <Route path={INSIGHTS} element={<InsightsRoute />} />
           <Route path={SEARCHES} element={<SearchesRoute />} />
           {/* Inside the shell, so a user who lands here still has the
-              navigation and can leave without finishing. */}
+              navigation and can leave without finishing. The capability setup
+              is beside it for the same reason and one more: it is reached from
+              Settings as often as from the guide, so it cannot be a screen that
+              only exists on the way through. */}
           <Route path={ONBOARDING} element={<OnboardingRoute />} />
+          <Route path={SETUP} element={<SetupRoute />} />
           <Route path="/" element={<FirstDestination />} />
         </Route>
         <Route path="*" element={<ToListings />} />

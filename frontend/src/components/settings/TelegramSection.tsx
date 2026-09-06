@@ -46,7 +46,7 @@ export function TelegramSection(
 
   return (
     <>
-      <SectionHeading first icon={Telegram}>{t("settings.telegramTitle")}</SectionHeading>
+      <SectionHeading icon={Telegram}>{t("settings.telegramTitle")}</SectionHeading>
       <HelpSteps
         summary={t("settings.telegramHelp")}
         steps={[

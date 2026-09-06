@@ -12,11 +12,14 @@
  *  anything, which is also why the sentence about the pauses is on the screen —
  *  a wait that has been explained is not the same wait.
  */
+import { useNavigate } from "react-router-dom";
+
 import { useT, type TranslationKey } from "../../i18n";
 import { useScanStatus, useTriggerScan } from "../../queries/dashboard";
 import { useToasts } from "../../components/Toast";
 import { Button } from "../../ui";
-import { Note, Run } from "../../ui/icons";
+import { Cog, Note, Run } from "../../ui/icons";
+import { SETUP } from "../params";
 
 /** The scanner's phases, as something a person reads. Anything unrecognised
  *  falls back to "scanning" rather than to the backend's English `detail`:
@@ -32,6 +35,7 @@ const PHASE_LABEL: Record<string, TranslationKey> = {
 export default function FirstScan() {
   const t = useT();
   const toasts = useToasts();
+  const navigate = useNavigate();
   const status = useScanStatus().data ?? null;
   const triggerScan = useTriggerScan();
 
@@ -85,10 +89,16 @@ export default function FirstScan() {
         <Note className="mt-0.5 shrink-0" />
         {t("onboarding.scanPatience")}
       </p>
-      <p className="flex items-start gap-2 text-xs leading-relaxed t-muted">
-        <Note className="mt-0.5 shrink-0" />
-        {t("onboarding.alerts")}
-      </p>
+      {/* The step used to end here with a sentence telling the user to open
+          Settings afterwards and find the Telegram fields — instructions about
+          controls on another screen, which is the thing this guide exists to
+          stop doing. The control is the sentence now. */}
+      <div className="space-y-2 border-t border-line pt-4">
+        <p className="text-sm t-muted">{t("onboarding.setupBody")}</p>
+        <Button data-action="onboarding.setup" onClick={() => void navigate(SETUP)}>
+          <Cog /> {t("onboarding.setupOpen")}
+        </Button>
+      </div>
     </div>
   );
 }

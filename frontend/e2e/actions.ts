@@ -269,6 +269,46 @@ export const ACTIONS = {
     what: "Run the first scan",
     does: "starts the scan and turns the step into a live account of what it is doing",
   },
+  "onboarding.setup": {
+    what: "Set the rest up, at the end of the guide",
+    does: "leaves the guide for the capability setup, which is where the guide used "
+      + "to send the user with a sentence instead of a button",
+  },
+
+  // ── The capability setup ────────────────────────────────────────────────
+  // One row per control, not per rendering: the five groups draw the same six
+  // controls with different fields behind them.
+  "setup.field": {
+    what: "any typed field in the setup",
+    does: "holds one answer — a key, a URL, a count — until the step is saved",
+  },
+  "setup.toggle": {
+    what: "any checkbox in the setup",
+    does: "switches a capability on, and is always posted, since unticked is an answer",
+  },
+  "setup.select": {
+    what: "any choice in the setup",
+    does: "picks between the options this machine can actually honour",
+  },
+  "setup.back": {
+    what: "Back, in the setup",
+    does: "returns to the previous group; what was already saved stays saved",
+  },
+  "setup.skip": {
+    what: "Skip for now, in the setup",
+    does: "moves on without posting anything, which is a working answer to every "
+      + "one of the five groups",
+  },
+  "setup.save": {
+    what: "Save and continue, and Finish on the last group",
+    does: "posts only this group's answered fields, and on the last one records "
+      + "that the setup was seen",
+  },
+  "settings.setup.open": {
+    what: "the button into the capability setup, at the top of settings",
+    does: "reopens the setup, so it is somewhere to return to rather than a "
+      + "one-shot the first run consumed",
+  },
 
   // ── Insights ────────────────────────────────────────────────────────────
   "insights.toSearches": {

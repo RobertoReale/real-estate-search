@@ -49,13 +49,19 @@ const VIEWS = ["grid", "map"] as const;
  *  `LISTINGS` is first because it is the default: anything unrecognised lands
  *  there, and a user with data therefore sees properties rather than
  *  configuration. `ONBOARDING` is the one exception, and only for a database
- *  that has never held a search — `routes/onboarding/steps.ts` owns that rule. */
+ *  that has never held a search — `routes/onboarding/steps.ts` owns that rule.
+ *
+ *  `SETUP` is an address rather than a dialog because it is long enough to be
+ *  interrupted: five steps, each of which may involve leaving to fetch a key.
+ *  A place can be come back to, and Settings links to it so it is never a
+ *  one-shot. */
 export const LISTINGS = "/listings";
 export const INSIGHTS = "/insights";
 export const SEARCHES = "/searches";
 export const SETTINGS = "/settings";
 export const LOGS = "/logs";
 export const ONBOARDING = "/start";
+export const SETUP = "/setup";
 
 /** The address of one property. What a link, a bookmark or a notification
  *  points at. */
