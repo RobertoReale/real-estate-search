@@ -65,11 +65,16 @@ what each option actually does.
      with a real close date (a much stronger signal than the *gone* guess), and
      you can review these under the **`🔑 Sold`** option in the **Status** filter.
      Marked one by mistake? *Restore property* puts it right back.
-   - **Search & filter the grid**: the **Search** bar at the top of the filter
-     bar matches any word across a listing's zone, address, title, floor and ad
-     text (type *San Siro* or *nuova costruzione* to isolate them; to search by
-     floor type either the Italian *4 piano* or the English *floor 4*). Beyond
-     the search box there are dedicated **City**, **Zone**, price, **Min/Max
+   - **Narrowing the grid**: everything in the filter bar looks only at what is
+     already on this machine — it is instant, it changes nothing, and it never
+     goes out to the portals. That is why the bar is headed by the number it is
+     sifting (*"1,412 listings collected"*) and why nothing in it is called a
+     search: to look for something new, you add or edit a search under
+     **Searches**. The **Keyword** box at the top matches any word across a
+     listing's zone, address, title, floor and ad text (type *San Siro* or
+     *nuova costruzione* to isolate them; for a floor type either the Italian
+     *4 piano* or the English *floor 4*). Beyond
+     the keyword box there are dedicated **City**, **Zone**, price, **Min/Max
      sqm**, **Rooms**, **Floor** (Ground / Low / Middle / High / Top) and
      **Origin** filters, plus a one-click **↺ Reset filters** to clear them all.
      A collapsible **⚙️ More filters** panel adds the rest: **Portal** (only
@@ -87,6 +92,13 @@ what each option actually does.
      same searches listed under each card's **🔍 Found by**. Cards no search
      found drop out. (It is a filter, not a ranking — it shrinks the list, it
      does not reorder it.)
+     If the narrowing leaves nothing, the grid says so about *this machine* —
+     none of the listings collected so far fit — and offers **Search the portals
+     for this**, which carries you to Searches with a form already filled in.
+     Only the criteria a portal can actually express make the trip: the ones it
+     cannot (deal quality, tags, status, the keyword text) are listed as *not
+     carried over* rather than quietly dropped, and an exact room count is
+     widened to a minimum, which it also tells you.
    - **Bulk cleanup**: click **`Selezione multipla annunci`**, tick the cards
      (or *Seleziona tutti*), and **hide**, **mark sold** or **star** the whole
      selection at once — the fast way to clear a batch (e.g. every *nuova
@@ -96,7 +108,7 @@ what each option actually does.
      should never show up again): adding the word to your excluded keywords in
      Settings only affects *future* scans, since keyword filtering runs once,
      when a listing is first found. To clear out what is already in the
-     dashboard, add the word there **and** use the Search bar to find the
+     dashboard, add the word there **and** use the Keyword box to find the
      matching cards (they match the same word in title/zone/address/text), then
      select and hide them in bulk. There is no "delete forever" for a single
      property on purpose: it always hides rather than erases the row, so a scan

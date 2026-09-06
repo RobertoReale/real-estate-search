@@ -8,7 +8,7 @@
  */
 
 import { useSearchProfiles } from "../hooks/useSearchProfiles";
-import type { SearchProfile, Settings } from "../types";
+import type { SearchBuilderParams, SearchProfile, Settings } from "../types";
 import { AssistantPanel } from "./searchProfiles/AssistantPanel";
 import { BuilderForm } from "./searchProfiles/BuilderForm";
 import { BulkToolbar } from "./searchProfiles/BulkToolbar";
@@ -23,10 +23,12 @@ interface Props {
   profiles: SearchProfile[];
   settings: Settings | null;
   onChanged: () => void;
+  /** A builder to open on, when the page was reached from the grid's filters. */
+  prefill?: SearchBuilderParams | null;
 }
 
-export default function SearchProfiles({ profiles, settings, onChanged }: Props) {
-  const sp = useSearchProfiles({ profiles, settings, onChanged });
+export default function SearchProfiles({ profiles, settings, onChanged, prefill }: Props) {
+  const sp = useSearchProfiles({ profiles, settings, onChanged, prefill });
   const { t, mode, setMode, resetForm } = sp;
 
   // Whether a channel is configured is a fact about the account rather than

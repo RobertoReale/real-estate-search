@@ -102,8 +102,8 @@ export const ACTIONS = {
     what: "the × on an active-filter chip",
     does: "takes that one clause off the query and leaves the rest of it alone",
   },
-  "filters.query": { what: "the free-text search box", does: "narrows the grid to matching listings" },
-  "filters.query.clear": { what: "the clear button inside the search box", does: "empties it and restores the full count" },
+  "filters.query": { what: "the Keyword box", does: "narrows the collected listings to the ones whose text matches" },
+  "filters.query.clear": { what: "the clear button inside the Keyword box", does: "empties it and restores the full count" },
   "filters.contract.sale": { what: "Buy", does: "switches the grid to properties for sale" },
   "filters.contract.rent": { what: "Rent", does: "switches the grid to rentals, with rental prices" },
   "filters.city": { what: "the City field", does: "keeps only listings in that city" },
@@ -160,6 +160,12 @@ export const ACTIONS = {
     what: "Add a search, on a listings screen that has never had one",
     does: "opens the guided first run, so setting the app up is a click rather "
       + "than a list of instructions printed on the empty screen",
+  },
+  "app.toPortals": {
+    what: "Search the portals for this, on a filter that matched none of the "
+      + "listings already collected",
+    does: "carries the criteria to the searches screen and opens a search form "
+      + "on the ones a portal can express, naming the ones it cannot",
   },
   "grid.loadMore": { what: "Show N more", does: "appends the next page of results to the grid" },
   "property.card": { what: "the card itself", does: "opens that property, or selects it while multi-select is on" },

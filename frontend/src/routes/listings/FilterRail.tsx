@@ -35,11 +35,18 @@ interface Props {
   onChange: (filters: PropertyFilters) => void;
   /** The size of the whole filtered set — what an export would contain. */
   count: number;
+  /** The size of the set being narrowed: every listing collected in this
+   *  market. Stated above the rail, and it is what keeps the rail from being
+   *  read as the place a search is set up — a filter cannot be mistaken for one
+   *  when the thing it operates on is counted on screen. */
+  collected: number;
   profiles: SearchProfile[];
   tags: Tag[];
 }
 
-export default function FilterRail({ filters, onChange, count, profiles, tags }: Props) {
+export default function FilterRail({
+  filters, onChange, count, collected, profiles, tags,
+}: Props) {
   const t = useT();
   const toasts = useToasts();
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -123,14 +130,17 @@ export default function FilterRail({ filters, onChange, count, profiles, tags }:
 
   const body = (
     <div className="flex flex-col gap-3">
-      {/* Free-text search first: it is the fastest way to prune a cluttered
-          dashboard ("San Siro", "nuova costruzione") and searches title, zone,
-          address and the ad text. */}
-      <Field label={t("filters.search")}>
+      {/* Free text first: it is the fastest way to prune a cluttered dashboard
+          ("San Siro", "nuova costruzione"), and it reads title, zone, address
+          and the ad text of what is already here. It is called a keyword and
+          never a search — a box on this page labelled with that verb is exactly
+          what makes people believe the portals were queried for what they
+          typed. */}
+      <Field label={t("filters.keyword")}>
         <div className="relative">
           <Input data-action="filters.query"
             className={filters.q ? "pr-9" : undefined}
-            placeholder={t("filters.searchPlaceholder")}
+            placeholder={t("filters.keywordPlaceholder")}
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
           />
@@ -139,7 +149,7 @@ export default function FilterRail({ filters, onChange, count, profiles, tags }:
               variant="ghost"
               size="sm"
               className="absolute right-2 top-1/2 -translate-y-1/2"
-              label={t("filters.clearSearch")}
+              label={t("filters.clearKeyword")}
               onClick={() => set({ q: "" })}>
               <Close size={16} />
             </IconButton>
@@ -443,6 +453,12 @@ export default function FilterRail({ filters, onChange, count, profiles, tags }:
   return (
     <aside aria-label={t("filters.title")}
       className={desktop && inlineOpen ? "lg:w-72 lg:shrink-0" : undefined}>
+      {/* What the rail operates on, named and counted, before the rail itself.
+          Nothing below this line reaches the portals, and the surest way to say
+          so is to state the size of the pile being sifted. */}
+      <p className="mb-1.5 text-xs t-muted">
+        {t("filters.collected", { count: collected })}
+      </p>
       {toggle}
       {desktop
         ? inlineOpen && <Card className="mt-3">{body}</Card>

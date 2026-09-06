@@ -72,7 +72,8 @@ function screenTextIn(lang: "en" | "it"): string {
   const { container } = render(
     <I18nProvider>
       <WithQuery>
-        <FilterRail filters={FILTERS} onChange={noop} count={7} profiles={[]} tags={[]} />
+        <FilterRail filters={FILTERS} onChange={noop} count={7} collected={7}
+          profiles={[]} tags={[]} />
         <ResultHeader count={7} filters={FILTERS} onChange={noop} view="grid"
           onViewChange={noop} matchEnabled />
         <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
@@ -88,7 +89,7 @@ describe("the English UI", () => {
 
   it("renders its own words", () => {
     const text = screenTextIn("en");
-    for (const key of ["filters.search", "filters.sortBy", "filters.statusForRent",
+    for (const key of ["filters.keyword", "filters.sortBy", "filters.statusForRent",
                        "card.untitled", "card.rentedOut"] as const) {
       expect(text, `missing ${key}`).toContain(en[key]);
     }
@@ -108,7 +109,7 @@ describe("the Italian UI", () => {
 
   it("renders its own words", () => {
     const text = screenTextIn("it");
-    for (const key of ["filters.search", "filters.sortBy", "filters.statusForRent",
+    for (const key of ["filters.keyword", "filters.sortBy", "filters.statusForRent",
                        "card.untitled", "card.rentedOut"] as const) {
       expect(text, `missing ${key}`).toContain(itDict[key]);
     }

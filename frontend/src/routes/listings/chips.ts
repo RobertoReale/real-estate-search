@@ -86,7 +86,7 @@ export function activeFilterChips(
     chips.push({ key, label: t(labelKey), clear: { [key]: false } });
   }
 
-  valued("q", "filters.search");
+  valued("q", "filters.keyword");
   valued("city", "filters.city");
   valued("zone", "filters.zone");
   valued("min_price", "filters.minPrice");

@@ -8,6 +8,7 @@
  */
 import { checkScreen, expect, test } from "./fixtures";
 import { cards, resultCount, waitForResults } from "./harness/dashboard";
+import { fill, press } from "./harness/drive";
 
 test("filtering by city, by price and by contract, then resetting", async ({ page }) => {
   await page.goto("/");
@@ -26,7 +27,7 @@ test("filtering by city, by price and by contract, then resetting", async ({ pag
 
   await page.getByLabel("City", { exact: true }).fill("Bologna");
   await expect.poll(() => resultCount(page)).toBe(0);
-  await expect(page.getByText("No properties match the current filters.")).toBeVisible();
+  await expect(page.getByText("Nothing collected matches these filters.")).toBeVisible();
   await checkScreen(page, "the grid with nothing matching");
 
   await page.getByLabel("City", { exact: true }).fill("");
@@ -59,3 +60,39 @@ test("filtering by city, by price and by contract, then resetting", async ({ pag
     .click();
   await expect.poll(() => resultCount(page)).toBe(all);
 });
+
+test("a filter that matches nothing says so about this machine, and offers the portals",
+  async ({ page }) => {
+    await page.goto("/listings");
+    await waitForResults(page);
+
+    // The size of the pile being sifted, read off the rail rather than written
+    // here: it is the number the empty state has to name, and a literal would
+    // break the moment a journey before this one hides a property.
+    const collected = (await page.getByText(/^\d+ listings collected$/).innerText())
+      .replace(/\D/g, "");
+    expect(Number(collected)).toBeGreaterThan(0);
+
+    await fill(page, "filters.query", "villa con eliporto");
+    await page.getByLabel("City", { exact: true }).fill("Bologna");
+    await expect.poll(() => resultCount(page)).toBe(0);
+
+    // The sentence that is the whole point: not "there are no such houses" —
+    // a claim about the market, made by something that only looked here — but
+    // none among the ones already collected.
+    await expect(page.getByText(`None of the ${collected} listings collected so far fit.`,
+      { exact: false })).toBeVisible();
+
+    await press(page, "app.toPortals");
+    await expect(page).toHaveURL(/\/searches\?/);
+    await expect(page.getByRole("heading",
+      { name: "Started from the filters you had on Listings" })).toBeVisible();
+
+    // What maps, maps; what does not is named rather than quietly discarded.
+    // A search that looks for half of what was typed is the failure this whole
+    // handover exists to avoid.
+    await expect(page.getByText("City: Bologna")).toBeVisible();
+    await expect(page.getByText("Not carried over")).toBeVisible();
+    await expect(page.getByText(/Keyword: villa con eliporto —/)).toBeVisible();
+    await checkScreen(page, "the searches screen reached from a filter");
+  });

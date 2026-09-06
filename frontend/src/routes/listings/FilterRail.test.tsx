@@ -31,10 +31,11 @@ const FILTERS: PropertyFilters = {
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
-function renderRail(filters: PropertyFilters = FILTERS) {
+function renderRail(filters: PropertyFilters = FILTERS, collected = 42) {
   render(
     <WithQuery>
-      <FilterRail filters={filters} onChange={vi.fn()} count={0} profiles={[]} tags={[]} />
+      <FilterRail filters={filters} onChange={vi.fn()} count={0} collected={collected}
+        profiles={[]} tags={[]} />
     </WithQuery>,
   );
 }
@@ -43,7 +44,7 @@ function renderRail(filters: PropertyFilters = FILTERS) {
 // `min/maxPrice` carry a conditional "/month" suffix, so they are matched by
 // prefix rather than exact text.
 const LABELLED: (keyof typeof en)[] = [
-  "filters.search", "filters.city", "filters.zone", "filters.minSqm",
+  "filters.keyword", "filters.city", "filters.zone", "filters.minSqm",
   "filters.maxSqm", "filters.rooms", "filters.floor",
   "filters.status", "filters.origin",
 ];

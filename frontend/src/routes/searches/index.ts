@@ -10,7 +10,10 @@
  *  itself added when it stopped being the top of somebody else's screen.
  */
 export { default as ChannelBanner, unmetChannels } from "./ChannelBanner";
+export { default as FromFilters } from "./FromFilters";
 export { default as ProfileHealth } from "./ProfileHealth";
 export { default as SearchesRoute } from "./SearchesRoute";
+export { fromFilters, handoffPath, readHandoff } from "./handoff";
+export type { Carry, Criterion, Handoff } from "./handoff";
 export { needsAttention, profileHealth } from "./health";
 export type { Health, HealthInput, HealthState } from "./health";

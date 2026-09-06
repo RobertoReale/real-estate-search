@@ -13,6 +13,7 @@
  */
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { DEFAULT_FILTERS } from "../routes/params";
 import { api } from "../services/api";
 import type {
   AvailabilityCheckSummary, ListingAudit, Property, PropertyFilters, PropertyPage,
@@ -72,6 +73,27 @@ export function usePropertySet(filters: PropertyFilters, enabled: boolean) {
     queryFn: () => api.getProperties(filters, { limit: 0 }),
     placeholderData: keepPreviousData,
     enabled,
+  });
+}
+
+/** How many listings are on this machine at all, in the market being looked at.
+ *
+ *  The number the rail narrows, and the number the empty state has to name. A
+ *  filter reads as a search until the set it operates on is counted on screen:
+ *  "nothing matches" and "there is nothing" are the same sentence otherwise, and
+ *  only one of them is true.
+ *
+ *  Its own query rather than a slice of the grid's, because it must not move
+ *  when the filters do. `limit: 1` since only `total` is wanted, and every
+ *  status because a listing that has since gone off the market was still
+ *  collected.
+ */
+export function useCollectedCount(contract: PropertyFilters["contract"]) {
+  return useQuery({
+    queryKey: keys.collectedCount(contract),
+    queryFn: () => api
+      .getProperties({ ...DEFAULT_FILTERS, contract, status: "all" }, { limit: 1 })
+      .then((page) => page.total),
   });
 }
 

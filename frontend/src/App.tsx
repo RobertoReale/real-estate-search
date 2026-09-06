@@ -27,8 +27,8 @@ import { useProfiles, useTags } from "./queries/dashboard";
 import { useGeocodeMissing } from "./queries/maintenance";
 import {
   useAddTag, useAvailabilityProgress, useBulkProperties, useCancelPropertiesCheck,
-  useCheckProperties, useFetchPropertySet, useHideProperty, usePropertyPages,
-  usePropertySet, useRemoveTag, useRestoreProperty,
+  useCheckProperties, useCollectedCount, useFetchPropertySet, useHideProperty,
+  usePropertyPages, usePropertySet, useRemoveTag, useRestoreProperty,
   useToggleFavorite, type BulkAction,
 } from "./queries/properties";
 import { useSettings } from "./queries/settings";
@@ -216,6 +216,18 @@ export default function App() {
   if (!loadFailed) lastAnswer.current = { items: answered, total: answeredTotal };
   const properties = loadFailed ? lastAnswer.current.items : answered;
   const total = loadFailed ? lastAnswer.current.total : answeredTotal;
+
+  // How many listings this machine holds in this market at all — the size of
+  // the set the filters are sifting, and the difference between "there are no
+  // such houses" and "none of the 1,412 collected fit". It deliberately ignores
+  // the filters: it has to stay still while they move.
+  const collectedQuery = useCollectedCount(filters.contract);
+  const collected = collectedQuery.data ?? 0;
+  // Nothing collected means nothing to narrow, and the rail is then the loudest
+  // thing on a screen whose only useful control is elsewhere. Asserted only
+  // once the count has actually arrived: assuming zero while it is in flight
+  // would blink the rail out and back on every load.
+  const nothingToFilter = collectedQuery.isSuccess && collected === 0;
 
   const profiles = useProfiles().data ?? [];
   const tags = useTags().data ?? [];
@@ -448,22 +460,32 @@ export default function App() {
           column is the whole width. */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
         {/* `count` is the whole filtered set, not the pages loaded so far —
-            the rail's export acts on the query, not on the scroll position. */}
-        <FilterRail filters={filters} onChange={setFilters} count={total}
-          profiles={profiles} tags={tags} />
+            the rail's export acts on the query, not on the scroll position;
+            `collected` is the set it is narrowing. On an empty database none of
+            these three describe anything, and they would only compete with the
+            one thing worth doing there — see `EmptyResults`. */}
+        {!nothingToFilter && (
+          <FilterRail filters={filters} onChange={setFilters} count={total}
+            collected={collected} profiles={profiles} tags={tags} />
+        )}
 
         <div className="min-w-0 flex-1 space-y-4">
           {/* What the query currently says, in words, with a way to take each
               clause back. The rail can be shut and this stays readable. */}
-          <ActiveFilters filters={filters} onChange={setFilters} profiles={profiles}
-            onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
+          {!nothingToFilter && (
+            <ActiveFilters filters={filters} onChange={setFilters} profiles={profiles}
+              onReset={() => setFilters({ ...DEFAULT_FILTERS, contract: filters.contract })} />
+          )}
 
-          <ResultHeader count={total} filters={filters} onChange={setFilters}
-            view={view} onViewChange={changeView}
-            matchEnabled={settings?.match_score_enabled ?? false} />
+          {!nothingToFilter && (
+            <ResultHeader count={total} filters={filters} onChange={setFilters}
+              view={view} onViewChange={changeView}
+              matchEnabled={settings?.match_score_enabled ?? false} />
+          )}
 
           {properties.length === 0 && !loadFailed && (
-            <EmptyResults hasProfiles={hasProfiles} search={search} />
+            <EmptyResults hasProfiles={hasProfiles} collected={collected}
+              filters={filters} search={search} />
           )}
 
           {/* Batch Selection & Live Availability Check Bar */}

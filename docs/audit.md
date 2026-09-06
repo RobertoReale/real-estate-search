@@ -49,10 +49,10 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 ```
 
 Expected today: **1027 passed + 1 skipped** (1028 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **409 frontend tests**,
-**61 browser tests** (37 journeys, then 24 that hold the run to the control inventory),
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **421 frontend tests**,
+**63 browser tests** (38 journeys, then 25 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
-reading: **219 interactive elements, 253 inventoried actions**, of which **251 exercised
+reading: **220 interactive elements, 254 inventoried actions**, of which **252 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not
 a failure — it is a documentation trigger (see §4).
 
