@@ -1657,6 +1657,11 @@ export interface components {
             distance_m: number;
             /** Duration S */
             duration_s: number;
+            /**
+             * Car Routing
+             * @default false
+             */
+            car_routing: boolean;
         };
         /**
          * CommutePointOut
@@ -1830,6 +1835,11 @@ export interface components {
             remaining: number;
             /** Last Error */
             last_error: string | null;
+            /**
+             * Pace Seconds
+             * @default 0
+             */
+            pace_seconds: number;
         };
         /**
          * GeocodeSummaryOut
@@ -2236,6 +2246,11 @@ export interface components {
              * @enum {string}
              */
             coordinate_source: "" | "portal" | "address" | "zone";
+            /**
+             * Outside Requested Area
+             * @default false
+             */
+            outside_requested_area: boolean;
             /** Rooms */
             rooms: number | null;
             /** Floor */
@@ -2473,6 +2488,23 @@ export interface components {
              * @default full
              */
             mode: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Page Limit
+             * @default 0
+             */
+            page_limit: number;
+            /** Total Listings */
+            total_listings: number | null;
+            /**
+             * Outside Area
+             * @default 0
+             */
+            outside_area: number;
         };
         /**
          * ScanProgressOut
@@ -2708,6 +2740,11 @@ export interface components {
              *     }
              */
             progress: components["schemas"]["ScanProgressOut"];
+            /**
+             * Gone After Days
+             * @default 0
+             */
+            gone_after_days: number;
         };
         /**
          * SearchBuilderIn
@@ -3411,6 +3448,11 @@ export interface components {
              * @default 1
              */
             idealista_api_max_pages: number;
+            /**
+             * Idealista Api Page Size
+             * @default 50
+             */
+            idealista_api_page_size: number;
             /**
              * Tls Impersonations
              * @default []

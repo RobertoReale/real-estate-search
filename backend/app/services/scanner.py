@@ -323,6 +323,13 @@ def _record_journal(
                 "detail": _without_secrets(profile.last_run_detail or "", settings),
                 "transport": transport,
                 "stopped_because": _stop_reason(result),
+                # The same facts `detail` states in English, as values. The
+                # limit is the one this run was given, so a screen quoting it
+                # cannot go stale when the setting changes.
+                "truncated": bool(result and result.truncated),
+                "page_limit": result.page_limit if result else 0,
+                "total_listings": result.total_listings if result else None,
+                "outside_area": fetched.outside_area,
                 # Which kind of scan this was, taken from what was asked for
                 # rather than from how it ended: a quick scan that happened to
                 # read every page is still the scan the user was given, and the
@@ -376,6 +383,11 @@ class _Fetched:
     # the writing thread as a value and is raised there, inside the per-profile
     # `try` that has always contained it.
     error: Exception | None = None
+    # Written on the way back by the thread that saves, not by the one that
+    # fetched: how many of these listings landed outside the area this search
+    # asked for. It rides here because the journal line is closed after the save
+    # that decides it, and the count belongs to this search alone.
+    outside_area: int = 0
 
 
 def _already_seen(db, profile_id: int) -> frozenset[tuple[str, float | None]]:
@@ -1285,6 +1297,9 @@ def _record_scrape(
             price_drops.append((prop, last.old_price or 0.0, last.new_price))
 
     summary["outside_area"] += outside_area
+    # ...and on this search's own line, as a value rather than as a clause
+    # inside `detail`, so the dashboard can state it in the user's language.
+    fetched.outside_area = outside_area
     if outside_area:
         logger.info(
             "Profile '%s': %d of %d listings came back outside the requested area",

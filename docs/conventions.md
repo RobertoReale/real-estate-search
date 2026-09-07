@@ -245,7 +245,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (443 in fifty files: vitest +
+- **The frontend has unit tests too** (444 in fifty files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -423,6 +423,7 @@ Write a fact once, in the file that owns it:
 | [`../README.md`](../README.md) | what the user can do, and how | a user-facing feature, setting, or startup script changes |
 | [`architecture.md`](architecture.md) | how the program is put together: the "Where to Act" map, the data schema, the property lifecycle, the migration strategy, the known fragilities | a file moves, a module is added, a schema concept changes |
 | [`invariants.md`](invariants.md) | the rules that must not break, and the regression each one prevents | an invariant is added, retired, or its guard moves |
+| [`limits.md`](limits.md) | every limit the software has, the API field its number comes from, and the surface that states it | a cap, a best-effort match or a partial answer is added, or the screen that announces one moves |
 | [`conventions.md`](conventions.md) | how code is written and tested here | a convention is decided, or the test counts change |
 | [`development-cycle.md`](development-cycle.md) | the procedure a change follows: the unit of work, the gates before the commit, when behaviour earns an invariant, and how a release is cut | the branch/commit convention, the gate timing, the automation that runs unasked, or the release procedure changes |
 | [`audit.md`](audit.md) | the procedure for a full-project audit: the green baseline, the module-by-module checklist, the invariant→test cross-check | the audit steps change, a module/invariant is added, or a new class of weak point is worth checking for |

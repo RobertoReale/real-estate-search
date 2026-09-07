@@ -13,12 +13,13 @@
  *  a flag.
  */
 import { useEffect, useState } from "react";
-import { useT } from "../i18n";
+import { formatNumber, useT } from "../i18n";
 import {
   useCancelGeocode, useClearGeocodeCache, useGeocodeMissing, useGeocodeProgress,
 } from "../queries/maintenance";
 import { Button, Card, IconButton } from "../ui";
 import { ClearFailed, Close, Place } from "../ui/icons";
+import { LimitInline } from "./Limit";
 import { ProgressBar } from "./ProgressBar";
 import { useToasts } from "./Toast";
 
@@ -136,7 +137,14 @@ export default function MaintenanceActions() {
                     : "")
                 : t("maintenance.geocodeStarting")}
               {" "}
-              <span className="opacity-75 font-normal">{t("maintenance.geocodePacing")}</span>
+              {/* Why the bar crawls: one request a second is Nominatim's public
+                  usage policy, not a stall. The pace comes off the progress
+                  payload so a self-hosted server that allows more says so. */}
+              <LimitInline id="geocode.pace" className="opacity-75 font-normal">
+                {t("limits.geocodePace", {
+                  pace: formatNumber(geocodeProgress?.pace_seconds || 1),
+                })}
+              </LimitInline>
               {geocodeProgress?.last_error && (
                 <span className="block opacity-75 font-normal text-negative-ink">
                   {t("maintenance.geocodeLastIssue", { error: geocodeProgress.last_error })}

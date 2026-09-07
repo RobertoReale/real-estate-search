@@ -4,6 +4,7 @@ import {
   useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser,
 } from "../../queries/settings";
 import type { Settings } from "../../types";
+import { Limit } from "../Limit";
 import { useToasts } from "../Toast";
 import { HelpSteps, Link, SecretStatus, SectionHeading } from "./controls";
 import { Button, Checkbox, Field, Input, Textarea } from "../../ui";
@@ -203,6 +204,15 @@ export function ScrapingSection(
               value={values.idealistaMaxPages}
               onChange={(e) => set("idealistaMaxPages", Number(e.target.value))} />
           </Field>
+          {/* What the field above costs, in the unit the user cares about. The
+              multiplier is the page size the backend asks Idealista for, so
+              this follows the number in the box and not a copy of it. */}
+          <Limit id="settings.idealistaReach">
+            {t("limits.idealistaReach", {
+              requests: Math.max(1, values.idealistaMaxPages || 1),
+              listings: Math.max(1, values.idealistaMaxPages || 1) * settings.idealista_api_page_size,
+            })}
+          </Limit>
         </div>
         <div className="rounded-xl panel p-3 space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-medium t-body">

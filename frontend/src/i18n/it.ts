@@ -645,8 +645,6 @@ export const it: Dict = {
     "Localizzazione annuncio {done} di {total} — {geocoded} localizzati, {cached} dalla cache",
   "maintenance.geocodeProgressNotFound": ", {count} non trovati",
   "maintenance.geocodeStarting": "Avvio della ricerca delle coordinate…",
-  "maintenance.geocodePacing":
-    "(Ritmo di 1 richiesta al secondo, per rispettare le regole d'uso di OpenStreetMap Nominatim)",
   "maintenance.geocodeLastIssue": "Ultimo problema segnalato da Nominatim: {error}",
   "maintenance.geocodeDone": "Ricerca delle coordinate terminata",
   "maintenance.geocodeNothing":
@@ -1380,5 +1378,32 @@ export const it: Dict = {
   "floor.ground": "piano terra",
   "floor.raised": "piano rialzato",
   "floor.basement": "seminterrato",
+  // ── ciò che questo software non sa fare, detto dove pesa (docs/limits.md) ─
+  "limits.pageCap":
+    "Fermata alla pagina {pages}, il limite impostato — questo portale aveva altro da dare.",
+  "limits.pageCapOfTotal":
+    "Fermata alla pagina {pages}, il limite impostato — il portale contava {total} annunci per questa ricerca.",
+  "limits.portalBlocked":
+    "Questo portale ha rifiutato la richiesta: i suoi annunci mancano da questa scansione, non dal mercato.",
+  "limits.outsideArea":
+    "{count} di questi sono arrivati da fuori la zona che la ricerca chiedeva.",
+  "limits.outsideAreaMarker": "fuori zona",
+  "limits.outsideAreaTitle":
+    "Il portale lo ha restituito cercando un'altra zona — una zona riconosciuta dal nome e non dall'id si porta dietro quelle confinanti.",
+  "limits.goneAfter":
+    "Segnalato come sparito dopo {days} giorni senza comparire in una scansione — il venditore potrebbe aver solo messo in pausa l'annuncio.",
+  "limits.geocodePace":
+    "(una richiesta ogni {pace}s — il ritmo consentito dal servizio pubblico OpenStreetMap)",
+  "limits.carRouting": "misurato sulla rete stradale",
+  "limits.zoneBestEffort": "riconosciuta dal nome, non dall'id di zona del portale",
+  "limits.zoneCarryExact": "zona: esatta",
+  "limits.zoneCarryApprox": "zona: approssimata",
+  "limits.zonePreferred":
+    "{portal} porta questa zona come zona propria del portale; {other} ne cerca il nome come testo e includerà annunci dei dintorni. Dove i due divergono, fidati della metà di {portal}.",
+  "limits.areaNeedsUrl":
+    "Un'area disegnata sulla mappa di un portale, o un raggio attorno a un punto, qui non è esprimibile — incolla l'URL di quella ricerca e arriva esattamente com'è stata disegnata.",
+  "limits.idealistaReach":
+    "{requests} richiesta/e per ricerca, quindi circa {listings} annunci a scansione.",
+
   "floor.numbered": "piano {floor}",
 };

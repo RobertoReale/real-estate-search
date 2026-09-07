@@ -399,7 +399,9 @@ export default function MapView({
           // said in words as well as in the shape: someone reading a single
           // tooltip has no other pin to compare the dashes against
           (approximate
-            ? `<br/><small>${escapeHtml(translateCurrent("map.approximateZone"))}</small>`
+            ? `<br/><small data-limit="map.zoneCentroid">${escapeHtml(
+                translateCurrent("map.approximateZone"),
+              )}</small>`
             : ""),
         { direction: "top", offset: [0, -8] },
       );
@@ -537,7 +539,8 @@ export default function MapView({
               </span>
             ))}
             {approximateCount > 0 && (
-              <span className="flex items-center gap-1.5" title={t("map.pinApproximateTitle")}>
+              <span className="flex items-center gap-1.5" data-limit="map.zoneCentroid"
+                title={t("map.pinApproximateTitle")}>
                 <span className="w-3 h-3 rounded-full border border-dashed border-current" />
                 {t("map.pinApproximate", { count: approximateCount })}
               </span>

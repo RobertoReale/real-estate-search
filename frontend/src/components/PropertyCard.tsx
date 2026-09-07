@@ -86,6 +86,10 @@ interface Props {
   allTags: Tag[];
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
+  /** How long a listing must go unseen before a scan calls it gone. Passed in
+   *  rather than read here: the grid renders sixty of these and none of them is
+   *  memoised, so the subscription lives once in `App` (`useGoneAfterDays`). */
+  goneAfterDays: number;
 }
 
 /** Every overlay badge is white on an opaque 700-weight fill. The 600 weights
@@ -117,7 +121,7 @@ function Fact({ icon, value }: { icon: React.ReactNode; value: string | null }) 
 
 export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect, isNew,
-  highlighted, onHover, allTags, onAddTag, onRemoveTag,
+  highlighted, onHover, allTags, onAddTag, onRemoveTag, goneAfterDays,
 }: Props) {
   const t = useT();
   const drop =
@@ -291,8 +295,14 @@ export default function PropertyCard({
                 <Filtered /> {t("card.filteredReason", { reason: p.filtered_reason ?? "" })}
               </span>
             )}
+            {/* "Gone" is a deduction, not something a portal announced: it is
+                what a run concludes after the listing has failed to turn up for
+                long enough. The marker says how long, with the backend's own
+                number, so a card that vanished yesterday is not read as one the
+                seller withdrew. */}
             {p.status === "gone" && (
-              <span className={`${MARKER} bg-neutral-solid`}>
+              <span className={`${MARKER} bg-neutral-solid`} data-limit="card.goneAfter"
+                title={goneAfterDays > 0 ? t("limits.goneAfter", { days: goneAfterDays }) : undefined}>
                 <Gone /> {t("card.noLongerAvailable")}
               </span>
             )}
@@ -313,6 +323,16 @@ export default function PropertyCard({
               <span className={`${MARKER} bg-neutral-solid`}
                 title={t("card.notOnMapTitle")}>
                 <Atlas /> {t("card.notOnMap")}
+              </span>
+            )}
+            {/* A portal answers a zone search with listings that are not in the
+                zone — a name matched as text, a neighbouring district thrown in.
+                Said on the listing it happened to, because the count on the scan
+                journal cannot point at which ones. */}
+            {p.outside_requested_area && (
+              <span className={`${MARKER} bg-neutral-solid`} data-limit="card.outsideArea"
+                title={t("limits.outsideAreaTitle")}>
+                <Place /> {t("limits.outsideAreaMarker")}
               </span>
             )}
           </div>

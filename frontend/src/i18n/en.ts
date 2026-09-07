@@ -645,8 +645,6 @@ export const en = {
     "Locating listing {done} of {total} — {geocoded} located, {cached} from cache",
   "maintenance.geocodeProgressNotFound": ", {count} not found",
   "maintenance.geocodeStarting": "Starting coordinate lookup…",
-  "maintenance.geocodePacing":
-    "(Paced at 1 request/sec to respect OpenStreetMap Nominatim usage policy)",
   "maintenance.geocodeLastIssue": "Last issue from Nominatim: {error}",
   "maintenance.geocodeDone": "Coordinate lookup finished",
   "maintenance.geocodeNothing":
@@ -1356,6 +1354,35 @@ export const en = {
   "auth.rejected": "That token was not accepted. Check it and try again.",
   "auth.checking": "Checking…",
   "auth.unlock": "Unlock",
+
+  // ── what this software cannot do, said where it bites (docs/limits.md) ──
+  // Every number below arrives as a placeholder: the figure belongs to the
+  // setting or the response that owns it, never to the sentence.
+  "limits.pageCap":
+    "Stopped at page {pages}, the configured limit — this portal had more to give.",
+  "limits.pageCapOfTotal":
+    "Stopped at page {pages}, the configured limit — the portal counted {total} listings for this search.",
+  "limits.portalBlocked":
+    "This portal refused the request, so its listings are missing from this scan rather than absent from the market.",
+  "limits.outsideArea":
+    "{count} of these came back from outside the area the search asked for.",
+  "limits.outsideAreaMarker": "outside the search area",
+  "limits.outsideAreaTitle":
+    "The portal returned this for a search of another area — a zone matched by name rather than by id brings in its neighbours.",
+  "limits.goneAfter":
+    "Marked gone after {days} days without appearing in a scan — the seller may simply have paused the ad.",
+  "limits.geocodePace":
+    "(one request every {pace}s — the public OpenStreetMap service's rate)",
+  "limits.carRouting": "measured on the road network",
+  "limits.zoneBestEffort": "matched by name, not by the portal's zone id",
+  "limits.zoneCarryExact": "zone: exact",
+  "limits.zoneCarryApprox": "zone: approximate",
+  "limits.zonePreferred":
+    "{portal} carries this zone as the portal's own zone; {other} searches its name as text and will bring in listings from around it. Trust {portal}'s half where the two disagree.",
+  "limits.areaNeedsUrl":
+    "An area drawn on a portal's map, or a radius around a point, cannot be expressed here — paste that search's URL instead and it arrives exactly as drawn.",
+  "limits.idealistaReach":
+    "{requests} request(s) per search, so about {listings} listings each scan.",
 
   // ── floor labels (utils/format) ─────────────────────────────────────────
   "floor.ground": "ground floor",

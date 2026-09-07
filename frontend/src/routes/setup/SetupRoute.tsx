@@ -37,6 +37,7 @@ import {
   type SetupField, type SetupGroup, type SetupValues,
 } from "./groups";
 import { SecretStatus } from "../../components/settings/controls";
+import { Limit } from "../../components/Limit";
 import { useToasts } from "../../components/Toast";
 import { useT, type TFunction } from "../../i18n";
 import { useSaveSettings, useSettingsForm } from "../../queries/settings";
@@ -95,6 +96,17 @@ function SetupInput({ field, settings, value, onChange }: {
         <div className="pt-0.5">
           <SecretStatus set={field.stored(settings)} dirty={String(value).trim() !== ""} />
         </div>
+      )}
+      {/* One field in the wizard has a consequence the hint cannot state without
+          hardcoding it: what a page count is worth in listings. The multiplier
+          is the backend's, and the count is whatever is in the box right now. */}
+      {field.key === "idealista_api_max_pages" && (
+        <Limit id="settings.idealistaReach">
+          {t("limits.idealistaReach", {
+            requests: Math.max(1, Number(value) || 1),
+            listings: Math.max(1, Number(value) || 1) * settings.idealista_api_page_size,
+          })}
+        </Limit>
       )}
     </Field>
   );

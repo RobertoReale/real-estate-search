@@ -44,7 +44,7 @@ const FILTERS: PropertyFilters = {
 // Italian portal abbreviation only `humanizeFloor` can read.
 const PROPERTY = {
   id: 1, title: "", city: "Milano", zone: "", address: "", latitude: null,
-  longitude: null, coordinate_source: "" as const,
+  longitude: null, coordinate_source: "" as const, outside_requested_area: false,
   rooms: 3, floor: "T", sqm: 80, contract: "rent",
   current_min_price: 1200, first_price: 1500, image_url: "", status: "sold",
   filtered_reason: "", source: "scan", is_favorite: false, notes: "",
@@ -80,7 +80,8 @@ function screenTextIn(lang: "en" | "it"): string {
           <ResultHeader count={7} filters={FILTERS} onChange={noop} view="grid"
             onViewChange={noop} matchEnabled />
           <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
-            onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
+            onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop}
+            goneAfterDays={7} />
         </WithQuery>
       </I18nProvider>
     </MemoryRouter>,

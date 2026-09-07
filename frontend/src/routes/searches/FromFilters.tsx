@@ -54,7 +54,11 @@ export default function FromFilters({ handoff, profiles }: Props) {
                     {rows.map(({ key, note }) => {
                       const label = labels.get(key) ?? key;
                       return (
-                        <li key={key}>
+                        // Every dropped or widened criterion is a limit of the
+                        // handover, tagged so the sweep in `docs/limits.md` can
+                        // point at the line that states it rather than at the
+                        // screen it is somewhere on.
+                        <li key={key} {...(note ? { "data-limit": `handoff.${key}` } : {})}>
                           {note ? t("handoff.item", { label, note: t(note) }) : label}
                         </li>
                       );

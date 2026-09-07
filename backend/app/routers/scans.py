@@ -17,7 +17,13 @@ from ..config import load_settings
 from ..database import get_db
 from ..services import scheduler
 from ..services.events import properties_version
-from ..services.scanner import get_scan_journal, get_scan_progress, run_scan, scan_state
+from ..services.scanner import (
+    GONE_AFTER_DAYS,
+    get_scan_journal,
+    get_scan_progress,
+    run_scan,
+    scan_state,
+)
 
 router = APIRouter()
 
@@ -89,6 +95,7 @@ def scraper_status(db: Session = Depends(get_db)):
         "paused": bool(load_settings().get("scanning_paused")),
         "data_version": properties_version(db),
         "progress": get_scan_progress(),
+        "gone_after_days": GONE_AFTER_DAYS,
     }
 
 

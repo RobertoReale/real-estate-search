@@ -44,6 +44,28 @@ export function useScanStatus() {
   });
 }
 
+/** How many days a listing has to go unseen before a scan calls it gone.
+ *
+ *  A scanner constant rather than a setting, which is why it rides on the scan
+ *  status: the card that shows "no longer available" has to be able to say what
+ *  that means, and the number belongs to the backend that applies it.
+ *
+ *  Narrowed with `select` on purpose. The status re-reads every four seconds
+ *  while a scan runs, and the grid renders sixty unmemoised cards; subscribing
+ *  each of them to the whole payload would re-render all of them on every frame
+ *  of a scan. Selecting the scalar means a subscriber wakes only when the
+ *  number itself moves, which is never in practice. */
+export function useGoneAfterDays(): number {
+  const polling = usePollingFallback();
+  return useQuery({
+    queryKey: keys.scanStatus,
+    queryFn: () => api.getScanStatus(),
+    refetchInterval: (query) =>
+      polling ? (query.state.data?.running ? 4000 : 30000) : false,
+    select: (status) => status.gone_after_days,
+  }).data ?? 0;
+}
+
 /** What the last few scans did, newest first.
  *
  *  Not pushed — the stream carries no journal topic, and it should not: forty
