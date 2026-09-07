@@ -384,6 +384,15 @@ export const ACTIONS = {
   },
   "profiles.builder.create": { what: "Create the searches", does: "saves the search and it appears in the list" },
 
+  "profiles.review.confirm": {
+    what: "the confirmation box under the review",
+    does: "states the parameters were read and enables Create the searches",
+  },
+  "profiles.review.verifyZone": {
+    what: "Check the zone on Idealista, in the review",
+    does: "spends one live request to say whether the zone has its own page or is free text",
+  },
+
   "profiles.url.name": { what: "the URL form's name field", does: "names the saved search" },
   "profiles.url.keywords": { what: "the URL form's exclusion keywords", does: "records the words that disqualify a listing" },
   "profiles.url.url": { what: "the pasted URL field", does: "holds the URL, and reveals Extract parameters" },

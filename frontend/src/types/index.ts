@@ -204,6 +204,10 @@ export interface SearchBuilderParams {
   floor: "" | "ground" | "middle" | "top";
   /** "excellent" is the one condition Idealista cannot express (stato=6). */
   condition: "" | "new" | "good" | "excellent" | "to_renovate";
+  /** The shape or radius a pasted URL drew, if it drew one. Read-only here —
+   *  no input edits it — but it travels with the rest of the criteria so the
+   *  review can name the area and say which portal keeps it. */
+  drawn_area: SearchProfileParams["drawn_area"];
 }
 
 export type ViewMode = "grid" | "map";

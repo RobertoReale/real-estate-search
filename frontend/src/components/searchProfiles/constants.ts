@@ -18,6 +18,7 @@ export const EMPTY_BUILDER: SearchBuilderParams = {
   min_price: "", max_price: "", min_rooms: "", max_rooms: "", min_sqm: "",
   balcony: false, garden: false, parking: false, elevator: false,
   exclude_auctions: false, pool: false, floor: "", condition: "",
+  drawn_area: null,
 };
 
 /** Feature filters both portals can apply. */
@@ -36,6 +37,7 @@ export const UNSUPPORTED_LABELS: Record<string, TranslationKey> = {
   floor: "profiles.unsupportedFloor",
   condition: "profiles.unsupportedCondition",
   max_rooms: "profiles.unsupportedMaxRooms",
+  drawn_area: "profiles.unsupportedDrawnArea",
 };
 
 export const FLOORS = [

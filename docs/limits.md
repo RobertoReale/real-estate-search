@@ -48,6 +48,8 @@ is what proves the value came from the API rather than from the sentence.
 | Zones a pasted URL carried only as portal ids have no name to show | `SearchBuilderParamsOut.zone_ids`, its length | under the zone field, the moment the ids are in it | `profiles.zoneIdsUnnamed` |
 | Rebuilding a multi-zone search from names keeps only the first | `SearchBuilderParams.zones`, its length — mirroring `search_validator.zone_coverage_warnings` | under the zone field, as soon as a second name is in the list | `profiles.zoneFirstNameOnly` |
 | A drawn area or a radius cannot be expressed as city + zone | — | the builder, next to the URL paste that *can* carry it | `profiles.areaNeedsUrl` |
+| A parameter reaches a portal widened rather than as asked | `BuiltSearch.zone_warnings` and `.idealista_zone_page`, per row | the search review, in that portal's cell, with what the approximation is | `profiles.reviewApprox` |
+| A parameter reaches a portal not at all | `BuiltSearch.idealista_unsupported`, per row | the search review, in that portal's cell, with why it was dropped | `profiles.reviewDropped` |
 | Handing filters to a saved search drops or widens some of them | `handoff.ts`, per criterion | the review list, one tagged item per criterion | `handoff.<criterion>` |
 | `idealista_api_max_pages` is worth ~50 listings a request | the field's current value × `SettingsOut.idealista_api_page_size` (published from `idealista_api.MAX_ITEMS_PER_PAGE`) | under the field, in Settings and in the setup wizard | `settings.idealistaReach` |
 | Public Nominatim allows one request a second | `GeocodeProgressOut.pace_seconds` (from `geocoder.PACE_SECONDS`) | on the geocoding progress line, as the reason it is slow | `geocode.pace` |

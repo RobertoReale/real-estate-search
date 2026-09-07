@@ -1175,6 +1175,9 @@ test("creating a search, three ways", async ({ page }) => {
   await expect(control(page, "profiles.builder.create")).toBeVisible();
   await toggle(page, "profiles.builder.usePortal");
   await toggle(page, "profiles.builder.usePortal");
+  // Saving is gated on having read the review: the next test is where that
+  // gate is proved, here it is just the step the journey now has to take.
+  await toggle(page, "profiles.review.confirm");
   await press(page, "profiles.builder.create");
   await expect(page.getByText("Coverage builder search").first()).toBeVisible();
 
@@ -1248,6 +1251,71 @@ test("a pasted multi-zone URL keeps every zone", async ({ page }) => {
   // A zone that arrived from a URL can be dropped like any other.
   await zones.first().click();
   await expect(zones).toHaveCount(2);
+});
+
+test("the review answers for each portal before the search is saved", async ({ page }) => {
+  // The same zone selection is exact on one portal and approximate on the
+  // other: Immobiliare filters on the ids the URL carried, Idealista has no
+  // page for them and falls back to free text, which is wider by design. Left
+  // unsaid, the extra listings read weeks later as a deduplication bug rather
+  // than as a filter that was never applied.
+  await page.goto("/searches");
+  await press(page, "profiles.mode.url");
+  await fill(page, "profiles.url.url",
+    "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047&idMZona[]=10048");
+  await press(page, "profiles.url.extract");
+
+  // Every zone is listed, by the only name it has. A zone shown as nothing is
+  // what made a three-district search look like a city-wide one.
+  const zoneRow = page.locator('[data-review-row="zones"]');
+  await expect(zoneRow).toContainText("10046");
+  await expect(zoneRow).toContainText("10047");
+  await expect(zoneRow).toContainText("10048");
+
+  // The columns, in the order the row renders them: label, what was detected,
+  // Immobiliare, Idealista. Read separately because a single merged verdict
+  // would hide the one thing this screen exists to show.
+  const immobiliare = zoneRow.locator("> *").nth(2);
+  const idealista = zoneRow.locator("> *").nth(3);
+  await expect(immobiliare).toContainText("riportato esattamente");
+  await expect(idealista).toContainText("approssimato");
+  await expect(idealista).toContainText("aree confinanti");
+
+  // Nothing was read for the price, and the row says so rather than sitting
+  // blank — a gap in the reading and a filter that was read as empty are
+  // opposite facts that looked identical.
+  await expect(page.locator('[data-review-row="price"] [data-review-undetected]'))
+    .toBeVisible();
+
+  // The review is complete without a live request; the one that exists is a
+  // press. Its transport is stubbed for the same reason as the rest of this
+  // file — a probe leaves this machine, and the suite reaches its own two
+  // servers only — while the handler, the pending state and the answer are all
+  // driven for real.
+  await page.route("**/api/search-builder", async (route) => {
+    if (!route.request().postDataJSON()?.verify) return route.continue();
+    await route.fulfill({
+      json: {
+        immobiliare: "https://www.immobiliare.it/vendita-case/milano/",
+        idealista: "https://www.idealista.it/vendita-case/milano-milano/navigli/",
+        idealista_zone_page: true,
+        idealista_unsupported: [],
+        zone_warnings: [],
+      },
+    });
+  });
+  await press(page, "profiles.review.verifyZone");
+  await expect(idealista).toContainText("riportato esattamente");
+
+  // And the gate itself: the parameters have to be called right before the
+  // search that uses them can be saved.
+  await fill(page, "profiles.builder.name", "Coverage reviewed search");
+  const create = control(page, "profiles.builder.create");
+  await expect(create).toBeDisabled();
+  await toggle(page, "profiles.review.confirm");
+  await expect(create).toBeEnabled();
+  await press(page, "profiles.builder.create");
+  await expect(page.getByText("Coverage reviewed search").first()).toBeVisible();
 });
 
 test("one query, several searches", async ({ page }) => {

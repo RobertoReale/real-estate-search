@@ -1794,6 +1794,70 @@ export interface components {
             cookie_preview: string;
         };
         /**
+         * DrawnArea
+         * @description An area a search URL states geometrically, named rather than reproduced.
+         *
+         *     Immobiliare lets the user draw a shape on the map, ask for everything within
+         *     a radius, or pick "ten minutes by car" â€” which arrives as a shape like any
+         *     other. All three survive being pasted as a link and none of them has a field
+         *     in the builder form, so this is the only thing that can be said about them:
+         *     what kind of area it is and how big. The coordinates stay in
+         *     `search_builder.parse_drawn_area`, where containment is actually tested.
+         */
+        "DrawnArea-Input": {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "polygon" | "circle";
+            /**
+             * Points
+             * @default 0
+             */
+            points: number;
+            /**
+             * Radius M
+             * @default 0
+             */
+            radius_m: number;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+        };
+        /**
+         * DrawnArea
+         * @description An area a search URL states geometrically, named rather than reproduced.
+         *
+         *     Immobiliare lets the user draw a shape on the map, ask for everything within
+         *     a radius, or pick "ten minutes by car" â€” which arrives as a shape like any
+         *     other. All three survive being pasted as a link and none of them has a field
+         *     in the builder form, so this is the only thing that can be said about them:
+         *     what kind of area it is and how big. The coordinates stay in
+         *     `search_builder.parse_drawn_area`, where containment is actually tested.
+         */
+        "DrawnArea-Output": {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "polygon" | "circle";
+            /**
+             * Points
+             * @default 0
+             */
+            points: number;
+            /**
+             * Radius M
+             * @default 0
+             */
+            radius_m: number;
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+        };
+        /**
          * GeocodeProgressOut
          * @description The running geocoding batch, as the progress bar polls it.
          */
@@ -2828,6 +2892,7 @@ export interface components {
              * @default
              */
             condition: string;
+            drawn_area?: components["schemas"]["DrawnArea-Input"] | null;
             /**
              * Verify
              * @default false
@@ -2922,6 +2987,7 @@ export interface components {
              * @enum {string}
              */
             condition: "" | "new" | "good" | "excellent" | "to_renovate";
+            drawn_area: components["schemas"]["DrawnArea-Output"] | null;
         };
         /**
          * SearchBuilderUrlsOut

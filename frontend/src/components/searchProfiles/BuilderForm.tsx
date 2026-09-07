@@ -14,12 +14,14 @@ import { PortalBadge } from "../PortalBadge";
 import type { SearchBuilderParams } from "../../types";
 import { CONDITIONS, FEATURES, FLOORS, UNSUPPORTED_LABELS } from "./constants";
 import { GlobalKeywordsHint, zonePatch } from "./helpers";
+import { SearchReview } from "./SearchReview";
 import { Button, Checkbox, Chip, Field, Input } from "../../ui";
 import { Close, External, Hint, Warning } from "../../ui/icons";
 
 export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, assistant, setMode, params, setParam, name, setName, keywords, setKeywords,
-    built, generate, generating, createFromBuilder, saving, editingId, usePortals, setUsePortals, error } = sp;
+    built, generate, generating, createFromBuilder, saving, editingId, usePortals, setUsePortals, error,
+    confirmed, setConfirmed, verifyIdealistaZone, verifyingZone } = sp;
   return (
     <div className="mb-4 p-4 rounded-xl panel space-y-3">
       {assistant ? (
@@ -178,6 +180,12 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         };
         return (
         <div className="space-y-2 pt-1">
+          {/* Before the two URLs, what is actually in them: the parameters that
+              were read, and what each portal does with each one. The links
+              below are the artefact; this is the answer. */}
+          <SearchReview params={params} built={built} confirmed={confirmed}
+            setConfirmed={setConfirmed} verifyZone={verifyIdealistaZone}
+            verifying={verifyingZone} />
           <p className="text-xs t-muted">{t("profiles.checkGenerated")}</p>
           {(["immobiliare", "idealista"] as const).map((portal) => (
             <label key={portal}
@@ -234,7 +242,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           {error && <p className="accent-bad text-xs">{error}</p>}
           <Button data-action="profiles.builder.create" variant="solid" tone="accent"
             onClick={createFromBuilder}
-            disabled={saving || (!usePortals.immobiliare && !usePortals.idealista)}>
+            disabled={saving || !confirmed || (!usePortals.immobiliare && !usePortals.idealista)}>
             {saving
               ? t("common.saving")
               : t(editingId !== null ? "profiles.saveChanges" : "profiles.createProfilesButton")}

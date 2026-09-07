@@ -307,6 +307,21 @@ export const api = {
       min_rooms: params.min_rooms ? Number(params.min_rooms) : null,
       max_rooms: params.max_rooms ? Number(params.max_rooms) : null,
       min_sqm: params.min_sqm ? Number(params.min_sqm) : null,
+      // The rest of the form. Omitted until the review put the two portals'
+      // URLs side by side and the answer was visibly wrong: the backend
+      // defaults every one of these to false/"", so a search asking for a
+      // ground floor with a garden was rebuilt as a search for anything.
+      balcony: params.balcony,
+      garden: params.garden,
+      parking: params.parking,
+      elevator: params.elevator,
+      exclude_auctions: params.exclude_auctions,
+      pool: params.pool,
+      floor: params.floor,
+      condition: params.condition,
+      // Not editable and not built into any URL — sent so the builder can
+      // report which portal loses the drawn area, which is Idealista, always.
+      drawn_area: params.drawn_area,
       verify,
     };
     return request("/search-builder", {

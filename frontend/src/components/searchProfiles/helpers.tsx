@@ -41,7 +41,24 @@ export function paramsFromAssistant(search: AssistantSearch): SearchBuilderParam
     min_sqm: str(search.params.min_sqm),
     balcony: false, garden: false, parking: false, elevator: false,
     exclude_auctions: false, pool: false, floor: "", condition: "",
+    // a sentence describes an area in words, never as a shape on a map
+    drawn_area: null,
   };
+}
+
+/** Whether a portal URL still states an area drawn on the map, or a radius.
+ *
+ *  Read off the URL that is actually about to be saved rather than off the
+ *  criteria, because that is where the two can disagree: a pasted link carries
+ *  the shape, and the same search rebuilt from the form does not — the builder
+ *  has no field for it, so `build_immobiliare_url` cannot emit one. Mirrors the
+ *  three params `search_builder.parse_drawn_area` reads. */
+export function statesDrawnArea(url: string): boolean {
+  const query = (url || "").split("?")[1];
+  if (!query) return false;
+  const params = new URLSearchParams(query);
+  return ["vrt", "centro", "raggio"].some((key) =>
+    params.getAll(key).some((v) => v.trim() !== ""));
 }
 
 /** Convert extracted or stored profile criteria to form strings. */
@@ -74,6 +91,10 @@ export function paramsFromProfile(params?: SearchProfile["params"]): SearchBuild
     pool: Boolean(params.pool),
     floor: (params.floor || "") as SearchBuilderParams["floor"],
     condition: (params.condition || "") as SearchBuilderParams["condition"],
+    // No input edits it, and it still has to survive the round trip: dropping
+    // it here would leave the review unable to say that the shape the user
+    // drew is the one thing Idealista's half of the pair cannot honour.
+    drawn_area: params.drawn_area ?? null,
   };
 }
 

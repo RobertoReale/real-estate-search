@@ -431,6 +431,24 @@ class SearchProfileBulkIn(SearchProfileIdsIn):
     delete_results: bool = False
 
 
+class DrawnArea(ApiOut):
+    """An area a search URL states geometrically, named rather than reproduced.
+
+    Immobiliare lets the user draw a shape on the map, ask for everything within
+    a radius, or pick "ten minutes by car" — which arrives as a shape like any
+    other. All three survive being pasted as a link and none of them has a field
+    in the builder form, so this is the only thing that can be said about them:
+    what kind of area it is and how big. The coordinates stay in
+    `search_builder.parse_drawn_area`, where containment is actually tested.
+    """
+
+    kind: Literal["polygon", "circle"]
+    points: int = 0  # polygon only: how many corners the user drew
+    radius_m: int = 0  # circle only
+    lat: float | None = None  # circle only: the centre it is drawn around
+    lng: float | None = None
+
+
 class SearchBuilderParamsOut(ApiOut):
     """Parameters extracted from or used to build a portal search URL."""
 
@@ -466,6 +484,11 @@ class SearchBuilderParamsOut(ApiOut):
     # "excellent" is Immobiliare's stato=6 and the one condition Idealista has no
     # equivalent for, so it is the only value idealista_unsupported reports.
     condition: BuilderCondition = ""
+    # The area the URL drew, when it drew one. The parser has always read it;
+    # until it was declared here it was dropped on the wire, which is how the
+    # most precise search the app supports became the one nothing on screen
+    # mentioned. None means the URL drew nothing — the ordinary case.
+    drawn_area: DrawnArea | None = None
 
 
 class SearchProfileOut(ApiOut):
@@ -631,6 +654,10 @@ class SearchBuilderIn(BaseModel):
     # and the one condition Idealista has no equivalent for, so it is the only
     # value idealista_unsupported reports.
     condition: str = ""
+    # Carried through from the parsed URL rather than edited: the form has no
+    # field for a drawn area, but the builder has to know one was asked for or
+    # it cannot report that Idealista's half of the pair drops it.
+    drawn_area: DrawnArea | None = None
     # Asks Idealista whether it knows this zone's slug, so the precise zone page
     # can be used instead of the broader free-text search (search_builder.
     # resolve_idealista_url). One live request, hence off unless the user
@@ -709,7 +736,9 @@ class SearchBuilderUrlsOut(ApiOut):
     # portal) rather than the broader free-text search
     idealista_zone_page: bool = False
     # requested filters Idealista's URL grammar cannot express, so its half of
-    # the pair is the wider search
+    # the pair is the wider search: a floor band, a condition, a room cap of
+    # five or more, and "drawn_area" for a shape or radius that only Immobiliare
+    # can state at all — see search_builder.idealista_unsupported
     idealista_unsupported: list[str] = []
     # the same admission for Immobiliare's zone selection: which of the zones
     # the user picked the URL about to be saved cannot carry, and why. Said

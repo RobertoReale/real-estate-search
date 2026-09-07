@@ -1023,6 +1023,7 @@ export const it: Dict = {
   "profiles.unsupportedCondition": "questo stato",
   "profiles.unsupportedMaxRooms":
     "un tetto di 5 o più locali (la sua fascia più alta è “5 o più”)",
+  "profiles.unsupportedDrawnArea": "un'area disegnata sulla mappa, o un raggio attorno a un punto",
 
   // ── ricerche monitorate: canali di notifica ─────────────────────────────
   "profiles.chAll": "Tutti i canali",
@@ -1115,6 +1116,50 @@ export const it: Dict = {
   "profiles.idealistaUnsupported":
     "Idealista non ha un filtro di ricerca per {filters}, quindi la sua metà di questa coppia è la ricerca più ampia — aspettati lì annunci che Immobiliare esclude.",
   "profiles.createProfilesButton": "Crea le ricerche",
+
+  // ── ricerche monitorate: il riepilogo prima di salvare ──────────────────
+  "profiles.review.intro":
+    "Ecco che cosa verrà cercato. Ogni portale ha la sua colonna, perché non sempre ricevono la stessa ricerca:",
+  "profiles.review.colDetected": "Letto dal link",
+  "profiles.review.rowWhere": "Dove",
+  "profiles.review.rowZones": "Zone",
+  "profiles.review.rowArea": "Area disegnata",
+  "profiles.review.rowPrice": "Prezzo",
+  "profiles.review.rowRooms": "Locali",
+  "profiles.review.rowSqm": "Superficie",
+  "profiles.review.notDetected": "non rilevato",
+  "profiles.review.notInSearch": "non fa parte di questa ricerca",
+  "profiles.review.wholeCity": "tutta la città",
+  "profiles.review.requested": "richiesto",
+  "profiles.review.notRequested": "non richiesto",
+  "profiles.review.exact": "riportato esattamente",
+  "profiles.review.approx": "approssimato",
+  "profiles.review.dropped": "perso",
+  "profiles.review.between": "{min} – {max} {unit}",
+  "profiles.review.atLeast": "da {value} {unit}",
+  "profiles.review.atMost": "fino a {value} {unit}",
+  "profiles.review.unitRooms": "locali",
+  "profiles.review.areaPolygon": "un'area disegnata sulla mappa, {points} punti",
+  "profiles.review.areaCircle": "tutto entro {radius} m da un punto",
+  "profiles.review.areaKept":
+    "Solo il link incollato porta con sé quest'area: non ha un campo nel modulo qui sopra, quindi modificare i criteri e rigenerare la farebbe perdere.",
+  "profiles.review.whyZoneFreeText":
+    "zona cercata come testo libero, quindi i risultati possono includere aree confinanti",
+  "profiles.review.whyOneZoneName":
+    "l'URL di Immobiliare porta una sola zona per nome: viene cercata solo “{zone}” e le altre {others} no. Seleziona le zone sulla mappa di Immobiliare e incolla quel link per tenerle tutte.",
+  "profiles.review.whyTooManyZones":
+    "{count} zone sono più di quante un URL di ricerca di Immobiliare possa portarne — dividile su più ricerche",
+  "profiles.review.whyMaxRooms":
+    "la fascia più alta di Idealista è “5 o più”, quindi non viene applicato alcun tetto",
+  "profiles.review.whyFloor": "Idealista non ha un filtro sul piano",
+  "profiles.review.whyCondition": "Idealista non ha un equivalente per questo stato",
+  "profiles.review.whyDrawnArea":
+    "gli URL di Idealista non sanno esprimere una forma o un raggio, quindi la sua metà della coppia copre tutta la città",
+  "profiles.review.whyAreaRebuilt":
+    "ricostruito dal modulo, che non ha un campo per l'area disegnata — incolla di nuovo il link del portale per conservarla",
+  "profiles.review.verifyZone": "Verifica la zona su Idealista",
+  "profiles.review.verifying": "Sto chiedendo a Idealista…",
+  "profiles.review.confirm": "Ho controllato questi parametri e sono corretti",
 
   // ── ricerche monitorate: azioni in blocco e righe ───────────────────────
   "profiles.selectAll": "Seleziona tutte",
