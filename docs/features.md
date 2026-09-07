@@ -22,9 +22,16 @@
   it reaches the browser and the server does not know which language you
   picked — and the listing text itself, which is whatever the Italian portals
   published.
-* **Map view**: the same properties as pins on an OpenStreetMap background —
-  useful to see how a shortlist is spread across the city. Clicking a pin opens
-  the property. Many Immobiliare listings arrive without coordinates, so **a scan
+* **Map view**: the same properties as pins on an OpenStreetMap background,
+  **beside the list rather than instead of it** — a pin can tell you where a
+  property is and nothing else, so the cards stay where you can read them, on a
+  narrow screen stacking under the map instead of next to it. Clicking a pin
+  opens the property, and **pointing at either half marks the other**: rest the
+  pointer on a card and its pin grows on the map; rest it on a pin and its card
+  is highlighted and scrolled into view. Past a few hundred pins the ones that
+  overlap are **drawn as a single numbered circle** — click it to zoom in on
+  exactly what it is holding — because a hundred dots on one street is a smudge,
+  not a location. Many Immobiliare listings arrive without coordinates, so **a scan
   fills the map in as it goes**, without being asked: it takes whatever the ad
   itself carried, then places the rest from what your dashboard already knows —
   an address looked up once answers every other listing on that street for free —
@@ -61,7 +68,11 @@
 * **Draw a zone on the map**: filter the whole dashboard by area directly on the
   map. Press **◯ Draw radius**, click a centre and drag the handle to size the
   circle; or **⬠ Draw area**, click each corner and double-click to close a free
-  shape. Only the properties inside the zone stay — in the grid *and* in the
+  shape. Neither of those is a button press, so the map **says so before you
+  start** — it offers to filter by where the properties are when no zone is
+  drawn, and once a tool is armed it spells out the clicks above the map, corner
+  count included, so the mode is never one you are stuck in without
+  instructions. Only the properties inside the zone stay — in the grid *and* in the
   exported dossier, since it is a filter like any other — and **✕ Clear zone**
   removes it. One caveat, shown as a banner while a zone is active: a property
   with no coordinates can't be placed on the map, so it is excluded from the

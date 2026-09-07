@@ -6,6 +6,7 @@ import { formatPrice } from "../services/api";
 import type { GeoFilter, Property } from "../types";
 import { Button, Card, Chip } from "../ui";
 import { Close, DrawnArea } from "../ui/icons";
+import { clusterByGrid } from "../utils/cluster";
 
 interface Props {
   properties: Property[];
@@ -23,6 +24,12 @@ interface Props {
   onFindCoordinates?: () => void;
   /** True while a geocode batch is running, to disable the banner button. */
   geocoding?: boolean;
+  /** The property under the pointer in the list beside the map: its pin grows
+   *  and opens its tooltip, so pointing at a card says where it is. */
+  hoverId?: number | null;
+  /** The other direction: a pin under the pointer reports itself, and `null`
+   *  when the pointer leaves it, so the list can mark the matching card. */
+  onHover?: (id: number | null) => void;
 }
 
 type PinKind = "drop" | "favorite" | "filtered" | "gone" | "sold" | "active";
@@ -100,10 +107,39 @@ const HANDLE_ICON = L.divIcon({
     box-shadow:0 1px 6px rgba(0,0,0,.5);cursor:grab;"></span>`,
 });
 
+/** Above this many pins the map stops drawing them one by one and groups the
+ *  ones that overlap. Below it every listing keeps its own pin, which is what a
+ *  normal search looks like — the grouping is for the saved search that matches
+ *  a whole city, where a thousand 18-pixel dots are a single blue shape. */
+const CLUSTER_FROM = 300;
+/** How close is "on top of each other", in screen pixels at the current zoom.
+ *  Three pin-widths: close enough that separate dots were already touching. */
+const CLUSTER_CELL_PX = 54;
+
+/** A group of pins, drawn as one circle carrying how many it stands for. It
+ *  grows with the count so a big group reads before its number does, and it is
+ *  deliberately not any of the six pin colours: a group has no single status. */
+function makeClusterIcon(count: number): L.DivIcon {
+  const size = count < 10 ? 34 : count < 100 ? 42 : 50;
+  return L.divIcon({
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<span style="
+      display:flex;align-items:center;justify-content:center;
+      width:${size}px;height:${size}px;border-radius:9999px;
+      background:rgba(15,23,42,.86);border:2px solid rgba(255,255,255,.9);
+      color:#fff;font:600 ${count < 100 ? 13 : 12}px/1 system-ui,sans-serif;
+      box-shadow:0 1px 8px rgba(0,0,0,.45);cursor:pointer;"
+      >${formatNumber(count)}</span>`,
+  });
+}
+
 type DrawMode = "" | "radius" | "polygon";
 
 export default function MapView({
   properties, onSelect, focusId, geo, onGeoChange, onFindCoordinates, geocoding,
+  hoverId, onHover,
 }: Props) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +155,14 @@ export default function MapView({
   onSelectRef.current = onSelect;
   const onGeoRef = useRef(onGeoChange);
   onGeoRef.current = onGeoChange;
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+  // the pin for each placed property, by id, so the hover coming from the list
+  // can find one without walking the layer. Rebuilt with the markers; a
+  // property swallowed by a group is simply absent from it.
+  const markersRef = useRef(new Map<number, L.Marker>());
+  // which pin currently wears the highlight, so it can be taken off again
+  const hotRef = useRef<number | null>(null);
 
   const [drawMode, setDrawMode] = useState<DrawMode>("");
   // the map click handler is registered once; it reads the live draw mode and
@@ -141,6 +185,13 @@ export default function MapView({
     [properties],
   );
   const missing = properties.length - geolocated.length;
+  // Grouping is a property of the set, not a setting: it turns itself on when
+  // there are more pins than the eye can separate, and off again when a filter
+  // brings the number back down.
+  const clustering = geolocated.length > CLUSTER_FROM;
+  // The zoom the pins were last laid out at. Only read while grouping, because
+  // only then does the layout depend on it — see the markers effect.
+  const [zoom, setZoom] = useState(5);
 
   const commit = (next: GeoFilter) => onGeoRef.current?.(next);
 
@@ -166,12 +217,21 @@ export default function MapView({
     const onDblClick = () => {
       if (drawModeRef.current === "polygon") finishPolygon();
     };
+    // Grouping is measured in screen pixels, so it is only correct for the zoom
+    // it was computed at: a new zoom is a new layout, and this is what asks for
+    // one. `zoomend` and not `zoom`, or the groups would re-form sixty times
+    // during a single wheel gesture.
+    const onZoomEnd = () => setZoom(map.getZoom());
     map.on("click", onClick);
     map.on("dblclick", onDblClick);
+    map.on("zoomend", onZoomEnd);
     return () => {
       map.off("click", onClick);
       map.off("dblclick", onDblClick);
+      map.off("zoomend", onZoomEnd);
       map.remove();
+      markersRef.current.clear();
+      hotRef.current = null;
       mapRef.current = null;
       layerRef.current = null;
       zoneLayerRef.current = null;
@@ -301,10 +361,22 @@ export default function MapView({
     const layer = layerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
+    markersRef.current.clear();
 
-    let focusMarker: L.Marker | null = null;
-    let focusLatLng: L.LatLngExpression | null = null;
-    for (const p of geolocated) {
+    // One list, two shapes: grouped into cells of the current zoom's pixel
+    // plane above the threshold, and one single-member group per listing below
+    // it, so the loop that follows does not care which of the two it got.
+    const placed = geolocated.map((p) => ({ lat: p.latitude!, lng: p.longitude!, p }));
+    const groups = clustering
+      ? clusterByGrid(placed, (lat, lng) => map.project([lat, lng], map.getZoom()), CLUSTER_CELL_PX)
+      : placed.map((it) => ({ lat: it.lat, lng: it.lng, items: [it] }));
+
+    for (const group of groups) {
+      if (group.items.length > 1) {
+        addCluster(map, layer, group);
+        continue;
+      }
+      const { p } = group.items[0];
       const approximate = isApproximate(p);
       const marker = L.marker([p.latitude!, p.longitude!], {
         icon: makeIcon(pinKind(p), approximate),
@@ -332,18 +404,21 @@ export default function MapView({
         { direction: "top", offset: [0, -8] },
       );
       marker.on("click", () => onSelectRef.current(p));
+      // The map half of the two-way hover. Leaflet opens the tooltip by itself;
+      // what this adds is telling the list which card to mark.
+      marker.on("mouseover", () => onHoverRef.current?.(p.id));
+      marker.on("mouseout", () => onHoverRef.current?.(null));
       layer.addLayer(marker);
-      if (focusId != null && p.id === focusId) {
-        focusMarker = marker;
-        focusLatLng = [p.latitude!, p.longitude!];
-      }
+      markersRef.current.set(p.id, marker);
     }
 
-    if (focusMarker && focusLatLng) {
+    const focused = focusId != null ? geolocated.find((p) => p.id === focusId) : undefined;
+    if (focused) {
       // "View on map" jump: land on the requested property, close enough to
-      // read the street, and flag which pin it is.
-      map.setView(focusLatLng, 16);
-      focusMarker.openTooltip();
+      // read the street, and flag which pin it is. Zoom 16 is also past any
+      // grouping, so by the time this runs again the pin exists on its own.
+      map.setView([focused.latitude!, focused.longitude!], 16);
+      markersRef.current.get(focused.id)?.openTooltip();
     } else if (hasZone) {
       // A zone is active: keep the user's current view. Re-fitting on every
       // refetch after drawing would yank the zoom away from what they drew.
@@ -356,9 +431,70 @@ export default function MapView({
       );
     }
     // hasZone intentionally excluded: it must not trigger a marker rebuild, it
-    // only gates the fitBounds branch above on the runs the set already drives
+    // only gates the fitBounds branch above on the runs the set already drives.
+    // The zoom is a dependency only while grouping, because only then does the
+    // layout depend on it — otherwise every wheel click would rebuild every pin
+    // to produce exactly the same map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geolocated, focusId]);
+  }, [geolocated, focusId, clustering, clustering ? zoom : 0]);
+
+  /** Draws one group of overlapping pins as a single numbered circle, and makes
+   *  clicking it the way back to the individual listings: fit the group and the
+   *  next layout splits it. Pins stacked on the exact same coordinate have no
+   *  extent to fit, so those step the zoom in instead — otherwise `fitBounds`
+   *  on a point jumps straight to the maximum and the group never opens. */
+  function addCluster(
+    map: L.Map,
+    layer: L.LayerGroup,
+    group: { lat: number; lng: number; items: { lat: number; lng: number }[] },
+  ) {
+    const count = group.items.length;
+    const label = translateCurrent("map.cluster", { count: formatNumber(count) });
+    const marker = L.marker([group.lat, group.lng], {
+      icon: makeClusterIcon(count),
+      title: label,
+    });
+    marker.bindTooltip(escapeHtml(label), { direction: "top", offset: [0, -12] });
+    marker.on("click", () => {
+      const bounds = L.latLngBounds(
+        group.items.map((it) => [it.lat, it.lng] as [number, number]),
+      );
+      if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+        map.setView(bounds.getCenter(), Math.min(map.getZoom() + 2, 19));
+      } else {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+      }
+    });
+    layer.addLayer(marker);
+  }
+
+  // --- the pin the list is pointing at -------------------------------------
+  // A class and a stacking offset, never a new icon: `setIcon` replaces the
+  // marker's element, and replacing the element under the pointer is read as
+  // the pointer leaving it — which fired `mouseout`, cleared the hover, put the
+  // icon back, and started again, sixty times a second.
+  useEffect(() => {
+    const markers = markersRef.current;
+    const previous = hotRef.current;
+    if (previous != null && previous !== hoverId) {
+      const was = markers.get(previous);
+      was?.getElement()?.classList.remove("is-hovered");
+      was?.setZIndexOffset(0);
+      // the "View on map" pin keeps its tooltip: it was opened to answer a
+      // question the user asked, not by the pointer passing over it
+      if (previous !== focusId) was?.closeTooltip();
+    }
+    hotRef.current = hoverId ?? null;
+    if (hoverId == null) return;
+    const marker = markers.get(hoverId);
+    if (!marker) return; // inside a group, or without coordinates at all
+    marker.getElement()?.classList.add("is-hovered");
+    marker.setZIndexOffset(1000);
+    marker.openTooltip();
+    // geolocated/zoom/clustering: the markers effect above runs first on those
+    // and hands this one a fresh set of pins to re-apply the highlight to
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverId, focusId, geolocated, clustering, clustering ? zoom : 0]);
 
   // keep the map's cursor/interaction hint in sync with the draw mode
   useEffect(() => {
@@ -384,6 +520,11 @@ export default function MapView({
                 <Chip tone="caution" className="ml-2">
                   {t("map.missing", { count: missing })}
                 </Chip>
+              </span>
+            )}
+            {clustering && (
+              <span title={t("map.clusteredTitle")}>
+                <Chip tone="info" className="ml-2">{t("map.clustered")}</Chip>
               </span>
             )}
           </p>
@@ -419,10 +560,11 @@ export default function MapView({
             title={t("map.drawAreaTitle")}>
             <DrawnArea /> {t(drawMode === "polygon" ? "map.finishArea" : "map.drawArea")}
           </Button>
-          {drawMode === "polygon" && (
-            <span className="text-xs t-dim">
-              {t("map.polyHint", { count: polyCount })}
-            </span>
+          {/* At rest the two buttons are labels without a job description. This
+              is the one line that says what drawing is for, and it steps aside
+              the moment there is a zone or a shape in progress to talk about. */}
+          {!drawMode && !hasZone && (
+            <span className="text-xs t-dim">{t("map.drawHint")}</span>
           )}
           {(hasZone || drawMode) && (
             <Button data-action="map.clearZone" onClick={clearZone}>
@@ -439,6 +581,27 @@ export default function MapView({
             </Chip>
           )}
         </div>
+
+        {/* Drawing is two or three steps and none of them is a button press, so
+            the steps are written down while they are being taken. Above the map
+            and never over it: an overlay would sit on the tiles the next click
+            has to land on, and cover Leaflet's own zoom control and attribution
+            with it. */}
+        {drawMode && (
+          <div role="status"
+            className="text-xs rounded-lg chip-info px-3 py-2 space-y-1">
+            <p className="font-semibold">
+              {t(drawMode === "radius" ? "map.guideRadiusTitle" : "map.guideAreaTitle")}
+            </p>
+            <ol className="list-decimal ms-4 space-y-0.5">
+              <li>{t(drawMode === "radius" ? "map.guideRadiusStep1" : "map.guideAreaStep1")}</li>
+              <li>{t(drawMode === "radius" ? "map.guideRadiusStep2" : "map.guideAreaStep2")}</li>
+            </ol>
+            {drawMode === "polygon" && (
+              <p className="font-semibold">{t("map.polyHint", { count: polyCount })}</p>
+            )}
+          </div>
+        )}
 
         {/* The mandatory caveat: a geographic filter silently drops every property
             without coordinates. Keep it loud whenever a zone is active. */}
