@@ -1156,6 +1156,10 @@ test("creating a search, three ways", async ({ page }) => {
   await fill(page, "profiles.builder.city", "Milano");
   await fill(page, "profiles.builder.province", "MI");
   await fill(page, "profiles.builder.zone", "Isola");
+  // The zone field is a list: Enter commits what was typed as a chip and empties
+  // the box for the next one.
+  await control(page, "profiles.builder.zone").press("Enter");
+  await expect(page.locator("[data-action='profiles.builder.zoneRemove']")).toHaveCount(1);
   await fill(page, "profiles.builder.minPrice", "150000");
   await fill(page, "profiles.builder.maxPrice", "400000");
   await choose(page, "profiles.builder.minRooms", "2");
@@ -1210,6 +1214,40 @@ test("creating a search, three ways", async ({ page }) => {
   await expect(control(page, "profiles.row.separate")).toBeVisible();
   await press(page, "profiles.row.separate");
   await expect(listed).toHaveCount(rowsBefore);
+});
+
+test("a pasted multi-zone URL keeps every zone", async ({ page }) => {
+  // Clicking three districts on Immobiliare's map leaves the path at the bare
+  // municipality and writes the selection as repeated `idMZona[]`. The
+  // parameters that come back therefore hold no zone *name* at all, and an
+  // empty Zone field made a three-district search read as a city-wide one —
+  // right up to the point where rebuilding it dropped the districts for real.
+  await page.goto("/searches");
+  await press(page, "profiles.mode.url");
+  await fill(page, "profiles.url.url",
+    "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047&idMZona[]=10048");
+  await press(page, "profiles.url.extract");
+
+  const zones = page.locator("[data-action='profiles.builder.zoneRemove']");
+  await expect(zones).toHaveCount(3);
+  for (const id of ["10046", "10047", "10048"]) {
+    await expect(page.locator("span.font-mono", { hasText: id })).toBeVisible();
+  }
+
+  // Extracting shows the pasted URL straight back, so only what Generate builds
+  // proves the parameters themselves still carry the selection. Editing any
+  // field is what marks those URLs stale and brings Generate back; the province
+  // is the one edit that leaves the Immobiliare address alone. `criterio` is the
+  // tell that the assertion below reads the rebuilt URL and not the pasted one.
+  await fill(page, "profiles.builder.province", "MI");
+  await press(page, "profiles.builder.generate");
+  await expect(page.locator("[data-action='profiles.builder.openBuilt']").first())
+    .toHaveAttribute("href",
+      /idMZona\[\]=10046&idMZona\[\]=10047&idMZona\[\]=10048&criterio=dataModifica/);
+
+  // A zone that arrived from a URL can be dropped like any other.
+  await zones.first().click();
+  await expect(zones).toHaveCount(2);
 });
 
 test("one query, several searches", async ({ page }) => {

@@ -57,10 +57,10 @@ cd frontend && npm run e2e:visual
 
 Expected today: **1032 passed + 1 skipped** (1033 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **444 frontend tests**,
-**76 browser tests** (48 journeys, then 28 that hold the run to the control inventory),
+**77 browser tests** (49 journeys, then 28 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
-the type generator. The browser suite prints the two numbers worth reading: **225
-interactive elements, 260 inventoried actions**, of which **258 exercised and 2 declared
+the type generator. The browser suite prints the two numbers worth reading: **226
+interactive elements, 261 inventoried actions**, of which **259 exercised and 2 declared
 unreachable with a written reason**. If a test number changed, that is not a failure — it
 is a documentation trigger (see §4).
 

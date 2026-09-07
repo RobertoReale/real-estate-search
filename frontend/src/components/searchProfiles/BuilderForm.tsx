@@ -5,14 +5,17 @@
  * docs/architecture.md on portal filter tokens). Anything finer is the "paste a URL" path,
  * which the form links to from right beside the filters. */
 
+import { useState } from "react";
+
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
+import { useT } from "../../i18n";
 import { Limit, LimitInline } from "../Limit";
 import { PortalBadge } from "../PortalBadge";
 import type { SearchBuilderParams } from "../../types";
 import { CONDITIONS, FEATURES, FLOORS, UNSUPPORTED_LABELS } from "./constants";
-import { GlobalKeywordsHint } from "./helpers";
+import { GlobalKeywordsHint, zonePatch } from "./helpers";
 import { Button, Checkbox, Chip, Field, Input } from "../../ui";
-import { External, Hint, Warning } from "../../ui/icons";
+import { Close, External, Hint, Warning } from "../../ui/icons";
 
 export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, assistant, setMode, params, setParam, name, setName, keywords, setKeywords,
@@ -72,15 +75,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           <Input data-action="profiles.builder.province" className="sm:w-32" placeholder={t("profiles.optional")}
             value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
         </Field>
-        {/* A zone typed here is matched by name, and a name is not an id: the
-            portal may have no such page, or one whose boundary is not the one
-            the word means locally. Said in the field rather than only in its
-            tooltip — a caveat nobody hovers is a caveat nobody reads. */}
-        <Field label={<span title={t("profiles.zoneTitle")}>{t("filters.zone")}</span>}
-          hint={<LimitInline id="profiles.zoneBestEffort">{t("limits.zoneBestEffort")}</LimitInline>}>
-          <Input data-action="profiles.builder.zone" className="sm:w-32" placeholder={t("profiles.optional")}
-            value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
-        </Field>
+        <ZoneField params={params} setParam={setParam} />
         <Field label={t("filters.minPrice")}>
           <Input data-action="profiles.builder.minPrice" className="sm:w-24" type="number" value={params.min_price}
             onChange={(e) => setParam({ min_price: e.target.value })} />
@@ -176,7 +171,7 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         // an id or a confirmed slug — rather than as the word typed into it.
         // Immobiliare carries it unless the builder said which zones it had to
         // drop; Idealista only when the portal confirmed a zone page exists.
-        const zoned = params.zone.trim().length > 0;
+        const zoned = params.zones.length > 0 || params.zone_ids.length > 0;
         const zoneExact = {
           immobiliare: built.zone_warnings.length === 0,
           idealista: built.idealista_zone_page,
@@ -218,10 +213,12 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
               })}
             </Limit>
           )}
-          {params.zone.trim() && usePortals.idealista && (
+          {/* Idealista's grammar carries a zone by slug and never by id, so this
+              is about the first *name* and says so by naming it. */}
+          {params.zone && usePortals.idealista && (
             <p className="text-xs t-muted">
               {t(built.idealista_zone_page ? "profiles.zoneKnown" : "profiles.zoneUnknown", {
-                zone: params.zone.trim(),
+                zone: params.zone,
               })}
             </p>
           )}
@@ -247,5 +244,102 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
       })()}
       {!built && error && <p className="accent-bad text-xs">{error}</p>}
     </div>
+  );
+}
+
+/** The zones the search covers, as a list rather than a word.
+ *
+ *  A portal selection is several zones — three districts clicked on
+ *  Immobiliare's map — and the single input this replaces could hold one of
+ *  them. Worse, it could hold none: that map writes the selection into the URL
+ *  as the portal's own ids and leaves no zone *name* anywhere in it, so
+ *  "extract parameters" filled the field with nothing and a three-zone search
+ *  read as a city-wide one. An id cannot be turned into a name without the
+ *  live geography autocomplete, so it is shown as an id — counted, spelled out
+ *  and removable like any other zone. Showing nothing was the defect.
+ *
+ *  A zone typed here is still matched by name, and a name is not an id: the
+ *  portal may have no such page, or one whose boundary is not what the word
+ *  means locally. That is the field's hint rather than its tooltip — a caveat
+ *  nobody hovers is a caveat nobody reads.
+ */
+function ZoneField({ params, setParam }: {
+  params: SearchBuilderParams;
+  setParam: (patch: Partial<SearchBuilderParams>) => void;
+}) {
+  const t = useT();
+  const [draft, setDraft] = useState("");
+
+  // Enter, a comma, or leaving the field. The blur matters as much as the key:
+  // a name still sitting in the box when Generate is pressed is a zone the user
+  // believes they asked for, and losing it there would be this bug again.
+  function commit() {
+    if (!draft.trim()) return;
+    setParam(zonePatch([...params.zones, draft]));
+    setDraft("");
+  }
+
+  // A chip is a fact and never a control, so the removal is a button beside the
+  // text inside it — the same shape the listing filters use.
+  const removeButton = (label: string, onRemove: () => void) => (
+    <button data-action="profiles.builder.zoneRemove" type="button"
+      className="opacity-60 hover:opacity-100 btn-focus rounded"
+      title={t("profiles.zoneRemove", { zone: label })}
+      aria-label={t("profiles.zoneRemove", { zone: label })}
+      onClick={onRemove}>
+      <Close size={12} />
+    </button>
+  );
+
+  return (
+    <Field className="col-span-2 sm:w-full"
+      label={<span title={t("profiles.zoneTitle")}>{t("filters.zone")}</span>}
+      hint={<LimitInline id="profiles.zoneBestEffort">{t("limits.zoneBestEffort")}</LimitInline>}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {params.zones.map((zone) => (
+          <Chip key={zone} tone="accent" size="md">
+            {zone}
+            {removeButton(zone, () =>
+              setParam(zonePatch(params.zones.filter((z) => z !== zone))))}
+          </Chip>
+        ))}
+        {/* Neutral rather than accent, and in the monospace the portal's own
+            keys deserve: an id identifies, and dressing it as a name would be
+            claiming the app knows something it does not. */}
+        {params.zone_ids.map((id) => (
+          <Chip key={id} tone="neutral" size="md">
+            <span className="font-mono">{id}</span>
+            {removeButton(id, () =>
+              setParam({ zone_ids: params.zone_ids.filter((z) => z !== id) }))}
+          </Chip>
+        ))}
+        <Input data-action="profiles.builder.zone" className="sm:w-40"
+          placeholder={t("profiles.zoneAdd")} value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== ",") return;
+            // Enter inside the panel would otherwise submit whatever form the
+            // browser decides this is; the key belongs to the chip list.
+            e.preventDefault();
+            commit();
+          }} />
+      </div>
+      {params.zone_ids.length > 0 && (
+        <Limit id="profiles.zoneIdsUnnamed">
+          {t("limits.zoneIdsUnnamed", { count: params.zone_ids.length })}
+        </Limit>
+      )}
+      {/* The loss the list makes possible, stated the moment it becomes true:
+          Immobiliare's path holds one zone name, and the rest are simply not
+          searched. The way out is the click the user already knows. */}
+      {params.zones.length > 1 && params.zone_ids.length === 0 && (
+        <Limit id="profiles.zoneFirstNameOnly">
+          {t("limits.zoneFirstNameOnly", {
+            zone: params.zones[0], count: params.zones.length - 1,
+          })}
+        </Limit>
+      )}
+    </Field>
   );
 }

@@ -1081,6 +1081,8 @@ export const en = {
   "profiles.optional": "(optional)",
   "profiles.zoneTitle":
     "Neighborhood, best-effort: open the generated URLs to check the portal recognises it",
+  "profiles.zoneAdd": "Add a zone",
+  "profiles.zoneRemove": "Remove the zone {zone}",
   "profiles.minRooms": "Min rooms",
   "profiles.moreCriteria": "More criteria",
   "profiles.moreCriteriaHint": "· applied to both portals",
@@ -1131,6 +1133,7 @@ export const en = {
   "profiles.chipBuy": "Buy",
   "profiles.chipRooms": "{range} rooms",
   "profiles.chipMinSqm": "≥ {value} sqm",
+  "profiles.chipZoneIds": "zone ids: {count}",
 
   // ── monitored searches: delete dialog ───────────────────────────────────
   "profiles.deleteOne": "Delete “{name}”?",
@@ -1375,6 +1378,10 @@ export const en = {
     "(one request every {pace}s — the public OpenStreetMap service's rate)",
   "limits.carRouting": "measured on the road network",
   "limits.zoneBestEffort": "matched by name, not by the portal's zone id",
+  "limits.zoneIdsUnnamed":
+    "The pasted URL wrote these zones as the portal's own ids ({count}). They are searched exactly as they were selected, but only the portal knows their names, so there is nothing to show but the ids.",
+  "limits.zoneFirstNameOnly":
+    "Immobiliare's address holds one zone name: built from here it searches {zone} alone, and the other {count} are dropped. Select them on the portal's map and paste that URL to keep every one.",
   "limits.zoneCarryExact": "zone: exact",
   "limits.zoneCarryApprox": "zone: approximate",
   "limits.zonePreferred":

@@ -8,13 +8,31 @@ import type { AssistantSearch, SearchBuilderParams, SearchProfile, Settings } fr
 import { EMPTY_BUILDER } from "./constants";
 import { Filtered } from "../../ui/icons";
 
+/** The zone half of the form, from a list of names.
+ *
+ *  `zone` and `zones` are one criterion written twice — the list is what a
+ *  portal selection actually is, the string is what every caller written before
+ *  it reads — so they are only ever produced together, here. Blank and repeated
+ *  names are dropped, mirroring `search_builder.zone_names`, or the two ends
+ *  would disagree about how many zones were asked for. */
+export function zonePatch(names: readonly string[]): Pick<SearchBuilderParams, "zone" | "zones"> {
+  const zones: string[] = [];
+  for (const name of names) {
+    const trimmed = (name || "").trim();
+    if (trimmed && !zones.includes(trimmed)) zones.push(trimmed);
+  }
+  return { zone: zones[0] ?? "", zones };
+}
+
 /** The assistant answers with numbers; the builder form holds strings. */
 export function paramsFromAssistant(search: AssistantSearch): SearchBuilderParams {
   const str = (v: number | null) => (v === null ? "" : String(v));
   return {
     city: search.params.city,
     province: search.params.province,
-    zone: search.params.zone,
+    // a plain-language query names its zone, never one of the portal's ids
+    ...zonePatch([search.params.zone]),
+    zone_ids: [],
     contract: search.params.contract,
     min_price: str(search.params.min_price),
     max_price: str(search.params.max_price),
@@ -33,7 +51,15 @@ export function paramsFromProfile(params?: SearchProfile["params"]): SearchBuild
   return {
     city: params.city || "",
     province: params.province || "",
-    zone: params.zone || "",
+    // `zones` is the API's own list and `zone` its first element; reading the
+    // string when the list is empty keeps a profile stored before the list
+    // arrived from losing the one zone it did carry.
+    ...zonePatch(params.zones?.length ? params.zones : [params.zone || ""]),
+    // Ids reach the form untouched. They are the whole reason the field can no
+    // longer be a single word: a URL built from Immobiliare's map carries the
+    // selection as ids and no name at all, and rendering nothing for it is what
+    // made a three-zone search read as a city-wide one.
+    zone_ids: params.zone_ids ?? [],
     contract: params.contract || "sale",
     min_price: str(params.min_price),
     max_price: str(params.max_price),

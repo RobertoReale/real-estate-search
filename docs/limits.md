@@ -45,6 +45,8 @@ is what proves the value came from the API rather than from the sentence.
 | Zone names are matched best-effort; ids are exact | — (a statement, not a figure) | under the zone field in the search builder, as the field's hint | `profiles.zoneBestEffort` |
 | The same zones are exact on one portal and approximate on the other | `BuiltSearch.zone_warnings` (Immobiliare) and `.idealista_zone_page` (Idealista) | the search review, one label per portal, side by side | `profiles.zoneCarry` |
 | …and when they disagree, one of them is the one to trust | the same two fields | a line under the pair, naming the portal whose half is faithful | `profiles.zonePreferred` |
+| Zones a pasted URL carried only as portal ids have no name to show | `SearchBuilderParamsOut.zone_ids`, its length | under the zone field, the moment the ids are in it | `profiles.zoneIdsUnnamed` |
+| Rebuilding a multi-zone search from names keeps only the first | `SearchBuilderParams.zones`, its length — mirroring `search_validator.zone_coverage_warnings` | under the zone field, as soon as a second name is in the list | `profiles.zoneFirstNameOnly` |
 | A drawn area or a radius cannot be expressed as city + zone | — | the builder, next to the URL paste that *can* carry it | `profiles.areaNeedsUrl` |
 | Handing filters to a saved search drops or widens some of them | `handoff.ts`, per criterion | the review list, one tagged item per criterion | `handoff.<criterion>` |
 | `idealista_api_max_pages` is worth ~50 listings a request | the field's current value × `SettingsOut.idealista_api_page_size` (published from `idealista_api.MAX_ITEMS_PER_PAGE`) | under the field, in Settings and in the setup wizard | `settings.idealistaReach` |
