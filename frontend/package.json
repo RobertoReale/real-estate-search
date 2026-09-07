@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "npm run build && playwright test",
-    "e2e:browser": "playwright install chromium"
+    "e2e:browser": "playwright install chromium",
+    "lighthouse": "npm run build && lhci autorun --config=lighthouse/lighthouserc.json"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",

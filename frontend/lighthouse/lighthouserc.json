@@ -1,0 +1,22 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "node lighthouse/serve.mjs",
+      "startServerReadyPattern": "LIGHTHOUSE_SERVER_READY",
+      "startServerReadyTimeout": 180000,
+      "url": ["http://127.0.0.1:8139/"],
+      "numberOfRuns": 1,
+      "settings": {
+        "preset": "desktop",
+        "chromeFlags": "--no-sandbox"
+      }
+    },
+    "assert": {
+      "budgetsFile": "lighthouse/budget.json"
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": ".lighthouse"
+    }
+  }
+}

@@ -198,8 +198,28 @@ export default function App() {
    *
    *  A layout effect on both sides: the restore happens before the browser
    *  paints, so returning is not a visible jump from the top, and the detail
-   *  opens at its own top rather than at whatever offset the grid was at. */
+   *  opens at its own top rather than at whatever offset the grid was at.
+   *
+   *  What is recorded is a **listing**, not a pixel offset, and that is the part
+   *  worth reading before changing any of it. A pixel offset only means
+   *  something while the document is the height it was, and it is not: the cards
+   *  the reader has scrolled past are skipped by `.defer-offscreen`
+   *  (index.css) and stand in at their assumed height until they have been drawn
+   *  once, so the page above quietly gains and loses a few pixels per card as it
+   *  is scrolled. The browser keeps the *view* still through that (scroll
+   *  anchoring) by moving `scrollY` instead — which is exactly right for a
+   *  reader and useless as a bookmark, since the number recorded on the way out
+   *  addresses different content on the way back. Recording which card was in
+   *  the middle of the screen, and putting it back where it was, is stable under
+   *  all of it. `elementsFromPoint` rather than a pass over the cards because
+   *  this runs on every scroll event and the whole point of the row above is
+   *  that ten thousand cards cost what sixty do; the stack, not the topmost
+   *  element, because the pointer-events of an overlay must not decide where the
+   *  grid comes back to. The offset falls back to the raw position for the cases
+   *  the anchor cannot cover: nothing loaded yet, and a card that is gone when
+   *  the reader returns because the filters moved underneath. */
   const gridScroll = useRef(0);
+  const gridAnchor = useRef<{ id: string; top: number } | null>(null);
   const cameFromDetail = useRef(false);
   useLayoutEffect(() => {
     if (detailIsAPage) {
@@ -207,13 +227,56 @@ export default function App() {
       window.scrollTo(0, 0);
       return;
     }
+    let landing = 0;
     if (cameFromDetail.current) {
       cameFromDetail.current = false;
-      window.scrollTo(0, gridScroll.current);
+      const anchor = gridAnchor.current;
+      if (!anchor) window.scrollTo(0, gridScroll.current);
+      else {
+        // The grid comes back with every card still undrawn, so the ones above
+        // the anchor stand in at their assumed height and the first correction
+        // lands short. Scrolling near them is what makes them draw, which moves
+        // the anchor again; repeating on the following frames converges in two
+        // or three, and stops early once the card is where it was left.
+        let left = 4;
+        const land = () => {
+          const card = document.querySelector(`[data-property-id="${anchor.id}"]`);
+          if (!card) return;
+          const drift = card.getBoundingClientRect().top - anchor.top;
+          if (Math.abs(drift) < 1) return;
+          window.scrollBy(0, drift);
+          if (--left > 0) landing = requestAnimationFrame(land);
+        };
+        land();
+      }
     }
-    const remember = () => { gridScroll.current = window.scrollY; };
+    const remember = () => {
+      gridScroll.current = window.scrollY;
+      const first = document.querySelector("[data-property-id]");
+      if (!first) return;
+      const x = first.getBoundingClientRect().left + 1;
+      // Down the first column from the middle of the screen, because a single
+      // probe can land in the gap between two rows and come back with the grid
+      // container: a scroll that recorded nothing would leave the anchor on
+      // wherever the reader was several screens ago. The first card found wins.
+      for (let y = window.innerHeight / 2; y < window.innerHeight; y += 40) {
+        const card = document
+          .elementsFromPoint(x, y)
+          .map((el) => el.closest<HTMLElement>("[data-property-id]"))
+          .find((el) => el !== null);
+        if (!card) continue;
+        gridAnchor.current = {
+          id: card.dataset.propertyId!,
+          top: card.getBoundingClientRect().top,
+        };
+        return;
+      }
+    };
     window.addEventListener("scroll", remember, { passive: true });
-    return () => window.removeEventListener("scroll", remember);
+    return () => {
+      cancelAnimationFrame(landing);
+      window.removeEventListener("scroll", remember);
+    };
   }, [detailIsAPage]);
 
   // The grid holds a window; the map holds every pin, because a map missing

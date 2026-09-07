@@ -46,10 +46,14 @@ cd frontend && npm run e2e
 # the committed API types still match the backend (needs scripts/apitypes/
 # installed once: cd scripts/apitypes && npm ci)
 python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/api.ts
+
+# what the dashboard costs to open, against a budget that fails the build
+# (needs `npm i -g @lhci/cli@0.15.1`). CI-only — see below.
+cd frontend && npm run lighthouse
 ```
 
 Expected today: **1027 passed + 1 skipped** (1028 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **440 frontend tests**,
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **443 frontend tests**,
 **72 browser tests** (44 journeys, then 28 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **225 interactive elements, 260 inventoried actions**, of which **258 exercised
@@ -71,6 +75,19 @@ product and the only one that can notice a control that quietly stopped working.
 turn it red that nothing else here can: a screen that scrolls sideways or fails an `axe-core`
 check at 390, 768 or 1440 px, and a control added without an entry in `frontend/e2e/actions.ts`.
 CI runs it on every push, so skipping it locally moves the failure rather than avoiding it.
+
+`npm run lighthouse` is the one gate on this list that is **not expected to pass on
+Windows**, and it is on it anyway so that nobody rediscovers why. It builds the frontend and
+runs Lighthouse CI against `frontend/lighthouse/budget.json` — resource sizes and counts, no
+timings, because bytes are the same on every machine and timings on a shared runner are a
+coin toss. The measurement itself completes on Windows; what fails is the teardown, where
+`chrome-launcher` deletes its temporary profile directory and hits `EPERM` on a file the
+browser it just killed has not finished releasing. There is no flag for it and retrying does
+not help, so the budget is enforced in CI (`.github/workflows/ci.yml` → *performance
+budget*, Linux) and a local run is for reading the report, not for a verdict. Today's build:
+**896 KiB of script, 90 KiB of stylesheet, 1149 KiB total over 16 requests**, against a
+budget of 950 / 100 / 1300. A commit that adds a dependency to a single screen spends that
+headroom on every screen, which is the decision the gate exists to force.
 
 To fetch a portal page live during verification, use `AdProbe` (`scrapers/probe.py`), never
 a cold browser — it injects the real `datadome_cookie`. See
