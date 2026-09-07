@@ -80,6 +80,12 @@ export function useSearchProfiles({
   const [params, setParams] = useState<SearchBuilderParams>(prefill ?? EMPTY_BUILDER);
   const [built, setBuilt] = useState<SearchBuilderUrls | null>(null);
   const [usePortals, setUsePortals] = useState({ immobiliare: true, idealista: true });
+  // The review's answer. Nothing is saved until the two portals' columns have
+  // been read and the parameters called right: this is the one screen where a
+  // wrong reading is cheap to fix, and every later one is where it turns into
+  // an unexplained result. It is about the search as it was on screen, so any
+  // change to the criteria takes it back off.
+  const [confirmed, setConfirmed] = useState(false);
 
   // assistant state: the parsed read-back stays visible in the builder, so
   // the user can see what the sentence was understood to mean
@@ -222,9 +228,18 @@ export function useSearchProfiles({
     }
   }
 
+  /** Put a review on screen — or take it away. Always through here, because a
+   *  confirmation belongs to the pair of URLs that was read, and carrying one
+   *  over to the next pair is exactly the "I already checked that" that the
+   *  review exists to stop. */
+  function showBuilt(urls: SearchBuilderUrls | null) {
+    setBuilt(urls);
+    setConfirmed(false);
+  }
+
   const setParam = (patch: Partial<SearchBuilderParams>) => {
     setParams((p) => ({ ...p, ...patch }));
-    setBuilt(null); // generated URLs are stale as soon as an input changes
+    showBuilt(null); // generated URLs are stale as soon as an input changes
     // a warning like "I could not tell which city" is answered by the very
     // edit the user is making: keeping it on screen would be nagging
     setAssistant((a) => (a && a.warnings.length ? { ...a, warnings: [] } : a));
@@ -259,7 +274,7 @@ export function useSearchProfiles({
 
   function resetForm() {
     setName(""); setUrl(""); setKeywords(""); setError("");
-    setParams(EMPTY_BUILDER); setBuilt(null);
+    setParams(EMPTY_BUILDER); showBuilt(null);
     setQuery(""); setAssistant(null); setMulti([]);
     setEditingId(null);
     setEditingGroupIds([]);
@@ -276,7 +291,7 @@ export function useSearchProfiles({
     if (p.params && (p.params.city || p.params.min_price || p.params.min_rooms || p.params.zone)) {
       const formParams = paramsFromProfile(p.params);
       setParams(formParams);
-      setBuilt(unverifiedUrls(
+      showBuilt(unverifiedUrls(
         p.portal === "immobiliare" ? p.search_url : "",
         p.portal === "idealista" ? p.search_url : "",
       ));
@@ -317,7 +332,7 @@ export function useSearchProfiles({
       setParams(formParams);
       const imm = group.profiles.find((p) => p.portal === "immobiliare");
       const ideal = group.profiles.find((p) => p.portal === "idealista");
-      setBuilt(unverifiedUrls(imm?.search_url || "", ideal?.search_url || ""));
+      showBuilt(unverifiedUrls(imm?.search_url || "", ideal?.search_url || ""));
       setUsePortals({
         immobiliare: Boolean(imm) || true,
         idealista: Boolean(ideal) || true,
@@ -344,7 +359,7 @@ export function useSearchProfiles({
     setParams(paramsFromAssistant(search));
     // the assistant only returns URLs when it recognised a city; otherwise
     // the builder opens pre-filled and waits for the missing piece
-    setBuilt(search.urls);
+    showBuilt(search.urls);
     setMode("builder");
   }
 
@@ -353,16 +368,37 @@ export function useSearchProfiles({
     setError("");
     try {
       const extracted = await parseUrl.mutateAsync(url);
-      setParams(paramsFromProfile(extracted));
-      setBuilt(unverifiedUrls(
+      const formParams = paramsFromProfile(extracted);
+      setParams(formParams);
+      const pasted = unverifiedUrls(
         url.includes("immobiliare.it") ? url : "",
         url.includes("idealista.it") ? url : "",
-      ));
+      );
+      showBuilt(pasted);
       setUsePortals({
         immobiliare: url.includes("immobiliare.it"),
         idealista: url.includes("idealista.it"),
       });
       setMode("builder");
+      // What the review needs and the parse cannot say: which filters
+      // Idealista's URL grammar drops, and which of the zones Immobiliare's
+      // own URL can carry. `verify: false` keeps this offline — a paste must
+      // not become a network operation, or on a day Idealista is blocking, a
+      // link reads as unparseable for a reason that has nothing to do with it.
+      // The pasted URLs stay: they are what will be saved, and they say things
+      // the builder has no field to rebuild.
+      if (formParams.city.trim()) {
+        prefillUrls.mutate({ params: formParams, verify: false }, {
+          onSuccess: (urls) => setBuilt((b) => b && {
+            ...urls,
+            immobiliare: b.immobiliare || urls.immobiliare,
+            idealista: b.idealista || urls.idealista,
+          }),
+          // without it the review still lists every parameter; it just cannot
+          // claim what each portal does with them, which is what it says
+          onError: () => {},
+        });
+      }
     } catch (e) {
       toasts.fail(e, { retry: () => extractParamsFromUrl() });
     }
@@ -508,14 +544,39 @@ export function useSearchProfiles({
     try {
       // verify=true: with a zone this asks Idealista once whether it knows the
       // slug, so the URL we save is the precise zone page when one exists
-      setBuilt(await buildUrls.mutateAsync({ params, verify: true }));
+      showBuilt(await buildUrls.mutateAsync({ params, verify: true }));
     } catch (e) {
       toasts.fail(e, { retry: () => generate() });
     }
   }
 
-  async function createFromBuilder() {
+  /** The one live Idealista request the review offers, as a press.
+   *
+   *  `verify: true` probes the zone page, which is a request to a portal that
+   *  blocks on a bad day. Spending it on paste would make that block read as a
+   *  failure to understand the link, so the review is complete without it and
+   *  this is how it is asked for. Only the provenance is replaced: a URL the
+   *  user pasted outranks anything rebuilt from a form with fewer fields. */
+  async function verifyIdealistaZone() {
     if (!built) return;
+    try {
+      const urls = await prefillUrls.mutateAsync({ params, verify: true });
+      const pasted = url.trim();
+      setBuilt((b) => b && {
+        ...urls,
+        immobiliare: b.immobiliare === pasted ? b.immobiliare : urls.immobiliare,
+        idealista: b.idealista === pasted ? b.idealista : urls.idealista,
+      });
+    } catch (e) {
+      toasts.fail(e, { retry: () => verifyIdealistaZone() });
+    }
+  }
+
+  async function createFromBuilder() {
+    // The review's confirmation is a precondition, not a decoration: the
+    // button is disabled without it, and this is what makes that true rather
+    // than merely drawn.
+    if (!built || !confirmed) return;
     const label = name || [
       t(params.contract === "rent" ? "profiles.labelRent" : "profiles.labelBuy"),
       params.city,
@@ -595,6 +656,7 @@ export function useSearchProfiles({
     name, setName, url, setUrl, keywords, setKeywords,
     error, setError, saving, editingId,
     params, setParam, setParams, built, generating, usePortals, setUsePortals,
+    confirmed, setConfirmed, verifyIdealistaZone, verifyingZone: prefillUrls.isPending,
     query, setQuery, asking, assistant, multi, setMulti,
     deleting, setDeleting, results, deleteBusy, deleteError,
     selected, setSelected, bulkBusy,

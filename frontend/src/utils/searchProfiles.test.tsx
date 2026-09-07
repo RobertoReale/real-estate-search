@@ -30,6 +30,7 @@ const NO_CRITERIA: SearchProfile["params"] = {
   min_price: null, max_price: null, min_rooms: null, max_rooms: null, min_sqm: null,
   balcony: false, garden: false, parking: false, elevator: false,
   exclude_auctions: false, pool: false, floor: "", condition: "",
+  drawn_area: null,
 };
 
 const profile = (over: Partial<SearchProfile>): SearchProfile => ({

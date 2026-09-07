@@ -709,13 +709,17 @@ def idealista_unsupported(params: dict) -> list[str]:
     wider one, and the extra listings would read as a deduplication failure
     rather than a filter that is not there.
 
-    Two cases, both structural:
+    Three cases, all structural:
     - "excellent/renovated" condition: Immobiliare has stato=6 and Idealista's
       dropdown offers no equivalent.
     - a room cap of 5 or more: Idealista's top bucket is "5 locali o più", so
       any cap that needs it is open-ended, while Immobiliare's localiMassimo
       honours the cap exactly. A cap of 4 or less lands on discrete buckets and
       is expressible.
+    - an area drawn on the map, or a radius around a point: Immobiliare states
+      it in the URL (`vrt`, `centro`+`raggio`) and Idealista's grammar has no
+      way of saying it at all, so its half of the pair is the whole comune. The
+      widest of the three gaps, and the one a paired search hides best.
 
     Everything else once listed here turned out to exist under a name that had
     simply not been read off the portal yet — the elevator ("ascensori") and
@@ -730,6 +734,8 @@ def idealista_unsupported(params: dict) -> list[str]:
     max_rooms = params.get("max_rooms")
     if max_rooms and max_rooms >= IDEALISTA_MAX_ROOM_BUCKET:
         out.append("max_rooms")
+    if params.get("drawn_area") or params.get("drawn_polygon") or params.get("drawn_circle"):
+        out.append("drawn_area")
     return out
 
 
@@ -835,6 +841,29 @@ def parse_drawn_area(
     return polygon, circle
 
 
+def drawn_area_summary(
+    polygon: list[tuple[float, float]] | None,
+    circle: geo_filter.Circle | None,
+) -> dict[str, Any] | None:
+    """The drawn area named rather than reproduced, or None if nothing was drawn.
+
+    A `vrt` polygon is routinely a couple of hundred points, and the review
+    screen needs to say *what kind of area this is*, not where its corners are.
+    Sending the shape itself would put those hundreds of coordinates into every
+    profile row of the search list for a sentence that only ever reads "an area
+    drawn on the map, 24 points".
+
+    The geometry stays where it is used: `parse_drawn_area` still returns it, and
+    `scanner._outside_requested_area` still tests containment against it.
+    """
+    if polygon:
+        return {"kind": "polygon", "points": len(polygon)}
+    if circle:
+        lat, lng, radius_m = circle
+        return {"kind": "circle", "lat": lat, "lng": lng, "radius_m": int(radius_m)}
+    return None
+
+
 def parse_immobiliare_url(url: str) -> dict[str, Any]:
     parsed = urlparse((url or "").strip())
     segments = [s for s in parsed.path.split("/") if s]
@@ -924,6 +953,11 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
         # other — one is a boundary, the other a gazetteer's guess at a town.
         "drawn_polygon": polygon,
         "drawn_circle": circle,
+        # The same area in the one form a UI can state: its kind and its size.
+        # Without it the most precise thing a pasted URL says is the one thing
+        # the form never mentions, and a search restricted to a hand-drawn
+        # shape reads on screen as a search for the whole comune.
+        "drawn_area": drawn_area_summary(polygon, circle),
         "contract": contract,
         "min_price": _safe_int(qs.get("prezzoMinimo", [None])[0]),
         "max_price": _safe_int(qs.get("prezzoMassimo", [None])[0]),
@@ -1085,6 +1119,7 @@ def _idealista_params(
         # every caller reads one dict shape whichever portal produced it.
         "drawn_polygon": None,
         "drawn_circle": None,
+        "drawn_area": None,
         "contract": contract,
         "min_price": min_price,
         "max_price": max_price,
@@ -1117,6 +1152,7 @@ def parse_search_url(url: str) -> dict[str, Any]:
         "zone_ids": [],
         "drawn_polygon": None,
         "drawn_circle": None,
+        "drawn_area": None,
         "contract": "sale",
         "min_price": None,
         "max_price": None,

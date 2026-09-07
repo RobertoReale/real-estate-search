@@ -19,6 +19,8 @@ from app.services.search_builder import (
     bands_are_total,
     build_idealista_url,
     build_immobiliare_url,
+    build_search_urls,
+    drawn_area_summary,
     parse_drawn_area,
     parse_search_url,
     price_bands,
@@ -481,3 +483,54 @@ def test_reading_the_area_does_not_change_what_the_portal_is_asked():
     assert radius is not None
     assert radius["centro"] == "45.4500,9.1750"
     assert radius["raggio"] == "1500"
+
+
+def test_a_drawn_area_is_named_rather_than_reproduced():
+    """What the review screen has to say — "an area drawn on the map, 4 points"
+    — and nothing more. The corners stay in `parse_drawn_area`, which is where
+    the containment check reads them."""
+    polygon, circle = parse_drawn_area(DRAWN_URL.split("?", 1)[1])
+    assert drawn_area_summary(polygon, circle) == {"kind": "polygon", "points": 4}
+
+    polygon, circle = parse_drawn_area(RADIUS_URL.split("?", 1)[1])
+    assert drawn_area_summary(polygon, circle) == {
+        "kind": "circle",
+        "lat": 45.45,
+        "lng": 9.175,
+        "radius_m": 1500,
+    }
+
+    assert drawn_area_summary(None, None) is None
+
+
+def test_the_parsed_url_carries_the_area_it_states_no_other_way():
+    """A /search-list/ URL names no comune, so without this the builder form
+    fills up blank and the review would report a search over nothing. The
+    summary is what lets it say what the area *is*."""
+    assert parse_search_url(DRAWN_URL)["drawn_area"] == {"kind": "polygon", "points": 4}
+    assert parse_search_url(RADIUS_URL)["drawn_area"] == {
+        "kind": "circle",
+        "lat": 45.45,
+        "lng": 9.175,
+        "radius_m": 1500,
+    }
+    # the ordinary case stays quiet, on every portal
+    assert parse_search_url(MULTI_ZONE_URL)["drawn_area"] is None
+    assert (
+        parse_search_url("https://www.idealista.it/vendita-case/milano-milano/")["drawn_area"]
+        is None
+    )
+
+
+def test_a_drawn_area_is_reported_as_the_filter_idealista_loses():
+    """Idealista's URL grammar has no geometry at all, so a search drawn on
+    Immobiliare's map reaches it as the whole comune. That is the widest of the
+    asymmetries and the one nothing else names."""
+    out = build_search_urls(dict(city="Milano", drawn_area={"kind": "polygon", "points": 24}))
+    assert "drawn_area" in out["idealista_unsupported"]
+
+    # the geometry itself says the same thing, for callers that kept it
+    out = build_search_urls(dict(city="Milano", drawn_circle=(45.45, 9.175, 1500.0)))
+    assert "drawn_area" in out["idealista_unsupported"]
+
+    assert "drawn_area" not in build_search_urls(dict(city="Milano"))["idealista_unsupported"]

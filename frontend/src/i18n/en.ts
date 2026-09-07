@@ -1012,6 +1012,7 @@ export const en = {
   "profiles.unsupportedCondition": "this condition",
   "profiles.unsupportedMaxRooms":
     "a cap of 5 or more rooms (its largest bucket is “5 or more”)",
+  "profiles.unsupportedDrawnArea": "an area drawn on the map, or a radius around a point",
 
   // ── monitored searches: notification channels ───────────────────────────
   "profiles.chAll": "All channels",
@@ -1102,6 +1103,50 @@ export const en = {
   "profiles.idealistaUnsupported":
     "Idealista has no search filter for {filters}, so its half of this pair is the wider search — expect listings there that Immobiliare filters out.",
   "profiles.createProfilesButton": "Create profiles",
+
+  // ── monitored searches: the review before the search is saved ───────────
+  "profiles.review.intro":
+    "This is what will be searched. Each portal gets its own column, because they do not always get the same search:",
+  "profiles.review.colDetected": "Detected",
+  "profiles.review.rowWhere": "Where",
+  "profiles.review.rowZones": "Zones",
+  "profiles.review.rowArea": "Area drawn",
+  "profiles.review.rowPrice": "Price",
+  "profiles.review.rowRooms": "Rooms",
+  "profiles.review.rowSqm": "Size",
+  "profiles.review.notDetected": "not detected",
+  "profiles.review.notInSearch": "not part of this search",
+  "profiles.review.wholeCity": "the whole city",
+  "profiles.review.requested": "requested",
+  "profiles.review.notRequested": "not requested",
+  "profiles.review.exact": "carried across exactly",
+  "profiles.review.approx": "approximated",
+  "profiles.review.dropped": "dropped",
+  "profiles.review.between": "{min} – {max} {unit}",
+  "profiles.review.atLeast": "from {value} {unit}",
+  "profiles.review.atMost": "up to {value} {unit}",
+  "profiles.review.unitRooms": "rooms",
+  "profiles.review.areaPolygon": "an area drawn on the map, {points} points",
+  "profiles.review.areaCircle": "everything within {radius} m of a point",
+  "profiles.review.areaKept":
+    "Only the pasted link carries this area: it has no field in the form above, so editing the criteria and generating again would lose it.",
+  "profiles.review.whyZoneFreeText":
+    "zone matched by free-text search, so results may include neighbouring areas",
+  "profiles.review.whyOneZoneName":
+    "an Immobiliare URL carries one zone name: only “{zone}” is searched and the other {others} are not. Select the zones on Immobiliare's map and paste that link to keep every one.",
+  "profiles.review.whyTooManyZones":
+    "{count} zones is more than one Immobiliare search URL can carry — split them across several searches",
+  "profiles.review.whyMaxRooms":
+    "Idealista's largest room bucket is “5 or more”, so no upper limit is applied",
+  "profiles.review.whyFloor": "Idealista has no floor filter",
+  "profiles.review.whyCondition": "Idealista has no equivalent for this condition",
+  "profiles.review.whyDrawnArea":
+    "Idealista's URLs cannot state a shape or a radius at all, so its half of the pair covers the whole city",
+  "profiles.review.whyAreaRebuilt":
+    "rebuilt from the form, which has no field for a drawn area — paste the portal link again to keep it",
+  "profiles.review.verifyZone": "Check the zone on Idealista",
+  "profiles.review.verifying": "Asking Idealista…",
+  "profiles.review.confirm": "I have checked these parameters and they are right",
 
   // ── monitored searches: bulk bar & rows ─────────────────────────────────
   "profiles.selectAll": "Select all",

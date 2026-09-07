@@ -48,6 +48,21 @@ what each option actually does.
      is exact on both). For anything beyond this
      (hand-drawn map polygons, multi-zone selections, bathrooms, heating,
      energy class), set it on the portal and paste the URL.
+   - **Check it before you save it.** Whether you pasted a link or filled the
+     form, the last step is a review: every criterion on its own line, with what
+     was read from the link beside what **Immobiliare** will receive and what
+     **Idealista** will receive — because the two are not always the same search.
+     Each cell says which of three things happened: carried across exactly,
+     *approximated* (with what the approximation is — a zone matched as free text
+     also returns neighbouring areas), or *dropped* (with why — Idealista has no
+     "excellent / renovated" condition, and no way at all to state an area drawn
+     on a map). A criterion the link never mentioned is marked *not detected*,
+     which is deliberately not the same as one read as empty, and a zone that
+     arrived as a portal id is shown as that id rather than as a guess at its
+     name. The review is computed offline; the one thing that costs a live
+     request — asking Idealista whether your zone has its own page — is a button
+     you press. Everything stays editable, and **"Create profiles"** stays
+     disabled until you tick that the parameters are right.
 2. **Add Profile**: Open **Searches** in the navigation, click **"+ Add search profile"**, give it a name, paste the URL, and click **"Save profile"**. To change one later (name, URL, or excluded keywords), click the **✏️** icon next to it in the list. To remove one, click **🗑** — see *Deleting a search* below, since you get to decide what happens to the listings it found.
    - *No accidental duplicates*: a search that resolves to the same portal URL and the same excluded keywords as one you already monitor is refused (the comparison ignores irrelevant differences like trailing slashes, tracking parameters, or keyword order/case), so the same listings aren't scanned and notified twice. Any pre-existing duplicates are merged into the oldest copy at startup, preserving which searches found what.
    - Each search also shows the **excluded keywords** actually in effect for it — the global ones set in Settings plus its own extras — so what gets discarded is visible without opening anything.
