@@ -74,6 +74,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
 
+  // A pixel diff is never bit-for-bit even on the same machine twice — font
+  // hinting and anti-aliasing shift by a handful of pixels along a glyph's
+  // edge run to run. Loose enough to absorb that, tight enough that a shifted
+  // card or a missing icon still fails: the two have never landed in the same
+  // range on this app.
+  expect: {
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01 },
+  },
+
   // Chromium only. A second engine doubles the run and the flakes to cover
   // rendering differences this app has never had; the browser bugs worth
   // catching here are ours.
@@ -86,13 +95,22 @@ export default defineConfig({
   projects: [
     {
       name: "journeys",
-      testIgnore: /coverage\.spec\.ts/,
+      testIgnore: [/coverage\.spec\.ts/, /visual\.spec\.ts/],
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "coverage",
       testMatch: /coverage\.spec\.ts/,
       dependencies: ["journeys"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+    // Pixel diffs are not a functional gate: they belong to their own run so a
+    // font-rendering shift never blocks the coverage gate above from finishing,
+    // and so a run of the suite that only wants behaviour never pays for them.
+    // Picked up only by `npm run e2e:visual`, never by `npm run e2e`.
+    {
+      name: "visual",
+      testMatch: /visual\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

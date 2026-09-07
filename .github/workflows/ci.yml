@@ -257,6 +257,58 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+  # Pixel diffs against a committed baseline (frontend/e2e/visual.spec.ts), one
+  # per route at three widths. Split from the job above on purpose: a baseline
+  # is only ever compared against a run on the OS that produced it, so this has
+  # to run on the same ubuntu-latest image the baselines were made to match, and
+  # keeping it separate means a font-rendering diff here can never block the
+  # functional coverage gate `e2e` owns.
+  visual:
+    name: visual regression
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install the backend from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install from the lockfile
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Visual regression
+        working-directory: frontend
+        run: npm run e2e:visual
+
+      # The actual and diff PNGs beside the baseline, for a failure that a
+      # number in the log cannot explain by itself.
+      - name: Keep the report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-visual-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
   # What the dashboard costs to open, measured against a budget that fails the
   # build (frontend/lighthouse/budget.json).
   #

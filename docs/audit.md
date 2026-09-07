@@ -50,15 +50,19 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 # what the dashboard costs to open, against a budget that fails the build
 # (needs `npm i -g @lhci/cli@0.15.1`). CI-only — see below.
 cd frontend && npm run lighthouse
+
+# one screenshot per route at three widths, against a Linux baseline. CI-only — see below.
+cd frontend && npm run e2e:visual
 ```
 
 Expected today: **1032 passed + 1 skipped** (1033 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **444 frontend tests**,
 **76 browser tests** (48 journeys, then 28 that hold the run to the control inventory),
-and **no diff** from the type generator. The browser suite prints the two numbers worth
-reading: **225 interactive elements, 260 inventoried actions**, of which **258 exercised
-and 2 declared unreachable with a written reason**. If a test number changed, that is not
-a failure — it is a documentation trigger (see §4).
+**9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
+the type generator. The browser suite prints the two numbers worth reading: **225
+interactive elements, 260 inventoried actions**, of which **258 exercised and 2 declared
+unreachable with a written reason**. If a test number changed, that is not a failure — it
+is a documentation trigger (see §4).
 
 The last gate is the cheap one and the easy one to skip, and it is the only thing standing
 between `schemas.py` and a frontend that compiles against a wire format the backend stopped
@@ -88,6 +92,15 @@ budget*, Linux) and a local run is for reading the report, not for a verdict. To
 **896 KiB of script, 90 KiB of stylesheet, 1149 KiB total over 16 requests**, against a
 budget of 950 / 100 / 1300. A commit that adds a dependency to a single screen spends that
 headroom on every screen, which is the decision the gate exists to force.
+
+`npm run e2e:visual` is a pixel diff against `frontend/e2e/visual.spec.ts-snapshots/`, not a
+behavioural check — that is what the suite above already owns. It exists to catch what
+nothing else here can: a token that shifted a card's padding on every screen at once, or a
+layout that only breaks at 768px. The baselines are platform-suffixed and were made on
+`ubuntu-latest`, so like Lighthouse this is **CI-only**: a Windows run compares against a
+baseline made on a different renderer and every screen fails on font hinting alone. It runs
+as its own CI job and its own Playwright project, deliberately outside `npm run e2e`, so a
+font-rendering diff here can never block the functional coverage gate.
 
 To fetch a portal page live during verification, use `AdProbe` (`scrapers/probe.py`), never
 a cold browser — it injects the real `datadome_cookie`. See
