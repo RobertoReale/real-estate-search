@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "npm run build && playwright test",
+    "e2e": "npm run build && playwright test --project=journeys --project=coverage",
+    "e2e:visual": "npm run build && playwright test --project=visual",
     "e2e:browser": "playwright install chromium",
     "lighthouse": "npm run build && lhci autorun --config=lighthouse/lighthouserc.json"
   },

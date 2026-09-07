@@ -128,7 +128,7 @@ const SETTLE_TIMEOUT = 2000;
  *  when it is genuinely over — no frame count can stand in for that. Animations
  *  that repeat forever (a spinner, a pulsing skeleton) are skipped, because
  *  waiting for one to finish would mean waiting for ever. */
-async function settle(page: Page): Promise<void> {
+export async function settle(page: Page): Promise<void> {
   await page.evaluate(async (timeout) => {
     await new Promise((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(resolve)),
