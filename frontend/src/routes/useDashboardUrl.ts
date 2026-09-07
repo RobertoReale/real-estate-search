@@ -48,6 +48,18 @@ export interface DashboardUrl {
   openMap: () => void;
 }
 
+/** Whether the grid itself is the screen, with nothing open over it.
+ *
+ *  Every overlay in the app is an address — a property, the settings, the log —
+ *  so "is anything open" is a question about the path and not about a pile of
+ *  booleans that can disagree with it. The grid's keyboard shortcuts are the
+ *  caller: `f` means favourite over a list of cards and must mean nothing at all
+ *  while a sheet is covering them.
+ */
+export function useOnGrid(): boolean {
+  return useMatch(LISTINGS) !== null;
+}
+
 export function useDashboardUrl(): DashboardUrl {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();

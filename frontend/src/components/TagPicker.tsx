@@ -86,7 +86,10 @@ export default function TagPicker({ tags, allTags, onAdd, onRemove, compact }: P
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") commit(query);
-              if (e.key === "Escape") { setOpen(false); setQuery(""); }
+              // One Escape dismisses one thing. Without stopping here it closes
+              // the picker *and* reaches the screen's own Escape behind it,
+              // which on a property page means leaving the property too.
+              if (e.key === "Escape") { e.stopPropagation(); setOpen(false); setQuery(""); }
             }}
           />
           {(suggestions.length > 0 || (trimmed && !exactMatch)) && (

@@ -19,16 +19,21 @@
  *  body, so switching shapes — which a rotation or a resize does — does not
  *  reset the advanced panel a user has just opened.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "../../i18n";
 import { api, authToken, AuthError, fetchExport } from "../../services/api";
 import type { PropertyFilters, SearchProfile, Tag } from "../../types";
 import { groupSearchProfiles } from "../../utils/searchProfiles";
 import { useToasts } from "../../components/Toast";
 import { useMediaQuery, DESKTOP_QUERY } from "../../hooks/useMediaQuery";
+import { useShortcuts } from "../../hooks/useShortcuts";
 import { Card, Checkbox, Chip, Field, IconButton, Input, Sheet } from "../../ui";
 import { Close, Cog, Disclose, Favorite, Filters, PriceDrop } from "../../ui/icons";
+import { useOnGrid } from "../useDashboardUrl";
 import { activeFilterChips } from "./chips";
+
+/** The keyword box, found the same way the shortcut's test finds it. */
+const QUERY_FIELD = "[data-action='filters.query']";
 
 interface Props {
   filters: PropertyFilters;
@@ -72,6 +77,36 @@ export default function FilterRail({
   const isRent = filters.contract === "rent";
   const activeCount = activeFilterChips(filters, profiles, t).length;
   const open = desktop ? inlineOpen : sheetOpen;
+
+  /** `/` puts the cursor in the keyword box.
+   *
+   *  The rail is where the box is, and the rail may be collapsed or a shut
+   *  sheet, so the key opens it first and the focus follows on the render that
+   *  puts the field on screen — asking for it in the same tick would be asking
+   *  an element that does not exist yet. The sheet also takes the focus for
+   *  itself as it opens, which is why this lands a frame later rather than in a
+   *  layout effect. */
+  const [wanted, setWanted] = useState(false);
+  useShortcuts([{
+    keys: ["/"],
+    run: () => {
+      if (!open) (desktop ? setInlineOpen : setSheetOpen)(true);
+      setWanted(true);
+    },
+  }], useOnGrid());
+
+  useEffect(() => {
+    if (!wanted || !open) return;
+    const frame = requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLInputElement>(QUERY_FIELD);
+      field?.focus();
+      // What is already in the box is what the user is replacing nine times out
+      // of ten, and selecting it makes typing over it the default.
+      field?.select();
+      setWanted(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [wanted, open]);
 
   /** Hand a URL to the browser: opened in a tab for the print-ready PDF report
    *  (which raises the print dialog on load — downloaded, it would print
@@ -163,10 +198,15 @@ export default function FilterRail({
             goes on a role="group" instead — a <label> with no `for` is
             announced as nothing at all. */}
         <span className="text-xs t-muted">{t("filters.market")}</span>
+        {/* The group is not `overflow-hidden` and the corners are rounded on the
+            buttons instead: the clip is what the segment ends need, but it also
+            cuts off the focus ring of the button inside it, and a control whose
+            focus cannot be seen is one a keyboard user loses. Same in the export
+            group below. */}
         <div role="group" aria-label={t("filters.market")}
-          className="flex rounded-lg overflow-hidden border border-line-strong">
+          className="flex rounded-lg border border-line-strong">
           <button data-action="filters.contract.sale"
-            className={`flex-1 px-3 py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-l-lg px-3 py-2 text-sm font-medium transition btn-focus ${
               !isRent
                 ? "bg-accent text-on-solid"
                 : "bg-control text-ink-dim hover:text-ink-strong"
@@ -175,7 +215,7 @@ export default function FilterRail({
             {t("filters.buy")}
           </button>
           <button data-action="filters.contract.rent"
-            className={`flex-1 px-3 py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-r-lg px-3 py-2 text-sm font-medium transition btn-focus ${
               isRent
                 ? "bg-rent text-on-solid"
                 : "bg-control text-ink-dim hover:text-ink-strong"
@@ -321,7 +361,8 @@ export default function FilterRail({
           even while the panel is collapsed. */}
       <div className="border-t border-line pt-3">
         <button data-action="filters.advanced.toggle" type="button"
-          className="flex w-full items-center gap-1.5 text-sm accent-link hover:underline"
+          className="flex w-full items-center gap-1.5 rounded text-sm accent-link
+            hover:underline btn-focus"
           aria-expanded={advOpen}
           onClick={() => setAdvOpen((o) => !o)}>
           <Cog /> {t("filters.more")}
@@ -398,7 +439,7 @@ export default function FilterRail({
       <div className="flex flex-col gap-1 border-t border-line pt-3">
         <span className="text-xs t-muted">{t("filters.export")} {count > 0 && `(${count})`}</span>
         <div role="group" aria-label={t("filters.export")}
-          className="flex rounded-lg overflow-hidden border border-line-strong">
+          className="flex rounded-lg border border-line-strong">
           {/* The action id is carried in the tuple rather than built from
               `fmt`: the inventory is checked against the literal strings in
               the source, and a template one would be invisible to it. */}
@@ -410,7 +451,8 @@ export default function FilterRail({
           ] as const).map(
             ([fmt, label, action]) => (
               <button key={fmt} data-action={action}
-                className="flex-1 px-3 py-2 text-sm font-medium transition
+                className="flex-1 px-3 py-2 text-sm font-medium transition btn-focus
+                  first:rounded-l-lg last:rounded-r-lg
                   bg-control text-ink-dim hover:text-ink-strong
                   disabled:opacity-40 disabled:cursor-not-allowed"
                 disabled={count === 0 || exporting !== null}

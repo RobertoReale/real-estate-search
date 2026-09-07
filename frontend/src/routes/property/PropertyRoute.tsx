@@ -10,9 +10,10 @@
  *  This file decides *which* property is on screen and how the user moves
  *  between them; `PropertyDetail` decides what that looks like.
  */
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
+import { isTyping, useShortcuts } from "../../hooks/useShortcuts";
 import { useT } from "../../i18n";
 import { useProperty } from "../../queries/properties";
 import type { Property } from "../../types";
@@ -55,27 +56,38 @@ export default function PropertyRoute() {
     [navigate, location.search],
   );
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      // Typing "j" into the notes is typing, not navigating.
-      const from = event.target as HTMLElement | null;
-      if (from?.closest("input, textarea, select, [contenteditable='true']")) return;
+  /** Step to a neighbour, or decline the key when there is nothing on that side
+   *  so the page keeps its own scrolling. */
+  const step = (to: number | null) => {
+    if (to === null) return false;
+    go(to);
+  };
 
-      const wanted = FORWARD.includes(event.key)
-        ? near.next
-        : BACK.includes(event.key)
-          ? near.previous
-          : undefined;
-      // Not a traversal key, or one with nothing on that side: leave the key
-      // alone rather than swallow the page's own scrolling.
-      if (wanted === undefined || wanted === null) return;
-      event.preventDefault();
-      go(wanted);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [go, near.next, near.previous]);
+  useShortcuts([
+    { keys: FORWARD, run: () => step(near.next) },
+    { keys: BACK, run: () => step(near.previous) },
+    // Escape belongs to whoever is on top. Below `lg` that is the sheet, which
+    // closes itself; here the detail *is* the page, so it is handled from here —
+    // and registering it in both shapes would close the sheet and then push a
+    // second identical entry, which is how Back stops working.
+    ...(page
+      ? [{
+        keys: ["Escape"],
+        whileTyping: true as const,
+        // The first press leaves the field the user is writing in, the second
+        // leaves the property. Escaping out of the notes should not also throw
+        // away the screen they were taken on.
+        run: () => {
+          const focused = document.activeElement;
+          if (isTyping(focused)) {
+            (focused as HTMLElement).blur();
+            return;
+          }
+          close();
+        },
+      }]
+      : []),
+  ]);
 
   // The copy it was opened with stays on screen while a newer one is on its way.
   // A property can leave the filtered set while its own detail is open — a
