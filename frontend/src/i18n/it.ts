@@ -1094,6 +1094,8 @@ export const it: Dict = {
   "profiles.optional": "(facoltativo)",
   "profiles.zoneTitle":
     "Quartiere, al meglio possibile: apri gli URL generati per verificare che il portale lo riconosca",
+  "profiles.zoneAdd": "Aggiungi una zona",
+  "profiles.zoneRemove": "Togli la zona {zone}",
   "profiles.minRooms": "Locali min",
   "profiles.moreCriteria": "Altri criteri",
   "profiles.moreCriteriaHint": "· applicati a entrambi i portali",
@@ -1146,6 +1148,7 @@ export const it: Dict = {
   "profiles.chipBuy": "Acquisto",
   "profiles.chipRooms": "{range} locali",
   "profiles.chipMinSqm": "≥ {value} mq",
+  "profiles.chipZoneIds": "id di zona: {count}",
 
   // ── ricerche monitorate: dialogo di eliminazione ────────────────────────
   "profiles.deleteOne": "Eliminare “{name}”?",
@@ -1396,6 +1399,10 @@ export const it: Dict = {
     "(una richiesta ogni {pace}s — il ritmo consentito dal servizio pubblico OpenStreetMap)",
   "limits.carRouting": "misurato sulla rete stradale",
   "limits.zoneBestEffort": "riconosciuta dal nome, non dall'id di zona del portale",
+  "limits.zoneIdsUnnamed":
+    "L'URL incollato ha scritto queste zone come id propri del portale ({count}). Vengono cercate esattamente come erano selezionate, ma i loro nomi li conosce solo il portale: non c'è altro da mostrare che gli id.",
+  "limits.zoneFirstNameOnly":
+    "L'indirizzo di Immobiliare porta un solo nome di zona: costruito da qui cerca solo {zone}, e le altre {count} vengono perse. Selezionale sulla mappa del portale e incolla quell'URL per tenerle tutte.",
   "limits.zoneCarryExact": "zona: esatta",
   "limits.zoneCarryApprox": "zona: approssimata",
   "limits.zonePreferred":

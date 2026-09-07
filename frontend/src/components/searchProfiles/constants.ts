@@ -14,7 +14,7 @@ import type { SearchBuilderParams } from "../../types";
 // days ago was still reporting the "OK" it left on.
 
 export const EMPTY_BUILDER: SearchBuilderParams = {
-  city: "", province: "", zone: "", contract: "sale",
+  city: "", province: "", zone: "", zones: [], zone_ids: [], contract: "sale",
   min_price: "", max_price: "", min_rooms: "", max_rooms: "", min_sqm: "",
   balcony: false, garden: false, parking: false, elevator: false,
   exclude_auctions: false, pool: false, floor: "", condition: "",

@@ -180,7 +180,15 @@ export interface GeoFilter {
 export interface SearchBuilderParams {
   city: string;
   province: string;
+  /** The first of `zones`, and never anything else: every caller written before
+   *  the list still reads a single zone, so the two are set together. */
   zone: string;
+  /** Every zone the search covers, by name. A portal selection is a list — three
+   *  districts clicked on a map — and this is what the form edits. */
+  zones: string[];
+  /** The portal's own zone ids, when a pasted URL carried them. Exact where a
+   *  name is best-effort, and not nameable offline, so they are shown as ids. */
+  zone_ids: string[];
   contract: "sale" | "rent";
   min_price: string;
   max_price: string;

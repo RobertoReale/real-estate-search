@@ -87,7 +87,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   })}
                 </div>
               )}
-              {pParams && (pParams.city || pParams.min_price || pParams.max_price || pParams.min_rooms || pParams.min_sqm || pParams.zone) && (
+              {pParams && (pParams.city || pParams.min_price || pParams.max_price || pParams.min_rooms || pParams.min_sqm || pParams.zone || pParams.zone_ids.length > 0) && (
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {pParams.contract && (
                     <Chip tone="accent">
@@ -97,7 +97,20 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                   {pParams.city && (
                     <Chip tone="positive">
                       <Place /> {pParams.city}{pParams.province ? ` (${pParams.province})` : ""}
-                      {pParams.zone ? ` · ${pParams.zone}` : ""}
+                    </Chip>
+                  )}
+                  {/* One chip per zone, rather than the first one glued to the
+                      city with a dot. A saved search covering three districts
+                      read as a search of the first — the row said less than the
+                      URL it was summarising. */}
+                  {pParams.zones.map((zone) => (
+                    <Chip key={zone} tone="tag">{zone}</Chip>
+                  ))}
+                  {/* Ids get counted instead of listed: they say nothing to read
+                      but their number is the honest answer to "how many zones". */}
+                  {pParams.zone_ids.length > 0 && (
+                    <Chip tone="neutral">
+                      {t("profiles.chipZoneIds", { count: pParams.zone_ids.length })}
                     </Chip>
                   )}
                   {(pParams.min_price || pParams.max_price) && (

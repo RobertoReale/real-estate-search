@@ -296,6 +296,11 @@ export const api = {
       city: params.city,
       province: params.province,
       zone: params.zone,
+      // The list, not just its first element. Sending `zone` alone is what
+      // turned a three-zone selection into a one-zone URL the moment it was
+      // rebuilt — the parser had read every zone and this body dropped them.
+      zones: params.zones,
+      zone_ids: params.zone_ids,
       contract: params.contract,
       min_price: params.min_price ? Number(params.min_price) : null,
       max_price: params.max_price ? Number(params.max_price) : null,
