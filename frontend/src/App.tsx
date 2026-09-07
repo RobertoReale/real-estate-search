@@ -26,7 +26,7 @@ import { useDebounced } from "./hooks/useDebounced";
 import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery";
 import { useOnReveal } from "./hooks/useOnReveal";
 import { useGridShortcuts } from "./routes/listings/useGridShortcuts";
-import { useProfiles, useTags } from "./queries/dashboard";
+import { useGoneAfterDays, useProfiles, useTags } from "./queries/dashboard";
 import { useGeocodeMissing } from "./queries/maintenance";
 import {
   useAddTag, useAvailabilityProgress, useBulkProperties, useCancelPropertiesCheck,
@@ -324,6 +324,10 @@ export default function App() {
   const profiles = useProfiles().data ?? [];
   const tags = useTags().data ?? [];
   const settings = useSettings().data ?? null;
+  // Subscribed once, here, and handed down: sixty unmemoised cards each asking
+  // for the scan status would re-render the whole grid every four seconds of a
+  // scan. The selector narrows this to the scalar, so it moves essentially never.
+  const goneAfterDays = useGoneAfterDays();
 
   const fetchWholeSet = useFetchPropertySet();
   const geocodeMissing = useGeocodeMissing();
@@ -565,6 +569,7 @@ export default function App() {
       allTags={tags}
       onAddTag={(name) => addTag(p, name)}
       onRemoveTag={(tagId) => removeTag(p, tagId)}
+      goneAfterDays={goneAfterDays}
     />
   ));
 

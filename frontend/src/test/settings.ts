@@ -31,6 +31,7 @@ const EMPTY: Settings = {
   idealista_api_key: "", idealista_api_key_set: false,
   idealista_api_secret: "", idealista_api_secret_set: false,
   idealista_api_max_pages: 1,
+  idealista_api_page_size: 50,
   tls_impersonations: [],
   datadome_cookie: "", datadome_cookie_set: false, datadome_auto_refresh: false,
   datadome_cookie_updated_at: "", datadome_cookie_ttl_minutes: 45,

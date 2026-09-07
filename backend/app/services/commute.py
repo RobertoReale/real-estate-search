@@ -44,6 +44,11 @@ from sqlalchemy.orm import Session
 
 from ..models import CommuteCache, GeocodeCache, Property
 
+# The public demo, and the default when `osrm_url` is unset. Written once so the
+# check below and the fallback cannot drift apart.
+PUBLIC_OSRM_HOST = "router.project-osrm.org"
+DEFAULT_OSRM_URL = f"https://{PUBLIC_OSRM_HOST}"
+
 logger = logging.getLogger(__name__)
 
 # The public OSRM demo server asks for reasonable use rather than publishing a
@@ -275,6 +280,22 @@ def _user_agent() -> str:
     return _get_user_agent()
 
 
+def is_car_routing(settings: dict, mode: str) -> bool:
+    """Was this leg measured on the driving network rather than on its own?
+
+    True only for the walking and cycling profiles against the public demo,
+    which accepts them and answers with car routing anyway (see the module
+    header). A self-hosted OSRM built with the foot profile answers False, and
+    so does a car leg everywhere — a car measured on the road network is simply
+    correct. The card shows the difference; deciding it here is what stops the
+    client re-deriving a fact from a URL.
+    """
+    if mode == "car":
+        return False
+    url = (settings.get("osrm_url") or DEFAULT_OSRM_URL).strip()
+    return PUBLIC_OSRM_HOST in url
+
+
 def annotate_commutes(db: Session, props: list[Property], settings: dict) -> None:
     """Attach the transient `commutes` read by PropertyOut — from the cache only.
 
@@ -287,11 +308,14 @@ def annotate_commutes(db: Session, props: list[Property], settings: dict) -> Non
         for p in props:
             p.commutes = []
         return
+    car_routed = {mode: is_car_routing(settings, mode) for mode in MODE_PROFILES}
     for p in props:
-        p.commutes = _cached_commutes(db, p, points)
+        p.commutes = _cached_commutes(db, p, points, car_routed)
 
 
-def _cached_commutes(db: Session, prop: Property, points: list[dict]) -> list[dict]:
+def _cached_commutes(
+    db: Session, prop: Property, points: list[dict], car_routed: dict[str, bool]
+) -> list[dict]:
     if prop.latitude is None or prop.longitude is None:
         return []
     out: list[dict] = []
@@ -312,6 +336,7 @@ def _cached_commutes(db: Session, prop: Property, points: list[dict]) -> list[di
                 "mode": point["mode"],
                 "distance_m": row.distance_m,
                 "duration_s": row.duration_s,
+                "car_routing": car_routed.get(point["mode"], False),
             }
         )
     return out
@@ -337,7 +362,7 @@ def _compute_missing_commutes_inner(db: Session, max_calls: int | None = -1) -> 
     from ..config import load_settings
 
     settings = load_settings()
-    base_url = (settings.get("osrm_url") or "https://router.project-osrm.org").strip()
+    base_url = (settings.get("osrm_url") or DEFAULT_OSRM_URL).strip()
     # allow_network here: this is the paced batch, and a saved place given as an
     # address has to become a coordinate once before anything can be routed to it.
     points = resolve_points(db, points_from_settings(settings), allow_network=True)

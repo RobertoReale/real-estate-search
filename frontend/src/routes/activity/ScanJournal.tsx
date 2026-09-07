@@ -11,8 +11,15 @@
  *  spent where `ProfileHealth` spends `last_run_detail` — only on the runs that
  *  did not simply work, where a rough explanation beats none. `detail` is not
  *  rendered at all: on a successful run the counts have already said it.
+ *
+ *  Which is exactly why the page cap needs a line of its own here. A search that
+ *  stopped at the limit ends `ok` — it worked, it simply did not finish — so
+ *  every explanation above skips it, and the counts read as the whole answer.
+ *  This is the one row that earns the `incomplete` tone, and it takes the cap
+ *  and the portal's own total off the entry rather than out of the copy.
  */
 import { formatDateTime, formatNumber, useI18n } from "../../i18n";
+import { Limit } from "../../components/Limit";
 import { PortalBadge } from "../../components/PortalBadge";
 import { useScanJournal } from "../../queries/dashboard";
 import { Card, CardHeader, Chip, EmptyState, Skeleton } from "../../ui";
@@ -66,6 +73,30 @@ export default function ScanJournal() {
                     <p className="text-xs t-muted">
                       {t("activity.stoppedBecause", { reason: entry.stopped_because })}
                     </p>
+                  )}
+                  {/* The other half of "the answer is incomplete": the portal
+                      refused this search, so its listings are simply missing
+                      rather than absent. Said per portal, which is what the row
+                      already is. */}
+                  {entry.outcome === "blocked" && (
+                    <Limit id="scan.portalBlocked" tone="incomplete">
+                      {t("limits.portalBlocked")}
+                    </Limit>
+                  )}
+                  {entry.truncated && (
+                    <Limit id="scan.pageCap" tone="incomplete">
+                      {entry.total_listings === null
+                        ? t("limits.pageCap", { pages: formatNumber(entry.page_limit) })
+                        : t("limits.pageCapOfTotal", {
+                            pages: formatNumber(entry.page_limit),
+                            total: formatNumber(entry.total_listings),
+                          })}
+                    </Limit>
+                  )}
+                  {entry.outside_area > 0 && (
+                    <Limit id="scan.outsideArea">
+                      {t("limits.outsideArea", { count: formatNumber(entry.outside_area) })}
+                    </Limit>
                   )}
                 </li>
               );

@@ -141,7 +141,13 @@ function PriceBenchmarks({ property: p }: { property: Property }) {
           </div>
         )}
       </div>
-      {median && omi && <p className="mt-2 text-2xs t-dim">{t("benchmark.note")}</p>}
+      {/* Invariant 22, said on the screen and not only in the code: the OMI band
+          and the asking median measure different things and are never merged. */}
+      {median && omi && (
+        <p data-limit="benchmark.omiIsNotTheMedian" className="mt-2 text-2xs t-dim">
+          {t("benchmark.note")}
+        </p>
+      )}
       {/* Required by the licence on the OMI supply, so it is tied to the figures
           being on screen rather than to the panel: with the median alone there is
           nothing here of the Agenzia's to credit. */}

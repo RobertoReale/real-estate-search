@@ -112,8 +112,57 @@ def test_annotation_reads_the_cache_and_never_the_network(db, monkeypatch):
 
     commute.annotate_commutes(db, [prop], _settings([OFFICE]))
     assert prop.commutes == [
-        {"name": "Office", "mode": "car", "distance_m": 3200.0, "duration_s": 780.0}
+        {
+            "name": "Office",
+            "mode": "car",
+            "distance_m": 3200.0,
+            "duration_s": 780.0,
+            "car_routing": False,
+        }
     ]
+
+
+def test_a_walk_against_the_public_demo_says_it_was_measured_by_road(db):
+    """The demo server is built on the driving network alone and answers the
+    walking profile anyway. "18 min on foot" is then a car's 18 minutes, and the
+    badge has to be able to say which — so the fact is decided here, once, and
+    not re-derived from a URL on the client."""
+    walk = {"name": "School", "lat": 45.48, "lng": 9.20, "mode": "foot"}
+    prop = _prop()
+    db.add(prop)
+    db.add(
+        CommuteCache(
+            leg=commute.cache_key("foot", 45.46, 9.19, 45.48, 9.20),
+            distance_m=1400.0,
+            duration_s=1080.0,
+        )
+    )
+    db.commit()
+
+    commute.annotate_commutes(db, [prop], _settings([walk]))
+    assert (prop.commutes or [])[0]["car_routing"] is True
+
+    # a self-hosted router built with the foot profile is walking one
+    commute.annotate_commutes(db, [prop], _settings([walk], osrm_url="http://nas.local:5000"))
+    assert (prop.commutes or [])[0]["car_routing"] is False
+
+
+def test_a_car_leg_is_never_flagged_wherever_it_was_routed(db):
+    """A car measured on the road network is simply correct. Flagging it too
+    would spend the notice on the case that has nothing wrong with it."""
+    prop = _prop()
+    db.add(prop)
+    db.add(
+        CommuteCache(
+            leg=commute.cache_key("car", 45.46, 9.19, 45.48, 9.20),
+            distance_m=3200.0,
+            duration_s=780.0,
+        )
+    )
+    db.commit()
+
+    commute.annotate_commutes(db, [prop], _settings([OFFICE]))
+    assert (prop.commutes or [])[0]["car_routing"] is False
 
 
 def test_an_unrouted_leg_is_simply_absent(db):

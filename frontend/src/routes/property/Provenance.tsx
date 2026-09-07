@@ -9,6 +9,7 @@ import { formatDate, useT } from "../../i18n";
 import { formatPrice, safeHref } from "../../services/api";
 import type { Property } from "../../types";
 import { Agency, Commute, External, Searches } from "../../ui/icons";
+import { LimitInline } from "../../components/Limit";
 import { PortalBadge } from "../../components/PortalBadge";
 import { COMMUTE_ICONS, formatDistance, formatDuration } from "../../utils/format";
 
@@ -35,6 +36,15 @@ function Commutes({ property: p }: { property: Property }) {
               title={t("card.commuteTitle", { name: c.name })}>
               <Mode /> {c.name} {formatDuration(c.duration_s)}
               {` · ${formatDistance(c.distance_m)}`}
+              {/* The public OSRM demo is built on the driving network alone, so a
+                  walk it answers is a car's route on foot's clock. Said on the
+                  badge rather than in Settings, because the badge is where the
+                  number gets believed. */}
+              {c.car_routing && (
+                <LimitInline id="commute.carRouting">
+                  {` (${t("limits.carRouting")})`}
+                </LimitInline>
+              )}
             </span>
           );
         })}

@@ -84,7 +84,7 @@ const STORED: Settings = {
   scrape_api_mode: "always", transport_escalate_after_failures: 2,
   idealista_api_key: "", idealista_api_key_set: true,
   idealista_api_secret: "", idealista_api_secret_set: true,
-  idealista_api_max_pages: 3,
+  idealista_api_max_pages: 3, idealista_api_page_size: 50,
   tls_impersonations: ["safari184"],
   datadome_cookie: "", datadome_cookie_set: true, datadome_auto_refresh: true,
   datadome_cookie_updated_at: "", datadome_cookie_ttl_minutes: 50,

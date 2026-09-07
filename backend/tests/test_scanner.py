@@ -1705,6 +1705,96 @@ def test_a_search_that_crashed_is_in_the_journal_too(scan_db, portal, live_scan,
     assert "the parser gave up" in entry["detail"]
 
 
+def test_the_journal_carries_the_numbers_a_truncated_search_is_qualified_by(
+    scan_db, portal, live_scan, monkeypatch
+):
+    """`detail` says it in English for whoever reads the log. A dashboard has to
+    say it in the user's language, with the cap that was actually in force —
+    which it can only do if the numbers travel as values."""
+
+    class _Capped:
+        delay_seconds = 0
+        max_pages = 1
+        on_progress = None
+
+        def scrape(self, url, known=None):
+            return ScrapeResult(
+                listings=[_listing("1", 70.0)],
+                pages_fetched=1,
+                truncated_by="page_limit",
+                page_limit=1,
+                total_pages=3,
+                total_listings=60,
+            )
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Capped())
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    scanner.run_scan(manual=True)
+
+    entry = scanner.get_scan_journal()[0]
+    # "ok" is the honest outcome — the search worked, it simply did not finish
+    assert entry["outcome"] == "ok"
+    assert entry["truncated"] is True
+    assert entry["page_limit"] == 1
+    assert entry["total_listings"] == 60
+
+
+def test_a_search_that_fit_says_so_on_its_journal_line(scan_db, portal, live_scan, monkeypatch):
+    """The other half of the pair: nothing to qualify, and no number for a
+    screen to hang a notice on."""
+
+    class _Complete:
+        delay_seconds = 0
+        max_pages = 10
+        on_progress = None
+
+        def scrape(self, url, known=None):
+            return ScrapeResult(listings=[_listing("1", 70.0)], pages_fetched=1, page_limit=10)
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Complete())
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    scanner.run_scan(manual=True)
+
+    entry = scanner.get_scan_journal()[0]
+    assert entry["truncated"] is False
+    assert entry["total_listings"] is None
+    assert entry["outside_area"] == 0
+
+
+def test_the_journal_counts_what_came_back_from_outside_the_requested_area(
+    scan_db, portal, live_scan, monkeypatch
+):
+    """Per search, because it is a fact about that search: this one asked for a
+    zone and the portal answered with its neighbours."""
+
+    class _Wandering:
+        delay_seconds = 0
+        max_pages = 1
+        on_progress = None
+
+        def scrape(self, url, known=None):
+            return ScrapeResult(
+                listings=[
+                    _listing("1", 90.0, title="Dentro", zone="Navigli"),
+                    _listing("2", 70.0, title="Distretto accanto", zone="Città Studi"),
+                    _listing("3", 80.0, title="Altro comune", city="Monza", zone="Centro"),
+                ],
+                pages_fetched=1,
+            )
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Wandering())
+    # the real search URL, not the sandbox's: the area asked for is read off it,
+    # and the scraper that would have fetched it is the fake above
+    scan_db.add(SearchProfile(name="Navigli", portal="immobiliare", search_url=NAVIGLI_URL))
+    scan_db.commit()
+
+    scanner.run_scan(manual=True)
+
+    assert scanner.get_scan_journal()[0]["outside_area"] == 2
+
+
 def test_no_stored_secret_reaches_the_journal(scan_db, portal, live_scan, monkeypatch):
     """A search URL can carry an API key and an error message copies whatever
     URL it failed on, so the journal is one copy away from printing a

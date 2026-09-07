@@ -6,6 +6,7 @@
  * which the form links to from right beside the filters. */
 
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
+import { Limit, LimitInline } from "../Limit";
 import { PortalBadge } from "../PortalBadge";
 import type { SearchBuilderParams } from "../../types";
 import { CONDITIONS, FEATURES, FLOORS, UNSUPPORTED_LABELS } from "./constants";
@@ -71,7 +72,12 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           <Input data-action="profiles.builder.province" className="sm:w-32" placeholder={t("profiles.optional")}
             value={params.province} onChange={(e) => setParam({ province: e.target.value })} />
         </Field>
-        <Field label={<span title={t("profiles.zoneTitle")}>{t("filters.zone")}</span>}>
+        {/* A zone typed here is matched by name, and a name is not an id: the
+            portal may have no such page, or one whose boundary is not the one
+            the word means locally. Said in the field rather than only in its
+            tooltip — a caveat nobody hovers is a caveat nobody reads. */}
+        <Field label={<span title={t("profiles.zoneTitle")}>{t("filters.zone")}</span>}
+          hint={<LimitInline id="profiles.zoneBestEffort">{t("limits.zoneBestEffort")}</LimitInline>}>
           <Input data-action="profiles.builder.zone" className="sm:w-32" placeholder={t("profiles.optional")}
             value={params.zone} onChange={(e) => setParam({ zone: e.target.value })} />
         </Field>
@@ -141,6 +147,12 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
           onClick={() => setMode("url")}>{t("profiles.builderTipLink")}</button>
         {t("profiles.builderTipSuffix")}
       </p>
+      {/* The one thing the form above cannot express at all, said next to the
+          escape hatch that can. A shape drawn on the portal's map, or a radius
+          around a point, survives being pasted as a link and has no equivalent
+          in a city-and-zone form — so here the paste is not the fallback, it is
+          the faithful path. */}
+      <Limit id="profiles.areaNeedsUrl">{t("limits.areaNeedsUrl")}</Limit>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Input data-action="profiles.builder.name" aria-label={t("profiles.profileNamePlaceholder")}
@@ -159,7 +171,17 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
         </Button>
       )}
 
-      {built && (
+      {built && (() => {
+        // Whether each portal's URL carries the zone as the portal's own zone —
+        // an id or a confirmed slug — rather than as the word typed into it.
+        // Immobiliare carries it unless the builder said which zones it had to
+        // drop; Idealista only when the portal confirmed a zone page exists.
+        const zoned = params.zone.trim().length > 0;
+        const zoneExact = {
+          immobiliare: built.zone_warnings.length === 0,
+          idealista: built.idealista_zone_page,
+        };
+        return (
         <div className="space-y-2 pt-1">
           <p className="text-xs t-muted">{t("profiles.checkGenerated")}</p>
           {(["immobiliare", "idealista"] as const).map((portal) => (
@@ -170,6 +192,14 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
                   setUsePortals((u) => ({ ...u, [portal]: e.target.checked }))} />
               <PortalBadge portal={portal} />
               <span className="text-xs t-muted truncate flex-1">{built[portal]}</span>
+              {/* Side by side, because that is the comparison being made: two
+                  checkboxes that both say "searched" hide the fact that one of
+                  them is searching a word and the other a zone id. */}
+              {zoned && (
+                <LimitInline id="profiles.zoneCarry" className="text-xs shrink-0">
+                  {t(zoneExact[portal] ? "limits.zoneCarryExact" : "limits.zoneCarryApprox")}
+                </LimitInline>
+              )}
               <a data-action="profiles.builder.openBuilt" href={built[portal]} target="_blank" rel="noreferrer"
                 className="accent-link text-xs shrink-0"
                 onClick={(e) => e.stopPropagation()}>
@@ -177,6 +207,17 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
               </a>
             </label>
           ))}
+          {/* The Vincolo behind the pair above: when the two disagree, saying
+              what each one does is not enough — the user is choosing, and the
+              app knows which choice is the faithful one. */}
+          {zoned && zoneExact.immobiliare !== zoneExact.idealista && (
+            <Limit id="profiles.zonePreferred">
+              {t("limits.zonePreferred", {
+                portal: zoneExact.immobiliare ? "Immobiliare" : "Idealista",
+                other: zoneExact.immobiliare ? "Idealista" : "Immobiliare",
+              })}
+            </Limit>
+          )}
           {params.zone.trim() && usePortals.idealista && (
             <p className="text-xs t-muted">
               {t(built.idealista_zone_page ? "profiles.zoneKnown" : "profiles.zoneUnknown", {
@@ -202,7 +243,8 @@ export function BuilderForm({ sp }: { sp: SearchProfilesState }) {
               : t(editingId !== null ? "profiles.saveChanges" : "profiles.createProfilesButton")}
           </Button>
         </div>
-      )}
+        );
+      })()}
       {!built && error && <p className="accent-bad text-xs">{error}</p>}
     </div>
   );

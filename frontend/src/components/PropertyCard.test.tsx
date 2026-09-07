@@ -21,6 +21,7 @@ import type { Property } from "../types";
 const PROPERTY = {
   id: 1, title: "Trilocale in Via Test", city: "Milano", zone: "Navigli",
   address: "", latitude: null, longitude: null, coordinate_source: "" as const,
+  outside_requested_area: false,
   rooms: 3, floor: "2", sqm: 80,
   contract: "sale", current_min_price: 300000, first_price: 300000,
   image_url: "", status: "active", filtered_reason: "", source: "scan",
@@ -45,6 +46,7 @@ function renderCard(onClick: () => void) {
       allTags={[]}
       onAddTag={vi.fn()}
       onRemoveTag={vi.fn()}
+      goneAfterDays={7}
     />,
   );
   return screen.getByRole("button", { name: PROPERTY.title });
@@ -105,6 +107,7 @@ describe("PropertyCard on a long list", () => {
         allTags={[]}
         onAddTag={vi.fn()}
         onRemoveTag={vi.fn()}
+        goneAfterDays={7}
       />,
     );
     return screen.getByRole("img", { name: PROPERTY.title }) as HTMLImageElement;

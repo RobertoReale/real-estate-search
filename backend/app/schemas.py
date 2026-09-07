@@ -116,6 +116,11 @@ class CommuteOut(ApiOut):
     mode: Literal["car", "foot", "bike"]
     distance_m: float
     duration_s: float
+    # True when this walk or ride was measured on the driving network, which is
+    # what the public OSRM demo answers with for every profile it is asked for.
+    # The badge says so beside the time; a self-hosted router built with the
+    # foot profile clears it (`commute.is_car_routing`).
+    car_routing: bool = False
 
 
 class PropertyOut(ApiOut):
@@ -138,6 +143,12 @@ class PropertyOut(ApiOut):
     # the map must not redraw as if the two were the same thing
     # (services/geocoder.py).
     coordinate_source: CoordinateSource = ""
+    # True when the search that found this listing asked for an area and the
+    # portal answered with something outside it (`scanner._outside_requested_area`).
+    # Kept and served rather than dropped: the listing may well be interesting,
+    # but the card has to be able to say it is not in the zone that was asked
+    # for, or the grid silently misrepresents what the search returned.
+    outside_requested_area: bool = False
     rooms: int | None
     floor: str
     sqm: float | None
@@ -348,6 +359,20 @@ class ScanJournalEntryOut(ApiOut):
     # a page holds nothing new, so it is fast and it is *partial*; recording
     # which one ran is what keeps the two from being read as the same thing.
     mode: str = "full"
+    # Whether this search hit `max_pages_per_search` with listings still to
+    # collect, and the numbers that qualify it. `detail` already says so in
+    # English for whoever reads the log; these are the same facts as values, so
+    # a dashboard can say it in the user's language and print the limit that was
+    # actually in force rather than the one its copy was written against.
+    # `total_listings` is None unless the portal declared a total.
+    truncated: bool = False
+    page_limit: int = 0
+    total_listings: int | None = None
+    # How many of the listings this search returned fell outside the area it
+    # asked for (`scanner._outside_requested_area`). Zero is the ordinary
+    # answer; a search whose zone the portal only approximated is where it is
+    # not, which is exactly when the count is worth showing.
+    outside_area: int = 0
 
 
 class ScraperStatusOut(ApiOut):
@@ -361,6 +386,12 @@ class ScraperStatusOut(ApiOut):
     paused: bool = False
     data_version: str = ""
     progress: ScanProgressOut = ScanProgressOut()
+    # How long a listing has to go unseen by a clean full scan before it is
+    # marked gone (`scanner.GONE_AFTER_DAYS`). Not a setting — it is a constant
+    # of the scanner — but the card that shows the "no longer available" badge
+    # has to be able to say how long that took, and it must read the number
+    # rather than repeat it.
+    gone_after_days: int = 0
 
 
 class SearchProfileIn(BaseModel):
@@ -854,6 +885,11 @@ class GeocodeProgressOut(ApiOut):
     not_found: int = 0
     remaining: int = 0
     last_error: str | None = None
+    # The pause held between requests (`geocoder.PACE_SECONDS`). It is why a
+    # batch of four hundred takes seven minutes, and a progress bar that cannot
+    # say so reads as a hang. Served rather than assumed by the client, so the
+    # bar quotes the pace the process is actually keeping.
+    pace_seconds: float = 0.0
 
 
 class GeocodeSummaryOut(ApiOut):
@@ -1128,6 +1164,10 @@ class SettingsOut(ApiOut):
     idealista_api_secret: str = ""
     idealista_api_secret_set: bool = False
     idealista_api_max_pages: int = 1
+    # Not a setting: the page size Idealista's API is asked for. It is published
+    # so the dashboard can say what `idealista_api_max_pages` costs in listings
+    # without keeping its own copy of the number.
+    idealista_api_page_size: int = 50
     tls_impersonations: list[str] = []
     datadome_cookie: str = ""
     datadome_cookie_set: bool = False

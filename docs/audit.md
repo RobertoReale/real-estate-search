@@ -52,9 +52,9 @@ python scripts\gen_api_types.py && git diff --exit-code -- frontend/src/types/ap
 cd frontend && npm run lighthouse
 ```
 
-Expected today: **1027 passed + 1 skipped** (1028 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **443 frontend tests**,
-**72 browser tests** (44 journeys, then 28 that hold the run to the control inventory),
+Expected today: **1032 passed + 1 skipped** (1033 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **444 frontend tests**,
+**76 browser tests** (48 journeys, then 28 that hold the run to the control inventory),
 and **no diff** from the type generator. The browser suite prints the two numbers worth
 reading: **225 interactive elements, 260 inventoried actions**, of which **258 exercised
 and 2 declared unreachable with a written reason**. If a test number changed, that is not

@@ -126,6 +126,9 @@ _geocode_progress: dict = {
     "not_found": 0,
     "remaining": 0,
     "last_error": None,
+    # Constant, and reported with the rest so the bar can say why it is slow
+    # without a second request and without repeating the number itself.
+    "pace_seconds": PACE_SECONDS,
 }
 _geocode_run_lock = threading.Lock()
 _geocode_cancel_event = threading.Event()

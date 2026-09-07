@@ -49,6 +49,11 @@ def get_settings():
 
     settings["datadome_harvester_available"] = cookie_harvester.is_available()
     settings["camoufox_available"] = cookie_harvester.is_camoufox_available()
+    # what one Idealista API request is worth, so the dashboard can turn the
+    # page count into a listing count without hardcoding the multiplier
+    from ..scrapers.idealista_api import MAX_ITEMS_PER_PAGE
+
+    settings["idealista_api_page_size"] = MAX_ITEMS_PER_PAGE
     return settings
 
 
