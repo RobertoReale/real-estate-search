@@ -197,6 +197,7 @@ export const it: Dict = {
   "nav.title": "Ricerca Immobili",
   "nav.subtitle": "Immobiliare.it + Idealista, senza duplicati",
   "nav.primary": "Navigazione principale",
+  "nav.skipToContent": "Vai al contenuto",
   "nav.listings": "Immobili",
   "nav.insights": "Analisi",
   "nav.searches": "Ricerche",

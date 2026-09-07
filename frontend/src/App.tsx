@@ -25,6 +25,7 @@ import { errorText, useToasts } from "./components/Toast";
 import { useDebounced } from "./hooks/useDebounced";
 import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery";
 import { useOnReveal } from "./hooks/useOnReveal";
+import { useGridShortcuts } from "./routes/listings/useGridShortcuts";
 import { useProfiles, useTags } from "./queries/dashboard";
 import { useGeocodeMissing } from "./queries/maintenance";
 import {
@@ -37,7 +38,7 @@ import { useSettings } from "./queries/settings";
 import { useT, type TranslationKey } from "./i18n";
 import type { DashboardContext } from "./routes/context";
 import { DEFAULT_FILTERS } from "./routes/params";
-import { useDashboardUrl } from "./routes/useDashboardUrl";
+import { useDashboardUrl, useOnGrid } from "./routes/useDashboardUrl";
 import type { Property, ViewMode } from "./types";
 import { Button, Card, Checkbox, ErrorState, IconButton, type Emphasis } from "./ui";
 import { Close, Favorite, Hidden, Sold, Unticked, Verify } from "./ui/icons";
@@ -179,6 +180,12 @@ export default function App() {
   // dialogs at every width and leave this alone.
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const detailIsAPage = openPropertyId !== null && desktop;
+
+  // `j`/`k`/`f` over the results, and only while the results are what is on
+  // screen: this component stays mounted under the property sheet, the settings
+  // and the log, and a bare letter that reaches the grid through an open dialog
+  // is a keystroke landing somewhere the user cannot see.
+  useGridShortcuts(useOnGrid());
 
   /** Where the grid was left, so that coming back to it lands there.
    *

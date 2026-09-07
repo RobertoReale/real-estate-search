@@ -194,6 +194,7 @@ export const en = {
   "nav.title": "Real Estate Search",
   "nav.subtitle": "Immobiliare.it + Idealista, without duplicates",
   "nav.primary": "Main navigation",
+  "nav.skipToContent": "Skip to content",
   "nav.listings": "Listings",
   "nav.insights": "Insights",
   "nav.searches": "Searches",

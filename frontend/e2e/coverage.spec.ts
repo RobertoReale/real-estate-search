@@ -1471,6 +1471,10 @@ test("the app stays usable when the backend refuses everything", async ({ page }
     "profiles.row.delete", "profiles.bulk.delete", "trends.openProperty",
     // ...and each of these asks a question the sweep is not there to answer.
     "property.hide", "selection.hide", "selection.markSold",
+    // The skip link is parked off the top of the viewport until it has focus,
+    // which is a box Playwright will wait the full timeout to scroll to and
+    // never reach. It is exercised from the keyboard, where it lives.
+    "nav.skipToContent",
     // Collapsing the rail unmounts everything the sweep has not reached yet,
     // and `visibleActions` was resolved before the click: two dozen controls
     // that are gone but still on the list, each costing the full five-second

@@ -123,6 +123,14 @@ export default function AppShell() {
     // The bottom bar is fixed, so it would sit on top of the last row of
     // whatever screen is open. The padding is the space it occupies, given back.
     <div className="min-h-screen pb-16 lg:pb-0">
+      {/* The first thing Tab reaches, and invisible until it is. Without it a
+          keyboard user pays for the header — the brand, four destinations, the
+          scan button, three toggles — on every single screen before reaching
+          the one thing they came for. It is an anchor rather than a button so
+          it also moves the *reading* position, not only the focus. */}
+      <a className="skip-link" data-action="nav.skipToContent" href="#main">
+        {t("nav.skipToContent")}
+      </a>
       <header className="glass sticky top-0 z-40 px-3 sm:px-6 py-3 flex items-center gap-2 sm:gap-4">
         {/* min-w-0 lets the title truncate instead of pushing the buttons off a
             phone screen: the controls are what must survive the narrow layout */}
@@ -227,7 +235,13 @@ export default function AppShell() {
         </Button>
       </header>
 
-      <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+      {/* `tabIndex={-1}` is what makes the skip link land: an element with no
+          tabindex is not focusable, and the browser would move the reading
+          position without moving the focus — so the next Tab would go back to
+          the header the user just skipped. Negative, so it stays out of the tab
+          order itself. */}
+      <main id="main" tabIndex={-1}
+        className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 focus:outline-none">
         <Outlet />
       </main>
     </div>

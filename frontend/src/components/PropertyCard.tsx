@@ -46,7 +46,7 @@ import { marketPosition } from "../utils/marketPosition";
 import { PortalBadge } from "./PortalBadge";
 import TagPicker from "./TagPicker";
 import type { Property, Tag } from "../types";
-import { Card, Chip } from "../ui";
+import { Card, Chip, cx } from "../ui";
 import {
   Area,
   Atlas,
@@ -162,13 +162,17 @@ export default function PropertyCard({
         // inside it compete for the same activation. The keyboard route is the
         // title button below instead, which announces the listing and opens it.
         aria-label={p.title || t("card.untitled")}
-        className={
+        // `scroll-mt-20` is the sticky header: a card brought into view by the
+        // keyboard (`j`/`k`, or Tab) would otherwise stop with its top edge
+        // exactly under the bar that covers it.
+        className={cx(
+          "scroll-mt-20",
           selected
             ? "ring-2 ring-accent border-accent"
             : highlighted
               ? "ring-2 ring-info-marker border-info-line"
-              : undefined
-        }>
+              : undefined,
+        )}>
         {/* A ratio, not a height: the box is the same shape whatever the card is
             wide, and it is reserved before the image arrives. A portal's signed
             image URL expires often enough that the fallback is a normal state

@@ -48,6 +48,10 @@ export interface Action {
 
 export const ACTIONS = {
   // ── The shell ───────────────────────────────────────────────────────────
+  "nav.skipToContent": {
+    what: "Skip to content — the first thing Tab reaches, hidden until it has focus",
+    does: "jumps the focus past the header and into the screen's own content",
+  },
   "nav.listings": {
     what: "Listings, in the navigation",
     does: "goes to the property grid, keeping the filters that are applied",

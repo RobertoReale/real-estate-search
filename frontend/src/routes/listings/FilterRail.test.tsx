@@ -12,12 +12,17 @@
  * about running it is that jsdom reports a 1024px window, so `useMediaQuery`
  * resolves to the desktop shape and the fields are rendered inline rather than
  * inside a sheet — which is the shape a label assertion can see.
+ *
+ * The router is not decoration: the rail only claims `/` while the grid is the
+ * screen on show, and it asks the URL whether that is so.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import FilterRail from "./FilterRail";
 import { en } from "../../i18n/en";
+import { LISTINGS } from "../params";
 import { WithQuery } from "../../test/withQuery";
 import type { PropertyFilters } from "../../types";
 
@@ -31,12 +36,14 @@ const FILTERS: PropertyFilters = {
   only_price_drops: false, only_favorites: false, sort: "newest",
 };
 
-function renderRail(filters: PropertyFilters = FILTERS, collected = 42) {
+function renderRail(filters: PropertyFilters = FILTERS, collected = 42, at = LISTINGS) {
   render(
-    <WithQuery>
-      <FilterRail filters={filters} onChange={vi.fn()} count={0} collected={collected}
-        profiles={[]} tags={[]} />
-    </WithQuery>,
+    <MemoryRouter initialEntries={[at]}>
+      <WithQuery>
+        <FilterRail filters={filters} onChange={vi.fn()} count={0} collected={collected}
+          profiles={[]} tags={[]} />
+      </WithQuery>
+    </MemoryRouter>,
   );
 }
 
@@ -92,5 +99,37 @@ describe("FilterRail labelling", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(toggle);
     expect(screen.queryByLabelText(en["filters.city"])).not.toBeInTheDocument();
+  });
+});
+
+/** A frame, which is how long the focus takes to arrive if it is coming at all. */
+function frame(): Promise<void> {
+  return new Promise((done) => requestAnimationFrame(() => done()));
+}
+
+describe("the / shortcut", () => {
+  it("puts the caret in the keyword box, over what is already there", async () => {
+    renderRail({ ...FILTERS, q: "attico" });
+    const field = screen.getByLabelText<HTMLInputElement>(en["filters.keyword"]);
+    expect(field).not.toBe(document.activeElement);
+
+    fireEvent.keyDown(window, { key: "/" });
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    // Selected rather than appended to: `/` is a new search far more often than
+    // it is an edit of the last one, and typing over a selection is one key.
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe("attico".length);
+  });
+
+  it("leaves the key alone while another screen is on show", async () => {
+    // The rail stays mounted behind the map, the insights and the settings
+    // dialog. A bare letter that reaches across a screen the user is reading is
+    // a key that steals their typing.
+    renderRail(FILTERS, 42, "/insights");
+    const field = screen.getByLabelText(en["filters.keyword"]);
+
+    fireEvent.keyDown(window, { key: "/" });
+    await frame();
+    expect(document.activeElement).not.toBe(field);
   });
 });

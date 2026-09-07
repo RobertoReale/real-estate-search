@@ -19,12 +19,14 @@
  */
 
 import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, STORAGE_KEY } from "./index";
 import { en } from "./en";
 import { it as itDict } from "./it";
 import PropertyCard from "../components/PropertyCard";
 import { FilterRail, ResultHeader } from "../routes/listings";
+import { LISTINGS } from "../routes/params";
 import { WithQuery } from "../test/withQuery";
 import type { Property, PropertyFilters } from "../types";
 
@@ -70,16 +72,18 @@ const noop = () => {};
 function screenTextIn(lang: "en" | "it"): string {
   localStorage.setItem(STORAGE_KEY, lang);
   const { container } = render(
-    <I18nProvider>
-      <WithQuery>
-        <FilterRail filters={FILTERS} onChange={noop} count={7} collected={7}
-          profiles={[]} tags={[]} />
-        <ResultHeader count={7} filters={FILTERS} onChange={noop} view="grid"
-          onViewChange={noop} matchEnabled />
-        <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
-          onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
-      </WithQuery>
-    </I18nProvider>,
+    <MemoryRouter initialEntries={[LISTINGS]}>
+      <I18nProvider>
+        <WithQuery>
+          <FilterRail filters={FILTERS} onChange={noop} count={7} collected={7}
+            profiles={[]} tags={[]} />
+          <ResultHeader count={7} filters={FILTERS} onChange={noop} view="grid"
+            onViewChange={noop} matchEnabled />
+          <PropertyCard property={PROPERTY} onClick={noop} onQuickHide={noop}
+            onToggleFavorite={noop} allTags={[]} onAddTag={noop} onRemoveTag={noop} />
+        </WithQuery>
+      </I18nProvider>
+    </MemoryRouter>,
   );
   return (container.textContent ?? "").replace(/\p{Zs}/gu, " ");
 }

@@ -20,6 +20,38 @@ h2 {
   font-family: var(--font-display);
 }
 
+/* The floor under every focus ring: whatever a control does or does not style
+   for itself, reaching it from the keyboard shows.
+
+   Written by hand rather than as a utility because of where it has to sit.
+   `:where()` contributes nothing to specificity, but `:focus-visible` does — so
+   this weighs the same as `.input`'s unconditional `outline-none`, and a tie is
+   broken by source order. Early in the file it loses to every class that styles
+   its own ring (`.btn-focus` and the rest are 0,2,0 and win regardless), and
+   wins over the resets that would otherwise leave a control with nothing.
+
+   `[tabindex^="-"]` is excluded: a negative tabindex marks something focusable
+   only by script — the `<main>` a skip link lands on — and ringing the whole
+   content region is not what that focus is for. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex^="-"])):focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* The skip link. Off-screen rather than `display: none` or `opacity: 0`: it has
+   to stay focusable, and it has to be measurable for contrast — a hidden
+   element that is still in the accessibility tree is exactly what an audit
+   flags. It comes back on focus and nowhere else. */
+.skip-link {
+  @apply fixed left-3 z-50 rounded-control bg-accent px-4 py-2 text-sm font-medium
+    text-on-solid shadow-accent;
+  top: -4rem;
+  transition: top 120ms ease;
+}
+.skip-link:focus {
+  top: 0.75rem;
+}
+
 .glass {
   @apply bg-surface/90 backdrop-blur-xl border border-line shadow-e1;
 }

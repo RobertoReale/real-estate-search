@@ -140,6 +140,27 @@ to somebody else or kept for later:
 - **A reload lands where you left.** The filters, the sort and the grid/map
   choice all survive it, and survive being bookmarked.
 
+## Reading with the keyboard
+
+The grid is a list you scroll through dozens of times a day, and none of it
+needs the mouse.
+
+| Key | What it does |
+|---|---|
+| `Tab`, first press | Jumps straight to the content, past the header. The link only appears once it has the focus. |
+| `/` | Puts the cursor in the **Keyword** box, opening the filters first if they are collapsed or behind the phone's toggle. Whatever is in the box is selected, so typing replaces it. |
+| `j` / `k` | Moves down and up the results, one card at a time. It stops at the ends rather than wrapping round. |
+| `f` | Stars the card the focus is on, or unstars it. |
+| `Enter` | Opens the card the focus is on. |
+| `Esc` | Closes the property and returns to the grid, at the row you left. |
+
+`j`, `k` and `f` are single letters, so they are ignored while you are typing in
+a box — and while another screen is over the grid. Once a property is open, `j`
+and `k` change their meaning to the next and previous *result*, as above.
+
+Every control in the app can be reached with `Tab` alone, and whatever has the
+focus says so with a ring around it.
+
 ## Deleting a search: what happens to its listings
 
 Clicking **🗑** on a monitored search asks whether its results should go with
