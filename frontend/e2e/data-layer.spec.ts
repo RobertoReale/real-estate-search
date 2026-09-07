@@ -67,10 +67,10 @@ test("a slow answer for an abandoned filter never reaches the grid", async ({ pa
 
   // `exact`: setting the field raises a chip labelled "Remove the City: … filter",
   // and a substring match would find both.
-  await page.getByLabel("City", { exact: true }).fill("Bologna");
+  await page.getByLabel("Città", { exact: true }).fill("Bologna");
   await page.waitForRequest((request) =>
     isGrid(request.url()) && new URL(request.url()).searchParams.get("city") === "Bologna");
-  await page.getByLabel("City", { exact: true }).fill("Milano");
+  await page.getByLabel("Città", { exact: true }).fill("Milano");
   await expect.poll(() => resultCount(page)).toBe(all);
 
   // The abandoned answer arrives about here. It is a page of nothing, for a
@@ -94,7 +94,7 @@ test("select all keeps meaning the whole filtered set across a refresh", async (
 
   await press(page, "selection.toggleMode");
   await setTicked(page, "selection.selectAll", true);
-  await expect(page.getByText(`Select all (${total} of ${total})`)).toBeVisible();
+  await expect(page.getByText(`Seleziona tutti (${total} di ${total})`)).toBeVisible();
 
   // It asked the backend for the whole set rather than counting the cards on
   // screen: `limit=0` is what the label's promise costs, and reusing the loaded
@@ -110,7 +110,7 @@ test("select all keeps meaning the whole filtered set across a refresh", async (
   await expect.poll(() => grid.length, { timeout: 20_000 }).toBeGreaterThan(before);
 
   await expect(
-    page.getByText(`Select all (${total} of ${total})`),
+    page.getByText(`Seleziona tutti (${total} di ${total})`),
     "a background refresh shrank the selection to what the grid had loaded",
   ).toBeVisible();
 

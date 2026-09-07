@@ -9,7 +9,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import DayStrip, { dayCells } from "./DayStrip";
-import { en } from "../../i18n/en";
+import { it as itDict } from "../../i18n/it";
 import type { ScraperHealthDay } from "../../types";
 
 const day = (date: string, attempts: number, blocked = 0, errors = 0): ScraperHealthDay =>
@@ -18,7 +18,7 @@ const day = (date: string, attempts: number, blocked = 0, errors = 0): ScraperHe
 describe("DayStrip", () => {
   it("says the window is empty rather than drawing nothing", () => {
     render(<DayStrip days={[]} />);
-    expect(screen.getByText(en["health.noDays"])).toBeInTheDocument();
+    expect(screen.getByText(itDict["health.noDays"])).toBeInTheDocument();
   });
 
   it("draws one block per day, from one day up", () => {

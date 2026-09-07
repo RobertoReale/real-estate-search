@@ -10,7 +10,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useSearchProfiles } from "./useSearchProfiles";
-import { en } from "../i18n/en";
+import { it as itDict } from "../i18n/it";
 import { api } from "../services/api";
 import { WithQuery } from "../test/withQuery";
 
@@ -29,7 +29,7 @@ describe("the assistant with an answer it cannot use", () => {
     act(() => result.current.setQuery(";"));
     await act(async () => { await result.current.ask(); });
 
-    expect(result.current.error).toBe(en["profiles.assistantNothing"]);
+    expect(result.current.error).toBe(itDict["profiles.assistantNothing"]);
     // and it stays where it was rather than opening a builder over nothing
     expect(result.current.mode).toBe("closed");
     expect(result.current.assistant).toBeNull();

@@ -13,10 +13,12 @@
 * **Interface language (English / Italian)**: the 🌐 button in the top bar
   switches the whole dashboard between English and Italian — every label,
   button, tooltip and confirmation dialog, plus number and date formats
-  (`€350,000` / `350.000 €`). The first visit follows your browser's language
-  (Italian if it can't tell); after that your choice is remembered **per
-  device**, exactly like the light / dark theme next to it, so the phone and
-  the desktop can differ. Two things stay in English on purpose: text the
+  (`€350,000` / `350.000 €`). It opens in **Italian**, whatever the browser is
+  set to: this is an Italian product read against Italian portals, and a
+  machine shipped in English used to open the whole dashboard in English. One
+  press of the button is the way out of that, and the choice is then remembered
+  **per device**, exactly like the light / dark theme next to it, so the phone
+  and the desktop can differ. Two things stay in English on purpose: text the
   *backend* produces (scan summaries, the availability check's transport line,
   error messages coming from a portal or from Gmail) — it is rendered before
   it reaches the browser and the server does not know which language you

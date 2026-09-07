@@ -73,7 +73,7 @@ test("a scan runs from start to summary without the screen asking anything", asy
   // From here the scan is the backend's business, and everything the screen
   // learns about it, it is told. First that it is running…
   stream.push({ running: true });
-  await expect(page.getByText("Scan in progress")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Scansione in corso")).toBeVisible({ timeout: 10_000 });
 
   // …then that it is over, with something to report.
   stream.push({ running: false, last_summary: "14 new listings" });

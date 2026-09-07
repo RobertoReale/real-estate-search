@@ -15,7 +15,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ResultHeader from "./ResultHeader";
-import { en } from "../../i18n/en";
+import { it as itDict } from "../../i18n/it";
+import { translate } from "../../i18n";
 import type { PropertyFilters } from "../../types";
 
 const FILTERS: PropertyFilters = {
@@ -34,8 +35,8 @@ describe("ResultHeader", () => {
       <ResultHeader count={7} filters={FILTERS} onChange={vi.fn()} view="grid"
         onViewChange={vi.fn()} matchEnabled={false} />,
     );
-    expect(screen.getByLabelText(en["filters.sortBy"])).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: en["filters.view"] })).toBeInTheDocument();
+    expect(screen.getByLabelText(itDict["filters.sortBy"])).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: itDict["filters.view"] })).toBeInTheDocument();
   });
 
   it("counts the whole filtered set", () => {
@@ -43,7 +44,9 @@ describe("ResultHeader", () => {
       <ResultHeader count={7} filters={FILTERS} onChange={vi.fn()} view="grid"
         onViewChange={vi.fn()} matchEnabled={false} />,
     );
-    expect(screen.getByText("7 properties")).toBeInTheDocument();
+    expect(
+      screen.getByText(translate("it", "filters.countProperties", { count: 7 })),
+    ).toBeInTheDocument();
   });
 
   it("drops a match sort the backend cannot honour", () => {

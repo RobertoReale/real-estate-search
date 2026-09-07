@@ -82,24 +82,24 @@ test("a running scan says which search, on which portal, and how much has come b
   // backend log — the log is a developer's answer to a user's question.
   await press(page, "nav.activity");
   await expect.poll(() => path(page)).toBe("/activity");
-  await expect(page.getByRole("heading", { name: "No scan running" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nessuna scansione in corso" })).toBeVisible();
 
   await press(page, "activity.scan");
   stream.push(RUNNING);
 
-  await expect(page.getByRole("heading", { name: "Scan in progress" }))
+  await expect(page.getByRole("heading", { name: "Scansione in corso" }))
     .toBeVisible({ timeout: 10_000 });
   await expect(control(page, "activity.scan")).toBeDisabled();
 
   // Which search, of how many, and where — the three facts the word "scanning"
   // was standing in for.
   await expect(page.getByText("Trilocale Navigli").first()).toBeVisible();
-  await expect(page.getByText("Search 1 of 3")).toBeVisible();
+  await expect(page.getByText("Ricerca 1 di 3")).toBeVisible();
   await expect(page.getByText("immobiliare", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Reading the results, page 2")).toBeVisible();
-  await expect(page.getByText("Transport:")).toBeVisible();
+  await expect(page.getByText("Lettura dei risultati, pagina 2")).toBeVisible();
+  await expect(page.getByText("Trasporto:")).toBeVisible();
   await expect(page.getByText("http", { exact: true })).toBeVisible();
-  await expect(page.getByText("17 listings collected so far")).toBeVisible();
+  await expect(page.getByText("17 annunci raccolti finora")).toBeVisible();
 
   await checkScreen(page, "a scan in flight");
 
@@ -108,8 +108,8 @@ test("a running scan says which search, on which portal, and how much has come b
     ...RUNNING,
     progress: { ...RUNNING.progress, page: 5, listings: 63, transport: "browser" },
   });
-  await expect(page.getByText("63 listings collected so far")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Reading the results, page 5")).toBeVisible();
+  await expect(page.getByText("63 annunci raccolti finora")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Lettura dei risultati, pagina 5")).toBeVisible();
   // The ladder escalated, and the point of showing the transport is that this
   // is visible when it happens rather than afterwards in the log.
   await expect(page.getByText("browser", { exact: true })).toBeVisible();
@@ -120,9 +120,9 @@ test("a running scan says which search, on which portal, and how much has come b
     ...RUNNING,
     progress: { ...RUNNING.progress, phase: "waiting", waiting_seconds: 6 },
   });
-  await expect(page.getByText("Pausing 6s before the next page"))
+  await expect(page.getByText("Pausa di 6s prima della pagina successiva"))
     .toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/The pause is deliberate/)).toBeVisible();
+  await expect(page.getByText(/La pausa è voluta/)).toBeVisible();
 });
 
 test("the journal is still readable after the scan ends, and after a reload", async ({ page }) => {
@@ -131,22 +131,22 @@ test("the journal is still readable after the scan ends, and after a reload", as
   stream.push(RUNNING);
 
   await page.goto("/activity");
-  await expect(page.getByRole("heading", { name: "Scan in progress" }))
+  await expect(page.getByRole("heading", { name: "Scansione in corso" }))
     .toBeVisible({ timeout: 10_000 });
 
   // Each portal's outcome as it lands, not all at the end: the failed search is
   // already in the journal while the next one is still being read.
   await expect(page.getByText("Bilocale Isola")).toBeVisible();
-  await expect(page.getByText("Blocked", { exact: true })).toBeVisible();
-  await expect(page.getByText("Stopped because the portal returned a challenge page."))
+  await expect(page.getByText("Bloccata", { exact: true })).toBeVisible();
+  await expect(page.getByText("Si è fermata perché: the portal returned a challenge page."))
     .toBeVisible();
   // …and a run that simply worked spends no sentence explaining itself.
-  await expect(page.getByText("4 pages, 41 listings")).toBeVisible();
-  await expect(page.getByText("Done", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 pagine, 41 annunci")).toBeVisible();
+  await expect(page.getByText("Conclusa", { exact: true })).toBeVisible();
 
   // The scan ends. The live panel has nothing left to say; the journal does.
   stream.push({ running: false, last_finished_at: "2026-03-04T10:06:30Z", progress: undefined });
-  await expect(page.getByRole("heading", { name: "No scan running" }))
+  await expect(page.getByRole("heading", { name: "Nessuna scansione in corso" }))
     .toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Trilocale Navigli")).toBeVisible();
   await expect(page.getByText("Bilocale Isola")).toBeVisible();
@@ -156,10 +156,10 @@ test("the journal is still readable after the scan ends, and after a reload", as
   // Someone who left the room comes back to a new tab. The rows come from the
   // backend, so they survive everything this one accumulated.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "The last few scans" }))
+  await expect(page.getByRole("heading", { name: "Le ultime scansioni" }))
     .toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Bilocale Isola")).toBeVisible();
-  await expect(page.getByText("3 pages, 0 listings")).toBeVisible();
+  await expect(page.getByText("3 pagine, 0 annunci")).toBeVisible();
 });
 
 test("no proportion is drawn where the portal never declared a total", async ({ page }) => {
@@ -168,12 +168,12 @@ test("no proportion is drawn where the portal never declared a total", async ({ 
   stream.push(RUNNING);
 
   await page.goto("/activity");
-  await expect(page.getByRole("heading", { name: "Scan in progress" }))
+  await expect(page.getByRole("heading", { name: "Scansione in corso" }))
     .toBeVisible({ timeout: 10_000 });
 
   // The bar is there and it is moving; what it is not is a fraction. `page: 2`
-  // with no total may only ever be "Page 2".
-  await expect(page.getByText("Page 2 · the portal did not say how many there are"))
+  // with no total may only ever be "Pagina 2".
+  await expect(page.getByText("Pagina 2 · il portale non ha detto quante sono"))
     .toBeVisible();
   await expect(
     page.getByRole("progressbar"),
@@ -186,14 +186,14 @@ test("no proportion is drawn where the portal never declared a total", async ({ 
   // allowed exactly here, it is named by what is progressing rather than by its
   // own running commentary, and three of eight is the 38% it says it is.
   stream.push({ ...RUNNING, progress: { ...RUNNING.progress, page: 3, total_pages: 8 } });
-  const bar = page.getByRole("progressbar", { name: "Pages read" });
+  const bar = page.getByRole("progressbar", { name: "Pagine lette" });
   await expect(bar).toHaveCount(1, { timeout: 10_000 });
   await expect(bar).toHaveAttribute("aria-valuenow", "38");
-  await expect(page.getByText("Page 3 of 8")).toBeVisible();
+  await expect(page.getByText("Pagina 3 di 8")).toBeVisible();
 
   // Nothing has been scanned on this install, and the journal says so rather
   // than being absent — the screen has to be legible before the first scan too.
-  await expect(page.getByText("Nothing has been scanned yet")).toBeVisible();
+  await expect(page.getByText("Non è ancora stata fatta nessuna scansione")).toBeVisible();
 });
 
 test("a stream that cannot be opened does not turn a running scan into a finished one", async ({ page }) => {
@@ -205,15 +205,15 @@ test("a stream that cannot be opened does not turn a running scan into a finishe
   await page.route("**/api/scrapers/status", (route) => route.fulfill({ json: RUNNING }));
 
   await page.goto("/activity");
-  await expect(page.getByRole("heading", { name: "Scan in progress" }))
+  await expect(page.getByRole("heading", { name: "Scansione in corso" }))
     .toBeVisible({ timeout: 10_000 });
 
   // Three refused opens put the timers back (B.4). The scan is still running
   // throughout, and the screen has to keep saying so — a connection this app
   // lost is not news about the scanner.
   stream.setDown(true);
-  await expect(page.getByText(/refreshed on a timer instead/))
+  await expect(page.getByText(/l'aggiornamento avviene a intervalli/))
     .toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole("heading", { name: "Scan in progress" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scansione in corso" })).toBeVisible();
   await expect(page.getByText("Trilocale Navigli").first()).toBeVisible();
 });

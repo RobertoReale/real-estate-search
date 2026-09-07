@@ -380,7 +380,7 @@ each invariant to its code home and its test file. See also
     terms are AND-ed and each may match any of title/zone/address/city/**floor**/agency/
     description, so "attico navigli" finds a title+zone split no single substring would; a
     digit paired with **`piano` or the English `floor`** — "4 piano"/"floor 4" — is a
-    floor-field-only query, since the whole UI is English), a `zone=` filter, a `max_sqm=`
+    floor-field-only query, since the box is read in both languages), a `zone=` filter, a `max_sqm=`
     cap (twin of `min_sqm`) and a `floor_band=` band (`ground`/`low`/`mid`/`high`/`top`,
     matched in Python via the shared `match_score._parse_floor`; an unreadable floor matches
     no band), a set of **advanced filters** behind the UI's collapsible "More filters" panel

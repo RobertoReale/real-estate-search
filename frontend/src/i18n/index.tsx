@@ -37,18 +37,15 @@ export function isLang(value: unknown): value is Lang {
   return value === "en" || value === "it";
 }
 
-/** Pick the startup language: an explicit past choice wins, otherwise follow
- *  the browser. Anything unrecognised falls back to Italian, the default for
- *  this Italian real-estate dashboard, so a corrupted localStorage value or an
- *  unrecognised browser locale never leaves the UI in the wrong language. */
-export function resolveInitialLang(stored: string | null, browserLangs: readonly string[]): Lang {
-  if (isLang(stored)) return stored;
-  for (const tag of browserLangs) {
-    // "it-CH" and "it" both mean Italian; only the primary subtag matters here
-    const primary = tag.toLowerCase().split("-")[0];
-    if (isLang(primary)) return primary;
-  }
-  return "it";
+/** Pick the startup language: an explicit past choice wins, otherwise Italian.
+ *
+ *  The browser is deliberately not consulted. This is an Italian product read
+ *  by Italian owners against Italian portals, and asking `navigator.languages`
+ *  made that depend on a setting most of them have never opened — a machine
+ *  shipped in English opened the whole dashboard in English. A corrupted or
+ *  unrecognised stored value lands here too and gets the same answer. */
+export function resolveInitialLang(stored: string | null): Lang {
+  return isLang(stored) ? stored : "it";
 }
 
 /** Substitute `{name}` placeholders. An unknown key returns the key itself
@@ -93,7 +90,7 @@ const LOCALES: Record<Lang, string> = { en: "en-IE", it: "it-IT" };
  *  render** — an effect would run one paint too late and the first frame after
  *  a switch would still format the old way.
  */
-let currentLocale = LOCALES.en;
+let currentLocale = LOCALES.it;
 
 export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
   return value.toLocaleString(currentLocale, options);
@@ -125,7 +122,7 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() =>
-    resolveInitialLang(localStorage.getItem(STORAGE_KEY), navigator.languages ?? [navigator.language]),
+    resolveInitialLang(localStorage.getItem(STORAGE_KEY)),
   );
 
   // during render, not in an effect: see `currentLocale`
@@ -150,8 +147,9 @@ export function useI18n(): I18nValue {
   if (!ctx) {
     // A component rendered outside the provider (a test mounting it bare, an
     // error boundary above the tree) still needs to render words, so degrade
-    // to English rather than throwing.
-    return { lang: "en", setLang: () => {}, t: (key, params) => translate("en", key, params) };
+    // to the default language rather than throwing. Italian, not English: this
+    // fallback is the one place a user could meet a language nobody chose.
+    return { lang: "it", setLang: () => {}, t: (key, params) => translate("it", key, params) };
   }
   return ctx;
 }

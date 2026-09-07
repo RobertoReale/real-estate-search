@@ -50,7 +50,7 @@ export const en = {
   "card.aboveAverage": "{pct}% above {scope} average",
   "card.matchBadge": "{score}% match",
   "card.matchBadgeTitle": "Compatibility with your dream-home settings",
-  "card.dealScore": "Deal Score",
+  "card.dealScore": "Deal score",
   "card.dealBelowMarket": "{pct}% below market",
   "card.dealAboveMarket": "{pct}% above market",
   "card.new": "new",
@@ -110,13 +110,13 @@ export const en = {
   "detail.position": "{position} of {total}",
   "detail.locateFailed":
     "Could not place this property — the portal's location is too vague to find coordinates for it.",
-  "detail.locateError": "Could not locate this property",
+  "detail.locateError": "Could not look up the coordinates — try again in a moment.",
   "detail.checkGone": "Removed / Gone (404)",
   "detail.checkOnline": "Online (just verified)",
   "detail.checkUnknown": "Could not verify (blocked by the portal or timeout)",
-  "detail.checkError": "Error during the online check",
-  "detail.notesError": "Could not save notes",
-  "detail.dealScoreTitle": "Deal Score:",
+  "detail.checkError": "The online check did not go through — try again in a moment.",
+  "detail.notesError": "Could not save the notes — they are still in the box, try again.",
+  "detail.dealScoreTitle": "Deal score:",
   "detail.dealBelowLocal": "below the local market",
   "detail.dealAboveLocal": "above the local market",
   "detail.suggestedProposal": "Suggested proposal:",
@@ -146,16 +146,16 @@ export const en = {
   "detail.restoreSold":
     "Restore this property? Use this if you marked it sold by mistake — it goes back to active lists.",
   "detail.restoreHidden": "Restore this property? It will appear in active lists again.",
-  "detail.restoreFailed": "Restore failed",
+  "detail.restoreFailed": "Could not restore this property. Try again.",
   "detail.markSold": "Mark sold",
   "detail.markRented": "Mark rented",
   "detail.confirmSold":
     "Mark this property as sold? It leaves the active lists but is kept as a confirmed sale for market statistics.",
   "detail.confirmRented":
     "Mark this property as rented out? It leaves the active lists but is kept as a confirmed close for market statistics.",
-  "detail.markSoldFailed": "Mark sold failed",
+  "detail.markSoldFailed": "Could not mark this property sold. Try again.",
   "detail.hide": "Hide property",
-  "detail.hideFailed": "Hide failed",
+  "detail.hideFailed": "Could not hide this property. Try again.",
 
   // ── the property detail: the optional listing audit ─────────────────────
   "audit.title": "What the listing says",
@@ -164,7 +164,7 @@ export const en = {
   "audit.again": "Ask again",
   "audit.buttonTitle":
     "Reads this ad's own text with your language model: extra costs, a sitting tenant, condition, points to raise when negotiating",
-  "audit.failed": "The listing could not be read",
+  "audit.failed": "Could not read the listing — try again, or check the model in Settings.",
   "audit.condition": "Condition",
   "audit.conditionNew": "new build",
   "audit.conditionRenovated": "renovated",
@@ -204,7 +204,7 @@ export const en = {
   "nav.nextScan": "Next automatic scan: {time}",
   "nav.nextScanShort": "Next scan {time}",
   "nav.scanNowShort": "Scan",
-  "nav.scanNow": "Start Scan Now",
+  "nav.scanNow": "Start a scan",
   "nav.scanNowAria": "Start scan now",
   "nav.running": "Running…",
   "nav.toLight": "Switch to light theme",
@@ -500,7 +500,7 @@ export const en = {
     "Hide {count} properties? They will disappear from lists and notifications (recoverable from Discarded → Restore).",
   "app.confirmSoldMany":
     "Mark {count} properties as sold/rented out? They leave the active lists but are kept as confirmed sales for the market statistics (recoverable from Sold → Restore).",
-  "app.batchCheckFailed": "Batch check failed",
+  "app.batchCheckFailed": "Could not check the selected properties. Try again.",
 
   // ── availability batch progress / summary ───────────────────────────────
   // The bar's own name, for a screen reader. Deliberately not the running
@@ -809,11 +809,12 @@ export const en = {
     "Adds a “Read the listing” button to a property's detail view: the model reports what the ad's text says about extra costs, a sitting tenant, the condition, and what is usable when negotiating. Nothing is read automatically — one press, one listing, using the same model configured above. Answers are remembered, so opening the card again is free.",
 
   // ── settings: scraping & bypass ─────────────────────────────────────────
-  "settings.scrapingTitle": "Advanced Scraping & Bypass",
+  "settings.scrapingTitle": "Getting past the blocks",
   "settings.scrapingHelp": "How to resolve DataDome blocks? (instructions)",
-  "settings.ddStep1": "DataDome blocks raw HTTP requests to individual ad pages on your home IP.",
+  "settings.ddStep1":
+    "Immobiliare's guard, DataDome, turns away plain requests coming from a home connection.",
   "settings.ddStep2":
-    "Option A: Set a Proxy URL (e.g. socks5://127.0.0.1:9050 for Tor, or an HTTP/HTTPS proxy) below to route scraper traffic.",
+    "Option A: put a proxy address below (socks5://127.0.0.1:9050 for Tor, or any HTTP/HTTPS proxy) and the requests go out through it instead.",
   "settings.ddStep3Intro": "Option B: Copy the datadome cookie value from your web browser:",
   "settings.ddStep3a": "Open a portal ad page (e.g., Immobiliare.it) in Chrome/Firefox.",
   "settings.ddStep3b": "Press F12, go to the Application (Chrome) or Storage (Firefox) tab.",
@@ -871,17 +872,17 @@ export const en = {
   "settings.camoufoxNote":
     "Camoufox is a stealth Firefox that hides the automation signals DataDome looks for, so the check is challenged far less often.",
   "settings.camoufoxInstalled": "Installed",
-  "settings.camoufoxMissing": "Not installed — one-click adds it (~150 MB, one time):",
-  "settings.installCamoufox": "One-Click Install Camoufox",
+  "settings.camoufoxMissing": "Not installed — one click adds it (~150 MB, one time):",
+  "settings.installCamoufox": "Install Camoufox",
   "settings.installingCamoufox": "Installing Camoufox (~1-3 min)…",
-  "settings.camoufoxInstalledMsg": "Camoufox installed successfully!",
+  "settings.camoufoxInstalledMsg": "Camoufox is installed.",
   "settings.harvesterMissing":
-    "Not installed yet in this Python environment. You can install Playwright and Chromium automatically with one click:",
-  "settings.installHarvester": "One-Click Install Playwright & Chromium",
-  "settings.installingHarvester": "Installing Playwright & Chromium (~1-2 min)…",
-  "settings.harvesterInstalledMsg": "Playwright & Chromium installed successfully!",
+    "Not installed yet — one click adds Playwright and Chromium (a few hundred MB, one time):",
+  "settings.installHarvester": "Install Playwright and Chromium",
+  "settings.installingHarvester": "Installing Playwright and Chromium (~1-2 min)…",
+  "settings.harvesterInstalledMsg": "Playwright and Chromium are installed.",
   "settings.manualInstall":
-    "Or install manually from terminal using `install-playwright.bat` inside the project folder, or run: ",
+    "Or do it by hand: run `install-playwright.bat` in the app's folder, or: ",
 
   // ── settings: API token & backend restart ───────────────────────────────
   "settings.apiTokenTitle": "API access token",
@@ -1289,7 +1290,7 @@ export const en = {
   "logs.filterPlaceholder": "Filter (e.g. availability_check, blocked, error)",
   "logs.autoRefresh": "Auto-refresh (3s)",
   "logs.lineCount": "{visible} / {total} lines",
-  "logs.loadFailed": "Failed to load logs",
+  "logs.loadFailed": "Could not load the log",
   "logs.empty": "No log lines yet — this fills up once a scan or check runs.",
   "logs.noMatch": "No lines match this filter.",
   "logs.source": "Source: {path}",

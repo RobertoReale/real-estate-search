@@ -32,8 +32,8 @@ import { useEmptyBackend } from "./harness/empty";
 
 const path = (page: Page) => new URL(page.url()).pathname;
 
-/** The control this step labels with these exact words. Exact, because "Pages
- *  per search" is a prefix of "Pages per search on the Idealista API" and a
+/** The control this step labels with these exact words. Exact, because "Pagine
+ *  per ricerca" is a prefix of "Pagine per ricerca sull'API Idealista" and a
  *  substring match would silently answer the wrong question. */
 function labelled(page: Page, label: string): Locator {
   return page.getByLabel(label, { exact: true });
@@ -78,8 +78,8 @@ function step(page: Page, title: string): Locator {
 }
 
 const STEPS = [
-  "Staying unblocked", "A second source", "Being told",
-  "How much it fetches", "The optional extras",
+  "Non farti bloccare", "Una seconda fonte", "Farti avvisare",
+  "Quanto raccoglie", "Gli extra facoltativi",
 ];
 
 test("a fresh install can skip every step and land on an app that works", async ({ page }) => {
@@ -96,19 +96,19 @@ test("a fresh install can skip every step and land on an app that works", async 
   await fill(page, "profiles.url.url",
     "https://www.immobiliare.it/vendita-case/milano/?criterio=rilevanza&prezzoMassimo=350000");
   await press(page, "profiles.url.save");
-  await expect(page.getByRole("heading", { name: "Run the first scan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Avvia la prima scansione" })).toBeVisible();
 
   // ── the setup is a control on that step, not a sentence about Settings ────
   await press(page, "onboarding.setup");
   await expect.poll(() => path(page)).toBe("/setup");
-  await expect(page.getByRole("heading", { name: "Set up what you need" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Configura quello che ti serve" })).toBeVisible();
 
   // What the machine can be asked is stated, not asked. Whether browser
   // automation is installed depends on the machine running this, so the
   // assertion is that the answer is on the screen — the cookie is one this
   // database has certainly never held.
-  await expect(page.getByText(/Browser automation is (not )?installed/)).toBeVisible();
-  await expect(page.getByText("No cookie stored yet")).toBeVisible();
+  await expect(page.getByText(/L'automazione del browser (non )?è installata/)).toBeVisible();
+  await expect(page.getByText("Nessun cookie salvato")).toBeVisible();
   await checkScreen(page, "the capability setup, first step");
 
   // ── five steps, five skips, and no step that will not let go ─────────────
@@ -137,92 +137,92 @@ test("one answer per step, and every one of them is still there afterwards", asy
   await expect.poll(() => path(page)).toBe("/settings");
   // Case-insensitive: the section headings in this dialog are uppercased by a
   // stylesheet, and what the test is about is the words, not the CSS.
-  await expect(page.getByRole("heading", { name: /guided setup/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /configurazione guidata/i })).toBeVisible();
   // The previous test finished the setup against this same database, and the
   // flag it wrote lives with the settings rather than in this browser — so the
   // wording here is the assertion that it survived the reload, the second test
   // and, by the same mechanism, an upgrade.
   await expect(control(page, "settings.setup.open"))
-    .toHaveText("Go through the setup again");
-  await expect(page.getByText("These are still switched off:")).toBeVisible();
-  await expect(page.getByText("Staying unblocked")).toBeVisible();
+    .toHaveText("Rifai la configurazione guidata");
+  await expect(page.getByText("Questi sono ancora spenti:")).toBeVisible();
+  await expect(page.getByText("Non farti bloccare")).toBeVisible();
 
   await press(page, "settings.setup.open");
   await expect.poll(() => path(page)).toBe("/setup");
 
   // ── one answer per group, in the order the groups are asked ──────────────
-  await expect(step(page, "Staying unblocked")).toBeVisible();
-  await type(page, "Proxies", "http://proxy.example:8080");
-  await type(page, "Scraping service key", "zk-e2e-key");
-  await pick(page, "When to use it", "Every request");
+  await expect(step(page, "Non farti bloccare")).toBeVisible();
+  await type(page, "Proxy", "http://proxy.example:8080");
+  await type(page, "Chiave del servizio di scraping", "zk-e2e-key");
+  await pick(page, "Quando usarlo", "A ogni richiesta");
   await press(page, "setup.save");
 
-  await expect(step(page, "A second source")).toBeVisible();
-  await type(page, "Idealista API key", "ik-e2e-key");
-  await type(page, "Idealista API secret", "is-e2e-secret");
+  await expect(step(page, "Una seconda fonte")).toBeVisible();
+  await type(page, "Chiave API Idealista", "ik-e2e-key");
+  await type(page, "Secret API Idealista", "is-e2e-secret");
   await press(page, "setup.save");
 
-  await expect(step(page, "Being told")).toBeVisible();
-  await type(page, "Mail server", "smtp.example.invalid");
-  await type(page, "Send to", "alerts@example.invalid");
-  await tick(page, "Send me alerts by email");
+  await expect(step(page, "Farti avvisare")).toBeVisible();
+  await type(page, "Server di posta", "smtp.example.invalid");
+  await type(page, "Manda a", "alerts@example.invalid");
+  await tick(page, "Mandami gli avvisi via email");
   await press(page, "setup.save");
 
-  await expect(step(page, "How much it fetches")).toBeVisible();
-  await type(page, "Pages per search", "7");
+  await expect(step(page, "Quanto raccoglie")).toBeVisible();
+  await type(page, "Pagine per ricerca", "7");
   await press(page, "setup.save");
 
-  await expect(step(page, "The optional extras")).toBeVisible();
-  await type(page, "Geocoding server", "http://nominatim.example.invalid");
-  await expect(control(page, "setup.save")).toHaveText("Save and finish");
+  await expect(step(page, "Gli extra facoltativi")).toBeVisible();
+  await type(page, "Server di geocodifica", "http://nominatim.example.invalid");
+  await expect(control(page, "setup.save")).toHaveText("Salva e concludi");
   await press(page, "setup.save");
   await expect.poll(() => path(page)).toBe("/listings");
 
   // ── a full reload, so nothing below can be answered from memory ──────────
   await page.reload();
   await press(page, "nav.settings");
-  await expect(page.getByText("Everything the guided setup offers is switched on."))
+  await expect(page.getByText("Tutto quello che la configurazione guidata propone è acceso."))
     .toBeVisible();
   await press(page, "settings.setup.open");
 
   // ── every answer, read back from the backend ─────────────────────────────
-  await expect(step(page, "Staying unblocked")).toBeVisible();
-  await expect(labelled(page, "Proxies")).toHaveValue("http://proxy.example:8080");
-  await expect(labelled(page, "When to use it")).toContainText("Every request");
+  await expect(step(page, "Non farti bloccare")).toBeVisible();
+  await expect(labelled(page, "Proxy")).toHaveValue("http://proxy.example:8080");
+  await expect(labelled(page, "Quando usarlo")).toContainText("A ogni richiesta");
   // A secret is never sent back — the API answers "***" and the form refuses to
   // seed a box with it, since posting those three characters would overwrite the
   // key. So what proves the key arrived is the chip, and the box being empty is
   // half of the same proof.
-  await expect(labelled(page, "Scraping service key")).toHaveValue("");
-  await expect(page.getByText("Saved", { exact: true })).toHaveCount(1);
+  await expect(labelled(page, "Chiave del servizio di scraping")).toHaveValue("");
+  await expect(page.getByText("Salvato", { exact: true })).toHaveCount(1);
 
   await press(page, "setup.skip");
-  await expect(step(page, "A second source")).toBeVisible();
-  await expect(page.getByText("Saved", { exact: true })).toHaveCount(2);
+  await expect(step(page, "Una seconda fonte")).toBeVisible();
+  await expect(page.getByText("Salvato", { exact: true })).toHaveCount(2);
 
   // Back, and the step before it is as it was left: a wizard that loses an
   // answer to a reconsidered step is one nobody presses Back in.
   await press(page, "setup.back");
-  await expect(labelled(page, "Proxies")).toHaveValue("http://proxy.example:8080");
+  await expect(labelled(page, "Proxy")).toHaveValue("http://proxy.example:8080");
   await press(page, "setup.skip");
 
   await press(page, "setup.skip");
-  await expect(step(page, "Being told")).toBeVisible();
-  await expect(labelled(page, "Mail server")).toHaveValue("smtp.example.invalid");
-  await expect(labelled(page, "Send to")).toHaveValue("alerts@example.invalid");
-  await expect(labelled(page, "Send me alerts by email")).toBeChecked();
+  await expect(step(page, "Farti avvisare")).toBeVisible();
+  await expect(labelled(page, "Server di posta")).toHaveValue("smtp.example.invalid");
+  await expect(labelled(page, "Manda a")).toHaveValue("alerts@example.invalid");
+  await expect(labelled(page, "Mandami gli avvisi via email")).toBeChecked();
   // Only what was answered was written: the other channel on the same step was
   // left alone, and a step that posted its whole model would have switched it on
   // with an empty token.
-  await expect(labelled(page, "Send me alerts on Telegram")).not.toBeChecked();
+  await expect(labelled(page, "Mandami gli avvisi su Telegram")).not.toBeChecked();
 
   await press(page, "setup.skip");
-  await expect(step(page, "How much it fetches")).toBeVisible();
-  await expect(labelled(page, "Pages per search")).toHaveValue("7");
+  await expect(step(page, "Quanto raccoglie")).toBeVisible();
+  await expect(labelled(page, "Pagine per ricerca")).toHaveValue("7");
 
   await press(page, "setup.skip");
-  await expect(step(page, "The optional extras")).toBeVisible();
-  await expect(labelled(page, "Geocoding server"))
+  await expect(step(page, "Gli extra facoltativi")).toBeVisible();
+  await expect(labelled(page, "Server di geocodifica"))
     .toHaveValue("http://nominatim.example.invalid");
 
   // Skipping the last step still finishes, and finishing writes the flag on its
@@ -230,6 +230,6 @@ test("one answer per step, and every one of them is still there afterwards", asy
   await press(page, "setup.skip");
   await expect.poll(() => path(page)).toBe("/listings");
   await press(page, "nav.settings");
-  await expect(page.getByText("Everything the guided setup offers is switched on."))
+  await expect(page.getByText("Tutto quello che la configurazione guidata propone è acceso."))
     .toBeVisible();
 });
