@@ -245,7 +245,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
 - **Every bug found on a real portal became a regression test** with comments explaining
   the backstory. Maintain this habit: if you fix behavior, add a test explaining "why".
 
-- **The frontend has unit tests too** (276 in thirty-five files: vitest +
+- **The frontend has unit tests too** (443 in fifty files: vitest +
   `@testing-library/react`, run `cd frontend && npm test`). They cover the pure logic that
   used to be invisible — the `propertyParams` codec in `services/api.ts` first, since a
   filter silently dropped from the querystring vanishes from both the grid and the export
@@ -273,7 +273,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   six near-identical buttons that differ by accident and a build that cannot tell.
 
 - **Component tests exist where the defect is only visible in a rendered tree.** Not for
-  pixels — for six things a pure test cannot reach, each written after the bug it now
+  pixels — for seven things a pure test cannot reach, each written after the bug it now
   guards: that a label actually names its control (`FilterRail.test.tsx` uses
   `getByLabelText`, which only resolves through a real `htmlFor`/`id`), that a property card
   offers a focusable, named way into the listing *without* itself becoming a control that
@@ -287,7 +287,13 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   still be right), and that a failure reaches the screen carrying what to do about it and
   a way to do it (`Toast.test.tsx`: a backend that never answered and one that considered
   the request and refused it produce different advice, and pressing Try again runs the
-  retry exactly once and takes the message with it). `App.test.tsx` mounts under
+  retry exactly once and takes the message with it), and that a card stays cheap when there
+  are a thousand of them (`PropertyCard.test.tsx` again: the containment class, the lazy
+  asynchronous photo, the reserved box it lands in, the placeholder when it never arrives).
+  That last one is the clearest case for this tier existing at all — none of the four
+  attributes changes anything on a screen anyone is looking at, so each survives every
+  review on its own merits, and losing one turns a long list into a slideshow with no test
+  anywhere else even slowing down. `App.test.tsx` mounts under
   `StrictMode` on purpose: its double
   invocation of `useState` initializers is the bug, so nothing weaker reproduces it.
 

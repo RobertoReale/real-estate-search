@@ -55,6 +55,11 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/.e2e-data/
 
+# Lighthouse (frontend/lighthouse/): the reports of the last run. The budget it
+# is judged against is committed; the measurement is not — it describes one
+# machine on one afternoon, and CI keeps its own copy as a build artifact.
+frontend/.lighthouse/
+
 # Build and temporary files
 frontend/dist/
 frontend/*.tsbuildinfo

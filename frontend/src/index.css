@@ -141,6 +141,36 @@ input[type="checkbox"] {
   @apply bg-sunken border border-line;
 }
 
+/* Virtual scrolling, done by the browser instead of by us.
+
+   The grid holds every result the user has scrolled to — three hundred of them
+   after five pages, ten thousand on a corpus that has been collecting for a
+   year — and laying out and painting all of them on every frame is what turns a
+   long list into a slideshow. This hands that decision to the browser: a card
+   away from the viewport is skipped, so the work per frame is the work of the
+   cards on screen however many there are behind them.
+
+   Skipped and not removed, and that is the whole reason it is written in CSS
+   rather than as a windowing component. Every card stays in the DOM, so `j`/`k`
+   still walk the results (`routes/listings/useGridShortcuts.ts` reads them off
+   the document), a pin hovered on the map still finds its card to scroll to,
+   and a card the user tabs to is un-skipped by the browser on the way. A
+   windower that unmounts what is off screen would have broken all three, each
+   in a way that only shows up on a long list.
+
+   `contain-intrinsic-size: auto 26rem` is the load-bearing half. The length is
+   what a card that has never been rendered is assumed to be — close enough to a
+   real one that the scrollbar means something — and `auto` tells the browser to
+   remember each card's true size once it has had one, so scrolling back up
+   lands where it left rather than on a column that resized itself underneath.
+
+   A browser without `content-visibility` renders every card exactly as it did
+   before: this makes a long list cheap, it is not what makes it correct. */
+.defer-offscreen {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 26rem;
+}
+
 /* Small badges. Named for what they say, never for the colour they say it in:
    `chip-positive` survives a change of palette, `chip-emerald` becomes a lie
    the moment the ramp moves. The three verdict chips are the semantic set; the

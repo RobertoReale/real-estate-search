@@ -166,7 +166,10 @@ export default function PropertyCard({
         // keyboard (`j`/`k`, or Tab) would otherwise stop with its top edge
         // exactly under the bar that covers it.
         className={cx(
-          "scroll-mt-20",
+          // Off screen, this card costs the browser nothing to keep: see
+          // `.defer-offscreen` in index.css for what that buys and what it
+          // deliberately does not do.
+          "scroll-mt-20 defer-offscreen",
           selected
             ? "ring-2 ring-accent border-accent"
             : highlighted

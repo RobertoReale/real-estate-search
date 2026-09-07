@@ -17,6 +17,12 @@ export const PREVIEW_PORT = 4137;
  *  `emptyBackend()` in e2e/harness/empty.ts is how a spec reaches it. */
 export const EMPTY_BACKEND_PORT = 8138;
 
+/** 8139 is taken too, by the Lighthouse harness (`lighthouse/lighthouserc.json`).
+ *  It is not exported here because nothing in the browser suite may reach it:
+ *  the two runs must be able to happen at the same time, and a shared port is
+ *  the one way that stops being true. Named here so the next port picked in this
+ *  file is 8140. */
+
 export const BACKEND_ORIGIN = `http://127.0.0.1:${BACKEND_PORT}`;
 export const PREVIEW_ORIGIN = `http://127.0.0.1:${PREVIEW_PORT}`;
 export const EMPTY_BACKEND_ORIGIN = `http://127.0.0.1:${EMPTY_BACKEND_PORT}`;

@@ -256,3 +256,75 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  # What the dashboard costs to open, measured against a budget that fails the
+  # build (frontend/lighthouse/budget.json).
+  #
+  # The number that matters is the bundle, and the reason it is a gate rather
+  # than a line in a report is that a bundle only ever grows: every dependency
+  # added to answer one screen's question is paid for on the first paint of
+  # every screen, by a user on a laptop who did not ask for it. A budget turns
+  # that into a decision someone has to make on purpose — the build goes red,
+  # and either the import earns its weight or it is code-split.
+  #
+  # Same shape as the browser suite above and for the same reason: the harness
+  # serves the production build from the real backend (lighthouse/serve.mjs), on
+  # its own port, against a throwaway database seeded with the demo corpus. So
+  # both toolchains, one job, Linux only.
+  #
+  # The assertions are resource sizes and counts and nothing else. Timings on a
+  # shared runner are a coin toss — a red build that means "the runner was busy"
+  # teaches everyone to ignore red builds — while the bytes are the same on
+  # every machine that runs the same build. `third-party: 0` and `font: 0` are
+  # in there as facts about this product rather than as performance advice: it
+  # is meant to work with the network unplugged, and a CDN font or an analytics
+  # tag would be a change of what it is, caught here rather than in review.
+  lighthouse:
+    name: performance budget
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install the backend from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install from the lockfile
+        working-directory: frontend
+        run: npm ci
+
+      # Pinned to the version this was verified against: an unpinned global
+      # install turns a new Lighthouse release, and the scoring changes that
+      # come with it, into a red build on a commit that changed nothing.
+      # Chrome itself is the runner's preinstalled one, which the budget does
+      # not depend on — bytes over the wire do not move with the browser.
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.15.1
+
+      - name: Performance budget
+        working-directory: frontend
+        run: npm run lighthouse
+
+      # The full report of the run that failed, which says which resource went
+      # over and by how much — the assertion output only says that one did.
+      - name: Keep the report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lighthouse-report
+          path: frontend/.lighthouse/
+          retention-days: 7

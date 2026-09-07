@@ -86,3 +86,57 @@ describe("PropertyCard keyboard access", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 });
+
+/** What a card costs when there are a thousand of them.
+ *
+ *  Nothing here is visible on one card, which is exactly why it is pinned: all
+ *  three are the kind of attribute that survives every review because removing
+ *  it changes nothing on the screen anyone is looking at, and changes a long
+ *  list from a scroll into a slideshow.
+ */
+describe("PropertyCard on a long list", () => {
+  function renderWithPhoto() {
+    render(
+      <PropertyCard
+        property={{ ...PROPERTY, image_url: "https://example.invalid/photo.jpg" }}
+        onClick={vi.fn()}
+        onQuickHide={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        allTags={[]}
+        onAddTag={vi.fn()}
+        onRemoveTag={vi.fn()}
+      />,
+    );
+    return screen.getByRole("img", { name: PROPERTY.title }) as HTMLImageElement;
+  }
+
+  it("lets the browser skip it while it is off screen", () => {
+    // The grid keeps every result the user has scrolled to, because `j`/`k` and
+    // the map's hover both find cards by reading them off the document. What
+    // makes that affordable is the browser skipping the ones nobody is looking
+    // at, and `.defer-offscreen` (src/index.css) is the whole of how it is
+    // asked to. Drop the class and the grid quietly goes back to laying out
+    // every card on every frame.
+    renderCard(vi.fn());
+    expect(document.querySelector("article")).toHaveClass("defer-offscreen");
+  });
+
+  it("loads its photo lazily, off the main thread, into a box already its size", () => {
+    const img = renderWithPhoto();
+    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(img.getAttribute("decoding")).toBe("async");
+    // The fixed 4:3 frame is what makes the lazy load free: the space is
+    // reserved before the bytes arrive, so a photo landing mid-scroll does not
+    // shove the rest of the grid down.
+    expect(img.parentElement).toHaveClass("aspect-[4/3]");
+  });
+
+  it("draws a placeholder rather than a broken image when the photo fails", () => {
+    // A listing whose photo has been taken down is ordinary — portals expire
+    // them long before the listing goes. The browser's own broken-image glyph
+    // in a 4:3 box is the failure a user should never be shown.
+    const img = renderWithPhoto();
+    fireEvent.error(img);
+    expect(screen.queryByRole("img", { name: PROPERTY.title })).toBeNull();
+  });
+});
