@@ -1184,6 +1184,19 @@ export const it: Dict = {
   "map.missing": "{count} senza coordinate",
   "map.missingTitle":
     "I portali non pubblicano le coordinate per ogni annuncio; quegli immobili restano comunque nella vista a griglia.",
+  "map.cluster": "{count} immobili qui — clicca per avvicinarti",
+  "map.clustered": "Segnaposto sovrapposti raggruppati",
+  "map.clusteredTitle":
+    "I segnaposto sono più di quanti la mappa riesca a tenere distinti: quelli uno sopra l'altro sono disegnati come un unico cerchio numerato. Clicca un cerchio, o avvicinati, per separarli.",
+  "map.drawHint": "Disegna un raggio o un'area per filtrare in base a dove si trovano.",
+  "map.guideRadiusTitle": "Come si disegna un raggio",
+  "map.guideRadiusStep1": "Clicca sulla mappa dove va il centro.",
+  "map.guideRadiusStep2":
+    "Trascina il quadratino azzurro fino alla distanza che vuoi: il filtro si applica quando lo rilasci.",
+  "map.guideAreaTitle": "Come si disegna un'area",
+  "map.guideAreaStep1": "Clicca ogni vertice dell'area, in ordine lungo il suo perimetro.",
+  "map.guideAreaStep2":
+    "Dal terzo vertice in poi, fai doppio clic sulla mappa — o premi «Chiudi l'area» — per chiuderla e filtrare.",
   "map.drawRadius": "◯ Disegna un raggio",
   "map.drawingRadius": "◯ Clicca il centro, trascina la maniglia…",
   "map.drawRadiusTitle":

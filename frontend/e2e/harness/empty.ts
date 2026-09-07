@@ -31,7 +31,16 @@ export async function useEmptyBackend(page: Page): Promise<void> {
       await route.fulfill({ status: 503, body: "" }).catch(() => {});
       return;
     }
-    const response = await route.fetch({ url: `${EMPTY_BACKEND_ORIGIN}${pathname}${search}` });
-    await route.fulfill({ response });
+    // A request the page gives up on — this journey navigates twice while the
+    // background polls are in flight — is cancelled underneath the redirect,
+    // and the response it was carrying is disposed before it can be handed
+    // back. Nobody is waiting for it, so there is nothing to report: the
+    // failure it raised otherwise was the harness's, never the app's.
+    try {
+      const response = await route.fetch({ url: `${EMPTY_BACKEND_ORIGIN}${pathname}${search}` });
+      await route.fulfill({ response });
+    } catch {
+      await route.abort("aborted").catch(() => {});
+    }
   });
 }

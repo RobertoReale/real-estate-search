@@ -179,6 +179,23 @@ input[type="checkbox"] {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9);
 }
 
+/* The pin whose card is under the pointer in the list beside the map. A class
+   toggled on the marker's element rather than a replacement icon: Leaflet's
+   `setIcon` builds a new element, and swapping the element out from under the
+   pointer reads to the browser as the pointer leaving it, which cleared the
+   hover, restored the icon, and started over as fast as the frames allowed.
+   The scale is on the inner span because the marker element itself carries
+   Leaflet's positioning transform. */
+.leaflet-marker-icon > span {
+  transition: transform 120ms ease;
+}
+.leaflet-marker-icon.is-hovered > span {
+  transform: scale(1.5);
+  box-shadow:
+    0 0 0 3px var(--info-marker),
+    0 1px 6px rgb(0 0 0 / 0.5);
+}
+
 .leaflet-tooltip {
   @apply bg-raised text-ink-strong border-line-strong shadow-e2 text-xs;
 }

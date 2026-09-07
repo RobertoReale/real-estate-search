@@ -76,6 +76,13 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: () => void;
   isNew?: boolean;
+  /** True while this is the property under the pointer on the map beside the
+   *  list. Distinct from `selected`, which is a choice the user made and keeps. */
+  highlighted?: boolean;
+  /** Reports this property's id when the pointer or the focus arrives, and
+   *  `null` when it leaves, so the map can light the matching pin. Absent in
+   *  the grid view, where there is no map to light. */
+  onHover?: (id: number | null) => void;
   allTags: Tag[];
   onAddTag: (name: string) => void;
   onRemoveTag: (tagId: number) => void;
@@ -110,7 +117,7 @@ function Fact({ icon, value }: { icon: React.ReactNode; value: string | null }) 
 
 export default function PropertyCard({
   property: p, onClick, onQuickHide, onToggleFavorite, selected, onToggleSelect, isNew,
-  allTags, onAddTag, onRemoveTag,
+  highlighted, onHover, allTags, onAddTag, onRemoveTag,
 }: Props) {
   const t = useT();
   const drop =
@@ -134,7 +141,20 @@ export default function PropertyCard({
       className="overflow-hidden cursor-pointer group hover:border-accent-line
         hover:shadow-e3 transition-all duration-200 hover:-translate-y-0.5">
       <article data-action="property.card"
+        // The map beside the list finds its card by this, and reads the mark
+        // back off `data-hovered` — the pair is the only thing the two views
+        // share, and neither one reaches into the other's styling.
+        data-property-id={p.id}
+        data-hovered={highlighted ? "true" : undefined}
         onClick={onClick}
+        // Focus counts as pointing: tabbing down the list lights the pins the
+        // same way the mouse does, which is the only version of this a keyboard
+        // gets. React's onFocus is focusin, so the title button inside marks the
+        // card that holds it.
+        onMouseEnter={onHover && (() => onHover(p.id))}
+        onMouseLeave={onHover && (() => onHover(null))}
+        onFocus={onHover && (() => onHover(p.id))}
+        onBlur={onHover && (() => onHover(null))}
         // The whole card opens the property on a click, but it is not itself the
         // button: it holds the star, the hide and the select controls, and an
         // element with a widget role that contains other widgets is ambiguous to
@@ -142,7 +162,13 @@ export default function PropertyCard({
         // inside it compete for the same activation. The keyboard route is the
         // title button below instead, which announces the listing and opens it.
         aria-label={p.title || t("card.untitled")}
-        className={selected ? "ring-2 ring-accent border-accent" : undefined}>
+        className={
+          selected
+            ? "ring-2 ring-accent border-accent"
+            : highlighted
+              ? "ring-2 ring-info-marker border-info-line"
+              : undefined
+        }>
         {/* A ratio, not a height: the box is the same shape whatever the card is
             wide, and it is reserved before the image arrives. A portal's signed
             image URL expires often enough that the fallback is a normal state

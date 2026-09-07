@@ -139,6 +139,23 @@ export default function App() {
   // set by a card's "View on map" jump so MapView centers on that property;
   // cleared on any manual view switch so the map fits the whole set again
   const [mapFocusId, setMapFocusId] = useState<number | null>(null);
+  // The property being pointed at in the map view, shared by the map and the
+  // list beside it so that pointing at either marks the other. `fromMap` is
+  // which side the pointer is actually on, and it is the whole reason this is
+  // not just an id: only a hover that started on a pin may scroll the list, or
+  // running the mouse down a column of cards would drag the column out from
+  // under it.
+  const [hovered, setHovered] = useState<{ id: number; fromMap: boolean } | null>(null);
+
+  // A pin pointed at on the map brings its card into view. `nearest` and only
+  // nearest: a card already on screen must not move at all, or every pin the
+  // pointer crossed on the way would shove the list up and down.
+  useEffect(() => {
+    if (!hovered?.fromMap) return;
+    document
+      .querySelector(`[data-property-id="${hovered.id}"]`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [hovered]);
   const [rawSelection, setRawSelection] = useState<Set<number>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [cancellingBatch, setCancellingBatch] = useState(false);
@@ -357,6 +374,7 @@ export default function App() {
   // to fitting the whole filtered set instead of staying zoomed on one pin.
   function changeView(v: ViewMode) {
     setMapFocusId(null);
+    setHovered(null);
     setView(v);
   }
 
@@ -455,6 +473,49 @@ export default function App() {
   // this component stays mounted, holding its answers, its selection and the
   // place the user had scrolled to.
   if (detailIsAPage) return <Outlet context={dashboard} />;
+
+  // One list of cards, laid out twice: four across on the grid, and in a single
+  // column beside the pins on the map. Building it here rather than in each
+  // branch is what keeps the two from drifting into different cards.
+  const propertyCards = properties.map((p) => (
+    <PropertyCard
+      key={p.id}
+      property={p}
+      isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
+      selected={selectedIds.has(p.id)}
+      highlighted={onMap && hovered?.id === p.id}
+      onHover={onMap ? (id) => setHovered(id === null ? null : { id, fromMap: false }) : undefined}
+      onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
+      onClick={() => {
+        if (selectionMode) toggleOne(p.id);
+        else openProperty(p.id);
+      }}
+      onQuickHide={() => quickHide(p)}
+      onToggleFavorite={() => toggleFavorite(p)}
+      allTags={tags}
+      onAddTag={(name) => addTag(p, name)}
+      onRemoveTag={(tagId) => removeTag(p, tagId)}
+    />
+  ));
+
+  /* Fetches the next page as it scrolls into view (see `useOnReveal` above);
+     the button is the no-observer fallback and a manual nudge. Spans the whole
+     grid row.
+     It stays mounted and operable while that page is on its way: a control that
+     disables itself under the focus that just reached it is one a keyboard user
+     cannot press at all, and a second press costs nothing — the query answers
+     both with the request already in flight. */
+  const loadMoreRow = (grid.hasNextPage || grid.isFetchingNextPage) && (
+    <div ref={loadMoreRef} className="col-span-full flex justify-center py-4">
+      <Button data-action="grid.loadMore"
+        aria-busy={grid.isFetchingNextPage}
+        onClick={() => grid.fetchNextPage()}>
+        {grid.isFetchingNextPage
+          ? t("common.loading")
+          : t("app.showMoreCount", { count: total - properties.length })}
+      </Button>
+    </div>
+  );
 
   return (
     <>
@@ -670,62 +731,48 @@ export default function App() {
 
           {view === "map" ? (
             properties.length > 0 && (
-              <MapView
-                properties={properties}
-                onSelect={(p) => openProperty(p.id)}
-                focusId={mapFocusId}
-                geo={{
-                  geo_mode: filters.geo_mode,
-                  center_lat: filters.center_lat,
-                  center_lng: filters.center_lng,
-                  radius_m: filters.radius_m,
-                  poly: filters.poly,
-                }}
-                onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
-                onFindCoordinates={findCoordinates}
-                geocoding={geocodeMissing.isPending}
-              />
+              /* The map is half a view, not a replacement for one: a pin says
+                 where, and the card beside it says what for. On a laptop the
+                 map holds still on the right while the list scrolls past it;
+                 below that the two stack, map first, because a column of cards
+                 above a map nobody scrolls down to is the grid with extra
+                 steps. The page is still what scrolls in both — nothing here
+                 grows its own scrollbar, which is what keeps the load-more
+                 sentinel and the restored scroll position working. */
+              <div className="grid gap-4 sm:gap-5 lg:items-start
+                  lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]
+                  xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+                <div className="order-2 lg:order-1 grid gap-4 sm:gap-5
+                    sm:grid-cols-2 lg:grid-cols-1 content-start">
+                  {propertyCards}
+                  {loadMoreRow}
+                </div>
+                <div className="order-1 lg:order-2 lg:sticky lg:top-4">
+                  <MapView
+                    properties={properties}
+                    onSelect={(p) => openProperty(p.id)}
+                    focusId={mapFocusId}
+                    hoverId={hovered?.id ?? null}
+                    onHover={(id) =>
+                      setHovered(id === null ? null : { id, fromMap: true })}
+                    geo={{
+                      geo_mode: filters.geo_mode,
+                      center_lat: filters.center_lat,
+                      center_lng: filters.center_lng,
+                      radius_m: filters.radius_m,
+                      poly: filters.poly,
+                    }}
+                    onGeoChange={(next) => setFilters((f) => ({ ...f, ...next }))}
+                    onFindCoordinates={findCoordinates}
+                    geocoding={geocodeMissing.isPending}
+                  />
+                </div>
+              </div>
             )
           ) : (
             <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {properties.map((p) => (
-                <PropertyCard
-                  key={p.id}
-                  property={p}
-                  isNew={newSinceThreshold !== null && p.first_seen_at > newSinceThreshold}
-                  selected={selectedIds.has(p.id)}
-                  onToggleSelect={selectionMode ? () => toggleOne(p.id) : undefined}
-                  onClick={() => {
-                    if (selectionMode) toggleOne(p.id);
-                    else openProperty(p.id);
-                  }}
-                  onQuickHide={() => quickHide(p)}
-                  onToggleFavorite={() => toggleFavorite(p)}
-                  allTags={tags}
-                  onAddTag={(name) => addTag(p, name)}
-                  onRemoveTag={(tagId) => removeTag(p, tagId)}
-                />
-              ))}
-              {/* Fetches the next page as it scrolls into view (see `useOnReveal`
-                  above); the button is the no-observer fallback and a manual
-                  nudge. Spans the whole grid row.
-                  It stays mounted and operable while that page is on its way:
-                  a control that disables itself under the focus that just
-                  reached it is one a keyboard user cannot press at all, and a
-                  second press costs nothing — the query answers both with the
-                  request already in flight. */}
-              {(grid.hasNextPage || grid.isFetchingNextPage) && (
-                <div ref={loadMoreRef}
-                  className="col-span-full flex justify-center py-4">
-                  <Button data-action="grid.loadMore"
-                    aria-busy={grid.isFetchingNextPage}
-                    onClick={() => grid.fetchNextPage()}>
-                    {grid.isFetchingNextPage
-                      ? t("common.loading")
-                      : t("app.showMoreCount", { count: total - properties.length })}
-                  </Button>
-                </div>
-              )}
+              {propertyCards}
+              {loadMoreRow}
             </div>
           )}
         </div>

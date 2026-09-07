@@ -1168,6 +1168,19 @@ export const en = {
   "map.missing": "{count} without coordinates",
   "map.missingTitle":
     "Portals do not publish coordinates for every listing; those properties are still in the grid view.",
+  "map.cluster": "{count} properties here — click to zoom in",
+  "map.clustered": "Overlapping pins grouped",
+  "map.clusteredTitle":
+    "There are more pins than the map can keep apart, so the ones on top of each other are drawn as one numbered circle. Click a circle, or zoom in, to break it up.",
+  "map.drawHint": "Draw a radius or an area to filter by where they are.",
+  "map.guideRadiusTitle": "Drawing a radius",
+  "map.guideRadiusStep1": "Click the map where the centre goes.",
+  "map.guideRadiusStep2":
+    "Drag the blue square out to the distance you want — the filter applies when you let go.",
+  "map.guideAreaTitle": "Drawing an area",
+  "map.guideAreaStep1": "Click each corner of the area, in order round its edge.",
+  "map.guideAreaStep2":
+    "From the third corner on, double-click the map — or press “Finish area” — to close it and filter.",
   "map.drawRadius": "◯ Draw radius",
   "map.drawingRadius": "◯ Click centre, drag handle…",
   "map.drawRadiusTitle":
