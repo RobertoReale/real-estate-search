@@ -21,7 +21,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import FilterRail from "./FilterRail";
-import { en } from "../../i18n/en";
+import { it as itDict } from "../../i18n/it";
 import { LISTINGS } from "../params";
 import { WithQuery } from "../../test/withQuery";
 import type { PropertyFilters } from "../../types";
@@ -47,10 +47,11 @@ function renderRail(filters: PropertyFilters = FILTERS, collected = 42, at = LIS
   );
 }
 
-// The always-visible controls of the rail, by the label the user reads.
-// `min/maxPrice` carry a conditional "/month" suffix, so they are matched by
-// prefix rather than exact text.
-const LABELLED: (keyof typeof en)[] = [
+// The always-visible controls of the rail, by the label the user reads — looked
+// up in the dictionary, since no provider is mounted and the rail renders in the
+// default language. `min/maxPrice` carry a conditional "/month" suffix, so they
+// are matched by prefix rather than exact text.
+const LABELLED: (keyof typeof itDict)[] = [
   "filters.keyword", "filters.city", "filters.zone", "filters.minSqm",
   "filters.maxSqm", "filters.rooms", "filters.floor",
   "filters.status", "filters.origin",
@@ -61,13 +62,13 @@ describe("FilterRail labelling", () => {
     renderRail();
     for (const key of LABELLED) {
       expect(
-        screen.getByLabelText(en[key]),
-        `no control is labelled "${en[key]}"`,
+        screen.getByLabelText(itDict[key]),
+        `no control is labelled "${itDict[key]}"`,
       ).toBeInTheDocument();
     }
     // the two whose label carries a suffix
-    expect(screen.getByLabelText(/^Min price/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Max price/)).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${itDict["filters.minPrice"]}`))).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${itDict["filters.maxPrice"]}`))).toBeInTheDocument();
   });
 
   it("names the button groups, which have no control to label", () => {
@@ -75,7 +76,7 @@ describe("FilterRail labelling", () => {
     // points at nothing, so they carry role="group" instead.
     renderRail();
     for (const key of ["filters.market", "filters.export"] as const) {
-      expect(screen.getByRole("group", { name: en[key] })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: itDict[key] })).toBeInTheDocument();
     }
   });
 
@@ -84,8 +85,8 @@ describe("FilterRail labelling", () => {
     for (const key of ["filters.portal", "filters.agency", "filters.deal",
                        "filters.minSqmPrice", "filters.maxSqmPrice"] as const) {
       expect(
-        screen.getByLabelText(en[key]),
-        `no control is labelled "${en[key]}"`,
+        screen.getByLabelText(itDict[key]),
+        `no control is labelled "${itDict[key]}"`,
       ).toBeInTheDocument();
     }
   });
@@ -95,10 +96,10 @@ describe("FilterRail labelling", () => {
     // the toggle left the fields mounted, the "collapsible" part would be a
     // repaint and the grid would never get the width back.
     renderRail();
-    const toggle = screen.getByRole("button", { name: new RegExp(en["filters.title"]) });
+    const toggle = screen.getByRole("button", { name: new RegExp(itDict["filters.title"]) });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(toggle);
-    expect(screen.queryByLabelText(en["filters.city"])).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(itDict["filters.city"])).not.toBeInTheDocument();
   });
 });
 
@@ -110,7 +111,7 @@ function frame(): Promise<void> {
 describe("the / shortcut", () => {
   it("puts the caret in the keyword box, over what is already there", async () => {
     renderRail({ ...FILTERS, q: "attico" });
-    const field = screen.getByLabelText<HTMLInputElement>(en["filters.keyword"]);
+    const field = screen.getByLabelText<HTMLInputElement>(itDict["filters.keyword"]);
     expect(field).not.toBe(document.activeElement);
 
     fireEvent.keyDown(window, { key: "/" });
@@ -126,7 +127,7 @@ describe("the / shortcut", () => {
     // dialog. A bare letter that reaches across a screen the user is reading is
     // a key that steals their typing.
     renderRail(FILTERS, 42, "/insights");
-    const field = screen.getByLabelText(en["filters.keyword"]);
+    const field = screen.getByLabelText(itDict["filters.keyword"]);
 
     fireEvent.keyDown(window, { key: "/" });
     await frame();

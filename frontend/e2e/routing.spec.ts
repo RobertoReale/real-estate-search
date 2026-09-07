@@ -26,7 +26,7 @@ test("the bare address is the listings", async ({ page }) => {
 test("the four places are linkable, and keep the filters between them", async ({ page }) => {
   await page.goto("/");
   await waitForResults(page);
-  await page.getByLabel(/^Max price €/).fill(CEILING);
+  await page.getByLabel(/^Prezzo max €/).fill(CEILING);
   await expect.poll(() => new URL(page.url()).searchParams.get("max_price")).toBe(CEILING);
 
   // Going somewhere else and coming back is not a filter change. The query
@@ -41,7 +41,7 @@ test("the four places are linkable, and keep the filters between them", async ({
     await expect.poll(() => new URL(page.url()).pathname).toBe(pathname);
     expect(new URL(page.url()).searchParams.get("max_price")).toBe(CEILING);
   }
-  await expect(page.getByLabel(/^Max price €/)).toHaveValue(CEILING);
+  await expect(page.getByLabel(/^Prezzo max €/)).toHaveValue(CEILING);
 
   // The fourth is a dialog over the listings rather than a screen beside them,
   // so it goes last: nothing underneath it can be pressed while it is open.
@@ -66,7 +66,7 @@ test("a property's link opens it cold, carrying the filters it was sent with", a
   await waitForResults(page);
   const all = await resultCount(page);
 
-  await page.getByLabel(/^Max price €/).fill(CEILING);
+  await page.getByLabel(/^Prezzo max €/).fill(CEILING);
   await expect.poll(() => resultCount(page)).toBeLessThan(all);
   const narrowed = await resultCount(page);
 
@@ -90,7 +90,7 @@ test("a property's link opens it cold, carrying the filters it was sent with", a
   await fresh.goto(shared.href);
   await expect(fresh.getByRole("heading", { level: 2, name: title })).toBeVisible();
   await press(fresh, "detail.close");
-  await expect(fresh.getByLabel(/^Max price €/)).toHaveValue(CEILING);
+  await expect(fresh.getByLabel(/^Prezzo max €/)).toHaveValue(CEILING);
   await expect.poll(() => resultCount(fresh)).toBe(narrowed);
   await fresh.close();
 });
@@ -154,8 +154,8 @@ test("Back and Forward move through filter changes", async ({ page }) => {
   await waitForResults(page);
   const all = await resultCount(page);
 
-  const ceiling = page.getByLabel(/^Max price €/);
-  const favorites = page.getByRole("checkbox", { name: "Favorites", exact: true });
+  const ceiling = page.getByLabel(/^Prezzo max €/);
+  const favorites = page.getByRole("checkbox", { name: "Preferiti", exact: true });
 
   await ceiling.fill(CEILING);
   await expect.poll(() => resultCount(page)).toBeLessThan(all);
@@ -190,21 +190,21 @@ test("a reload keeps the grid where it was", async ({ page, offlineGuard }) => {
   await waitForResults(page);
   const all = await resultCount(page);
 
-  await page.getByLabel(/^Max price €/).fill(CEILING);
-  await page.getByLabel("Sort by").selectOption("price_asc");
+  await page.getByLabel(/^Prezzo max €/).fill(CEILING);
+  await page.getByLabel("Ordina per").selectOption("price_asc");
   await expect.poll(() => resultCount(page)).toBeLessThan(all);
   const narrowed = await resultCount(page);
 
-  const onTheMap = page.getByText(/\d+ of \d+ properties on the map/);
-  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Map" }).click();
+  const onTheMap = page.getByText(/\d+ di \d+ immobili sulla mappa/);
+  await page.getByRole("group", { name: "Vista" }).getByRole("button", { name: "Mappa" }).click();
   await expect(onTheMap).toBeVisible();
 
   await page.reload();
 
   // The filter, the sort and the view are all where they were left: the reload
   // read them off the address rather than out of a memory the reload emptied.
-  await expect(page.getByLabel(/^Max price €/)).toHaveValue(CEILING);
-  await expect(page.getByLabel("Sort by")).toHaveValue("price_asc");
+  await expect(page.getByLabel(/^Prezzo max €/)).toHaveValue(CEILING);
+  await expect(page.getByLabel("Ordina per")).toHaveValue("price_asc");
   await expect(onTheMap).toBeVisible();
   await expect.poll(() => resultCount(page)).toBe(narrowed);
 });

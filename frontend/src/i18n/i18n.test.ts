@@ -1,7 +1,9 @@
+import { createElement } from "react";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { en } from "./en";
 import { it as itDict } from "./it";
-import { interpolate, resolveInitialLang, translate } from "./index";
+import { interpolate, resolveInitialLang, translate, useT } from "./index";
 import { humanizeFloor } from "../utils/format";
 
 describe("dictionaries", () => {
@@ -59,25 +61,35 @@ describe("translate", () => {
 });
 
 describe("resolveInitialLang", () => {
-  it("prefers an explicit stored choice over the browser", () => {
-    expect(resolveInitialLang("it", ["en-GB"])).toBe("it");
-    expect(resolveInitialLang("en", ["it-IT"])).toBe("en");
+  it("opens in Italian when nothing has been chosen", () => {
+    // The browser is not consulted at all. It used to be, which made an Italian
+    // product open in English on any machine whose OS shipped in English.
+    expect(resolveInitialLang(null)).toBe("it");
   });
 
-  it("falls back to the browser language, ignoring the region", () => {
-    expect(resolveInitialLang(null, ["it-CH", "de"])).toBe("it");
+  it("still honours a stored choice, so the switcher is not a formality", () => {
+    expect(resolveInitialLang("en")).toBe("en");
+    expect(resolveInitialLang("it")).toBe("it");
   });
 
   it("defaults to Italian for an unsupported or corrupted value", () => {
     // a garbage localStorage value must never leave the UI without a dictionary
-    expect(resolveInitialLang("klingon", ["fr-FR"])).toBe("it");
-    expect(resolveInitialLang(null, [])).toBe("it");
+    expect(resolveInitialLang("klingon")).toBe("it");
   });
 });
 
-describe("humanizeFloor across languages", () => {
-  it("reads the labels from the active dictionary", () => {
-    // the portal codes are Italian abbreviations; the words shown are not
-    expect(humanizeFloor("R")).toBe("raised ground floor"); // default locale
+describe("outside the provider", () => {
+  /** Reads the hook the way every component does, and nothing else. */
+  function Probe() {
+    return createElement("span", null, useT()("common.save"));
+  }
+
+  it("renders Italian rather than falling out of the product's language", () => {
+    // No I18nProvider above it: an error boundary that caught the shell, or a
+    // component mounted bare. Both halves of the fallback are checked — the
+    // hook, and the module-level locale the plain formatters read.
+    const { container } = render(createElement(Probe));
+    expect(container.textContent).toBe(itDict["common.save"]);
+    expect(humanizeFloor("R")).toBe(itDict["floor.raised"]);
   });
 });

@@ -62,9 +62,12 @@ export default defineConfig({
 
   use: {
     baseURL: PREVIEW_ORIGIN,
-    // Pinned, not inherited: the dashboard picks its language from the browser
-    // (src/i18n/index.tsx), so an unset locale would make the assertions depend
-    // on the machine running them.
+    // Pinned, and deliberately *not* the language the suite reads. The
+    // dashboard no longer asks the browser what it prefers — it opens in
+    // Italian unless a choice was stored (src/i18n/index.tsx) — so every
+    // assertion below being in Italian on an en-US browser is the proof of
+    // that, on the machine the default exists for: one shipped in English,
+    // whose owner has never opened the language menu.
     locale: "en-US",
     timezoneId: "Europe/Rome",
     trace: "retain-on-failure",

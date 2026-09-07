@@ -112,12 +112,12 @@ export const it: Dict = {
   "detail.position": "{position} di {total}",
   "detail.locateFailed":
     "Impossibile posizionare questo immobile — la località indicata dal portale è troppo vaga per ricavarne le coordinate.",
-  "detail.locateError": "Impossibile localizzare questo immobile",
+  "detail.locateError": "Non è stato possibile cercare le coordinate — riprova tra un momento.",
   "detail.checkGone": "Rimosso / Sparito (404)",
   "detail.checkOnline": "Online (appena verificato)",
   "detail.checkUnknown": "Impossibile verificare (bloccato dal portale o timeout)",
-  "detail.checkError": "Errore durante la verifica online",
-  "detail.notesError": "Impossibile salvare le note",
+  "detail.checkError": "La verifica online non è andata a buon fine — riprova tra un momento.",
+  "detail.notesError": "Non è stato possibile salvare le note — sono ancora nel riquadro, riprova.",
   "detail.dealScoreTitle": "Punteggio affare:",
   "detail.dealBelowLocal": "sotto il mercato locale",
   "detail.dealAboveLocal": "sopra il mercato locale",
@@ -149,16 +149,16 @@ export const it: Dict = {
   "detail.restoreSold":
     "Ripristinare questo immobile? Usalo se lo hai segnato come venduto per sbaglio — torna negli elenchi attivi.",
   "detail.restoreHidden": "Ripristinare questo immobile? Tornerà negli elenchi attivi.",
-  "detail.restoreFailed": "Ripristino non riuscito",
+  "detail.restoreFailed": "Non è stato possibile ripristinare questo immobile. Riprova.",
   "detail.markSold": "Segna come venduto",
   "detail.markRented": "Segna come affittato",
   "detail.confirmSold":
     "Segnare questo immobile come venduto? Esce dagli elenchi attivi ma resta come vendita confermata per le statistiche di mercato.",
   "detail.confirmRented":
     "Segnare questo immobile come affittato? Esce dagli elenchi attivi ma resta come contratto confermato per le statistiche di mercato.",
-  "detail.markSoldFailed": "Impossibile segnarlo come venduto",
+  "detail.markSoldFailed": "Non è stato possibile segnare questo immobile come venduto. Riprova.",
   "detail.hide": "Nascondi l'immobile",
-  "detail.hideFailed": "Impossibile nasconderlo",
+  "detail.hideFailed": "Non è stato possibile nascondere questo immobile. Riprova.",
 
   // ── scheda dettaglio: lettura opzionale dell'annuncio ───────────────────
   "audit.title": "Cosa dice l'annuncio",
@@ -167,7 +167,8 @@ export const it: Dict = {
   "audit.again": "Rileggi",
   "audit.buttonTitle":
     "Legge il testo dell'annuncio con il tuo modello linguistico: spese oltre il prezzo, immobile locato, stato, punti da usare in trattativa",
-  "audit.failed": "Non è stato possibile leggere l'annuncio",
+  "audit.failed":
+    "Non è stato possibile leggere l'annuncio — riprova, oppure controlla il modello nelle Impostazioni.",
   "audit.condition": "Stato",
   "audit.conditionNew": "nuova costruzione",
   "audit.conditionRenovated": "ristrutturato",
@@ -502,7 +503,7 @@ export const it: Dict = {
     "Nascondere {count} immobili? Spariranno dagli elenchi e dalle notifiche (recuperabili da Scartati → Ripristina).",
   "app.confirmSoldMany":
     "Segnare {count} immobili come venduti/affittati? Escono dagli elenchi attivi ma restano come vendite confermate per le statistiche di mercato (recuperabili da Venduti → Ripristina).",
-  "app.batchCheckFailed": "Verifica in blocco non riuscita",
+  "app.batchCheckFailed": "Non è stato possibile verificare gli immobili selezionati. Riprova.",
 
   // ── avanzamento e riepilogo della verifica ──────────────────────────────
   "app.checkProgressLabel": "Verifica disponibilità",
@@ -811,12 +812,12 @@ export const it: Dict = {
     "Aggiunge il pulsante “Leggi l'annuncio” nella scheda di un immobile: il modello riporta ciò che il testo dice su spese oltre il prezzo, immobile locato, stato e punti utili in trattativa. Nulla viene letto in automatico — un clic, un annuncio, con lo stesso modello configurato qui sopra. Le risposte restano salvate, quindi riaprire la scheda non costa nulla.",
 
   // ── impostazioni: scraping e aggiramento blocchi ────────────────────────
-  "settings.scrapingTitle": "Scraping avanzato e aggiramento blocchi",
+  "settings.scrapingTitle": "Superare i blocchi",
   "settings.scrapingHelp": "Come risolvere i blocchi DataDome? (istruzioni)",
   "settings.ddStep1":
-    "DataDome blocca le richieste HTTP dirette alle singole pagine degli annunci dal tuo IP di casa.",
+    "Il guardiano di Immobiliare, DataDome, respinge le richieste semplici che arrivano da una connessione di casa.",
   "settings.ddStep2":
-    "Opzione A: imposta qui sotto un URL proxy (es. socks5://127.0.0.1:9050 per Tor, oppure un proxy HTTP/HTTPS) per instradare il traffico dello scraper.",
+    "Opzione A: metti qui sotto l'indirizzo di un proxy (socks5://127.0.0.1:9050 per Tor, oppure un qualsiasi proxy HTTP/HTTPS) e le richieste usciranno da lì.",
   "settings.ddStep3Intro": "Opzione B: copia il valore del cookie datadome dal tuo browser:",
   "settings.ddStep3a":
     "Apri la pagina di un annuncio (es. Immobiliare.it) in Chrome/Firefox.",
@@ -879,16 +880,16 @@ export const it: Dict = {
   "settings.camoufoxInstalled": "Installato",
   "settings.camoufoxMissing":
     "Non installato — un clic lo aggiunge (~150 MB, una tantum):",
-  "settings.installCamoufox": "Installa Camoufox con un clic",
+  "settings.installCamoufox": "Installa Camoufox",
   "settings.installingCamoufox": "Installazione di Camoufox (~1-3 min)…",
-  "settings.camoufoxInstalledMsg": "Camoufox installato con successo!",
+  "settings.camoufoxInstalledMsg": "Camoufox è installato.",
   "settings.harvesterMissing":
-    "Non ancora installato in questo ambiente Python. Puoi installare Playwright e Chromium automaticamente con un clic:",
-  "settings.installHarvester": "Installa Playwright e Chromium con un clic",
+    "Non ancora installato — un clic aggiunge Playwright e Chromium (qualche centinaio di MB, una tantum):",
+  "settings.installHarvester": "Installa Playwright e Chromium",
   "settings.installingHarvester": "Installazione di Playwright e Chromium (~1-2 min)…",
-  "settings.harvesterInstalledMsg": "Playwright e Chromium installati con successo!",
+  "settings.harvesterInstalledMsg": "Playwright e Chromium sono installati.",
   "settings.manualInstall":
-    "Oppure installali a mano da terminale con `install-playwright.bat` nella cartella del progetto, o esegui: ",
+    "Oppure fallo a mano: esegui `install-playwright.bat` nella cartella dell'app, oppure: ",
 
   // ── impostazioni: token API e riavvio ───────────────────────────────────
   "settings.apiTokenTitle": "Token di accesso all'API",
@@ -985,7 +986,7 @@ export const it: Dict = {
 
   // Lo stato di una ricerca, una parola sola. "In pausa" vince su tutto: una
   // ricerca spenta non sta funzionando e non sta fallendo, non sta girando.
-  "profiles.healthWorking": "Attiva",
+  "profiles.healthWorking": "Funziona",
   "profiles.healthQuiet": "Nessun risultato",
   "profiles.healthBlocked": "Bloccata dal portale",
   "profiles.healthFailing": "Non funziona",

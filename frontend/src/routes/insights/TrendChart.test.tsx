@@ -11,7 +11,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import TrendChart from "./TrendChart";
-import { en } from "../../i18n/en";
+import { it as itDict } from "../../i18n/it";
 import { expectAccessible } from "../../test/axe";
 import type { PricingTrend } from "../../types";
 
@@ -33,7 +33,7 @@ function svgNumbers(container: HTMLElement): string[] {
 describe("TrendChart", () => {
   it("says so when there is no history, instead of drawing an empty box", () => {
     const { container } = render(<TrendChart points={[]} />);
-    expect(screen.getByText(en["trends.chartEmpty"])).toBeInTheDocument();
+    expect(screen.getByText(itDict["trends.chartEmpty"])).toBeInTheDocument();
     expect(container.querySelector("svg[role='img']")).toBeNull();
   });
 
@@ -42,14 +42,14 @@ describe("TrendChart", () => {
     expect(container.querySelector("polyline")).toBeNull();
     // …but the reading itself is on the page, and labelled as one day only.
     expect(container.querySelectorAll("circle").length).toBeGreaterThan(0);
-    expect(screen.getByText(en["trends.oneDayOnly"])).toBeInTheDocument();
+    expect(screen.getByText(itDict["trends.oneDayOnly"])).toBeInTheDocument();
   });
 
   it("draws the line and its fill from the second day", () => {
     const { container } = render(<TrendChart points={TWO} />);
     expect(container.querySelector("polyline")).toBeInTheDocument();
     expect(container.querySelector("path[fill^='url(']")).toBeInTheDocument();
-    expect(screen.queryByText(en["trends.oneDayOnly"])).toBeNull();
+    expect(screen.queryByText(itDict["trends.oneDayOnly"])).toBeNull();
   });
 
   it("emphasises the last reading whether or not there is a line", () => {

@@ -45,10 +45,10 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   // ── the bare address, on a database that has never held a search ──────────
   await page.goto("/");
   await expect.poll(() => path(page)).toBe("/start");
-  await expect(page.getByRole("heading", { name: "Real Estate Search" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Getting started" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ricerca Immobili" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Come iniziare" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "It watches the portals so you don't have to" }),
+    page.getByRole("heading", { name: "Controlla i portali al posto tuo" }),
   ).toBeVisible();
   await checkScreen(page, "the guided first run, step one");
 
@@ -56,7 +56,7 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   await press(page, "onboarding.skip");
   await expect.poll(() => path(page)).toBe("/listings");
   await expect(cards(page)).toHaveCount(0);
-  await expect(page.getByText("Nothing collected yet.")).toBeVisible();
+  await expect(page.getByText("Non è ancora stato raccolto nulla.")).toBeVisible();
   // With nothing collected there is nothing to narrow, and every control in the
   // rail would describe a set that does not exist. Worse, a form of price and
   // rooms and zone on an empty screen reads as the place a search is set up —
@@ -77,7 +77,7 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   // of saying "no searches yet", so the screen says it once and offers the one
   // thing that fixes it.
   await press(page, "nav.insights");
-  await expect(page.getByRole("heading", { name: "Nothing to analyse yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Non c'è ancora niente da analizzare" })).toBeVisible();
   await checkScreen(page, "insights with nothing collected");
   await press(page, "insights.toSearches");
   await expect.poll(() => path(page)).toBe("/searches");
@@ -91,16 +91,16 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   // nothing, which is what makes the first of them safe to read past.
   await press(page, "onboarding.next");
   await expect(
-    page.getByRole("heading", { name: "Create your first search" }),
+    page.getByRole("heading", { name: "Crea la tua prima ricerca" }),
   ).toBeVisible();
   await press(page, "onboarding.back");
   await expect(
-    page.getByRole("heading", { name: "It watches the portals so you don't have to" }),
+    page.getByRole("heading", { name: "Controlla i portali al posto tuo" }),
   ).toBeVisible();
   await press(page, "onboarding.next");
 
   // ── the three ways, as one choice ─────────────────────────────────────────
-  for (const way of ["Just describe it", "Build a search", "Paste a URL"]) {
+  for (const way of ["Descrivila e basta", "Costruisci una ricerca", "Incolla un URL"]) {
     await expect(page.getByRole("button", { name: new RegExp(way) })).toBeVisible();
   }
   await checkScreen(page, "the first search, offered as one choice");
@@ -120,7 +120,7 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   // the assistant asks a model and the builder asks the portals, and this suite
   // is offline by construction.
   await press(page, "onboarding.wayUrl");
-  await expect(page.getByText(/to use every portal filter/)).toBeVisible();
+  await expect(page.getByText(/per usare tutti i filtri del portale/)).toBeVisible();
   await fill(page, "profiles.url.name", "First search");
   await fill(page, "profiles.url.url",
     "https://www.immobiliare.it/vendita-case/milano/?criterio=rilevanza&prezzoMassimo=400000");
@@ -128,8 +128,8 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
 
   // Saving is what unlocks the last step, and it opens it rather than announcing
   // that it could be opened.
-  await expect(page.getByText("Your search is saved.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Run the first scan" })).toBeVisible();
+  await expect(page.getByText("La tua ricerca è salvata.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Avvia la prima scansione" })).toBeVisible();
   await checkScreen(page, "the first scan, with a search to run it on");
 
   // ── the scan, and something to look at while it runs ──────────────────────
@@ -141,8 +141,8 @@ test("a fresh install walks from nothing to a created search", async ({ page }) 
   // A count that rises and a phase in words. Never a proportion: the portals
   // declare no total here, and a bar that fills to 90% and stops is a lie the
   // shape of the payload exists to prevent.
-  await expect(page.getByText("Reading the results, page 2")).toBeVisible();
-  await expect(page.getByText("17 collected so far")).toBeVisible();
+  await expect(page.getByText("Lettura dei risultati, pagina 2")).toBeVisible();
+  await expect(page.getByText("17 raccolti finora")).toBeVisible();
   await expect(page.getByText(/%/)).toHaveCount(0);
 
   // ── out, onto the screen the app opens on from now on ─────────────────────

@@ -25,24 +25,24 @@ test("the map shows the filtered set and the grid comes back", async ({
 
   // A card the map can actually place: the ones flagged "not on map" have no
   // coordinates, and looking for their pin would be looking for the bug.
-  const placed = cards(page).filter({ hasNotText: "not on map" }).first();
+  const placed = cards(page).filter({ hasNotText: "non sulla mappa" }).first();
   const title = (await placed.getAttribute("aria-label")) ?? "";
 
-  const view = page.getByRole("group", { name: "View" });
-  await view.getByRole("button", { name: "Map" }).click();
+  const view = page.getByRole("group", { name: "Vista" });
+  await view.getByRole("button", { name: "Mappa" }).click();
 
   // The map says how much of the set it is showing, and how much it cannot
   // place. About a sixth of the corpus has no coordinates on purpose, because
   // the portals omit them and a map that quietly drops those listings is how a
   // user loses one.
-  const summary = page.getByText(/\d+ of \d+ properties on the map/);
+  const summary = page.getByText(/\d+ di \d+ immobili sulla mappa/);
   await expect(summary).toBeVisible();
-  const counted = (await summary.innerText()).match(/(\d+) of (\d+) properties on the map/);
+  const counted = (await summary.innerText()).match(/(\d+) di (\d+) immobili sulla mappa/);
   const shown = Number(counted?.[1]);
   const total = Number(counted?.[2]);
   expect(shown).toBeGreaterThan(0);
   expect(shown).toBeLessThan(total);
-  await expect(page.getByText(`${total - shown} without coordinates`)).toBeVisible();
+  await expect(page.getByText(`${total - shown} senza coordinate`)).toBeVisible();
 
   // The pins themselves: each marker carries its property's title, so finding
   // one is proof the corpus was placed and not merely counted.
@@ -57,11 +57,11 @@ test("the map shows the filtered set and the grid comes back", async ({
   // Drawing is three clicks and none of them is a button, so the map says which
   // three before the first one — otherwise the tool is a mode with no
   // instructions, and the way out of it is guesswork.
-  await expect(page.getByText("Draw a radius or an area")).toBeVisible();
+  await expect(page.getByText("Disegna un raggio o un'area")).toBeVisible();
 
   await checkScreen(page, "the map");
 
-  await view.getByRole("button", { name: "▦ Grid" }).click();
+  await view.getByRole("button", { name: "▦ Griglia" }).click();
   await waitForResults(page);
   await expect(summary).toBeHidden();
 });
@@ -74,10 +74,10 @@ test("pointing at one half of the map view marks the other", async ({
 
   await page.goto("/");
   await waitForResults(page);
-  const placed = cards(page).filter({ hasNotText: "not on map" }).first();
+  const placed = cards(page).filter({ hasNotText: "non sulla mappa" }).first();
   const title = (await placed.getAttribute("aria-label")) ?? "";
 
-  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Map" }).click();
+  await page.getByRole("group", { name: "Vista" }).getByRole("button", { name: "Mappa" }).click();
   const pin = page.getByTitle(title).first();
   await expect(pin).toBeVisible();
 

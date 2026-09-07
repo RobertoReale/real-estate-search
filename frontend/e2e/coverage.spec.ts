@@ -160,12 +160,13 @@ test("the navigation, the header and the log viewer", async ({ page }) => {
   await waitForResults(page);
   expect(new URL(page.url()).pathname).toBe("/listings");
 
-  // Language: the toggle names the language it will switch *to*, so the grid's
-  // own words are what proves it followed.
-  await press(page, "nav.language");
-  await expect(page.getByText(/^\d+ immobili$/)).toBeVisible();
+  // Language: the app opens in Italian, so the first press is the way out and
+  // the second the way back. The toggle names the language it will switch *to*,
+  // so the grid's own words are what proves it followed.
   await press(page, "nav.language");
   await expect(page.getByText(/^\d+ properties$/)).toBeVisible();
+  await press(page, "nav.language");
+  await expect(page.getByText(/^\d+ immobili$/)).toBeVisible();
 
   await press(page, "nav.theme");
   await expect(page.locator("html")).toHaveClass(/dark/);
@@ -339,16 +340,16 @@ test("every filter narrows the grid, and reset undoes all of it", async ({ page 
   // Rooms is the one to pull, because the corpus is a single city and "Milano"
   // therefore narrows nothing — a count assertion on it would pass whether the
   // chip worked or not.
-  const chips = page.getByRole("group", { name: "Active filters" });
-  await expect(chips.getByText("City: Milano")).toBeVisible();
+  const chips = page.getByRole("group", { name: "Filtri attivi" });
+  await expect(chips.getByText("Città: Milano")).toBeVisible();
   await setTicked(page, "filters.favorites", false);
   const narrowed = await resultCount(page);
   expect(narrowed).toBeLessThan(all);
-  await chips.getByRole("button", { name: "Remove the Rooms: 3 filter" }).click();
+  await chips.getByRole("button", { name: "Togli il filtro Locali: 3" }).click();
   // Back to everything, because the only clause left is a city that matches it.
   await expect.poll(() => resultCount(page)).toBe(all);
   await expect(control(page, "filters.rooms")).toHaveValue("");
-  await expect(chips.getByText("City: Milano")).toBeVisible();
+  await expect(chips.getByText("Città: Milano")).toBeVisible();
 
   await setTicked(page, "filters.favorites", true);
   await press(page, "filters.reset");
@@ -390,7 +391,7 @@ test("the filters, as a sheet on a phone", async ({ page }) => {
 
   // The sheet is shut and the query is still readable, which is the whole
   // reason the chips exist.
-  await expect(page.getByText("City: Bologna")).toBeVisible();
+  await expect(page.getByText("Città: Bologna")).toBeVisible();
   await press(page, "filters.reset");
   await expect.poll(() => resultCount(page)).toBe(all);
 });
@@ -501,7 +502,7 @@ test("the card's own controls", async ({ page }) => {
 
   // The star, and the guard that keeps pressing it from opening the property.
   await press(card, "property.favorite");
-  await expect(card.getByRole("button", { name: "Remove from favorites" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Togli dai preferiti" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeHidden();
   await press(card, "property.favorite");
 
@@ -633,16 +634,16 @@ test("the property detail, end to end", async ({ page, request, offlineGuard }) 
   // Moving through the set without leaving the screen, and the address follows.
   const at = () => page.url();
   const opened = at();
-  await expect(page.getByText(/^2 of \d+$/)).toBeVisible();
+  await expect(page.getByText(/^2 di \d+$/)).toBeVisible();
   await press(page, "detail.next");
-  await expect(page.getByText(/^3 of \d+$/)).toBeVisible();
+  await expect(page.getByText(/^3 di \d+$/)).toBeVisible();
   expect(at()).not.toBe(opened);
   await press(page, "detail.prev");
-  await expect(page.getByText(/^2 of \d+$/)).toBeVisible();
+  await expect(page.getByText(/^2 di \d+$/)).toBeVisible();
   expect(at()).toBe(opened);
 
   await press(page, "detail.favorite");
-  await expect(control(page, "detail.favorite")).toHaveAttribute("aria-label", "Remove from favorites");
+  await expect(control(page, "detail.favorite")).toHaveAttribute("aria-label", "Togli dai preferiti");
   await press(page, "detail.favorite");
 
   await fill(page, "detail.notes", "seen on a Tuesday");
@@ -651,7 +652,7 @@ test("the property detail, end to end", async ({ page, request, offlineGuard }) 
 
   // The calculators are pure client-side arithmetic, so their effect is the
   // number beside them changing.
-  const monthly = () => page.getByText(/Monthly payment/i).locator("..").innerText();
+  const monthly = () => page.getByText(/Rata mensile/i).locator("..").innerText();
   const first = await monthly();
   await fill(page, "calc.mortgage.downPayment", "40");
   await expect.poll(monthly).not.toBe(first);
@@ -662,10 +663,10 @@ test("the property detail, end to end", async ({ page, request, offlineGuard }) 
   await fill(page, "calc.mortgage.years", "10");
   await expect.poll(monthly).not.toBe(third);
   await fill(page, "calc.yield.rent", "1200");
-  await expect(page.getByText(/Gross yield/i)).toBeVisible();
-  const gross = await page.getByText(/Net yield/i).locator("..").innerText();
+  await expect(page.getByText(/Rendimento lordo/i)).toBeVisible();
+  const gross = await page.getByText(/Rendimento netto/i).locator("..").innerText();
   await fill(page, "calc.yield.costs", "35");
-  await expect.poll(() => page.getByText(/Net yield/i).locator("..").innerText()).not.toBe(gross);
+  await expect.poll(() => page.getByText(/Rendimento netto/i).locator("..").innerText()).not.toBe(gross);
 
   await press(page, "detail.checkOnline");
   await expect(control(page, "detail.checkOnline")).toBeEnabled();
@@ -724,7 +725,7 @@ test("the listing reader, when one is configured", async ({ page }) => {
   await openSettings(page);
   await setTicked(page, "settings.assistant.audit", true);
   await press(page, "settings.save");
-  await expect(page.getByText("Settings saved")).toBeVisible();
+  await expect(page.getByText("Impostazioni salvate.")).toBeVisible();
   await press(page, "settings.close");
 
   await cards(page).first().click();
@@ -767,7 +768,7 @@ test("selecting several properties, and every batch action", async ({ page }) =>
   // Select-all means the whole filtered set, not the loaded window.
   const total = await resultCount(page);
   await setTicked(page, "selection.selectAll", true);
-  await expect(page.getByText(`Select all (${total} of ${total})`)).toBeVisible();
+  await expect(page.getByText(`Seleziona tutti (${total} di ${total})`)).toBeVisible();
   await setTicked(page, "selection.selectAll", false);
 
   // A batch action leaves multi-select altogether when it lands (App.tsx:
@@ -803,11 +804,11 @@ test("selecting several properties, and every batch action", async ({ page }) =>
 
   await arm();
   await press(page, "selection.favorite");
-  await expect(cards(page).first().getByRole("button", { name: "Remove from favorites" }))
+  await expect(cards(page).first().getByRole("button", { name: "Togli dai preferiti" }))
     .toBeVisible();
   await arm();
   await press(page, "selection.unfavorite");
-  await expect(cards(page).first().getByRole("button", { name: "Add to favorites" }))
+  await expect(cards(page).first().getByRole("button", { name: "Aggiungi ai preferiti" }))
     .toBeVisible();
 
   // The two that change the grid. Each takes its property out of it.
@@ -848,7 +849,7 @@ test("drawing an area on the map", async ({ page, offlineGuard }) => {
   await press(page, "map.drawRadius");
   await expect(control(page, "map.clearZone")).toBeHidden();
   await press(page, "map.drawArea");
-  await expect(control(page, "map.drawArea")).toHaveText(/Finish/i);
+  await expect(control(page, "map.drawArea")).toHaveText(/Chiudi l.area/i);
 
   // Three corners make a polygon, which becomes a filter on the grid.
   const box = (await map.boundingBox())!;
@@ -934,9 +935,11 @@ test("each search states its health, and the notifications warn once", async ({ 
   // search that is switched off. The last of those is the one the old badge
   // could not say — it read "OK", because "OK" is what the run before it was
   // paused had returned, eleven days earlier.
-  await expect(rows.filter({ hasText: "Running" })).toHaveCount(1);
-  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(1);
-  const blocked = rows.filter({ hasText: "Blocked by the portal" });
+  // A regex, and a capital F: "Funziona" as a string would be matched
+  // case-insensitively and "Non funziona" is one of the other five states.
+  await expect(rows.filter({ hasText: /Funziona/ })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "In pausa" })).toHaveCount(1);
+  const blocked = rows.filter({ hasText: "Bloccata dal portale" });
   await expect(blocked).toHaveCount(1);
 
   // The streak is on the chip, because four failures in a row is a different
@@ -951,16 +954,16 @@ test("each search states its health, and the notifications warn once", async ({ 
   // Pausing a search is enough to change what it says it is, with no scan in
   // between — the state is derived, not a field the backend last wrote.
   await toggle(page, "profiles.row.active");
-  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(2);
+  await expect(rows.filter({ hasText: "In pausa" })).toHaveCount(2);
   await toggle(page, "profiles.row.active");
-  await expect(rows.filter({ hasText: "Paused" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "In pausa" })).toHaveCount(1);
 
   // Neither Telegram nor SMTP is configured in the harness and all three
   // searches ask for "wherever the account sends things", so exactly one banner
   // is owed — for the account, not for each row that inherits the problem.
   const banner = page.getByRole("alert");
   await expect(banner).toHaveCount(1);
-  await expect(banner).toContainText("No notification channel is set up");
+  await expect(banner).toContainText("Nessun canale di notifica è configurato");
 
   // And it ends where it is fixed. A warning whose remedy is a sentence about
   // another screen is a warning the reader has to go and find.
@@ -1432,7 +1435,7 @@ test("every setting, and the tests beside them", async ({ page }) => {
   ], insideDialog(page, "settings.panel"));
 
   await press(page, "settings.save");
-  await expect(page.getByText("Settings saved")).toBeVisible();
+  await expect(page.getByText("Impostazioni salvate.")).toBeVisible();
 
   // Clicking inside the dialog must not close it; the three ways out must.
   await press(page, "settings.panel", { position: { x: 8, y: 8 } });
@@ -1484,7 +1487,7 @@ test("the app stays usable when the backend refuses everything", async ({ page }
   for (const id of await visibleActions(page, skip)) {
     await page.locator(`[data-action="${id}"]`).first().click({ timeout: 5_000 }).catch(() => {});
     await expect(
-      page.getByRole("heading", { name: "Real Estate Search" }),
+      page.getByRole("heading", { name: "Ricerca Immobili" }),
       `${id} took the app down when the backend refused it`,
     ).toBeVisible();
     await expect(page.locator("body")).not.toBeEmpty();
@@ -1527,10 +1530,10 @@ test("results that could not be loaded say so, rather than reading as none", asy
   const relent = await refusing(page, (url) => url.pathname === "/api/properties");
 
   await page.goto("/");
-  await expect(page.getByText("The results could not be loaded")).toBeVisible();
+  await expect(page.getByText("Non è stato possibile caricare i risultati")).toBeVisible();
   // The distinction the whole state exists for: "nothing collected yet" is a
   // claim about an answer, and no answer came.
-  await expect(page.getByText("Nothing collected yet.")).toBeHidden();
+  await expect(page.getByText("Non è ancora stato raccolto nulla.")).toBeHidden();
 
   relent();
   await press(page, "app.loadError.retry");
@@ -1545,9 +1548,9 @@ test("each insights panel reports its own refusal where its own content would be
   ];
 
   await page.goto("/insights");
-  await expect(page.getByText("Could not load scraper health")).toBeVisible();
-  await expect(page.getByText("Could not load statistics")).toBeVisible();
-  await expect(page.getByText("Could not load trends")).toBeVisible();
+  await expect(page.getByText("Impossibile caricare la salute degli scraper")).toBeVisible();
+  await expect(page.getByText("Impossibile caricare le statistiche")).toBeVisible();
+  await expect(page.getByText("Impossibile caricare gli andamenti")).toBeVisible();
 
   // Three reads of three different tables: one refusing says nothing about the
   // other two, so each recovers on its own without reloading the screen.
@@ -1562,8 +1565,8 @@ test("searches that could not be loaded do not look like a screen with none", as
   const relent = await refusing(page, (url) => url.pathname === "/api/search-profiles");
 
   await page.goto("/searches");
-  await expect(page.getByText("The searches could not be loaded")).toBeVisible();
-  await expect(page.getByText("No searches configured")).toBeHidden();
+  await expect(page.getByText("Non è stato possibile caricare le ricerche")).toBeVisible();
+  await expect(page.getByText("Nessuna ricerca configurata")).toBeHidden();
 
   relent();
   await press(page, "profiles.loadError.retry");
@@ -1652,7 +1655,7 @@ test("the backups and the resets", async ({ page }) => {
   // Last on purpose: these empty the database the rest of the suite reads, so
   // they run once nothing else needs it. The run seeds a fresh data directory
   // every time (playwright.config.ts), so nothing here outlives the run.
-  acceptDialogs(page, "RESTORE");
+  acceptDialogs(page, "RIPRISTINA");
   await page.route("**/api/system/restart", (route) =>
     route.fulfill({ json: { ok: true, reload: false } }));
   await page.route("**/api/settings/install-harvester", (route) =>

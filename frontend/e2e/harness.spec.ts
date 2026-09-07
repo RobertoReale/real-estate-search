@@ -17,7 +17,7 @@ test("the dashboard loads against the seeded harness backend", async ({ page }) 
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Real Estate Search" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ricerca Immobili" })).toBeVisible();
 
   // The corpus is what answered, not an empty database: every demo title is
   // "<typology> <condition> in <street>", and a card's accessible name is its
