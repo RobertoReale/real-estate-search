@@ -55,12 +55,12 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1032 passed + 1 skipped** (1033 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **444 frontend tests**,
-**77 browser tests** (49 journeys, then 28 that hold the run to the control inventory),
+Expected today: **1040 passed + 1 skipped** (1041 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **458 frontend tests**,
+**78 browser tests** (48 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
-the type generator. The browser suite prints the two numbers worth reading: **226
-interactive elements, 261 inventoried actions**, of which **259 exercised and 2 declared
+the type generator. The browser suite prints the two numbers worth reading: **227
+interactive elements, 263 inventoried actions**, of which **261 exercised and 2 declared
 unreachable with a written reason**. If a test number changed, that is not a failure — it
 is a documentation trigger (see §4).
 
@@ -68,6 +68,29 @@ The last gate is the cheap one and the easy one to skip, and it is the only thin
 between `schemas.py` and a frontend that compiles against a wire format the backend stopped
 sending. A diff there is never a bug in the generator: it means the commit changed what a
 route sends and did not regenerate.
+
+It is also the gate that taught this list its sharpest lesson, and the lesson is about the
+list rather than about the gate: **a check that re-runs the tool instead of reading what the
+tool produced is not a check.** Regenerate-and-diff was green here for the whole
+life of `frontend/src/types/api.ts` while the committed file held 36 mojibake em dashes and
+not one real one: the generator decoded its subprocess with the Windows locale, and the gate
+regenerated the same corruption and compared it against itself. The `npm ci` failure that
+ran beside it for weeks was the same shape — `npm ci --dry-run` short-circuits on a
+populated `node_modules` and exits 0, and so does a run against a copy of the tree, so
+neither could see a lockfile the runner's newer npm refuses. Both are now read **as bytes**,
+by assertions that need no network and no toolchain, in `backend/tests/test_generated_artifacts.py`
+(part of the backend suite, so the first command on this list already runs them):
+
+- every package a lockfile names in a `bundleDependencies` array has a resolved entry in
+  that same lockfile — the check that would have caught `@tailwindcss/oxide-wasm32-wasi`
+  missing `@emnapi/core` and `@emnapi/runtime`, which killed five of the eight CI jobs;
+- `scripts/gen_api_types.py` names an explicit encoding when it captures the generator, and
+  the committed `api.ts` carries no mojibake ([invariant 23](invariants.md)).
+
+The other half of that failure was nobody reading CI. The eight local checks above run on
+this machine only; `.github/workflows/ci.yml` runs the same work on Linux, which is where
+both of those defects were visible from the day they landed. A green local baseline on a red
+pipeline is not a green project — check the run, not just this list.
 
 `ruff format --check` belongs in this list and is easy to forget: CI's lint step runs
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
@@ -96,11 +119,22 @@ headroom on every screen, which is the decision the gate exists to force.
 `npm run e2e:visual` is a pixel diff against `frontend/e2e/visual.spec.ts-snapshots/`, not a
 behavioural check — that is what the suite above already owns. It exists to catch what
 nothing else here can: a token that shifted a card's padding on every screen at once, or a
-layout that only breaks at 768px. The baselines are platform-suffixed and were made on
-`ubuntu-latest`, so like Lighthouse this is **CI-only**: a Windows run compares against a
-baseline made on a different renderer and every screen fails on font hinting alone. It runs
-as its own CI job and its own Playwright project, deliberately outside `npm run e2e`, so a
-font-rendering diff here can never block the functional coverage gate.
+layout that only breaks at 768px. The baselines are platform-suffixed, so like Lighthouse
+this is **CI-only**: a Windows run compares against a baseline made on a different renderer
+and every screen fails on font hinting alone. It runs as its own CI job and its own
+Playwright project, deliberately outside `npm run e2e`, so a font-rendering diff here can
+never block the functional coverage gate.
+
+**Never write a baseline anywhere but on the runner that reads it.** The first set was made
+on a Linux that was not `ubuntu-latest`, and all twenty-seven were wrong before they were
+committed — same pages, same layout, glyph advances a fraction wider, so text wrapped a line
+earlier and half the rows of a screenshot differed on a screen nothing had changed on. `npm
+run e2e:visual -- --update-snapshots` on this machine produces a set that is wrong in a
+different way, which is why it is not the instruction here. Run **Visual baselines**
+(`.github/workflows/visual-baselines.yml`) from the Actions tab, download the artifact,
+unpack it over `frontend/e2e/visual.spec.ts-snapshots/`, read what moved, and commit it with
+the change that moved it. That workflow only ever uploads — a baseline that updates itself
+in the repository is a gate that agrees with whatever it is shown.
 
 To fetch a portal page live during verification, use `AdProbe` (`scrapers/probe.py`), never
 a cold browser — it injects the real `datadome_cookie`. See
@@ -110,9 +144,9 @@ a cold browser — it injects the real `datadome_cookie`. See
 
 ## 1. Invariant audit (are they *true*, are they *necessary*?)
 
-The 22 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
-past regression, or for 22 the shipped defect it keeps from returning), a code home, and at
-least one regression test. To audit an invariant:
+The 23 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
+past regression, or for 22 and 23 the shipped defect it keeps from returning), a code home,
+and at least one regression test. To audit an invariant:
 
 1. **Necessary?** Read its paragraph. Every invariant records a bug that actually
    happened — if you cannot find the regression it prevents, that is the finding. None are
@@ -146,6 +180,7 @@ least one regression test. To audit an invariant:
 | 20 | Delete-a-search removes only provably-its-own | `services/data_reset.py` `profile_results` | `test_data_reset.py` |
 | 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py`, `test_features.py` |
 | 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/routes/property/Benchmarks.tsx` | `test_omi_benchmark.py` |
+| 23 | A subprocess whose output is committed is decoded explicitly | `scripts/gen_api_types.py` `generate` | `test_generated_artifacts.py` |
 
 ---
 

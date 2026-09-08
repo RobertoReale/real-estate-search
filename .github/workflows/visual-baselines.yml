@@ -1,0 +1,68 @@
+# Regenerates the pixel baselines the `visual regression` job in ci.yml compares
+# against, and uploads them for review.
+#
+# It exists because a baseline is a photograph of a machine, not of the code.
+# The first set was made on a Linux that was not this runner, and every one of
+# the twenty-seven was wrong the moment it was committed: the same page, the
+# same layout, a font stack whose glyph advances differ by a fraction, and text
+# that therefore wraps a line earlier. Half the rows of a screenshot differ on a
+# screen nothing had changed on. Regenerating them on a laptop cannot fix that —
+# it produces a new set that is wrong in a new way — so the only machine allowed
+# to write them is the one that reads them, and this is how it is asked.
+#
+# Run it from the Actions tab, download `visual-baselines`, unpack it over
+# `frontend/e2e/visual.spec.ts-snapshots/`, look at what moved, and commit that
+# with the change that moved it. It never writes to the repository itself: a
+# baseline that updates itself is a gate that agrees with whatever it is shown.
+name: Visual baselines
+
+on:
+  workflow_dispatch:
+
+jobs:
+  baselines:
+    name: regenerate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      - name: Install the backend from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          # The same pin as every job in ci.yml, for the same reason.
+          node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install from the lockfile
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # Writes every snapshot the visual project declares, whether or not one
+      # already exists, so a run always produces the complete set rather than
+      # the ones that happened to fail first.
+      - name: Regenerate
+        working-directory: frontend
+        run: npm run e2e:visual -- --update-snapshots
+
+      - name: Upload
+        uses: actions/upload-artifact@v5
+        with:
+          name: visual-baselines
+          path: frontend/e2e/visual.spec.ts-snapshots/
+          retention-days: 7

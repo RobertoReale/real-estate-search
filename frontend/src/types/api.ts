@@ -43,7 +43,7 @@ export interface paths {
          * @description Download the currently-filtered shortlist as a self-contained dossier.
          *
          *     Same selection as the grid, so the file mirrors what the user sees. Returned
-         *     as an attachment (no server, no DB) that can be shared over chat or email â€”
+         *     as an attachment (no server, no DB) that can be shared over chat or email —
          *     the reason the export exists rather than sharing the live dashboard. `pdf`
          *     is the exception: a print-ready report the browser saves as a PDF itself.
          *
@@ -73,7 +73,7 @@ export interface paths {
          *     Must stay registered before GET /api/properties/{property_id}: Starlette
          *     matches routes in registration order, and an int-typed path parameter
          *     still matches the literal segment "check-progress" first, turning every
-         *     poll into a 422 instead of ever reaching this handler â€” the progress bar
+         *     poll into a 422 instead of ever reaching this handler — the progress bar
          *     then never advances past its initial state.
          */
         get: operations["properties_check_progress_api_properties_check_progress_get"];
@@ -128,7 +128,7 @@ export interface paths {
          *
          *     Also used to correct a property wrongly marked "gone" by the
          *     availability check (invariant 16 is fail-open by design, but a portal
-         *     redirect or block misread as removal can still slip through) â€” so this
+         *     redirect or block misread as removal can still slip through) — so this
          *     clears `gone_at` too, matching the availability check's own "reappeared
          *     online" handling, instead of leaving a stale date behind.
          */
@@ -153,7 +153,7 @@ export interface paths {
          * @description Marks the property as sold/rented out.
          *
          *     Like hiding it, this removes the card from the active grid and stops scans
-         *     from resurfacing or notifying it (invariant 5 â€” a user choice a scan never
+         *     from resurfacing or notifying it (invariant 5 — a user choice a scan never
          *     reverts). Unlike hiding, the property stays a *confirmed* market close:
          *     `sold_at` gives market_velocity a real sale date instead of the inferred
          *     "gone" heuristic. Reversible via /restore. This exists for the "VENDUTO"
@@ -321,7 +321,7 @@ export interface paths {
          * Get Property Audit
          * @description The stored reading of this listing's text, or null if none was asked for.
          *
-         *     Reads the row and nothing else â€” never the model â€” so the detail can
+         *     Reads the row and nothing else — never the model — so the detail can
          *     show an audit the user already paid for without spending a request every
          *     time a card is opened. Same split as the commute annotation: what is cached
          *     is free, what costs something needs a press.
@@ -336,8 +336,8 @@ export interface paths {
          *     a minute to answer, and the threadpool keeps the rest of the API responsive
          *     meanwhile instead of the event loop being owned by one card's request.
          *
-         *     Everything that can go wrong â€” the feature off, no endpoint configured, an
-         *     ad with no description, a model that does not answer â€” comes back as a
+         *     Everything that can go wrong — the feature off, no endpoint configured, an
+         *     ad with no description, a model that does not answer — comes back as a
          *     readable 400. Nothing about the property changes either way.
          */
         post: operations["audit_property_listing_api_properties__property_id__audit_post"];
@@ -362,7 +362,7 @@ export interface paths {
          *     when the pin is still missing. Reuses the cached, paced Nominatim path
          *     (`geocoder.geocode_property`); already-located properties short-circuit.
          *     Fail-open: a lookup the portal's address is too vague to resolve is not an
-         *     error â€” `located` tells the UI whether a pin now exists.
+         *     error — `located` tells the UI whether a pin now exists.
          */
         post: operations["geocode_single_property_api_properties__property_id__geocode_post"];
         delete?: never;
@@ -418,7 +418,7 @@ export interface paths {
         /**
          * Profile Results
          * @description How many dashboard properties these searches produced, and how many of
-         *     them deleting them would actually remove â€” the numbers the delete dialog
+         *     them deleting them would actually remove — the numbers the delete dialog
          *     shows before the user chooses. See data_reset.profile_results for what is
          *     spared. Asked about the whole selection at once, because "also found by
          *     another search" only means "another search that survives".
@@ -517,7 +517,7 @@ export interface paths {
          *     yields one search per alternative. Never raises on an unparseable query:
          *     it answers with whatever it understood plus `warnings`, and the UI
          *     pre-fills the builder form so the user can correct it. URLs are built
-         *     only when a city was identified â€” without one the portals would silently
+         *     only when a city was identified — without one the portals would silently
          *     return all of Italy.
          */
         post: operations["search_assistant_api_search_assistant_post"];
@@ -558,7 +558,7 @@ export interface paths {
         };
         /**
          * Pricing Trend Areas
-         * @description Areas with at least two daily snapshots â€” the ones worth charting.
+         * @description Areas with at least two daily snapshots — the ones worth charting.
          */
         get: operations["pricing_trend_areas_api_pricing_trends_areas_get"];
         put?: never;
@@ -578,7 +578,7 @@ export interface paths {
         };
         /**
          * Pricing Trends
-         * @description Median â‚¬/sqm over time for one area (empty zone = whole city). The series
+         * @description Median €/sqm over time for one area (empty zone = whole city). The series
          *     is built from daily snapshots (pricing_snapshots), so it only starts saying
          *     something after the app has run for several days.
          */
@@ -600,7 +600,7 @@ export interface paths {
         };
         /**
          * Pricing Trend Comparables
-         * @description The listings behind an area's *current* median â‚¬/sqm â€” the concrete data
+         * @description The listings behind an area's *current* median €/sqm — the concrete data
          *     the chart's latest point summarises. Snapshots keep only the median and the
          *     count, so this is necessarily the set as it stands today, not a past point's
          *     (see pricing_stats.area_comparables). Same properties, annotated exactly like
@@ -655,7 +655,7 @@ export interface paths {
          *     An ordinary scan stops paging a search as soon as a page holds nothing new,
          *     which is fast and is partial; `full` is how the user demands the complete
          *     reading without waiting for `full_sweep_every_days` to come round. The scan
-         *     surface being rebuilt (plan D.8) is where this belongs as a control â€” until
+         *     surface being rebuilt (plan D.8) is where this belongs as a control — until
          *     then the query parameter is the whole of it.
          */
         post: operations["trigger_scan_api_scrapers_trigger_post"];
@@ -678,7 +678,7 @@ export interface paths {
          *
          *     `GET /api/events` is how the dashboard normally learns all of this now, and
          *     this route is what it falls back to when that stream cannot be opened at all
-         *     â€” an old backend behind a new build, a proxy that will not carry a streaming
+         *     — an old backend behind a new build, a proxy that will not carry a streaming
          *     response. It is also the honest answer to "what is happening?" for anything
          *     that is not a browser, so it stays a plain request/response route and keeps
          *     the shape the stream's `status` topic sends.
@@ -686,7 +686,7 @@ export interface paths {
          *     The live progress rides along rather than getting a route of its own
          *     precisely because this endpoint is the one a fallback client polls: a second
          *     poll beside it would double the traffic to say something about the same
-         *     moment. The journal is the opposite case â€” it changes once per search, is
+         *     moment. The journal is the opposite case — it changes once per search, is
          *     read when somebody asks, and has its own route below.
          */
         get: operations["scraper_status_api_scrapers_status_get"];
@@ -874,7 +874,7 @@ export interface paths {
         put?: never;
         /**
          * Commute Clear Cache Endpoint
-         * @description Forget every routed leg so the next run recomputes them â€” what the user
+         * @description Forget every routed leg so the next run recomputes them — what the user
          *     presses after moving a saved place, since the cached answer to the old pin
          *     is otherwise the one thing that keeps looking right.
          */
@@ -900,8 +900,8 @@ export interface paths {
          *     (services/omi_import.py). `path` overrides the configured `omi_input_dir`
          *     for a one-off import; empty uses the setting.
          *
-         *     Always answers with both numbers â€” how many quotations landed and how many
-         *     source rows were skipped â€” because a partial import that reports only its
+         *     Always answers with both numbers — how many quotations landed and how many
+         *     source rows were skipped — because a partial import that reports only its
          *     successes is indistinguishable from a complete one.
          */
         post: operations["omi_import_endpoint_api_maintenance_omi_import_post"];
@@ -957,7 +957,7 @@ export interface paths {
          *     The user-triggered half of the same split the geocoder and the commute batch
          *     make: the answer is stored on the property, so a grid page reads a column
          *     instead of ray-casting hundreds of vertices per card. Offline and
-         *     arithmetic-only â€” nothing to pace, so no progress or cancel endpoint.
+         *     arithmetic-only — nothing to pace, so no progress or cancel endpoint.
          *
          *     Fails open: a property with no coordinates, or a pin that falls in no
          *     imported zone, is reported in the counts and gets no OMI benchmark. Never an
@@ -1004,7 +1004,7 @@ export interface paths {
         put?: never;
         /**
          * Create Backup Endpoint
-         * @description Take a copy now, ignoring the once-a-day throttle â€” the button pressed
+         * @description Take a copy now, ignoring the once-a-day throttle — the button pressed
          *     before doing something risky, where "there was already one this morning" is
          *     not the answer the user wants.
          */
@@ -1030,7 +1030,7 @@ export interface paths {
          *
          *     The body is the file itself, not a multipart form: this app ships with a
          *     deliberately small dependency set, and a raw body needs nothing that is not
-         *     already installed. Streamed to a staging file rather than read into memory â€”
+         *     already installed. Streamed to a staging file rather than read into memory —
          *     a database is as large as the user's history, and this endpoint exists for
          *     the person whose history is long.
          *
@@ -1055,7 +1055,7 @@ export interface paths {
         /**
          * Download Backup Endpoint
          * @description Hand a copy to the browser, so the user's data can leave the machine in a
-         *     form that can come back. It is also the honest answer to "am I locked in?" â€”
+         *     form that can come back. It is also the honest answer to "am I locked in?" —
          *     the file is a plain SQLite database, readable by anything.
          */
         get: operations["download_backup_endpoint_api_maintenance_backups__name__get"];
@@ -1126,7 +1126,7 @@ export interface paths {
          * @description Opens a local browser to harvest a fresh DataDome cookie and saves it.
          *
          *     Headful (visible) on purpose: the user triggered it and is present, so if
-         *     the portal shows a CAPTCHA they can solve it once â€” the persistent profile
+         *     the portal shows a CAPTCHA they can solve it once — the persistent profile
          *     then remembers it. Sync `def` so FastAPI runs the minutes-long browser work
          *     in a threadpool without owning the event loop (same reasoning as the
          *     availability check, invariant 15).
@@ -1261,7 +1261,7 @@ export interface paths {
          *       the port fresh.
          *
          *     Refused mid-scan (409): a scan writes the DB and the ListingProfile links,
-         *     and yanking the process out from under it would leave them half-written â€”
+         *     and yanking the process out from under it would leave them half-written —
          *     same guard the destructive resets use. The restart is deferred a beat so this
          *     HTTP response reaches the browser before the process goes down; the UI then
          *     polls until the API answers again and reloads itself.
@@ -1318,7 +1318,7 @@ export interface paths {
          *     server writes down it. There is no port to open, no address to register and
          *     nothing for anything outside this machine to call. The optional
          *     `api_auth_token` gate applies exactly as it does to every other `/api` route
-         *     â€” this handler does nothing special to earn it, and must not.
+         *     — this handler does nothing special to earn it, and must not.
          */
         get: operations["event_stream_api_events_get"];
         put?: never;
@@ -1570,7 +1570,7 @@ export interface components {
          *     `kind` is what the copy is there for, and it decides what the row says:
          *     `daily` is one of the fourteen rotating copies, `pre-upgrade` is the state a
          *     version change left behind (kept indefinitely), `imported` is a database
-         *     brought in from another install. `revision` is the schema it holds â€” null
+         *     brought in from another install. `revision` is the schema it holds — null
          *     when the file is too damaged to say, which is exactly when the user needs to
          *     see the row rather than a gap.
          */
@@ -1591,7 +1591,7 @@ export interface components {
         };
         /**
          * BackupListOut
-         * @description The copies on disk, newest first, and the folder holding them â€” a real
+         * @description The copies on disk, newest first, and the folder holding them — a real
          *     path on the user's machine, which is what makes them usable outside this
          *     app.
          */
@@ -1798,7 +1798,7 @@ export interface components {
          * @description An area a search URL states geometrically, named rather than reproduced.
          *
          *     Immobiliare lets the user draw a shape on the map, ask for everything within
-         *     a radius, or pick "ten minutes by car" â€” which arrives as a shape like any
+         *     a radius, or pick "ten minutes by car" — which arrives as a shape like any
          *     other. All three survive being pasted as a link and none of them has a field
          *     in the builder form, so this is the only thing that can be said about them:
          *     what kind of area it is and how big. The coordinates stay in
@@ -1830,7 +1830,7 @@ export interface components {
          * @description An area a search URL states geometrically, named rather than reproduced.
          *
          *     Immobiliare lets the user draw a shape on the map, ask for everything within
-         *     a radius, or pick "ten minutes by car" â€” which arrives as a shape like any
+         *     a radius, or pick "ten minutes by car" — which arrives as a shape like any
          *     other. All three survive being pasted as a link and none of them has a field
          *     in the builder form, so this is the only thing that can be said about them:
          *     what kind of area it is and how big. The coordinates stay in
@@ -1975,7 +1975,7 @@ export interface components {
          *     it on its own.
          *
          *     `cached` says the answer came from the stored row rather than the model,
-         *     and `stale` that the ad has been rewritten since it was written â€” both are
+         *     and `stale` that the ad has been rewritten since it was written — both are
          *     printed, because an audit is only as good as the text it read.
          */
         ListingAuditOut: {
@@ -2120,7 +2120,7 @@ export interface components {
         };
         /**
          * OkOut
-         * @description An action whose entire result is "it was done" â€” the cancels, the
+         * @description An action whose entire result is "it was done" — the cancels, the
          *     notification tests, hiding a property. `ok` is always true: anything that
          *     did not happen leaves as an HTTP error, never as `ok: false`.
          */
@@ -2148,7 +2148,7 @@ export interface components {
         };
         /**
          * PricingTrendOut
-         * @description Median â‚¬/sqm over time for one (city, zone, contract) area.
+         * @description Median €/sqm over time for one (city, zone, contract) area.
          */
         PricingTrendOut: {
             /** City */
@@ -2168,7 +2168,7 @@ export interface components {
         };
         /**
          * PricingTrendPoint
-         * @description One dated median â‚¬/sqm reading for an area.
+         * @description One dated median €/sqm reading for an area.
          */
         PricingTrendPoint: {
             /**
@@ -2432,7 +2432,7 @@ export interface components {
          * @description One window of the filtered property set, plus the size of the whole.
          *
          *     `total` is what the dashboard counts and what tells the infinite scroll
-         *     whether another page exists â€” it is the size of the filtered set, not of
+         *     whether another page exists — it is the size of the filtered set, not of
          *     `items`. Keep `frontend/src/types/index.ts` (`PropertyPage`) in step with
          *     this shape.
          */
@@ -2995,7 +2995,7 @@ export interface components {
          *     portal, plus the two pieces of provenance the form shows next to them.
          *
          *     Spelled out as a model rather than a `dict[str, str]` because it is not
-         *     one â€” `idealista_zone_page` is a bool and `idealista_unsupported` a list,
+         *     one — `idealista_zone_page` is a bool and `idealista_unsupported` a list,
          *     so the looser-looking annotation was in fact the stricter one and rejected
          *     every real payload.
          */
@@ -3025,7 +3025,7 @@ export interface components {
          * @description Payload for an action applied to several monitored searches at once.
          *
          *     `notify_channels` is only read by the "notify" action, `delete_results` only
-         *     by "delete" â€” the alternative (one endpoint per action) would fork the
+         *     by "delete" — the alternative (one endpoint per action) would fork the
          *     ownership rules the delete depends on across four routes.
          */
         SearchProfileBulkIn: {
@@ -3239,7 +3239,7 @@ export interface components {
          * @description `settings.json` as the dashboard reads it back.
          *
          *     Every secret is masked here and answered with a `*_set` boolean beside it,
-         *     so the UI can say "configured" without ever holding the value â€” and so a
+         *     so the UI can say "configured" without ever holding the value — and so a
          *     form posting the mask straight back means "keep the stored one" rather than
          *     "erase it" (see `routers/settings.py`). The two `*_available` flags are not
          *     stored at all: they are what the backend detected about this machine, so the

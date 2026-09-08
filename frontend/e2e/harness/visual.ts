@@ -8,6 +8,12 @@
  *  (`visual.spec.ts-snapshots/`) and is platform-suffixed by Playwright itself,
  *  so it is only ever compared against a run on the same OS that made it — the
  *  CI job that owns this spec runs on Linux for exactly that reason.
+ *
+ *  The suffix says `linux` and that is not specific enough to write one by:
+ *  the first set was made on a Linux that was not `ubuntu-latest`, and its
+ *  slightly different glyph advances wrapped text a line earlier on every
+ *  screen. Do not run this with `--update-snapshots`; regenerate on the runner
+ *  that reads them, with the `Visual baselines` workflow.
  */
 import { expect, type Page } from "@playwright/test";
 import { settle, WIDTHS } from "./invariants";

@@ -77,6 +77,14 @@ def generate(document: dict, scratch: Path) -> str:
     npx quietly fetching whatever version is newest today — this file is
     committed and compared, and the tool that writes it has to be the one the
     lock names.
+
+    `encoding="utf-8"` is not decoration (invariant 23). The generator emits the
+    schema descriptions verbatim, em dashes and all, as UTF-8 on every platform;
+    `text=True` alone decodes with the process's locale, which on this Windows
+    checkout is cp1252, and every em dash lands in the committed file as `â€"`.
+    The diff gate cannot see it — it regenerates with the same wrong locale and
+    compares corruption against itself — so the file was wrong from its first
+    commit and only the Linux job ever said so.
     """
     spec = scratch / "openapi.json"
     spec.write_text(json.dumps(document, indent=2), encoding="utf-8")
@@ -89,6 +97,7 @@ def generate(document: dict, scratch: Path) -> str:
         shell=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if result.returncode != 0:
         sys.stderr.write(result.stderr)

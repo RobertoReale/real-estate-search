@@ -74,6 +74,13 @@ test("the backend log", async ({ page }) => {
   await fakeLogTail(page);
   await page.goto("/logs");
   await expect(page.getByRole("heading", { name: "Log del backend" })).toBeVisible();
+  // The log draws itself over the grid, so `fullPage` photographs the grid too
+  // and the height of the image is the height of the results behind it. Landing
+  // straight on this address means they are still arriving when the dialog is
+  // already up: the shutter opened on a shorter page than the baseline was made
+  // from, by nine hundred pixels, and only on the runner. Wait for them the way
+  // the two other screens drawn over the grid already do.
+  await waitForResults(page);
   await snapshotScreen(page, "logs");
 });
 

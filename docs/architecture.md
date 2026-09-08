@@ -11,7 +11,7 @@ on `localhost`.
 
 Companion documents:
 
-- [`invariants.md`](invariants.md) — the twenty-two rules that must not break, each with
+- [`invariants.md`](invariants.md) — the twenty-three rules that must not break, each with
   the regression it prevents. Every "invariant N" below refers to that file.
 - [`conventions.md`](conventions.md) — how code is written here, and how it is tested.
 - [`audit.md`](audit.md) — the procedure for a full-project health check.

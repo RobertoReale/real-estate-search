@@ -226,7 +226,7 @@ everything that is not obvious from reading it:
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
   the data schema, the property lifecycle, the migration strategy, and the known
   fragilities with the symptom each one produces.
-* **[Invariants](docs/invariants.md)** — twenty-two rules that must not break, each
+* **[Invariants](docs/invariants.md)** — twenty-three rules that must not break, each
   with the regression that put it there. Read the relevant one *before* editing,
   not after.
 * **[Conventions](docs/conventions.md)** — how code is written and tested here.

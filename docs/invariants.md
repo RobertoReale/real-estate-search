@@ -1,9 +1,9 @@
 # Invariants Not to Break
 
-Twenty-two rules, each with a history: a regression that actually happened on a real
-portal or in a real database — or, for 22, the shipped defect the rule exists to stop
-coming back in a new shape. They are not style preferences — a change that breaks one of
-these breaks something a user will notice, usually silently.
+Twenty-three rules, each with a history: a regression that actually happened on a real
+portal or in a real database — or, for 22 and 23, the shipped defect the rule exists to
+stop coming back in a new shape. They are not style preferences — a change that breaks one
+of these breaks something a user will notice, usually silently.
 
 Two of them (12 and 15) have been retired with the feature they protected. Their numbers
 are **kept rather than renumbered**, because comments, tests and the audit checklist cite
@@ -480,3 +480,21 @@ each invariant to its code home and its test file. See also
     (`frontend/src/utils/marketPosition.ts`) chooses between the deal score and the listing
     median and reads no OMI field at all, which `marketPosition.test.ts` asserts by giving it
     a property whose only figures are a band.
+
+23. **A subprocess whose output is committed is decoded explicitly, never by the platform's
+    locale.** `subprocess.run(..., text=True)` picks the decoder from the *running machine*:
+    UTF-8 on the Linux runner, cp1252 on this Windows checkout. Any tool whose bytes end up
+    in a tracked file therefore produces a different file on each platform, and the one
+    produced here is the wrong one. `scripts/gen_api_types.py` shipped exactly that from its
+    first commit (`9da58dc`): `openapi-typescript` writes the schema descriptions as UTF-8,
+    Windows decoded them as cp1252, and every em dash was committed as `â€"` — 36 of them in
+    `frontend/src/types/api.ts`, and not one real one, for the file's entire life. The
+    regenerate-and-diff gate could not see it: it re-ran the same wrong decode and compared
+    the corruption against itself, green on this machine and red on the runner, which is
+    where the defect finally surfaced. So `encoding="utf-8"` is passed alongside `text=True`
+    wherever the captured output is written to a tracked file. The wider rule this belongs
+    to, and the reason it is stated as an invariant rather than a preference: **a gate that
+    reproduces the defect it is checking for is not a gate.** Both halves are asserted in
+    `test_generated_artifacts.py` — that the generator names an explicit encoding, and that
+    the committed `api.ts` carries no mojibake — because the second is what a reader would
+    have noticed and the first is what stops it recurring.
