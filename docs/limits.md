@@ -6,7 +6,9 @@ The rule the list exists to enforce: **a limit is stated where it bites, not on 
 nobody opens.** A page cap the user meets as "why are there only 250 listings" is a bug;
 the same cap printed beside the count is a fact. So this file is not the place the
 limits are announced — it is the checklist that keeps the announcements honest. Each row
-names the limit, where the number comes from, and the surface that says it out loud.
+names the limit, where the number comes from, and the surface that says it out loud; the
+second table then answers the question the first one provokes, which is what it would take
+to make the limit go away.
 
 Three rules hold across the whole list.
 
@@ -60,6 +62,52 @@ is what proves the value came from the API rather than from the sentence.
 | Notifications are capped at 15 per scan | `scanner.MAX_NOTIFICATIONS_PER_SCAN` | the overflow message the scan itself sends ("… and *N* more"), so the count that was suppressed is named | — (a message, not a screen) |
 | The demo corpus is synthetic | `demo_data.py` | **not stated yet** — owned by task F.2, which introduces the mode and the banner | — |
 
+## What it would take to lift each one
+
+The inventory says where each limit bites. This says what removing it would cost —
+because "we know about it" and "we could fix it" are different claims, and the table
+above only makes the first one. Every row above has a row here, keyed by the same
+`data-limit`, so a limit and the way out of it stay one fact in one file.
+
+A verdict is one of exactly three, and it is a claim about *this* repository:
+
+- **liftable now** — it can be done here, with what the repository already has, and
+  nothing the owner must obtain, run or pay for.
+- **liftable, but it costs something** — it works, and it needs a key, a server or a
+  machine kept running. The cost is named, and so is what it buys.
+- **open** — nobody has a good answer, the people who run the service included. What
+  makes it hard is written down, so a later attempt starts further along.
+
+A verdict is a claim and a claim needs a reason, so each method is concrete enough to
+act on: naming a technology is not a method. Where the method is not already visible in
+this repository the row links to where it came from — an entry that says "self-hosting
+removes this" without a link is a rumour, and a year from now nobody can check it. The
+links below were **checked on 2026-09-09**; third-party terms change without anyone here
+being told, which is exactly why the source is recorded rather than the conclusion alone.
+
+| The limit | What it would take | Verdict |
+|---|---|---|
+| `scan.pageCap` | Nothing new: `split_large_searches` is on by default and already re-runs an over-cap search as several non-overlapping narrower ones (at most `search_builder.MAX_SEARCH_PARTS`), merging the results. Raising `max_pages_per_search` covers whatever the split does not, at one more request per page. | **liftable now** — the mechanism is shipped; the cap is a dial the owner can already turn. |
+| `scan.portalBlocked` | For Idealista the block is already bypassed: `scrapers/idealista_api.py` asks the portal for its own data over OAuth2 with no DataDome in the way, and needs a key issued by hand ([no self-service signup](https://developers.idealista.com/access-request)). For Immobiliare there is no equivalent — the portal publishes no developer API, and the third-party "Immobiliare APIs" on offer are resellers of the same scraping, carrying the same 403. | **open** — the Idealista half costs a key; the Immobiliare half has no answer, because refusing a scraper is the portal working as intended. |
+| `scan.outsideArea`, `card.outsideArea` | The polygon test already exists (`geo_filter.point_in_any`) and already flags the strays. Dropping them instead of merely marking them needs a coordinate for *every* listing, and the ones still unplaced are exactly those the paced geocoder has not reached — so this row is the geocoder's cost, spent inside a scan rather than after it. | **liftable, but it costs something** — the same self-hosted geocoder as `geocode.pace`, which buys a scan that can place every listing before it reports a count. |
+| `profiles.zoneBestEffort` | Call the geography autocomplete the scraper already calls — `scrapers/immobiliare.API_GEO`, via `_resolve_geography` — from the search builder, and keep the ids it returns. The endpoint, the parser and the id plumbing all exist; only the builder does not reach for them. | **liftable now** — everything needed is in this repository. It does make saving a search perform a network call, which the builder currently never does. |
+| `profiles.zoneCarry` | Idealista's half needs the portal's internal `locationId`, which `idealista_api.UNMAPPED_FILTERS` records as not derivable offline. Its location lookup sits behind the same hand-issued key as the rest of the API, and so does its documentation. | **liftable, but it costs something** — an Idealista key, whose first purchase is the ability to check whether the location endpoint has the shape this needs. That cannot be verified from outside the gate. |
+| `profiles.zonePreferred` | Nothing of its own: this line exists only to name the trustworthy side while the two sides differ. It disappears when `profiles.zoneCarry` does, by the same method and at the same price. | **liftable, but it costs something** — the same Idealista key, and not separately purchasable. |
+| `profiles.zoneIdsUnnamed` | The autocomplete resolves text to ids, not ids back to text, and nothing published maps an Immobiliare zone id to its name. The reachable half is to remember the pairing whenever a name *is* resolved, which only ever helps an id this installation has met before. | **open** — an id the app has never resolved has no name to show, and no source outside the portal supplies one. |
+| `profiles.zoneFirstNameOnly` | The same call as `profiles.zoneBestEffort`: with names resolved to ids, all of them travel as repeated query params instead of only the first. | **liftable now** — one method fixes both rows. |
+| `profiles.areaNeedsUrl` | The builder already *parses* `vrt` and `centro`+`raggio` out of a pasted URL, and the dashboard already draws polygons in the very format `geo_filter.parse_polygon` reads. Emitting those params from the drawn shape closes the loop without a new format on either end. | **liftable now** for Immobiliare, entirely in this repository. Idealista's URL grammar has no equivalent, so a drawn search stays one-portal until it gains one. |
+| `profiles.reviewApprox` | Each widening is a specific filter token, and this project's standing rule is that portal tokens are measured against real result totals rather than inferred (`services/search_builder.py`). Measuring an Idealista token means running the search against Idealista. | **liftable, but it costs something** — a key, which buys the measurement; guessing the token is the failure mode the rule exists to prevent. |
+| `profiles.reviewDropped` | Same method, and `idealista_api.py` names the concrete casualty: this codebase counts Italian *locali* while the API filters `bedrooms`, and "locali − 1" is the plausible guess that silently returns the wrong set. Establishing the real correspondence needs measured totals. | **liftable, but it costs something** — the same key. Until then declining is visible and guessing is not, which is why the parameter is dropped rather than approximated. |
+| `handoff.<criterion>` | A deal score, a tag, a status: the criteria that drop are the ones no portal has a concept for, as `handoff.ts` says at the top. A filter cannot be handed to a search that has no field to receive it, so the three-way answer it gives — exact, widened, or dropped and why — is the whole of what is available. | **open** — not for want of effort: the two sets of criteria are genuinely not the same set, and any mapping would be an invention presented as a filter. |
+| `settings.idealistaReach` | Raise `idealista_api_max_pages`; each extra page is 50 more listings and one more request. The ceiling it spends against is agreed privately when the key is issued and [published nowhere](https://developers.idealista.com/access-request), which is why the default is 1 rather than reusing `max_pages_per_search`. | **liftable, but it costs something** — quota on a hand-issued key. What it buys is exactly 50 listings per extra page, against a budget that cannot be known until the key exists. |
+| `geocode.pace` | Run Nominatim yourself and point `nominatim_url` at it — the setting is already there for this. [The policy](https://operations.osmfoundation.org/policies/nominatim/) is the reason to: the public instance's absolute maximum is 1 request/second, but "scripts that are run at regular intervals are restricted to 4 requests per minute", and a scheduled scan is precisely that. [Nominatim's own install docs](https://nominatim.org/release-docs/latest/admin/Installation/) put the floor at 2 GB RAM; the country extract this needs is [Geofabrik's Italy PBF](https://download.geofabrik.de/europe/italy.html), 2.07 GB before import. | **liftable, but it costs something** — a machine kept running. It buys unmetered geocoding, which is what makes `scan.outsideArea` and a fully-placed map affordable. |
+| `map.zoneCentroid` | Nothing here is missing: where a portal publishes coordinates or a street address the app already places the pin, and the centroid is the fallback for listings where it publishes neither. Withholding the exact address is the portals' own product decision, not a gap on this side. | **open** — there is no source of exact coordinates for a listing whose address nobody publishes. |
+| `commute.carRouting` | Point `osrm_url` at `https://routing.openstreetmap.de/routed-foot`, the FOSSGIS-sponsored OSRM host that serves a real pedestrian graph ([demo server wiki](https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server), [terms](https://routing.openstreetmap.de/about.html): 1 request/second, non-commercial, attribution — the pace `PACE_SECONDS` already keeps). Verified on a Milan pair: that host answers 2626 m symmetric on an unnamed footway, where `router.project-osrm.org` answers 3279.6/3465.6 m asymmetric snapped to Via Guglielmo Marconi — a one-way road, on the driving graph. Because that service splits profiles across three path prefixes (`routed-car`, `routed-bike`, `routed-foot`) and `osrm_url` is a single URL, a mixed-mode setup needs the base URL to become per-mode. | **liftable now** — no key, no account, no machine; the per-mode base URL is a change inside this repository. A [self-hosted OSRM built with `foot.lua`](https://github.com/Project-OSRM/osrm-backend#quick-start) is the alternative, and that one costs a machine. |
+| `benchmark.omiIsNotTheMedian` | No method, and none is wanted. OMI publishes a band for a zone and property type derived from recorded transactions; the median is what is being asked today for the listings on screen. The two measure different things correctly, and the only way to make them agree is to throw one away. | **open** — what makes it hard is that it is not a defect. [Invariant 22](invariants.md) exists to stop a later reader "fixing" it by conflating the two. |
+| `card.goneAfter` | Expose `scanner.GONE_AFTER_DAYS` as a setting like the rest, or shorten it. The comment at the constant says why it is 7 days and not "absent from the latest scan": a 403 lasting a few hours must not make half the database vanish. | **liftable now** — it is a constant this repository owns. Shortening it trades directly against the block tolerance it was chosen for, so the dial is the deliverable, not a smaller default. |
+| Notifications capped at 15 | Raise or expose `scanner.MAX_NOTIFICATIONS_PER_SCAN`. Nothing is lost silently today — the overflow message already names the count it suppressed — so this is a preference about notification volume rather than a gap in what the app knows. | **liftable now** — a constant this repository owns. |
+| The demo corpus is synthetic | It stays synthetic: real listings are the portals' content, and a fixture shipping them would put someone else's data in this repository. What is missing is the statement, not a different corpus, and F.2 owns the mode and the banner that make it. | **liftable now** — the work is scoped and lives here. F.2 is currently out of the cycle, so the row stays "not stated yet" until it lands. |
+
 ## Deliberately not on this list
 
 Things that look like limits and are not, so nobody adds a sentence for them:
@@ -74,10 +122,13 @@ Things that look like limits and are not, so nobody adds a sentence for them:
 
 ## Adding one
 
-A new limit is three things, in this order: the API field that owns the number, the
-`Limit` (or `LimitInline`) on the surface where the user meets it, and a row here. Skip
-the first and the copy will drift from the setting; skip the second and the limit becomes
-a bug report; skip the third and the next sweep will not know to check it.
+A new limit is four things, in this order: the API field that owns the number, the
+`Limit` (or `LimitInline`) on the surface where the user meets it, a row in the inventory,
+and a row in *What it would take* carrying a method, a verdict and — unless the method is
+already visible in this repository — a link. Skip the first and the copy will drift from
+the setting; skip the second and the limit becomes a bug report; skip the third and the
+next sweep will not know to check it; skip the fourth and the limit reads as permanent
+when it may only be unattended.
 
 Two neighbouring documents are usually not affected: reach for
 [`invariants.md`](invariants.md) only if the limit is a rule that must not break, and for
