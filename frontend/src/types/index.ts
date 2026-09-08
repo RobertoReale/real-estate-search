@@ -63,6 +63,10 @@ export type ScanStatus = Schemas["ScraperStatusOut"];
  *  are null unless the portal declared them — a proportion may only be drawn
  *  against a real total. */
 export type ScanProgress = Schemas["ScanProgressOut"];
+/** What one portal contributed to the most recent scan. `listings` can be
+ *  non-zero on a portal that did not answer every search asked of it, which is
+ *  why `answered` and `attempted` are both here. */
+export type ScanPortal = Schemas["ScanPortalOut"];
 /** One search's line in the scan journal. */
 export type ScanJournalEntry = Schemas["ScanJournalEntryOut"];
 /** One window of the filtered property set. `total` sizes the whole filtered

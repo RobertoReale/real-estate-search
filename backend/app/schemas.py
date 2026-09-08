@@ -375,6 +375,30 @@ class ScanJournalEntryOut(ApiOut):
     outside_area: int = 0
 
 
+class ScanPortalOut(ApiOut):
+    """What one portal contributed to the most recent scan.
+
+    The counts beside it — new, updated, price changes — are about the whole
+    scan and cannot say which sites it actually reached: "I read both" and
+    "Idealista turned me away and you are looking at Immobiliare alone" produce
+    the same screen with different numbers. This is the row that separates them.
+
+    `answered` counts the searches the portal answered, `attempted` the ones
+    tried on it, and the gap between the two is the honest part: a portal
+    blocked part way through still hands over what it had, so `listings` can be
+    non-zero on a reading that is incomplete.
+    """
+
+    portal: str = ""
+    attempted: int = 0
+    answered: int = 0
+    listings: int = 0
+    # ok | no_results | blocked | error, as ScrapeResult said, and the worst of
+    # them where this portal ran more than one search — a block anywhere on it
+    # is the thing the user has to be told about.
+    outcome: str = ""
+
+
 class ScraperStatusOut(ApiOut):
     """The dashboard's poll: `scan_state`, the schedule, and the live progress."""
 
@@ -382,6 +406,9 @@ class ScraperStatusOut(ApiOut):
     last_started_at: str | None = None
     last_finished_at: str | None = None
     last_summary: str = ""
+    # One row per portal the most recent scan reached, filled in as each answers
+    # rather than all at the end, and still there once the scan is over.
+    last_portals: list[ScanPortalOut] = []
     next_auto_run: str | None = None
     paused: bool = False
     data_version: str = ""

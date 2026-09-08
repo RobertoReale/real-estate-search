@@ -2571,6 +2571,47 @@ export interface components {
             outside_area: number;
         };
         /**
+         * ScanPortalOut
+         * @description What one portal contributed to the most recent scan.
+         *
+         *     The counts beside it — new, updated, price changes — are about the whole
+         *     scan and cannot say which sites it actually reached: "I read both" and
+         *     "Idealista turned me away and you are looking at Immobiliare alone" produce
+         *     the same screen with different numbers. This is the row that separates them.
+         *
+         *     `answered` counts the searches the portal answered, `attempted` the ones
+         *     tried on it, and the gap between the two is the honest part: a portal
+         *     blocked part way through still hands over what it had, so `listings` can be
+         *     non-zero on a reading that is incomplete.
+         */
+        ScanPortalOut: {
+            /**
+             * Portal
+             * @default
+             */
+            portal: string;
+            /**
+             * Attempted
+             * @default 0
+             */
+            attempted: number;
+            /**
+             * Answered
+             * @default 0
+             */
+            answered: number;
+            /**
+             * Listings
+             * @default 0
+             */
+            listings: number;
+            /**
+             * Outcome
+             * @default
+             */
+            outcome: string;
+        };
+        /**
          * ScanProgressOut
          * @description What the scan in flight is doing right now (`scanner.get_scan_progress`).
          *
@@ -2776,6 +2817,11 @@ export interface components {
              * @default
              */
             last_summary: string;
+            /**
+             * Last Portals
+             * @default []
+             */
+            last_portals: components["schemas"]["ScanPortalOut"][];
             /** Next Auto Run */
             next_auto_run: string | null;
             /**

@@ -199,6 +199,7 @@ def _summary() -> dict:
         "notified": 0,
         "outside_area": 0,
         "truncated": 0,
+        "portals": [],
         "blocked_portals": [],
         "errors": [],
     }
@@ -2287,6 +2288,82 @@ def test_a_blocked_portal_leaves_the_other_ones_half_running(scan_db, portal, li
     titles = {p.title for p in scan_db.query(Property).all()}
     assert len(titles) == 2 * CONCURRENT_PAGES
     assert all("idealista" in title for title in titles)
+
+
+def test_the_summary_says_what_each_portal_contributed(scan_db, portal, live_scan):
+    """The counts alone cannot tell "I read both sites" from "one of them turned
+    me away and you are looking at the other": both produce the same screen with
+    different numbers. The per-portal rows are what separate them, and a scan
+    that reached one portal of two has to say so — with the listings the other
+    one did bring back still counted, because they are in the database."""
+    _serve_both_portals(portal)
+    portal.serve_json(API_LISTINGS, {"detail": "blocked"}, status=403)
+    portal.serve(
+        CONCURRENT_IMMOBILIARE,
+        "<html><body>Access is temporarily restricted</body></html>",
+        status=403,
+    )
+    _watch_both_portals(scan_db, portal)
+    live_scan(max_pages_per_search=CONCURRENT_PAGES, request_delay_seconds=0)
+
+    summary = scanner.run_scan(manual=True)
+
+    rows = {row["portal"]: row for row in summary["portals"]}
+    assert set(rows) == {"immobiliare", "idealista"}
+    # Attempted and not answered, so nothing it might have held is claimed.
+    assert rows["immobiliare"] == {
+        "portal": "immobiliare",
+        "attempted": 1,
+        "answered": 0,
+        "listings": 0,
+        "outcome": "blocked",
+    }
+    # Attempted, answered, and every listing it returned counted — including the
+    # ones a keyword filter or a duplicate would keep off the dashboard, since
+    # the row is about what the portal sent and not about what is shown.
+    assert rows["idealista"] == {
+        "portal": "idealista",
+        "attempted": 1,
+        "answered": 1,
+        "listings": 2 * CONCURRENT_PAGES,
+        "outcome": "ok",
+    }
+    # …and the dashboard reads it from here, still standing after the scan ended
+    # and detached from the list the scan was appending to.
+    assert scanner.scan_state["last_portals"] == summary["portals"]
+    assert scanner.scan_state["last_portals"] is not summary["portals"]
+
+
+def test_one_portal_two_searches_reports_the_block_and_keeps_the_count(db):
+    """A portal is not one search. When several run on it and only some are
+    turned away, the row has to carry both facts: the listings that did arrive,
+    and that the reading behind them is incomplete. Collapsing to whichever
+    search finished last is how a partial answer starts reading as a whole one."""
+    summary = _summary()
+    scanner._record_portal_outcome(summary, "immobiliare", "ok", 47)
+    scanner._record_portal_outcome(summary, "immobiliare", "blocked", 0)
+    scanner._record_portal_outcome(summary, "idealista", "no_results", 0)
+
+    assert summary["portals"] == [
+        {
+            "portal": "immobiliare",
+            "attempted": 2,
+            "answered": 1,
+            "listings": 47,
+            "outcome": "blocked",
+        },
+        {
+            "portal": "idealista",
+            "attempted": 1,
+            "answered": 1,
+            "listings": 0,
+            "outcome": "no_results",
+        },
+    ]
+    # A portal that answers "nothing matches" after being blocked has not
+    # un-blocked the scan: the worst word stands, whichever order they land in.
+    scanner._record_portal_outcome(summary, "immobiliare", "no_results", 0)
+    assert summary["portals"][0]["outcome"] == "blocked"
 
 
 def _scan_into_a_fresh_database(portal, monkeypatch, **settings) -> list[tuple]:

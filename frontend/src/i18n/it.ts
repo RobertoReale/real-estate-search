@@ -244,6 +244,14 @@ export const it: Dict = {
   "activity.pagesUnknown": "il portale non ha detto quante sono",
   "activity.found": "{count} annunci raccolti finora",
   "activity.foundOf": "{count} annunci raccolti su {total}",
+  // Cosa ha portato ogni portale, una riga sola. I conteggi qui sopra non lo
+  // dicono: "li ho letti tutti e due" e "Idealista mi ha bloccato" fanno la
+  // stessa schermata con numeri diversi.
+  "activity.portalListings": "{count} annunci",
+  "activity.portalBlocked": "bloccato",
+  "activity.portalError": "non ha risposto",
+  "activity.portalNoResults": "nessun annuncio",
+  "activity.portalPartial": "{answered} ricerche su {attempted}",
   "activity.transport": "Trasporto:",
   "activity.streamDown":
     "La connessione in tempo reale non è disponibile, quindi l'aggiornamento avviene a intervalli. I dati restano corretti, solo un po' meno immediati.",
