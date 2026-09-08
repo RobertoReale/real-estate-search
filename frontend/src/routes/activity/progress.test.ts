@@ -2,8 +2,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { ScanProgress } from "../../types";
-import { outcomeLabel, pageProportion, phaseLabel, worthExplaining } from "./progress";
+import type { ScanPortal, ScanProgress } from "../../types";
+import {
+  outcomeLabel,
+  pageProportion,
+  phaseLabel,
+  portalName,
+  portalStatement,
+  worthExplaining,
+} from "./progress";
 
 function progress(over: Partial<ScanProgress> = {}): ScanProgress {
   return {
@@ -76,6 +83,51 @@ describe("outcomeLabel", () => {
   it("does not colour an outcome it cannot read", () => {
     expect(outcomeLabel("something_new"))
       .toEqual({ label: "activity.outcomeUnknown", tone: "neutral" });
+  });
+});
+
+function portalRow(over: Partial<ScanPortal> = {}): ScanPortal {
+  return { portal: "immobiliare", attempted: 1, answered: 1, listings: 47, outcome: "ok", ...over };
+}
+
+describe("portalName", () => {
+  it("names the portals, and repeats an id it has never heard of", () => {
+    expect(portalName("immobiliare")).toBe("Immobiliare");
+    expect(portalName("idealista")).toBe("Idealista");
+    // A portal added to a newer backend has no name here, and the id is the
+    // only thing that can be said about it without inventing one.
+    expect(portalName("casa_it")).toBe("casa_it");
+  });
+});
+
+describe("portalStatement", () => {
+  it("gives the count when the portal brought something back", () => {
+    expect(portalStatement(portalRow()))
+      .toEqual({ key: "activity.portalListings", listings: 47, partial: false });
+  });
+
+  it("gives the reason when it brought nothing", () => {
+    const empty = { attempted: 1, answered: 0, listings: 0 };
+    expect(portalStatement(portalRow({ ...empty, outcome: "blocked" })).key)
+      .toBe("activity.portalBlocked");
+    expect(portalStatement(portalRow({ ...empty, outcome: "error" })).key)
+      .toBe("activity.portalError");
+    // It answered; there was simply nothing to answer with, which is a fact
+    // about the market and not about the portal.
+    expect(portalStatement(portalRow({ ...empty, answered: 1, outcome: "no_results" })).key)
+      .toBe("activity.portalNoResults");
+  });
+
+  it("keeps the listings a blocked portal did hand over, and says they are partial", () => {
+    // The case the whole rule exists for: two searches, one turned away, and a
+    // real count behind it. Calling this "blocked" and stopping would throw
+    // away listings the dashboard is holding and showing on the next screen.
+    expect(portalStatement(portalRow({ attempted: 2, answered: 1, outcome: "blocked" })))
+      .toEqual({ key: "activity.portalListings", listings: 47, partial: true });
+  });
+
+  it("does not call a complete reading partial", () => {
+    expect(portalStatement(portalRow({ attempted: 2, answered: 2 })).partial).toBe(false);
   });
 });
 

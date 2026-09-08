@@ -16,7 +16,7 @@
  */
 import type { TranslationKey } from "../../i18n";
 import type { ChipTone } from "../../ui";
-import type { ScanProgress } from "../../types";
+import type { ScanPortal, ScanProgress } from "../../types";
 
 /** The scanner's phases, as something a person reads. Anything unrecognised
  *  falls back to a vague "scanning" rather than to the backend's English
@@ -54,6 +54,56 @@ export function outcomeLabel(outcome: string): { label: TranslationKey; tone: Ch
  *  under every row is how a list stops being scannable. */
 export function worthExplaining(outcome: string): boolean {
   return outcome !== "ok";
+}
+
+/** The portals as names rather than as the ids the backend keys them by. A
+ *  lookup and not a translation: both are proper nouns and read the same in
+ *  either language. An id this build has never heard of is shown as it came,
+ *  which is the only thing that can be said about it truthfully. */
+const PORTAL_NAME: Record<string, string> = {
+  immobiliare: "Immobiliare",
+  idealista: "Idealista",
+};
+
+export function portalName(portal: string): string {
+  return PORTAL_NAME[portal] ?? portal;
+}
+
+export interface PortalStatement {
+  /** What this portal's half of the line says. */
+  readonly key: TranslationKey;
+  readonly listings: number;
+  /** It brought something back and still did not answer everything it was
+   *  asked, so the count beside it is real and incomplete at the same time. */
+  readonly partial: boolean;
+}
+
+/**
+ * What one portal's half of the scan line says.
+ *
+ * The count when it brought something back — that is the answer the user came
+ * for — and the reason when it did not. The two are not chosen by the outcome
+ * alone, and that is the rule worth having here rather than in the markup: a
+ * portal blocked part way through still handed over what it had, and reporting
+ * it as "blocked" and nothing else would throw away listings the app is holding
+ * and showing on the next screen. `partial` is what keeps that case honest —
+ * the number stands, with the reading behind it named as unfinished.
+ */
+export function portalStatement(portal: ScanPortal): PortalStatement {
+  const partial = portal.listings > 0 && portal.answered < portal.attempted;
+  if (portal.listings > 0) {
+    return { key: "activity.portalListings", listings: portal.listings, partial };
+  }
+  // Nothing came back, so the line is the reason. `blocked` and `error` are the
+  // portal's own verdicts (G.5); anything else got as far as an answer, and an
+  // answer with no listings in it is a fact about the market.
+  const key: TranslationKey =
+    portal.outcome === "blocked"
+      ? "activity.portalBlocked"
+      : portal.outcome === "error"
+        ? "activity.portalError"
+        : "activity.portalNoResults";
+  return { key, listings: 0, partial };
 }
 
 export interface Proportion {

@@ -162,6 +162,46 @@ test("the journal is still readable after the scan ends, and after a reload", as
   await expect(page.getByText("3 pagine, 0 annunci")).toBeVisible();
 });
 
+test("the scan says which portals answered, and which one did not", async ({ page }) => {
+  const stream = await fakeEventStream(page);
+  await fakeJournal(page, []);
+  // One portal read, the other turned away. The counts elsewhere on this screen
+  // cannot tell this apart from a scan that reached both: they are the same
+  // numbers either way, which is the reason the line exists.
+  const portals = [
+    { portal: "immobiliare", attempted: 1, answered: 1, listings: 47, outcome: "ok" },
+    { portal: "idealista", attempted: 1, answered: 0, listings: 0, outcome: "blocked" },
+  ];
+  stream.push({ ...RUNNING, last_portals: portals });
+
+  await page.goto("/activity");
+  await expect(page.getByRole("heading", { name: "Scansione in corso" }))
+    .toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Immobiliare: 47 annunci · Idealista: bloccato")).toBeVisible();
+
+  // The scan ends and the question does not: "am I looking at both sites or at
+  // one?" is asked afterwards at least as often as during.
+  stream.push({
+    running: false, last_finished_at: "2026-03-04T10:06:30Z",
+    progress: undefined, last_portals: portals,
+  });
+  await expect(page.getByRole("heading", { name: "Nessuna scansione in corso" }))
+    .toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Immobiliare: 47 annunci · Idealista: bloccato")).toBeVisible();
+
+  // A portal blocked part way through still hands over what it had. Both facts
+  // stand together: the listings are real, and the reading behind them is not
+  // finished — reporting only the count is how a partial scan reads as a whole.
+  stream.push({
+    running: false, last_finished_at: "2026-03-04T10:06:30Z", progress: undefined,
+    last_portals: [
+      { portal: "immobiliare", attempted: 3, answered: 2, listings: 47, outcome: "blocked" },
+    ],
+  });
+  await expect(page.getByText("Immobiliare: 47 annunci (2 ricerche su 3)"))
+    .toBeVisible({ timeout: 10_000 });
+});
+
 test("no proportion is drawn where the portal never declared a total", async ({ page }) => {
   const stream = await fakeEventStream(page);
   await fakeJournal(page, []);

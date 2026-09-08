@@ -242,6 +242,14 @@ export const en = {
   "activity.pagesUnknown": "the portal did not say how many there are",
   "activity.found": "{count} listings collected so far",
   "activity.foundOf": "{count} of {total} listings collected",
+  // What each portal brought back, on one line. The counts above cannot say it:
+  // "I read both of them" and "Idealista turned me away" make the same screen
+  // with different numbers.
+  "activity.portalListings": "{count} listings",
+  "activity.portalBlocked": "blocked",
+  "activity.portalError": "did not answer",
+  "activity.portalNoResults": "no listings",
+  "activity.portalPartial": "{answered} of {attempted} searches",
   "activity.transport": "Transport:",
   "activity.streamDown":
     "The live connection is unavailable, so this is being refreshed on a timer instead. It stays accurate, just less promptly.",

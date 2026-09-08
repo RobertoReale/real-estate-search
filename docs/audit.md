@@ -55,9 +55,9 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1040 passed + 1 skipped** (1041 collected; the skip needs the optional
-Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **458 frontend tests**,
-**78 browser tests** (48 journeys, then 30 that hold the run to the control inventory),
+Expected today: **1042 passed + 1 skipped** (1043 collected; the skip needs the optional
+Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
+**79 browser tests** (49 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
 the type generator. The browser suite prints the two numbers worth reading: **227
 interactive elements, 263 inventoried actions**, of which **261 exercised and 2 declared

@@ -30,7 +30,7 @@ import { useScanStatus, useTriggerScan } from "../../queries/dashboard";
 import { usePollingFallback } from "../../queries/events";
 import { Button, Card, CardHeader, Chip, Skeleton } from "../../ui";
 import { Note, Paused, Run, Scheduled } from "../../ui/icons";
-import { pageProportion, phaseLabel } from "./progress";
+import { pageProportion, phaseLabel, portalName, portalStatement } from "./progress";
 
 export default function ScanLive() {
   const { t } = useI18n();
@@ -43,6 +43,7 @@ export default function ScanLive() {
   const running = data?.running ?? false;
   const progress = data?.progress ?? null;
   const pages = pageProportion(progress);
+  const portals = data?.last_portals ?? [];
 
   function scanNow() {
     triggerScan.mutate(undefined, {
@@ -152,6 +153,26 @@ export default function ScanLive() {
             </p>
           ) : null}
         </div>
+      )}
+
+      {/* Which portals answered, and with what — outside the running/idle split
+          because the question survives the scan: "am I looking at both sites or
+          at one?" is asked while it runs and after it ends in equal measure.
+          One line, on the result itself, rather than a panel to go and find. */}
+      {portals.length > 0 && (
+        <p className="text-xs t-muted">
+          {portals
+            .map((portal) => {
+              const said = portalStatement(portal);
+              const partial = said.partial
+                ? ` (${t("activity.portalPartial", {
+                    answered: portal.answered, attempted: portal.attempted,
+                  })})`
+                : "";
+              return `${portalName(portal.portal)}: ${t(said.key, { count: said.listings })}${partial}`;
+            })
+            .join(" · ")}
+        </p>
       )}
 
       {streamDown && (

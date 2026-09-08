@@ -57,11 +57,19 @@ FLOOR_AS_TEXT = {
 }
 
 _scan_lock = threading.Lock()
-scan_state = {
+scan_state: dict = {
     "running": False,
     "last_started_at": None,
     "last_finished_at": None,
     "last_summary": "",
+    # What each portal contributed to the most recent scan, one row per portal
+    # in the order they were first reached (`_record_portal_outcome`). Written
+    # while the scan runs and left standing after it, because "which portals
+    # answered?" is asked during and after in equal measure — and because the
+    # counts beside it cannot answer it: a scan that reached one portal of two
+    # and a scan that reached both produce the same screen with different
+    # numbers, which is the whole reason this list exists.
+    "last_portals": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -124,6 +132,39 @@ _journal: deque[dict] = deque(maxlen=MAX_JOURNAL_ENTRIES)
 # and every secret this app stores — a cookie, a bot token, an API key — is far
 # longer than it.
 MIN_REDACTED_SECRET = 6
+
+# Which of G.5's four words wins when one portal's searches ended differently.
+# `blocked` outranks everything because it is the one the user has to be told
+# about — a scan that read Immobiliare and was turned away by Idealista is not
+# "a scan of both portals" — and `no_results` ranks lowest because a portal that
+# answered "nothing matches" for one search has said nothing about the others.
+_PORTAL_OUTCOME_RANK = {"no_results": 0, "ok": 1, "error": 2, "blocked": 3}
+
+
+def _record_portal_outcome(summary: dict, portal: str, outcome: str, listings: int) -> None:
+    """Add one search's result to its portal's row in the scan summary.
+
+    `attempted` counts the searches this scan ran on the portal and `answered`
+    the ones it answered — `ok` or `no_results`, and nothing else. A block and
+    an error are attempts that produced no answer, and a scrape blocked part way
+    through is one of them even though it carries listings: the answer was cut
+    short, so the gap between the two numbers is what stops a partial reading
+    from being reported as a whole one.
+    """
+    for row in summary["portals"]:
+        if row["portal"] == portal:
+            break
+    else:
+        row = {"portal": portal, "attempted": 0, "answered": 0, "listings": 0, "outcome": ""}
+        summary["portals"].append(row)
+    row["attempted"] += 1
+    if outcome in ("ok", "no_results"):
+        row["answered"] += 1
+    row["listings"] += listings
+    if not row["outcome"] or _PORTAL_OUTCOME_RANK.get(outcome, 0) > _PORTAL_OUTCOME_RANK.get(
+        row["outcome"], 0
+    ):
+        row["outcome"] = outcome
 
 
 def get_scan_progress() -> dict:
@@ -603,9 +644,20 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
         # and how many of those are a district centre rather than an address.
         "located": 0,
         "located_approximate": 0,
+        # What each portal contributed: one row per portal, in the order they
+        # were first reached. `blocked_portals` below stays because the "should
+        # this scan mark anything gone?" decision is a flat yes/no and reads
+        # better as one; this is the same facts said per portal, which is what a
+        # user needs to know whether they are looking at both sites or at one.
+        "portals": [],
         "blocked_portals": [],
         "errors": [],
     }
+    # The same list, so the rows the dashboard reads fill in as each portal
+    # answers rather than all at the end. Replaced with a snapshot when the scan
+    # finishes, so nothing outside this function ever holds a list being
+    # appended to by the scanning thread.
+    scan_state["last_portals"] = summary["portals"]
     try:
         settings = load_settings()
         # opt-in: refresh a stale/missing DataDome cookie in a local browser
@@ -639,6 +691,12 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
                 except Exception as e:
                     # a broken profile must not prevent scanning the others
                     db.rollback()
+                    if fetched.error is not None:
+                        # the read itself failed, so `_record_scrape` never ran
+                        # and nothing has written this attempt down. When it
+                        # raised instead, the row is already there and adding a
+                        # second one would count the search twice.
+                        _record_portal_outcome(summary, profile.portal, "error", 0)
                     logger.exception("Profile '%s' failed", profile.name)
                     summary["errors"].append(f"{profile.name}: {e}")
                     # an unhandled exception is a failure like any other:
@@ -695,6 +753,10 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
             searches = "search" if summary["truncated"] == 1 else "searches"
             last_summary += f" — {summary['truncated']} {searches} stopped at the page limit"
         scan_state["last_summary"] = last_summary
+        # …and the per-portal rows, detached from the list this scan was
+        # appending to. Not folded into the sentence above: the dashboard says
+        # this in the user's language, so it gets the facts and not the English.
+        scan_state["last_portals"] = [dict(row) for row in summary["portals"]]
         _scan_lock.release()
     return {"status": "done", **summary}
 
@@ -1190,6 +1252,12 @@ def _record_scrape(
     result = fetched.result
     assert result is not None  # `_fetch_searches` yields an error or a result
     scraper = fetched.scraper
+    outcome = result.outcome
+    # First, before anything that can fail: what this portal said is a fact
+    # about the portal, and the breakdown has to hold even when writing the
+    # listings below goes wrong. The caller records the other case — a read that
+    # never produced a result at all.
+    _record_portal_outcome(summary, profile.portal, outcome, len(result.listings))
     # `last_run_at` alone is not a safe proxy for "first scan": a blocked/error
     # attempt with zero listings still stamps it further down, but never
     # builds a baseline, so `baseline_done` is what actually gates silence.
@@ -1200,7 +1268,6 @@ def _record_scrape(
     # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local
     # ladder may have escalated to the API mid-scan.
-    outcome = result.outcome
     scraper_health.record_scan(
         db, profile.portal, outcome, transport_policy.transport_used(scraper, settings)
     )
