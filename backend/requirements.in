@@ -9,7 +9,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
-alembic>=1.13
+alembic>=1.19.2
 # TLS impersonation against DataDome (invariant 8). Exact-pinned, unlike its
 # neighbours: a release can retire the impersonation profile names the scrapers
 # ride on ("safari184", …), so this one is bumped deliberately and verified
