@@ -111,3 +111,20 @@ def test_saving_settings_is_atomic(tmp_path, monkeypatch):
     assert json.loads(path.read_text(encoding="utf-8"))["scan_interval_minutes"] == 30
     # and the temp file does not survive the save
     assert not path.with_name(f"{path.name}.tmp").exists()
+
+
+def test_the_suite_never_points_at_the_real_settings_file():
+    """Invariant 17, asserted rather than assumed.
+
+    `conftest.isolated_settings` is autouse, so nothing in the suite has to
+    remember it — which is exactly why its removal was invisible: every test
+    kept passing while writing the developer's own `settings.json`, and a run
+    of the full suite left it holding fixture values (a fake DataDome cookie,
+    `http://one:1` proxies, an SMTP host on a port that closed when the test
+    ended). This test is the fixture's alarm: it reads the path the way the
+    application does and fails if the redirection is gone.
+    """
+    assert config.SETTINGS_PATH != config.DATA_DIR / "settings.json", (
+        "settings are not isolated: the suite would read and overwrite the real "
+        "settings.json. Check conftest.isolated_settings."
+    )

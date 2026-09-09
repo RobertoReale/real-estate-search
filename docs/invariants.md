@@ -48,9 +48,12 @@ each invariant to its code home and its test file. See also
    §8.5). Profile keywords ADD up with global keywords.
 
 5. **`hidden` status is sacred**: chosen by the user, it never becomes `active` again on
-   its own (unlike `filtered` and `gone`). DELETE on `/api/properties/{id}` hides rather
-   than deletes: a physical deletion would be undone by the next scan finding the listing
-   again.
+   its own (unlike `filtered` and `gone`), **and it is silent** — the scan keeps the row
+   up to date but counts nothing and sends nothing for it, price cuts included. Hiding is
+   how the user says "stop telling me about this one", so a status that survived while the
+   notifications resumed would honour the letter and miss the point. DELETE on
+   `/api/properties/{id}` hides rather than deletes: a physical deletion would be undone by
+   the next scan finding the listing again.
 
 6. **`price_changed` refers to the MINIMUM price of the Property**, not the individual
    listing: when True, `price_history[-1]` is always the change just recorded. This is the
@@ -194,6 +197,14 @@ each invariant to its code home and its test file. See also
     server is on 5173, and the browser suite's `vite preview` proxies from 127.0.0.1. Never
     widen it to a named external origin — that is the same mistake as widening the bind,
     made in a different file.
+
+    **Both guards key on the `/api` prefix, so the prefix is load-bearing.** Neither reads
+    anything else about a request before handing it on, which makes "every route that
+    changes something is under `/api`" part of this rule rather than an accident of the
+    layout: outside it the app has the SPA mount and FastAPI's own docs routes, all of them
+    reads. A webhook receiver or a one-off form handler mounted anywhere else would be
+    exempt from both by construction, and nothing about it would look wrong. Give it an
+    `/api` path, or widen the guards deliberately.
 
 15. **RETIRED as written** — *`email_import_scan` is a sync `def` endpoint on purpose.*
     Its subject went with the inbox import; the number is kept rather than renumbering

@@ -447,6 +447,30 @@ def test_immobiliare_api_params_rental(monkeypatch):
     assert params["idContratto"] == "2"
 
 
+def test_an_unresolvable_location_never_becomes_a_nationwide_search(monkeypatch):
+    """The other half of invariant 7: the URL parse is fail-closed.
+
+    Every other assertion here reads a URL that *did* resolve, so turning the
+    two refusals into a params dict that merely omits the geography leaves them
+    all green — and sends the portal a search with no location, which answers
+    200 with the whole country and files it under a neighbourhood profile. The
+    refusal is the behaviour: no request goes out and the scrape says why."""
+    s = ImmobiliareScraper()
+    monkeypatch.setattr(s, "_resolve_geography", lambda q: {})
+    url = "https://www.immobiliare.it/vendita-case/milano/citta-studi/"
+    assert s._api_params(url) is None, "an unresolved location must not build parameters"
+    assert s._api_params("https://www.immobiliare.it/vendita-case/") is None
+
+    def _no_request(*args, **kwargs):
+        raise AssertionError("the scraper sent a search with no location")
+
+    monkeypatch.setattr(s, "_api_get", _no_request)
+    result = ScrapeResult()
+    s._api_search(url, result)
+    assert result.listings == []
+    assert "unrecognized location" in result.error
+
+
 def test_immobiliare_api_params_search_list():
     s = ImmobiliareScraper()
     params = s._api_params(
