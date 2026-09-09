@@ -320,21 +320,40 @@ cd scripts/apitypes
 npm ci
 ```
 
-Regenerating that lock is the one step with a trap in it: delete `node_modules`
-**and** `package-lock.json`, then run a plain `npm install`. Never
-`npm install --package-lock-only` — with no materialised tree npm resolves a
-thinner one and writes a lock that `npm ci` afterwards rejects as out of sync,
-and the failure names a transitive package nothing depends on directly
+Regenerating either npm lock is the one step with a trap in it, and the trap has
+two jaws. Never `npm install --package-lock-only`: with no materialised tree npm
+resolves a thinner one and writes a lock that `npm ci` afterwards rejects as out
+of sync, and the failure names a transitive package nothing depends on directly
 (`@emnapi/core`, reached through Tailwind's optional wasm fallback), so it reads
-like a registry outage rather than a malformed lock. For the same reason CI pins
-the same Node major as the development machine: npm 10 and npm 11 disagree about
-what a valid lock is, and one written by the other fails `npm ci` on a checkout
-that is otherwise perfectly fine.
+like a registry outage rather than a malformed lock. And never delete
+`package-lock.json` first: `@tailwindcss/oxide-wasm32-wasi` names that package
+and five others in `bundleDependencies`, npm writes their nested entries only
+when it is updating a lock that already carries them, so a lock built from a bare
+`package.json` omits all six — which is what `test_generated_artifacts.py` fails
+on.
+
+Upgrade in place instead. Edit `package.json`, leave the existing lock where it
+is, and run `npm install` over it:
+
+```bash
+cd frontend
+npm install
+```
+
+Run that on Linux, with the Node version `.github/workflows/ci.yml` pins. The
+wasm subtree is skipped on Windows, so an install there quietly drops entries the
+runner's `npm ci` then refuses, and the build is red on a lock that looked fine
+locally. CI pins that version exactly for the same family of reasons: npm 10 and
+npm 11 disagree about what a valid lock is, and one written by the other fails
+`npm ci` on a checkout that is otherwise perfectly fine.
 
 Neither lock has to be watched by hand: `.github/dependabot.yml` opens one
-grouped pull request per ecosystem per month. The frontend one is ordinary — it
-carries the `package-lock.json` rewrite with it, so merge it once CI is green.
-The backend one is a **notice, not a diff**: it edits a generated lock without
+grouped pull request per ecosystem per month. Both are a **notice, not a diff**:
+each names versions worth taking and rewrites a generated file on a machine that
+is not set up the way this one is. The frontend one carries a
+`package-lock.json` written without the bundled wasm subtree above; take the
+versions it names, put them in `package.json`, and regenerate the lock as
+described. The backend one edits a generated lock without
 touching the `.in` file the lock is compiled from. Take the version it names,
 move the pin in the `.in`, recompile all three as above, and push that over the
 branch.
