@@ -83,7 +83,7 @@ by assertions that need no network and no toolchain, in `backend/tests/test_gene
 
 - every package a lockfile names in a `bundleDependencies` array has a resolved entry in
   that same lockfile — the check that would have caught `@tailwindcss/oxide-wasm32-wasi`
-  missing `@emnapi/core` and `@emnapi/runtime`, which killed five of the eight CI jobs;
+  missing `@emnapi/core` and `@emnapi/runtime`, which killed five of the jobs CI ran then;
 - `scripts/gen_api_types.py` names an explicit encoding when it captures the generator, and
   the committed `api.ts` carries no mojibake ([invariant 23](invariants.md)).
 
@@ -139,6 +139,58 @@ in the repository is a gate that agrees with whatever it is shown.
 To fetch a portal page live during verification, use `AdProbe` (`scrapers/probe.py`), never
 a cold browser — it injects the real `datadome_cookie`. See
 [`conventions.md` → Testing](conventions.md#testing) for the exact snippet and why.
+
+### 0.1 The list above, against the jobs in CI
+
+The two are meant to be the same checks, and drift between them is invisible from either
+side: a gate with no job is a verdict that exists on one laptop, and a job with no gate is a
+failure a developer can only discover by pushing. So the correspondence is written down
+here, once, and every entry that is *not* one-to-one carries the reason it is not.
+
+| Gate in the list above | Job in `ci.yml` |
+|---|---|
+| `pytest tests` | **backend** (ubuntu + windows) |
+| `pyright` | **backend** → *Type check* |
+| `ruff check` and `ruff format --check` | **backend** → *Lint* |
+| `npm run build` | **frontend** (ubuntu + windows) |
+| `npm test` | **frontend** → *Tests* |
+| `npm run e2e` | **browser suite** (Linux only) |
+| `gen_api_types.py` + `git diff --exit-code` | **generated API types** |
+| `npm run lighthouse` | **performance budget** — CI-only, see above |
+| `npm run e2e:visual` | **visual regression** — CI-only, see above |
+| `pip_audit -r requirements.txt` | **dependency CVE scan** |
+
+Where they differ, and why:
+
+- **The CVE scan is not in the list above, and is a gate anyway.** It runs from
+  `.pre-commit-config.yaml` on any commit that touches `backend/requirements.txt`, which
+  makes it a hard gate a developer cannot commit past — and it had no job here until
+  2026-09-09, so its verdict was never recorded anywhere but on the machine that ran it. It
+  stays out of the baseline commands above because it is the one check that answers to the
+  outside world rather than to the checkout: it can turn red on a commit that changed
+  nothing, and the six seconds before a push is the wrong place to be told something that has
+  nothing to do with what was written. Here it runs on every trigger the workflow has, the
+  weekly schedule included, so a month with no pushes still produces a dated verdict.
+- **Two jobs run on Windows that a developer here also runs on Windows.** They are not
+  redundant with the local gates and must not be dropped as such. What they add is the
+  *install*: both run `pip install --require-hashes` and `npm ci` into a bare checkout, which
+  is the only thing that can catch a lockfile that resolves here and nowhere else — precisely
+  the `@emnapi` failure above, which was red on both runners while every local gate was green.
+- **Three jobs run on Linux only** — the browser suite, the visual diff and the performance
+  budget. The suite drives Chromium against an app with no platform-specific code, and the
+  other two compare against artefacts that are only meaningful on the image that produced
+  them. A second runner would double the minutes to re-prove the same thing.
+- **The packaging check is in `release.yml`, not here.** `backend/tests/test_packaging_payload.py`
+  skips when `dist/` has not been built, which on a runner is always, so the backend suite
+  reports one more skip in CI than it does locally and proves nothing about the package. What
+  proves it is the **Windows package** job in `release.yml`, which freezes the bundle and
+  starts it. That job answers to `workflow_dispatch` as well as to a tag, which is why
+  dispatching it by hand is part of the release checklist rather than an option —
+  [`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) owns the step.
+
+Nothing on either side is disabled to keep the pipeline green. A job that fails is a defect
+to fix or a limit to record in [`limits.md`](limits.md); deleting it and calling the result
+green is the failure mode this section exists to make visible.
 
 ---
 
@@ -346,7 +398,7 @@ check rather than an opinion.
 | **The interface** | Does any scraped string become markup or a live link in the browser? | There is no `dangerouslySetInnerHTML` in `frontend/src`. The two places a scraped value reaches something that interprets it are answered in kind: `MapView.escapeHtml` for the marker tooltip, which takes an HTML string by API, and `services/api.ts` `safeHref` for the one anchor built from a listing URL (`routes/property/Provenance.tsx`). `<img src={scraped}>` is left unfiltered on purpose — an image source is not a script context, and a portal that serves a broken image has broken its own listing |
 | **The credential form** | Can the form that displays secrets destroy them? | `routers/settings.py`, driven from `config.SECRET_SETTINGS` by `test_no_stored_secret_is_overwritten_by_its_own_mask`: the read side masks and the write side unmasks in two hand-written lists, and the test is what makes them keep agreeing. The form writes the whole object back, so a secret missing from the *write* list is silently replaced by `"***"` the next time the user saves anything at all |
 | **What the builds ship** | Does a release or an image carry the user's own files? | `test_packaging_payload.py` reads both manifests: the PyInstaller spec ships `backend/app/data` and `frontend/dist` as whole trees, `packaging/Dockerfile` copies `backend/` entire under `.dockerignore`, and neither may contain a `settings.json`, a `case.db`, a `.env`, a log or a key. Backups are the same question answered by construction: `backup.py` copies only `case-*.db`, so an archive the user mails to themselves carries no credential |
-| **Dependencies** | Anything known-vulnerable in what actually ships? | `cd backend && .venv\Scripts\python -m pip_audit -r requirements.txt`, plus `npm audit` in `frontend/`. Neither is a gate, and neither should silently become one: say per finding whether it is reachable in a loopback desktop app |
+| **Dependencies** | Anything known-vulnerable in what actually ships? | `cd backend && .venv\Scripts\python -m pip_audit -r requirements.txt`, plus `npm audit` in `frontend/`. The first **is** a gate, in both places: the pre-commit hook when `requirements.txt` moves, and the *dependency CVE scan* job on every push (§0.1). `npm audit` is not one and should not quietly become one. Either way the finding is the same question — is it reachable in a loopback desktop app — and answering it is a person's job, written down: fix the pin, or `--ignore-vuln` it with the reason in the commit and a line in [`limits.md`](limits.md) |
 
 ### 6.2 What this pass does **not** cover
 

@@ -104,6 +104,46 @@ jobs:
         working-directory: backend
         run: pyright
 
+  # The CVE scan of the runtime dependencies. It is a hard gate on a developer's
+  # commit already — .pre-commit-config.yaml runs it whenever
+  # backend/requirements.txt is touched — and until now it was the only one of
+  # those with no job here, which made it the single check whose verdict lived
+  # on one laptop and nowhere else.
+  #
+  # The runtime manifest only, exactly like the hook: that set is what ships to
+  # the target device, while the dev toolchain never leaves this repository.
+  #
+  # Unlike every other job in this file it reads an advisory database rather
+  # than the checkout, so it can go red on a commit that changed nothing. That
+  # is the reason it is here rather than an argument against it: an advisory
+  # published today is news today, and the weekly schedule above is what turns
+  # a quiet month into a dated red mark instead of silence. What it finds is a
+  # decision for a person — pin it, replace it, or record it in docs/limits.md.
+  pip-audit:
+    name: dependency CVE scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Create the virtual environment
+        run: python -m venv backend/.venv
+
+      # pip-audit comes from the dev lockfile so this job and the hook run the
+      # same version, rather than the hook being pinned and CI resolving
+      # whatever released this morning.
+      - name: Install from the lockfile
+        working-directory: backend
+        run: .venv/bin/python -m pip install --require-hashes -r requirements-dev.txt
+
+      - name: Audit the runtime dependencies
+        working-directory: backend
+        run: .venv/bin/python -m pip_audit -r requirements.txt
+
   frontend:
     name: frontend (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
