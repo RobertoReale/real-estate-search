@@ -8,6 +8,10 @@
 **/*.pyc
 
 # User data: it belongs on the volume, never baked into an image layer.
+# `.env` is not read by this application at all, which is exactly why it is
+# listed: nothing here would break if one appeared, so nothing here would
+# notice it being copied into a published layer either.
+**/.env
 backend/case.db
 backend/case.db-wal
 backend/case.db-shm

@@ -55,12 +55,12 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1042 passed + 1 skipped** (1043 collected; the skip needs the optional
+Expected today: **1059 passed + 1 skipped** (1060 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
 **79 browser tests** (49 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
-the type generator. The browser suite prints the two numbers worth reading: **227
-interactive elements, 263 inventoried actions**, of which **261 exercised and 2 declared
+the type generator. The browser suite prints the two numbers worth reading: **231
+interactive elements, 267 inventoried actions**, of which **265 exercised and 2 declared
 unreachable with a written reason**. If a test number changed, that is not a failure — it
 is a documentation trigger (see §4).
 
@@ -317,32 +317,44 @@ check rather than an opinion.
 | **Paths** | Can a name from a request escape the folder it belongs to? | `services/backup.py` `find` — the copy is located by *listing* the folder and matching a name, never by joining, so `../../settings.json` is simply not in the list. `_read_only` builds its URI with `as_uri()` so a `?` in a folder name cannot become a query string |
 | | Is a destructive file operation validated before anything live is touched? | `backup.validate` (header, `PRAGMA quick_check`, the three tables that have existed since the first release) runs before `restore` copies anything, and `restore` takes a forced snapshot of the current database first |
 | **Queries** | Any SQL built by string concatenation? | None. Everything is SQLAlchemy expressions. The one f-string SQL is `database.py`'s additive-column backfill, whose interpolated values are `table.name`/`column.name` off the ORM metadata — not input |
+| **The interface** | Does any scraped string become markup or a live link in the browser? | There is no `dangerouslySetInnerHTML` in `frontend/src`. The two places a scraped value reaches something that interprets it are answered in kind: `MapView.escapeHtml` for the marker tooltip, which takes an HTML string by API, and `services/api.ts` `safeHref` for the one anchor built from a listing URL (`routes/property/Provenance.tsx`). `<img src={scraped}>` is left unfiltered on purpose — an image source is not a script context, and a portal that serves a broken image has broken its own listing |
+| **The credential form** | Can the form that displays secrets destroy them? | `routers/settings.py`, driven from `config.SECRET_SETTINGS` by `test_no_stored_secret_is_overwritten_by_its_own_mask`: the read side masks and the write side unmasks in two hand-written lists, and the test is what makes them keep agreeing. The form writes the whole object back, so a secret missing from the *write* list is silently replaced by `"***"` the next time the user saves anything at all |
+| **What the builds ship** | Does a release or an image carry the user's own files? | `test_packaging_payload.py` reads both manifests: the PyInstaller spec ships `backend/app/data` and `frontend/dist` as whole trees, `packaging/Dockerfile` copies `backend/` entire under `.dockerignore`, and neither may contain a `settings.json`, a `case.db`, a `.env`, a log or a key. Backups are the same question answered by construction: `backup.py` copies only `case-*.db`, so an archive the user mails to themselves carries no credential |
 | **Dependencies** | Anything known-vulnerable in what actually ships? | `cd backend && .venv\Scripts\python -m pip_audit -r requirements.txt`, plus `npm audit` in `frontend/`. Neither is a gate, and neither should silently become one: say per finding whether it is reachable in a loopback desktop app |
 
 ### 6.2 What this pass does **not** cover
 
 Say it out loud, because a security document that reads as complete when it is not is worse
-than none. As of the cycle-3 backend review (task H.5) the following did not exist yet and
-were **not** examined:
+than none. The cycle-3 backend review (task H.5) deferred four things to F.7 — the assembled
+frontend, the credential form, the packaged build, and `npm audit` — and F.7 has since
+walked all four; they are the last four rows of §6.1. What is still outside the walk:
 
-- **the assembled frontend** — it is being replaced wholesale by phases B–E, and reading
-  code scheduled for deletion is the waste that ordering exists to avoid;
-- **the credential form** (D.7) and the secrets it will write;
-- **the packaged build** and what it ships — no `.env`, no `case.db`, no `settings.json`,
-  no fixture carrying a real address;
-- **`npm audit`**, for the same reason as the frontend.
-
-Task F.7 owns all four, and re-runs this section over the whole product rather than over
-the backend alone. Two live items are waiting for it and are named in
-[`roadmap.md`](roadmap.md): a scraped URL is rendered by the *frontend* as well, where the
-same scheme rule has not been applied, and the ingestion path stores whatever scheme the
-portal sent.
+- **the ingestion path's URLs.** A scraper stores whatever scheme the portal sent, because
+  the URL is the deduplication identity and normalising it would merge two listings that
+  are not the same one. Every consumer filters instead, which is the trade
+  [`roadmap.md`](roadmap.md) records;
+- **the portals' own TLS**, and anything that depends on a portal behaving. This program
+  treats every byte from them as hostile input and has no way to check who sent it;
+- **the machine.** `settings.json` is plaintext by design — a desktop app that encrypts a
+  secret has to store the key next to it — so anyone who can read the user's disk has the
+  credentials, and no code here changes that. Nothing narrows the file's permissions either;
+  that is a roadmap row, and it buys nothing on the single-user Windows install the app is
+  built for;
+- **a hosted deployment.** Every row above assumes one user on one machine. Multi-account is
+  a different threat model with a different answer, and it is a roadmap item, not a gap.
 
 ### 6.3 Expected result
 
 Clean means: every row in §6.1 traced to the code that answers it and a test that fails
 without it; nothing in §6.2 quietly described as checked; every `pip-audit`/`npm audit`
 finding either fixed or written down with why it is not reachable here.
+
+As of F.7 (2026-09-09): `pip-audit` on `requirements.txt` reports **no known
+vulnerabilities**, `npm audit` in `frontend/` reports **0 vulnerabilities**, and every §6.1
+row has a test behind it. Two rows were opened by this pass rather than confirmed by it —
+`properties_to_markdown` interpolated both the document title and the listing URL raw while
+the HTML dossier beside it escaped and scheme-filtered the same two values, and `.env` was
+missing from `.dockerignore` in a build context that copies `backend/` whole.
 
 ---
 
@@ -359,13 +371,15 @@ with one rule, and the rule is the whole of it:
 
 ```bash
 cd backend && .venv\Scripts\python ..\scripts\measure_backend.py
+node scripts\measure_frontend.mjs
 ```
 
-It prints numbers and asserts nothing, on purpose: a wall clock is not a gate — it would
+Both print numbers and assert nothing, on purpose: a wall clock is not a gate — it would
 fail on a busy laptop and teach everyone to re-run it — but a claim that something got
-faster needs a before and an after from the same instrument. It redirects settings and the
-database to a temporary directory and blocks the network exactly as the suite does, so it
-is safe to run against a working install. `--only scan` and `--only queries` run half of it.
+faster needs a before and an after from the same instrument. The backend one redirects
+settings and the database to a temporary directory and blocks the network exactly as the
+suite does, so it is safe to run against a working install; `--only scan`, `--only queries`
+and `--only payloads` run one third of it.
 
 The scan half drives `run_scan` against `tests/mock_portal.py`, which is the only honest
 offline stand-in for a portal: real HTTP on loopback, real pagination, and a record of when
@@ -373,21 +387,41 @@ each request arrived. Read its three lines **against each other and never on the
 the sandbox answers in microseconds where a portal takes a second, so the absolute seconds
 say nothing about a real run.
 
+The frontend one answers a question `vite build`'s chunk sizes cannot: not how big the
+bundle is, but *big with what*. It builds with sourcemaps into a temporary directory — never
+over `frontend/dist` — and charges each span of generated code back to the source it came
+from, which is what turns "the bundle is a megabyte" into a list of things that could stop
+being in it.
+
 ### 7.2 Expected numbers
 
-Measured 2026-09-03, at the end of phase H, on the settings the script pins (5 pages per
+Measured 2026-09-09, at the end of cycle 3, on the settings the script pins (5 pages per
 portal, 0.4 s between pages, two portals, 80-property demo corpus):
 
 | Measurement | Then | What it says |
 |---|---|---|
-| full sweep, one host at a time | 13 requests, ~3.9 s | the baseline the two phases before this were measured against |
-| full sweep, both hosts at once | 13 requests, ~2.2 s | **H.3 pays**: same requests, ~45 % less wall clock. Nearly all of a scan is the deliberate pause between pages, and the pause is owed to one host — spending it on two at once is the only way to shorten a scan without asking a portal for more |
-| quick scan, nothing new | 5 requests, ~0.1 s | **H.4 pays**: −62 % requests against the full sweep. Requests *not made* is the one kind of speed-up that also makes a block less likely |
+| full sweep, one host at a time | 13 requests, ~3.5 s | the baseline the two phases before this were measured against |
+| full sweep, both hosts at once | 13 requests, ~2.0 s | **H.3 pays**: same requests, ~43 % less wall clock. Nearly all of a scan is the deliberate pause between pages, and the pause is owed to one host — spending it on two at once is the only way to shorten a scan without asking a portal for more |
+| quick scan, nothing new | 5 requests, ~0.05 s | **H.4 pays**: −62 % requests against the full sweep. Requests *not made* is the one kind of speed-up that also makes a block less likely |
 | the grid, one page (`limit=50`) | 9 queries | |
 | the grid, unbounded (`limit=0`, the map and "select all") | 9 queries | **the number that matters**: it does not move with the size of the result set. `selectinload` batches the three relationships and every annotation is one set-wide query, so there is no N+1 to find |
 | one property's card | 8 queries | |
-| the "did anything change?" tick (`services/events.py`, once a second while a browser is connected) | 3 queries | three aggregates — two for the property fingerprint, one for scraper health. Cheap enough to sample for the *machine*, which is what lets one shared task replace a poll per open tab |
+| the "did anything change?" tick (`services/events.py`, every 4 s during a scan) | 2 queries | two aggregates — the property fingerprint and scraper health. Cheap enough to sample for the *machine*, which is what lets one shared task replace a poll per open tab |
 | market velocity / scraper health / searches | 3 / 2 / 1 queries | |
+
+And what the interface costs, from `measure_frontend.mjs` and `--only payloads`:
+
+| Measurement | Then | What it says |
+|---|---|---|
+| the bundle | 922 kB of JavaScript in **one chunk**, 90 kB of CSS | there is no route-level splitting, so every route pays for every other route's dependencies. The Lighthouse budget (950 kB) is the only thing holding it, and it is close |
+| where that JavaScript comes from | react-dom 174 kB (19 %), **leaflet 145 kB (16 %)**, `src/components` 111 kB, `src/routes` 87 kB, **the two locale catalogues 78 + 72 kB** | the two emphasised rows are the ones a reader can act on: the map is one route out of nine and the user reads one language out of two, and both are in the chunk that loads before anything renders |
+| the grid payload, unbounded | 189 kB for 80 properties | |
+| …of which nothing on the grid page reads | 85 kB (45 %) | 66 kB of it is inside the nested listings: the card reads their `portal` name and counts them, 895 bytes' worth, and is sent every field of every listing. The rest is `deal_reasons`, `found_by`, `price_history` and the two timestamps |
+
+All four are **candidates, not findings** — see the rows in [`roadmap.md`](roadmap.md). Each
+one is a change to a shape that something else already asserts (the response model the
+property route reuses, the eager `import` a route-level `lazy` would replace), which is
+exactly what a review does not do on its own authority.
 
 The plans, for the statements the grid page issues: `SCAN properties` twice — the grid's own
 selection and the market-position median — and `SEARCH … USING INDEX` everywhere a
@@ -407,9 +441,25 @@ would be the finding — that is the N+1 shape, and the query counts above would
   corpus (`scripts/seed_demo.py --count`) and compare, rather than reading the SQL.
 - If concurrency ever stops paying, remove it. It is complexity carried for a number, and
   a number that has gone is the argument for taking it out.
+- **In the bundle, read the attribution and not the total.** A total that grew by 40 kB says
+  nothing; a dependency that appeared in the list is a decision somebody made. The
+  attribution is approximate at the margin — minified code is shared and inlined across
+  sources — so treat a difference of a few kB as noise and a new row as news.
+- The payload split is only as honest as `CARD_FIELDS` in the instrument, which is a copy
+  of what `PropertyCard.tsx` reads. Re-read that file before believing the number: a stale
+  list flatters the answer instead of failing.
 
 ### 7.4 What this pass does not cover
 
-The frontend: bundle size per route, the cost of rendering the grid at corpus size, and the
-API payloads measured against what the grid actually needs. All four belong to F.7, which
-runs after the interface exists.
+- **The cost of rendering the grid in a real browser.** The structural facts are known — the
+  grid is not virtualised, so it renders every row the API returns, and the browser suite
+  builds the whole 80-property corpus on every run without straining the 10 s navigation
+  budget — but "how long does the grid take to paint at 500 properties" needs a harness that
+  boots the built app against a corpus of a chosen size and measures inside the page, and no
+  such harness exists. It is a [`roadmap.md`](roadmap.md) row rather than a number here,
+  because inventing one measurement to justify one change is how efficiency work goes wrong.
+- **Anything under real network latency.** Every number above is measured on loopback
+  against a sandbox that answers instantly, which is the point for a count and a lie for a
+  second.
+- **Memory, on either side.** Nothing has run out of it, and a measurement nobody needs is a
+  number that goes stale unread.

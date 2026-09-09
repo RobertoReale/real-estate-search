@@ -948,6 +948,44 @@ def test_saved_secrets_lose_their_display_spaces():
     assert config.load_settings()["smtp_password"] == "jetdxuwlwvpyembm"
 
 
+def _set_flag(name: str) -> str:
+    """The "is it configured" companion GET adds beside each masked secret."""
+    return "telegram_token_set" if name == "telegram_bot_token" else f"{name}_set"
+
+
+def test_no_stored_secret_is_overwritten_by_its_own_mask():
+    """The settings form reads with GET and writes back the whole object, so
+    every secret it did not touch comes back as the mask it was shown. The read
+    side masks by listing the fields it knows about and the write side unmasks
+    the same way, in two hand-written lists — an eighth secret added to
+    `SECRET_SETTINGS` and to the read side alone would not fail anything here or
+    in the UI: the field would simply be `***` on disk the next time the user
+    saved a scan interval, and the credential would be gone. Driven off
+    `SECRET_SETTINGS` so the lists have to keep agreeing with it."""
+    from app import config, schemas
+    from app.database import SessionLocal
+    from app.routers.settings import get_settings, update_settings
+
+    stored = {name: f"real-{name}-value" for name in config.SECRET_SETTINGS}
+    config.save_settings(stored)
+
+    shown = get_settings()
+    for name, value in stored.items():
+        assert shown[name] != value, f"{name} left the backend in clear"
+        assert shown[_set_flag(name)] is True, f"{name} is set and {_set_flag(name)} says otherwise"
+
+    # what the form sends back when the user edits something else entirely
+    db = SessionLocal()
+    try:
+        update_settings(schemas.SettingsIn(**{k: shown[k] for k in config.SECRET_SETTINGS}), db)
+    finally:
+        db.close()
+
+    after = config.load_settings()
+    for name, value in stored.items():
+        assert after[name] == value, f"{name} was overwritten with what GET had masked it to"
+
+
 def test_manual_cookie_paste_stamps_its_own_timestamp():
     """A datadome cookie pasted by hand must refresh datadome_cookie_updated_at:
     otherwise the UI shows a stale "Last refreshed" and the pre-scan

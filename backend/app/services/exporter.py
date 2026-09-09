@@ -106,12 +106,13 @@ def _csv_text(value: str) -> str:
 
 
 # A listing's URL is a portal-supplied string too — the scrapers take it from an
-# `href` or from a `seo.url` field in the page's own JSON — and the HTML dossier
-# turns it into a link the user clicks in a file saved on their disk. Escaping
-# keeps it inside the attribute; it does not stop `javascript:` from being a
-# perfectly valid scheme in there. Only the two schemes a portal listing can
-# honestly have survive, and anything else renders as no link at all rather than
-# as a live one.
+# `href` or from a `seo.url` field in the page's own JSON — and both the HTML
+# dossier and the Markdown one turn it into a link the user clicks in a file
+# saved on their disk. Escaping keeps it inside the attribute; it does not stop
+# `javascript:` from being a perfectly valid scheme in there, and a Markdown
+# renderer autolinks a bare one just as happily. Only the two schemes a portal
+# listing can honestly have survive, and anything else renders as no link at all
+# rather than as a live one.
 _LINKABLE_SCHEMES = ("http://", "https://")
 
 
@@ -172,7 +173,7 @@ def properties_to_csv(props: list[Property]) -> str:
 
 def properties_to_markdown(props: list[Property], title: str) -> str:
     lines = [
-        f"# {title}",
+        f"# {_md(title)}",
         "",
         f"_{len(props)} properties · generated {datetime.now(UTC):%Y-%m-%d %H:%M UTC}_",
         "",
@@ -209,7 +210,7 @@ def properties_to_markdown(props: list[Property], title: str) -> str:
             lines.append(f"- **Price history:** {hist}")
         for l in p.listings:
             agency = f" — {_md(l.agency)}" if l.agency else ""
-            lines.append(f"- **{_md(l.portal)}**{agency}: {l.url}")
+            lines.append(f"- **{_md(l.portal)}**{agency}: {_md(_safe_url(l.url))}")
         lines.append("")
     return "\n".join(lines)
 

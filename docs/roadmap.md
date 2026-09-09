@@ -172,18 +172,29 @@ delays chosen per host rather than globally.
 
 ### A scraped URL's scheme is checked where it is exported, and nowhere else
 
-The HTML dossier refuses to link anything that is not `http(s)` (`exporter._safe_url`,
-`audit.md` §6.1). Two other consumers of the same field were deliberately left alone:
+Both dossiers now refuse to link anything that is not `http(s)` (`exporter._safe_url`,
+`audit.md` §6.1), and so does the one anchor the interface builds from a listing URL
+(`services/api.ts` `safeHref`, applied in `routes/property/Provenance.tsx`). One consumer of
+the same field is still deliberately left alone:
 
 - **ingestion** — `scrapers/immobiliare.py` and `idealista.py` store whatever the portal's
   `href` or `seo.url` field held. Filtering there would protect every consumer at once, but
   the URL is also the identity two sightings of an ad are matched on (`listing_key`,
   `merge_scrapes`, `_already_seen`), so dropping or blanking one is a change to
   deduplication, not to rendering.
-- **the frontend**, which renders the same value as a link and has never applied the scheme
-  rule. It was being replaced wholesale while the backend review ran, so reading the
-  rebuilt version is the security pass's job rather than the backend review's
-  ([`audit.md`](audit.md) §6.2).
+
+**What doing it looks like.** A scheme check at the point a listing is built, with a rejected
+URL keeping the row out of the merge rather than blanking the field — which means deciding
+what a listing with no usable URL even is, and that is a data-model question, not a
+rendering one.
+
+### `settings.json` is written with whatever permissions the platform defaults to
+
+Nothing narrows the file's mode. On the single-user Windows install this is built for that
+buys nothing; on the Docker path, where the file sits in a volume on a host that may have
+other accounts, `0600` would be a one-line change with a POSIX-only test behind it. It is
+written down rather than done because the review that found it had no failing test to point
+at — the file is exactly as readable as the database beside it, and neither is a regression.
 
 ### `_mark_vanished_properties` walks every active property in Python
 
@@ -192,6 +203,45 @@ row by row, where a single `UPDATE … WHERE last_seen_at < ?` would do it. It i
 and not a change, because §7's rule applies: it runs **once per clean full scan**, not per
 request, and no measurement shows it costs anything at the sizes this app holds. It is
 recorded so that whoever does measure it at 100 000 properties finds it already named.
+
+### The dashboard ships as one chunk, and a fifth of it is for one route or one language
+
+Measured 2026-09-09 with `scripts/measure_frontend.mjs` ([`audit.md`](audit.md) §7.2): 922 kB
+of JavaScript in a single chunk, of which **leaflet is 145 kB (16 %)** and the **two locale
+catalogues are 78 + 72 kB**. The map is one route out of nine, and the user reads one of the
+two languages, so roughly a fifth of what loads before anything renders is for something this
+visit will not do. The Lighthouse budget is 950 kB and the build is at 922.
+
+**What doing it looks like.** A `React.lazy` around the map route and a dynamic `import()`
+per locale, with a loading state each. Both change when a module is evaluated, and the
+browser suite asserts against a rendered map and against Italian strings being there on first
+paint — so this is a change with tests in front of it, which is the line a review does not
+cross. Its own task, with the before and after from the same instrument.
+
+### The grid is sent 45 % more than it reads
+
+`GET /api/properties?limit=0` is 189 kB for the 80-property demo corpus, and 85 kB of that is
+read by nothing on the page (`measure_backend.py --only payloads`). 66 kB is inside the
+nested listings: the card reads their `portal` name and counts them — 895 bytes' worth — and
+is sent every field of every listing, descriptions included. The rest is `deal_reasons`,
+`found_by`, `price_history` and two timestamps.
+
+**What doing it looks like.** A narrower response model for the list route, which is not free:
+`routes/property/*` reads the full listing objects, and today they can come from the grid's
+cache rather than from a second request. Either the property route stops sharing that cache,
+or the grid's rows carry a summary and the detail route keeps the full shape — a decision
+about the query cache, not about bytes. Nothing here is slow at the sizes this app holds,
+which is why it is a candidate.
+
+### Nothing measures the grid rendering in a browser
+
+The grid is not virtualised: it renders every row the API returns. That is fine at the sizes
+seen so far — the browser suite paints the whole 80-property corpus on every run, well inside
+its navigation budget — but there is no way to answer "and at 500?" without booting the built
+app against a corpus of a chosen size and measuring inside the page. `measure_frontend.mjs`
+deliberately does not: it needs no browser and no backend, and keeping it that way is worth
+more than the one number it cannot produce. Whoever needs that number builds the harness
+first, and [`audit.md`](audit.md) §7.4 says so.
 
 ---
 

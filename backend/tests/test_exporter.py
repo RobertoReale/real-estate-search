@@ -162,6 +162,40 @@ def test_markdown_escapes_scraped_html():
     assert "&lt;img" in md
 
 
+def test_markdown_dossier_will_not_carry_a_scripted_url():
+    """The HTML dossier already refuses to link a URL that is not http(s); the
+    Markdown one interpolated the same portal-supplied field raw. Renderers that
+    pass HTML through make `<img onerror=…>` smuggled into a URL live markup,
+    and a bare `javascript:` is autolinked by some of them, so the field needs
+    the scheme filter and the escape the rest of this export already gets."""
+    p = _prop()
+    p.listings = [
+        Listing(portal="immobiliare", portal_id="1", url="javascript:alert(document.cookie)")
+    ]
+    md = properties_to_markdown([p], "S")
+    assert "javascript:" not in md
+
+    p.listings = [
+        Listing(portal="immobiliare", portal_id="1", url="https://x.example/<img src=x onerror=1>")
+    ]
+    md = properties_to_markdown([p], "S")
+    assert "<img" not in md
+    assert "&lt;img" in md
+
+    # ...and an ordinary listing URL still arrives intact
+    p.listings = [Listing(portal="immobiliare", portal_id="1", url="https://x.example/annunci/1/")]
+    assert "https://x.example/annunci/1/" in properties_to_markdown([p], "S")
+
+
+def test_markdown_dossier_escapes_the_document_title():
+    """The dossier's own title is a request parameter, and a GET is not covered
+    by the cross-site write guard: a page in another tab can name it. Both HTML
+    paths escape it; Markdown interpolated it raw into the H1."""
+    md = properties_to_markdown([], "<img src=x onerror=alert(1)>")
+    assert "<img" not in md
+    assert "&lt;img" in md
+
+
 def test_csv_neutralizes_formula_injection():
     """Regression: a scraped title starting with "=" executes as a formula
     when the CSV is opened in Excel (CSV/formula injection). Text fields get

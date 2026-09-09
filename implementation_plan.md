@@ -230,8 +230,11 @@ progetto/
 ├── scripts/
 │   ├── build_frontend.py         # rebuilds frontend/dist when it is stale
 │   ├── build_release.py          # the shippable payload; --package freezes the app
-│   ├── measure_backend.py        # requests/queries per scan and per request; the
-│   │                             # instrument docs/audit.md §7 runs (asserts nothing)
+│   ├── measure_backend.py        # requests/queries per scan and per request, and
+│   │                             # what the grid is sent against what it reads
+│   ├── measure_frontend.mjs      # the built bundle, attributed to the sources it
+│   │                             # came from. Both are docs/audit.md §7's
+│   │                             # instruments, and both assert nothing
 │   ├── open_dashboard.py         # waits for the port, then opens the browser
 │   ├── windows/                  # start (one window) / dev (two windows) / serve /
 │   │                             # install-service/uninstall-service/restart-services/
