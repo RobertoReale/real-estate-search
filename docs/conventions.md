@@ -146,7 +146,8 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   Light and dark are written out **separately**, not derived from one another. Two things
   change shape rather than value between them: surfaces climb *away* from black as they
   come forward in dark, and elevation stops being a cast shadow — invisible on a dark
-  ground — and becomes a lighter surface plus a brighter edge.
+  ground — and becomes a lighter surface plus a brighter edge. Which roles exist and which
+  one a given job wants is [`ui.md` → Tokens](ui.md#1-tokens).
 
   `src/styles/tokens.test.ts` enforces the rule: it scans every `.tsx`/`.ts` under `src/`
   and fails on a Tailwind ramp utility (`bg-blue-600`, `dark:text-slate-500`), on
@@ -180,7 +181,8 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   six buttons, six class strings, two of them hovering towards `caution` for adding and
   removing a favourite, and one with no border, no hover and **no focus ring at all**.
   Nothing had decided any of it, and nothing in the build could tell a variant somebody
-  meant from one they mistyped.
+  meant from one they mistyped. Which primitive a given job wants — and, if the job is a
+  whole screen, where it goes — is [`ui.md`](ui.md).
 
   Everything with an overlay, a focus trap or an `aria-*` relationship is
   [Radix](https://www.radix-ui.com/) underneath. The reason is not convenience: focus
