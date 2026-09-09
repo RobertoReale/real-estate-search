@@ -20,6 +20,9 @@ Three measurements, in the order §7 reads them:
   against the demo corpus. An N+1 is invisible until it is counted.
 * **the plans** — `EXPLAIN QUERY PLAN` for the statements the grid issues, so
   "there is an index on that column" can be checked rather than assumed.
+* **the grid payload** — what the list route sends, against what the card on the
+  page actually reads. A query count says the server did little work; it says
+  nothing about how much of the answer nobody looks at.
 
 Run it from `backend/`, which is where the venv and the `app` package are:
 
@@ -32,6 +35,7 @@ the same offline guarantee the test suite runs under.
 
 import argparse
 import contextlib
+import json
 import shutil
 import sys
 import tempfile
@@ -353,19 +357,108 @@ def measure_queries() -> None:
                 print(f"      {line}")
 
 
+# ---------------------------------------------------------------------------
+# What the grid is sent, against what the grid reads
+# ---------------------------------------------------------------------------
+
+# Every field `components/PropertyCard.tsx` reads off a property, plus the two
+# the grid route itself needs to key and select a row. Kept by hand and checked
+# against that file when it changes: the point of the number below is to say how
+# much of the response nothing on the page looks at, and a stale list would
+# flatter the answer rather than break anything.
+CARD_FIELDS = frozenset(
+    """
+    address city contract current_min_price filtered_reason first_price floor id
+    image_url is_favorite latitude listings longitude match_score notes
+    outside_requested_area rooms source sqm status tags title zone
+    """.split()
+)
+
+# ...and of a nested listing, the card reads the portal name and counts them.
+CARD_LISTING_FIELDS = frozenset({"portal"})
+
+
+def _field_bytes(rows: list[dict], keep: frozenset[str]) -> tuple[int, int, list[tuple[str, int]]]:
+    """Serialised size of the rows, split into what `keep` names and what it does not."""
+    per_field: dict[str, int] = {}
+    for row in rows:
+        for name, value in row.items():
+            per_field[name] = per_field.get(name, 0) + len(json.dumps(value, default=str))
+    read = sum(size for name, size in per_field.items() if name in keep)
+    ignored = sum(size for name, size in per_field.items() if name not in keep)
+    return read, ignored, sorted(per_field.items(), key=lambda item: -item[1])
+
+
+def measure_payloads() -> None:
+    from fastapi.testclient import TestClient
+
+    from app import main
+    from app.database import get_db
+    from app.services.demo_data import seed_demo
+
+    with _throwaway_data():
+        patch = _Patch()
+        patch.setattr(geocoder, "_nominatim_lookup", _refuse)
+        database.Base.metadata.create_all(database.engine)
+        db = database.SessionLocal()
+        try:
+            corpus = seed_demo(db)
+        finally:
+            db.close()
+
+        def override_db():
+            session = database.SessionLocal()
+            try:
+                yield session
+            finally:
+                session.close()
+
+        main.app.dependency_overrides[get_db] = override_db
+        client = TestClient(main.app)
+        response = client.get("/api/properties?limit=0")
+        payload = response.json()
+        rows = payload["items"] if isinstance(payload, dict) else payload
+        main.app.dependency_overrides.clear()
+        patch.undo()
+
+        total = len(response.content)
+        read, ignored, per_field = _field_bytes(rows, CARD_FIELDS)
+        listings = [listing for row in rows for listing in row.get("listings") or []]
+        nested_read, nested_ignored, _ = _field_bytes(listings, CARD_LISTING_FIELDS)
+        # `listings` counts as read at the top level, and most of what is inside
+        # it is not: charge the nested split against it rather than twice over.
+        nested_total = dict(per_field).get("listings", 0)
+        read = read - nested_total + nested_read
+        ignored = ignored + nested_ignored
+
+        print(f"\n== the grid payload ==  {corpus.properties} properties, unbounded")
+        print(f"  on the wire                            {total:>9,} bytes")
+        print(f"  fields the card reads                  {read:>9,} bytes")
+        print(f"  sent, and read by nothing on the page  {ignored:>9,} bytes")
+        print(f"    of that, inside the nested listings  {nested_ignored:>9,} bytes")
+        print(f"    (the card reads their portal name:   {nested_read:>9,} bytes)")
+        print("  largest fields:")
+        for name, size in per_field[:8]:
+            mark = " " if name in CARD_FIELDS else "*"
+            print(f"    {mark} {name:<28} {size:>9,} bytes")
+        print("    * nothing on the grid page reads it")
+
+
 def run() -> None:
     parser = argparse.ArgumentParser(description="Measure the backend (docs/audit.md §7).")
     parser.add_argument(
         "--only",
-        choices=("scan", "queries"),
-        help="run one of the two measurements instead of both",
+        choices=("scan", "queries", "payloads"),
+        help="run one of the three measurements instead of all of them",
     )
     args = parser.parse_args()
     print(f"backend measurement — {datetime.now(UTC):%Y-%m-%d %H:%M UTC}")
-    if args.only != "queries":
+    if args.only in (None, "scan"):
         measure_scan()
-    if args.only != "scan":
+    if args.only in (None, "queries"):
         measure_queries()
+    if args.only in (None, "payloads"):
+        measure_payloads()
 
 
 if __name__ == "__main__":
