@@ -426,7 +426,7 @@ Write a fact once, in the file that owns it:
 | [`architecture.md`](architecture.md) | how the program is put together: the "Where to Act" map, the data schema, the property lifecycle, the migration strategy, the known fragilities | a file moves, a module is added, a schema concept changes |
 | [`invariants.md`](invariants.md) | the rules that must not break, and the regression each one prevents | an invariant is added, retired, or its guard moves |
 | [`limits.md`](limits.md) | every limit the software has, the API field its number comes from, and the surface that states it | a cap, a best-effort match or a partial answer is added, or the screen that announces one moves |
-| [`conventions.md`](conventions.md) | how code is written and tested here | a convention is decided, or the test counts change |
+| [`conventions.md`](conventions.md) | how code is written and tested here, and what earns a place in the tree | a convention is decided, the test counts change, or a file is kept that looks dead (see [What The Repository Holds](#what-the-repository-holds)) |
 | [`development-cycle.md`](development-cycle.md) | the procedure a change follows: the unit of work, the gates before the commit, when behaviour earns an invariant, and how a release is cut | the branch/commit convention, the gate timing, the automation that runs unasked, or the release procedure changes |
 | [`audit.md`](audit.md) | the procedure for a full-project audit: the green baseline, the module-by-module checklist, the invariant→test cross-check | the audit steps change, a module/invariant is added, or a new class of weak point is worth checking for |
 | [`../implementation_plan.md`](../implementation_plan.md) | the historical record: why the design is what it is | a "reasonable" assumption is disproven by a real portal (add to §8) |
@@ -452,3 +452,45 @@ Specifically:
 - **Do not open a second backlog inside the code.** No `TODO:` bullets filed for later, no
   "future work" sections in the docs — a deferred idea recorded in a comment is an idea
   nobody will find. It either gets done, gets an issue, or gets dropped.
+
+---
+
+## What The Repository Holds
+
+**Every tracked file is reached by something**, and the something is one of: an import, a
+route, a test, a fixture load, a CI workflow, a packaging step, or a documented procedure a
+person runs by hand. Nothing else earns a place. The cost of a file that fails this test is
+not disk space — it is that the next reader finds it and believes it is live.
+
+The rule is checkable rather than a matter of taste. Walk the import graph out from
+`frontend/src/main.tsx` and `backend/app/main.py`; add what is named by path in
+`.github/workflows/`, `packaging/realestatesearch.spec`, `backend/alembic/`, the
+`scripts/windows/*.bat` entry points and the `.md` files; and see what is left over. Run
+over the whole tree, the leftovers are none — 448 tracked files, every one reached.
+
+**Grep is not the whole check, so nothing goes on suspicion.** The trap is the file no
+import mentions because something reads it *by path*, and half the list below is exactly
+that. These look dead and are not; they are written down here so the next cleanup neither
+deletes them nor spends a session re-deriving why it should not:
+
+| Kept | Why it is not dead |
+|---|---|
+| [`../implementation_plan.md`](../implementation_plan.md) | Nothing loads it and it describes decisions, not code. Its §8 is the record of which "obvious" assumptions proved false on real portals, which is the most expensive knowledge here: every entry cost a debugging session to learn and cannot be re-derived from the source |
+| `backend/tests/fixtures/*.csv`, `*.kml` | Some of the OMI samples overlap. They stay: the suite is deterministic and offline because each test owns its input, and a shared fixture is how one test's edit starts failing another's assertion |
+| `backend/tests/fixtures/legacy_v1.db` + `build_legacy_v1.py` | A pre-migration database, which the current schema can no longer produce — it is the only evidence the upgrade path in `test_upgrade_path.py` still works. The builder is kept beside it because a binary fixture nobody can regenerate is a fixture nobody dares change |
+| `frontend/e2e/visual.spec.ts-snapshots/*.png` (27) | Playwright matches them by filename, so no code names them. They are **Linux** baselines produced by `visual-baselines.yml`: the local suite never compares against them, and a Windows run that seems to ignore them is the design, not a leak |
+| `backend/app/data/comuni.sqlite` (832 KB) | A committed build artifact, on purpose — `geo_reference.py` needs all ~7,900 comuni and the runtime is never allowed to fetch anything |
+| `scripts/build_comuni_dataset.py` | Regenerates the above from ISTAT and GeoNames. No workflow calls it: it runs when the data is refreshed, which is a decision and not a schedule |
+| `scripts/measure_backend.py`, `scripts/measure_frontend.mjs` | Nothing invokes them either. [`audit.md`](audit.md) is their entry point — they answer "did this get slower", which is a question a person asks, not a gate |
+| `scripts/windows/install-service.bat`, `uninstall-service.bat`, `restart-services.bat`, `stop-service.bat` | Reached only from [`remote-access.md`](remote-access.md), and that is a real entry point: the document is the procedure, and deleting the scripts would break instructions the user is following |
+| `backend/alembic/versions/*`, `script.py.mako` | Alembic discovers both by scanning the directory. `0001_baseline` in particular is what every database in the field is stamped with — deleting a migration because nothing imports it strands them |
+| `frontend/lighthouse/*` | The performance budget runs in CI only, so a local tree shows it untouched |
+| `.gitattributes`, `.dockerignore`, `.vscode/settings.json` | Read by git, Docker and the editor. None of them is ever imported, and the `.gitattributes` line is load-bearing — its own comment says which gate dies without it |
+
+Two things outside the tree are covered by the same rule from the other side. **Anything
+`.gitignore` excludes belongs to the checkout, not to the project** — the local working
+notes, `case.db`, `settings.json`, the OMI input — and a cleanup neither deletes those nor
+starts tracking them. And **merged `plan/*` branches are deleted once they are merged**: the
+merge commit keeps the branch name, which §1 of
+[`development-cycle.md`](development-cycle.md) explains is the whole reason merges are
+`--no-ff`, so the ref afterwards is a duplicate. `git branch --merged master` is the test.
