@@ -220,7 +220,7 @@ and for how to tell a stale TLS profile from an address that has gone bad.
 
 ### Documentation for contributors
 
-If you are changing the code rather than using the app, five documents carry
+If you are changing the code rather than using the app, six documents carry
 everything that is not obvious from reading it:
 
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
@@ -230,6 +230,8 @@ everything that is not obvious from reading it:
   with the regression that put it there. Read the relevant one *before* editing,
   not after.
 * **[Conventions](docs/conventions.md)** — how code is written and tested here.
+* **[The interface](docs/ui.md)** — the design tokens, the primitive catalogue, what
+  each screen owns, and the rule for where a new one goes.
 * **[Development cycle](docs/development-cycle.md)** — how a change gets made: the
   unit of work, the gates that run before every commit, when new behaviour earns
   an invariant, and how a release is cut from a tag.
