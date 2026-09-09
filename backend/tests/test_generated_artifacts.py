@@ -24,6 +24,7 @@ machine is exactly the one that accepted the broken lock.
 - **`api.ts`.** Invariant 23 — see `scripts/gen_api_types.py`, where the fix is.
 """
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -87,12 +88,33 @@ def test_every_bundled_dependency_has_a_resolved_entry(lockfile: Path) -> None:
 
 
 def test_the_type_generator_decodes_its_subprocess_explicitly() -> None:
-    """Invariant 23: `text=True` alone decodes with the platform's locale."""
-    source = GENERATOR.read_text(encoding="utf-8")
-    assert 'encoding="utf-8"' in source, (
-        "scripts/gen_api_types.py captures the generator without an explicit encoding: "
-        "on Windows its UTF-8 output is decoded as cp1252 and committed corrupted."
-    )
+    """Invariant 23: `text=True` alone decodes with the platform's locale.
+
+    Read off the call rather than the file: the module writes `spec.json` and
+    `api.ts` with an explicit encoding too, so a substring search for
+    `encoding="utf-8"` anywhere in the source stays satisfied by those while the
+    `subprocess.run` that matters loses its own — which is the exact edit this
+    is here to refuse.
+    """
+    tree = ast.parse(GENERATOR.read_text(encoding="utf-8"))
+    runs = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "run"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "subprocess"
+    ]
+    assert runs, "scripts/gen_api_types.py no longer runs the generator as a subprocess"
+    for call in runs:
+        encodings = [kw.value for kw in call.keywords if kw.arg == "encoding"]
+        assert encodings and all(
+            isinstance(value, ast.Constant) and value.value == "utf-8" for value in encodings
+        ), (
+            "scripts/gen_api_types.py captures the generator without an explicit encoding: "
+            "on Windows its UTF-8 output is decoded as cp1252 and committed corrupted."
+        )
 
 
 def test_the_generated_api_types_are_not_mojibake() -> None:

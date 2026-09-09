@@ -302,6 +302,48 @@ def test_the_omi_figures_never_replace_the_listing_median():
     assert prop.omi_min_sqm_price == B12_SALE[0]
 
 
+def test_the_annotation_writes_the_omi_fields_and_nothing_else(db, tmp_path):
+    """The rule at its source, not only at the scorer.
+
+    `test_the_deal_score_is_untouched_by_omi_data` proves `_score_property`
+    ignores the band, which leaves the other direction open: the annotation runs
+    first and holds the same property object, so a line added here assigning
+    `sqm_price_delta_pct` (or a target price, or a label) would substitute one
+    measurement for the other before the scorer ever saw it, and every test
+    downstream would still pass. This pins the write set.
+    """
+    _imported(db, tmp_path)
+    prop = _property(db)
+    prop.sqm_price_delta_pct = -16.0
+    prop.area_median_scope = "zone"
+    prop.area_median_sqm_price = 9000.0
+    prop.deal_score = 71
+    prop.deal_label = "buon prezzo"
+    prop.target_price_low = 900_000.0
+    prop.target_price_high = 950_000.0
+    prop.expected_discount_pct = 7.0
+    before = {
+        f: getattr(prop, f)
+        for f in (
+            "sqm_price_delta_pct",
+            "area_median_scope",
+            "area_median_sqm_price",
+            "deal_score",
+            "deal_label",
+            "target_price_low",
+            "target_price_high",
+            "expected_discount_pct",
+            "current_min_price",
+            "sqm",
+        )
+    }
+
+    annotate_omi_benchmark(db, [prop])
+
+    assert (prop.omi_min_sqm_price, prop.omi_max_sqm_price) == B12_SALE
+    assert {f: getattr(prop, f) for f in before} == before
+
+
 def test_a_property_with_no_median_gets_no_score_even_with_omi_data():
     """OMI is not a fallback anchor: without comparables there is no score, and a
     band that quietly became one would be a different measurement wearing the

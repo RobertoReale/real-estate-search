@@ -55,7 +55,7 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1059 passed + 1 skipped** (1060 collected; the skip needs the optional
+Expected today: **1066 passed + 1 skipped** (1067 collected; the skip needs the optional
 Playwright), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
 **79 browser tests** (49 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
@@ -153,34 +153,45 @@ and at least one regression test. To audit an invariant:
    currently redundant.
 2. **True in code?** Open the code home (below) and confirm the guard is still there and
    still shaped the way the invariant describes.
-3. **Covered?** `grep` the tests for the invariant number or its keyword; a claim with no
-   test is a gap to report.
+3. **Covered?** Not by grep: invert the guard in the code home — the smallest edit that
+   makes the rule false — run the suite, and read the failing test off the output. The last
+   column below is that test, so this step is a re-run rather than a search. A rule whose
+   inversion leaves the suite green is not protected by anything; that is the finding, and
+   the fix is the missing test, not a note.
 
-| # | Topic | Primary code home | Test file |
+Restore the code home afterwards and re-run. An inverted guard left in the working tree is
+the one way this audit can do damage.
+
+The last column names the test that fails, not the file that holds it: a file passes as
+"covered" while the assertion inside it has drifted onto something else, which is how the
+gaps found in the first sweep of this section had gone unnoticed. Where two tests are
+named, the invariant has two halves that fail independently.
+
+| # | Topic | Primary code home | Test that fails when the guard is inverted |
 |---|---|---|---|
-| 1 | Conservative dedup (±5%, location proof) | `services/deduplicator.py` `_matches_property` | `test_deduplicator.py` |
-| 2 | Scrapers never use CSS classes | `scrapers/html_cards.py` `find_card_container` | `test_scrapers.py` |
-| 3 | First scan = zero notifications (`baseline_done`) | `services/scanner.py` `_record_scrape` | `test_scanner.py` |
-| 4 | Keywords on word boundaries | `services/filter_engine.py` | `test_filter_engine.py` |
-| 5 | `hidden`/`sold` are sacred (scan never reverts) | `services/scanner.py`, `routers/properties.py` DELETE route | `test_scanner.py`, `test_dashboard_management.py` |
-| 6 | `price_changed` = minimum-price change | `services/deduplicator.py` `_refresh_min_price` | `test_deduplicator.py` |
-| 7 | Immobiliare API needs resolved geo params | `scrapers/immobiliare.py` | `test_scrapers.py` |
-| 8 | TLS impersonation list, Safari first, self-healing | `scrapers/transport.py` `resolve_impersonations` | `test_scrapers.py` |
-| 9 | Never merge across contracts | `services/deduplicator.py` `_find_matching_property` | `test_deduplicator.py` |
-| 10 | User-curated fields untouched by scans | `services/deduplicator.py`, `routers/properties.py` PATCH | `test_deduplicator.py` |
-| 11 | Health alert fires on a streak, once | `services/scanner.py` `_update_profile_health` | `test_scanner.py` |
-| 12 | *retired with the inbox import (see [`invariants.md`](invariants.md))* | — | — |
-| 13 | StaticFiles mount stays last in `main.py` | `main.py` (bottom: after every `include_router`) | `test_static_frontend.py` |
-| 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook); `routers/events.py` (outbound stream under `/api`, no inbound port) | `test_api_auth.py`, `test_telegram_actions.py`, `test_events.py` |
-| 15 | *retired as written; the sync-`def` + module-lock rule now binds the availability check* | `services/availability_check.py`, `routers/properties.py` | `test_availability_check.py` |
-| 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_availability_check.py`, `test_scrapers.py` |
-| 17 | Settings tests must not read real `settings.json` | `tests/conftest.py` | (all tests) |
-| 18 | Cookie harvester optional/opt-in/fail-open; engines | `services/cookie_harvester.py` `_launch`, `scrapers/probe.py` | `test_cookie_harvester.py`, `test_scrapers.py` |
-| 19 | `Property.source` upgrade-only ("email" now historical) | `services/deduplicator.py` | `test_dashboard_management.py` |
-| 20 | Delete-a-search removes only provably-its-own | `services/data_reset.py` `profile_results` | `test_data_reset.py` |
-| 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py`, `test_features.py` |
-| 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/routes/property/Benchmarks.tsx` | `test_omi_benchmark.py` |
-| 23 | A subprocess whose output is committed is decoded explicitly | `scripts/gen_api_types.py` `generate` | `test_generated_artifacts.py` |
+| 1 | Conservative dedup (±5%, location proof) | `services/deduplicator.py` `_matches_property` | `test_deduplicator.py::test_sqm_too_different_is_not_merged`, `::test_without_location_proof_is_not_merged` |
+| 2 | Scrapers never use CSS classes | `scrapers/html_cards.py` `find_card_container` | `test_scrapers.py::test_immobiliare_heuristic_ignores_footer` |
+| 3 | First scan = zero notifications (`baseline_done`) | `services/scanner.py` `_record_scrape` | `test_scanner.py::test_blocked_first_attempt_does_not_consume_baseline`, `::test_the_first_scan_of_a_search_never_stops_early` |
+| 4 | Keywords on word boundaries | `services/filter_engine.py` | `test_filter_engine.py::test_asta_does_not_discard_words_containing_it` |
+| 5 | `hidden`/`sold` are sacred (scan never reverts) | `services/scanner.py`, `routers/properties.py` DELETE route | `test_scanner.py::test_a_hidden_property_that_changes_price_stays_silent`, `test_routes.py::test_hide_then_restore_round_trip` |
+| 6 | `price_changed` = minimum-price change | `services/deduplicator.py` `_refresh_min_price` | `test_deduplicator.py::test_variation_on_non_minimum_listing_does_not_signal_price_change` |
+| 7 | Immobiliare API needs resolved geo params | `scrapers/immobiliare.py` | `test_scrapers.py::test_immobiliare_builds_api_params_from_url`, `::test_an_unresolvable_location_never_becomes_a_nationwide_search` |
+| 8 | TLS impersonation list, Safari first, self-healing | `scrapers/transport.py` `resolve_impersonations` | `test_scrapers.py::test_resolve_impersonations_never_returns_empty`, `::test_default_settings_rotate_exactly_the_measured_profiles` |
+| 9 | Never merge across contracts | `services/deduplicator.py` `_find_matching_property` | `test_deduplicator.py::test_a_rent_never_merges_into_the_sale_of_the_same_flat` |
+| 10 | User-curated fields untouched by scans | `services/deduplicator.py`, `routers/properties.py` PATCH | `test_deduplicator.py::test_a_rescan_never_touches_favorite_and_notes`, `test_idealista_api.py::test_a_rent_placeholder_price_is_rejected_like_everywhere_else` |
+| 11 | Health alert fires on a streak, once | `services/scanner.py` `_update_profile_health` | `test_scanner.py::test_the_portal_answering_none_is_an_answer_and_clears_the_streak`, `::test_ongoing_outage_does_not_re_alert_every_scan` |
+| 12 | *retired with the inbox import (see [`invariants.md`](invariants.md))* | migration `0002_drop_imports`, which took the table the rule guarded | `test_migrations.py::test_fresh_db_is_stamped_at_baseline_then_upgraded` (asserts no `imported_listings` survives) |
+| 13 | StaticFiles mount stays last in `main.py` | `main.py` (bottom: after every `include_router`) | `test_static_frontend.py::test_static_mount_never_shadows_the_api` |
+| 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook); `routers/events.py` (outbound stream under `/api`, no inbound port) | `test_api_auth.py::test_a_page_on_another_site_cannot_reset_the_database`, `::test_wrong_token_is_rejected`, `::test_nothing_that_changes_state_lives_outside_api`, `test_events.py::test_the_stream_is_an_api_route_and_a_get` |
+| 15 | *retired as written; the sync-`def` + module-lock rule now binds the availability check* | `services/availability_check.py`, `routers/properties.py` | `test_availability_check.py::test_the_check_endpoints_stay_sync_defs_on_the_threadpool`, `::test_a_second_concurrent_run_is_refused_with_a_readable_error` |
+| 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_scrapers.py::test_a_block_never_means_the_ad_is_gone`, `test_availability_check.py::test_the_probe_budget_caps_live_fetches_not_the_selection` |
+| 17 | Settings tests must not read real `settings.json` | `tests/conftest.py` | `test_config.py::test_the_suite_never_points_at_the_real_settings_file` |
+| 18 | Cookie harvester optional/opt-in/fail-open; engines | `services/cookie_harvester.py` `_launch`, `scrapers/probe.py` | `test_cookie_harvester.py::test_maybe_auto_refresh_is_noop_when_disabled`, `::test_auto_refresh_that_raises_does_not_reach_the_scan` |
+| 19 | `Property.source` upgrade-only ("email" now historical) | `services/deduplicator.py` | `test_dashboard_management.py::test_email_origin_upgraded_to_scan_when_a_scan_refinds_it` |
+| 20 | Delete-a-search removes only provably-its-own | `services/data_reset.py` `profile_results` | `test_data_reset.py::test_profile_results_spares_shared_and_curated`, `::test_a_shared_property_is_not_shared_when_both_finders_are_deleted` |
+| 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py::test_a_muted_search_scans_but_never_notifies`, `test_features.py::test_profile_channels_tells_muted_apart_from_unspecified` |
+| 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/routes/property/Benchmarks.tsx` | `test_omi_benchmark.py::test_the_annotation_writes_the_omi_fields_and_nothing_else`, `marketPosition.test.ts` "never reads the OMI band (invariant 22)" |
+| 23 | A subprocess whose output is committed is decoded explicitly | `scripts/gen_api_types.py` `generate` | `test_generated_artifacts.py::test_the_type_generator_decodes_its_subprocess_explicitly` |
 
 ---
 

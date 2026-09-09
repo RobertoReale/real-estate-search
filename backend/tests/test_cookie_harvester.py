@@ -52,10 +52,21 @@ def test_cookie_is_stale_reattaches_utc_to_naive_timestamp():
     assert ch.cookie_is_stale(naive_recent, 50, now) is False
 
 
-def test_maybe_auto_refresh_is_noop_when_disabled():
+def test_maybe_auto_refresh_is_noop_when_disabled(monkeypatch):
     # opt-in: a scan must never launch a browser the user did not enable, even
-    # if Playwright happens to be installed
+    # if Playwright happens to be installed — which is what the two monkeypatches
+    # stand in for. Without them the assertion passed on any machine WITHOUT
+    # Playwright whatever the flag said, so dropping the flag from the guard
+    # broke nothing here.
+    launched = {"n": 0}
+    monkeypatch.setattr(ch, "is_available", lambda: True)
+    monkeypatch.setattr(
+        ch,
+        "refresh_into_settings",
+        lambda **_: launched.__setitem__("n", launched["n"] + 1) or {"ok": True},
+    )
     assert ch.maybe_auto_refresh({"datadome_auto_refresh": False}) is False
+    assert launched["n"] == 0, "the browser was launched without the opt-in"
 
 
 def test_maybe_auto_refresh_skips_a_fresh_cookie(monkeypatch):
@@ -112,6 +123,24 @@ def test_refresh_waits_longer_for_a_human_than_for_headless(monkeypatch):
     assert seen[True] == ch.HEADLESS_TIMEOUT_SECONDS
     assert seen[False] == ch.HEADFUL_TIMEOUT_SECONDS
     assert seen[False] > seen[True]
+
+
+def test_auto_refresh_that_raises_does_not_reach_the_scan(monkeypatch):
+    """Fail-open, at the seam the scan actually calls.
+
+    `harvest()` catches its own failures, but the pre-scan entry point drives a
+    browser launch, a navigation and a settings write on top of it — a timeout
+    or a Chromium that will not start there would otherwise come out as an
+    exception in `run_scan`, and a scan is not allowed to fail because an
+    optional convenience did.
+    """
+
+    def boom(**_):
+        raise RuntimeError("browser would not start")
+
+    monkeypatch.setattr(ch, "is_available", lambda: True)
+    monkeypatch.setattr(ch, "refresh_into_settings", boom)
+    assert ch.maybe_auto_refresh({"datadome_auto_refresh": True}) is False
 
 
 def test_harvest_fails_open_when_playwright_absent(monkeypatch):

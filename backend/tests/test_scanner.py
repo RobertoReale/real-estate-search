@@ -416,6 +416,57 @@ def test_sold_property_is_not_reactivated(db, monkeypatch):
     assert notified == []
 
 
+def test_a_hidden_property_that_changes_price_stays_silent(db, monkeypatch):
+    """The other half of invariant 5: hidden is silent, not merely un-reactivated.
+
+    "hidden" is absent from the reactivation branch as well, so taking it out of
+    the skip above leaves the status alone and every status assertion in this
+    file keeps passing — what changes is that the scan resumes counting the
+    property and sending for it. A price cut on a hidden ad is the case that
+    shows it: the row is still updated (the upsert runs before the branch) but
+    nothing is counted and nothing goes out."""
+
+    class _Cheaper(_FakeScraper):
+        def scrape(self, url, known=None):
+            result = super().scrape(url, known)
+            result.listings[0].price = 250_000.0
+            return result
+
+    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
+    db.add(profile)
+    db.commit()
+
+    _run_profile(db, monkeypatch, profile)  # baseline: creates 2 properties
+    prop = db.query(Property).join(Listing).filter(Listing.portal_id == "1").one()
+    prop.status = "hidden"
+    db.commit()
+
+    sent, drops = [], []
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: _Cheaper())
+    monkeypatch.setattr(
+        scanner.notifier, "notify_new_property", lambda p, channels=None: sent.append(p) or True
+    )
+    monkeypatch.setattr(
+        scanner.notifier,
+        "notify_price_drop",
+        lambda p, o, n, channels=None: drops.append(p) or True,
+    )
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    summary = _summary()
+    scanner._scan_profile(db, profile, {"excluded_keywords": []}, summary)
+    db.commit()
+    db.refresh(prop)
+
+    assert prop.current_min_price == 250_000.0, (
+        "the row is still updated: the upsert runs before the branch"
+    )
+    assert prop.status == "hidden"
+    assert drops == [], "a hidden property must not notify a price change"
+    assert sent == []
+    assert summary["price_changes"] == 0
+    assert summary["updated"] == 1, "only the visible property is counted"
+
+
 # --- scraper health alerting -----------------------------------------------
 
 

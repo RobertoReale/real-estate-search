@@ -116,6 +116,32 @@ def test_without_location_proof_is_not_merged(db):
     assert is_new is True
 
 
+def test_a_rent_never_merges_into_the_sale_of_the_same_flat(db):
+    """Invariant 9: the contract is part of the identity, not a field to copy.
+
+    The same physical flat is routinely on the portal twice, for sale and to
+    rent, with the same surface, the same rooms, the same floor and the same
+    street number — every proof the matcher asks for. Only the price normally
+    tells them apart, and price is exactly what goes wrong: a yearly rent, or a
+    rent-to-own ad quoting the whole price, lands inside the ±5% band and the
+    two become one record whose price history alternates between two markets.
+    The candidate query answers this before the matcher ever runs.
+    """
+    sale, _, _ = upsert_listing(db, _raw())
+    rent, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            contract="rent",
+            price=300_000.0,  # a yearly quotation, right on top of the sale price
+        ),
+    )
+    assert is_new is True, "a rent must not be absorbed into the sale of the same flat"
+    assert rent.id != sale.id
+    assert (sale.contract, rent.contract) == ("sale", "rent")
+
+
 def test_address_without_civic_is_not_enough(db):
     upsert_listing(db, _raw(address="Via Ornato", latitude=None, longitude=None))
     _, is_new, _ = upsert_listing(

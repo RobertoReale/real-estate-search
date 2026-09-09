@@ -193,3 +193,47 @@ def test_the_spa_itself_is_not_guarded():
     """The static mount is not /api and serves no state change; the guard has no
     business there (invariant 13 keeps it last, and this keeps it open)."""
     assert _origin("/index.html", "https://evil.example") == "PASSED_THROUGH"
+
+
+# The catch-all mount and the three routes FastAPI adds for its own docs, all of
+# them GET and none of them changing anything. `""` is how Starlette spells a
+# mount at "/".
+_UNGUARDED_BY_DESIGN = {"", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+
+
+def _routes():
+    """Every route the app will match, descending into the included routers."""
+    for route in main.app.router.routes:
+        included = getattr(route, "original_router", None)
+        yield from (included.routes if included is not None else [route])
+
+
+def test_nothing_that_changes_state_lives_outside_api():
+    """What holds both guards up: `/api/` is the whole attack surface.
+
+    Neither middleware inspects anything else — they test the prefix and hand
+    the request straight on — so the rules above are only as true as the layout
+    that puts every route behind it. A webhook receiver or a one-off form
+    handler mounted at, say, `POST /import` would be reachable from any page on
+    the internet and would need no token, and every assertion in this file would
+    still pass. This is that assumption, asserted: outside `/api` only the SPA
+    mount and FastAPI's own docs may exist, and none of them is a write."""
+    strays = [
+        (path, sorted(getattr(route, "methods", None) or []))
+        for route in _routes()
+        for path in [getattr(route, "path", "")]
+        if not path.startswith("/api") and path not in _UNGUARDED_BY_DESIGN
+    ]
+    assert not strays, (
+        f"route(s) outside /api: {strays}. Both guards in main.py key on the /api prefix, "
+        "so a route registered anywhere else bypasses the cross-site check and the token. "
+        "Give it an /api path, or widen the guards and this test together."
+    )
+
+    writes = []
+    for route in _routes():
+        path = getattr(route, "path", "")
+        methods = set(getattr(route, "methods", None) or [])
+        if path in _UNGUARDED_BY_DESIGN and methods - {"GET", "HEAD", "OPTIONS"}:
+            writes.append((path, sorted(methods)))
+    assert not writes, f"an unguarded path answers a state-changing method: {writes}"
