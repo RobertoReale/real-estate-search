@@ -70,7 +70,19 @@ def _fingerprint_hash(db) -> str:
 
 def _full_digest(db) -> str:
     """Everything a property carries, timestamps included — only equal across
-    two runs when `now` was pinned as well as the seed."""
+    two runs when `now` was pinned as well as the seed.
+
+    `expire_all` first, so this reads what SQLite holds rather than whatever is
+    still in the session's identity map. That map is weak, and the difference is
+    not cosmetic: a datetime written as tz-aware comes back naive, so an object
+    the collector happened to reach hashes differently from an identical one it
+    did not. Seeding the second corpus is enough allocation to collect the
+    first, which made this comparison a coin toss decided by the garbage
+    collector — green on Python 3.14 here, red on the runners' 3.12 for every
+    push between 2026-09-09's first two merges. The corpus was identical
+    throughout; only the reading of it was not.
+    """
+    db.expire_all()
     rows = db.scalars(select(Property).order_by(Property.id)).all()
     parts = []
     for p in rows:

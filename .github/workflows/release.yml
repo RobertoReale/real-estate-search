@@ -38,10 +38,15 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          # Same major as CI and as the machine that writes package-lock.json:
-          # npm 10 and npm 11 disagree about what a valid lock is, and `npm ci`
-          # rejects the other one's on a checkout that is otherwise fine.
-          node-version: "24"
+          # The exact version ci.yml pins, not the major. A floating "24" is
+          # what broke `npm ci` across five CI jobs for weeks: the major
+          # resolved to a newer npm than the machine that writes
+          # package-lock.json, and the two disagree about what a valid lock is.
+          # ci.yml was pinned then and this file was not, which left the one
+          # workflow that runs when a tag is pushed — where a failure is a
+          # half-published release — free to pick up a toolchain no gate has
+          # ever seen. Raise it here and in ci.yml together.
+          node-version: "24.20.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

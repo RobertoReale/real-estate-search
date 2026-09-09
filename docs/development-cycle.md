@@ -150,8 +150,8 @@ and all three must match a real `pytest -q` run rather than each other.
 
 A release is a tag. Everything else is automatic.
 
-1. **`master` is green** — the seven gates locally, CI green on both operating systems for
-   the commit being tagged.
+1. **`master` is green** — every gate in [`audit.md` §0](audit.md) locally, CI green on both
+   operating systems for the commit being tagged.
 2. **The two version numbers are in step**: `backend/pyproject.toml` and
    `frontend/package.json`. The halves ship as one artifact, so two different numbers are
    only ever a question nobody can answer.
@@ -179,14 +179,17 @@ Two deliberate omissions, both worth knowing before "improving" the workflow:
 
 `workflow_dispatch` runs the same workflow against a branch: it builds and smoke-tests the
 package and builds the image without pushing it, so the packaging can be exercised without
-minting a version number to throw away.
+minting a version number to throw away. Doing that before the tag is not optional —
+[`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) is where it sits
+in the release checklist, because these two jobs are the only ones a tag starts that CI has
+never run.
 
 ---
 
 ## 6. What a finished unit looks like
 
-- All seven gates green, `ruff format --check` and the browser suite included, run before
-  the commit.
+- Every gate in [`audit.md` §0](audit.md) green, `ruff format --check` and the browser suite
+  included, run before the commit.
 - New behaviour that can be wrong has a test, and an invariant if breaking it would be
   silent.
 - Every document the change made untrue is fixed in the same commit.

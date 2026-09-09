@@ -272,14 +272,18 @@ treated as a notice — take the versions, regenerate the lock by the commands
 where that is caught: check `gh pr list --state open` before tagging, so a release is never
 cut over an unanswered question.
 
-### The release workflow's action pins do not run until a tag
+### One release-workflow action pin does not run until a tag
 
 `release.yml` triggers on `push: tags: ["v*"]` and `workflow_dispatch` alone. Six of the
 seven pins bumped on 2026-09-09 live only there — `softprops/action-gh-release` and the
 five `docker/*` actions — so no push to a branch exercises them, and the first thing that
-does is the release they are needed for. A `workflow_dispatch` on a branch would cover the
-five docker ones safely, because both the image push and the release creation are gated on
-`github.ref_type == 'tag'`; `action-gh-release` cannot be exercised without cutting a real
-release. This is recorded rather than fixed because the cost of the failure is one red
-release run and one re-tag, and the alternative — a second workflow that exists only to
-prove the first one's pins resolve — is more machinery than the risk is worth.
+does is the release they are needed for. The five docker ones are covered by a
+`workflow_dispatch` on a branch, which is safe because both the image push and the release
+creation are gated on `github.ref_type == 'tag'`, and since 2026-09-09 that dispatch is part
+of cutting a release rather than something available in principle —
+[`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) owns the step.
+What is left standing is `action-gh-release`, which cannot be
+exercised without cutting a real release. That one is recorded rather than fixed because the
+cost of the failure is one red release run and one re-tag, and the alternative — a second
+workflow that exists only to prove a single action's pin resolves — is more machinery than
+the risk is worth.

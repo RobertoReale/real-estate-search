@@ -323,14 +323,23 @@ is why it is here and last.
 
 **Do.** Immediately before tagging: `gh pr list` and `gh run list --limit 5`. Check the two
 version numbers are in step — `backend/pyproject.toml` and `frontend/package.json` — as
-[`development-cycle.md` §5](development-cycle.md#5-releasing) requires.
+[`development-cycle.md` §5](development-cycle.md#5-releasing) requires. Then start the
+release workflow by hand against the commit about to be tagged —
+`gh workflow run release.yml --ref master` — and read it to the end. It publishes nothing
+off a branch: the image push and the release creation are both gated on the ref being a tag,
+so what a dispatch proves is the expensive half, that the package still freezes, starts and
+answers, and that both images still build.
 
 **Pass.** Nothing open that should have been merged, CI green on both operating systems for
-the exact commit being tagged, and the two version numbers identical.
+the exact commit being tagged, the two version numbers identical, and the dispatched release
+run green in both its jobs.
 
-**Fail means.** Blocks, and cheaply: merge or close the queue, or wait for the run. A tag
-re-runs no gates — it points at a commit CI has already judged — so a red pipeline at the
-tag ships a build nothing verified.
+**Fail means.** Blocks, and for the first two cheaply: merge or close the queue, or wait for
+the run. A tag re-runs no gates — it points at a commit CI has already judged — so a red
+pipeline at the tag ships a build nothing verified. A red release dispatch is the same
+argument one workflow later, and the one worth the extra ten minutes: on the tag those same
+jobs run with a public release attached to their outcome, and the repair is a half-published
+version to withdraw rather than a branch to fix.
 
 ---
 
