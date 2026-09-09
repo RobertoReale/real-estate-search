@@ -1,9 +1,15 @@
 # Invariants Not to Break
 
-Twenty-three rules, each with a history: a regression that actually happened on a real
-portal or in a real database — or, for 22 and 23, the shipped defect the rule exists to
+Twenty-nine rules, each with a history: a regression that actually happened on a real
+portal or in a real database — or, for 22 to 29, the shipped defect the rule exists to
 stop coming back in a new shape. They are not style preferences — a change that breaks one
 of these breaks something a user will notice, usually silently.
+
+The last six share one shape and it is worth naming, because it is what earned them a
+place here rather than a comment: each is a case where the app knows its answer is
+approximate, partial or incomplete, and the tempting simplification is to stop saying so.
+Every one of them reads better with the rule broken, and every one of them is then wrong
+in a way the user has no means of detecting.
 
 Two of them (12 and 15) have been retired with the feature they protected. Their numbers
 are **kept rather than renumbered**, because comments, tests and the audit checklist cite
@@ -509,3 +515,100 @@ each invariant to its code home and its test file. See also
     `test_generated_artifacts.py` — that the generator names an explicit encoding, and that
     the committed `api.ts` carries no mojibake — because the second is what a reader would
     have noticed and the first is what stops it recurring.
+
+24. **A zone centroid is never handed over as an address.** A listing whose portal
+    publishes neither coordinates nor a street still gets a pin — the geocoder falls back
+    to the district — and that pin is somewhere nobody lives. `Property.coordinate_source`
+    records which of the two it was (`geocoder.SOURCE_ADDRESS` / `SOURCE_ZONE`) at the
+    moment the pin is written, because after the fact a latitude and longitude look
+    identical whatever produced them. Everything downstream reads it through
+    `geocoder.is_approximate` rather than comparing the string: an *unknown* source — every
+    row in a database upgraded from before the column existed — is **not** approximate, or
+    the first run after the upgrade would put a warning over a whole map of pins that are
+    very probably exact. The user meets the rule twice on the map, in the pin's own popup
+    and as the count in the legend (`map.zoneCentroid` in [`limits.md`](limits.md)), and the
+    scan reports `located` and `located_approximate` as two numbers rather than one. What
+    the rule forbids is the shortcut of treating a placed pin as a located property: a
+    district centre used for a distance, a commute or a radius filter answers a question
+    about the district and presents it as an answer about the flat. Tests:
+    `test_geocoder.py::test_a_pin_records_where_it_came_from` and
+    `::test_an_unknown_source_is_not_called_approximate`.
+
+25. **A listing that came back from outside the area asked for is reported, never
+    dropped.** Portals answer a zone-narrowed search with strays — a zone matched by name
+    rather than by id, a drawn polygon the portal has no field for — and the tidy-looking
+    fix is to filter them out on the way in. That silently converts "the portal did not
+    honour your zone" into "there is nothing there", which is the one conclusion the user
+    would draw for themselves and act on. So `scanner._outside_requested_area` counts them
+    into `summary["outside_area"]` and the per-search `ScanJournalEntryOut.outside_area`,
+    the listing is saved like any other, and both ends are stated: the journal row says how
+    many, the card says which (`scan.outsideArea`, `card.outsideArea`). The same rule holds
+    for a search whose area was *drawn* rather than named, which is where the temptation is
+    strongest because the polygon is exact and the portal's answer plainly is not. Tests:
+    `test_scanner.py::test_an_out_of_area_listing_is_kept_not_dropped`,
+    `::test_an_out_of_area_listing_from_a_drawn_search_is_kept_too` and
+    `::test_the_profile_line_says_how_many_came_from_outside`.
+
+26. **Determinate progress is drawn only against a total the portal actually stated.**
+    `ScanProgressOut.total_pages` is `null` more often than not — Immobiliare declares a
+    page count, Idealista frequently does not — and a progress bar needs a denominator, so
+    the available shortcuts are to invent one (the page cap, the pages seen so far) or to
+    draw a bar that fills and then keeps going. Both produce a bar that is wrong in the
+    direction users trust: it says the scan is nearly done. `pageProportion`
+    (`frontend/src/routes/activity/progress.ts`) is the single place that decision is made
+    and it returns `null` where there is no declared total, which the screen renders as an
+    indeterminate state and a page counter rather than as a fraction; where there *is* a
+    total the done value is clamped to it, since a portal that under-declares must not
+    produce "page 31 of 30". The rule is one function and not markup precisely so it is
+    testable: `frontend/src/routes/activity/progress.test.ts` — "refuses a fraction where
+    the portal declared no total" and "never runs past the total the portal stated".
+
+27. **A stored secret is never overwritten by its own mask.** `GET /api/settings` returns
+    every secret as `"***"` (`config.SECRET_SETTINGS`; the Telegram token as a truncated
+    prefix), and the settings form writes the whole object back — so an untouched
+    credential arrives at the server as the mask it was shown, and saving a scan interval
+    would blank a working API key with no error and no way to notice until the next scan
+    failed. `routers/settings.py` therefore treats the mask as "keep the stored one" and
+    pops the field before saving, unmasking exactly the fields the read side masked. The
+    two lists are hand-written and must keep agreeing, which is why the regression test is
+    driven off `SECRET_SETTINGS` itself rather than off a copy of it: an eighth secret
+    added to the read side alone breaks nothing visible and destroys a credential on the
+    next unrelated save. The setup wizard reaches the same rule from the other side —
+    `payloadFor` in `frontend/src/routes/setup/groups.ts` omits an untouched secret rather
+    than posting it back — because five sequential saves must be a patch and not five
+    replacements. Tests: `test_features.py::test_no_stored_secret_is_overwritten_by_its_own_mask`
+    and `test_routes.py::test_a_saved_secret_survives_a_later_save_that_masks_it_back`.
+
+28. **A quick scan never makes a completeness claim.** With `stop_when_nothing_new` on —
+    the default, and a real saving: a routine scan drops from ten page-fetches to two — a
+    search stops at the first page holding nothing it had not already seen. The pages it
+    never reached can hold a price change, and nothing in the run can say they do not. So
+    the kind of reading is recorded and reported rather than inferred: `mode` is `full` or
+    `quick` on every journal row, `_quick_scan_note` says so in the detail line, and
+    `stopped_because` names the early stop as the reason. The shortcut is bounded rather
+    than trusted — `_sweeps_to_the_cap` forces a full sweep on a search's first scan and
+    once every `full_sweep_every_days`, counted from a `last_full_sweep_at` that only a
+    sweep which *got through* may stamp — and that bound is what entitles the `gone`
+    marking to read absence as withdrawal at all (see
+    [Property Lifecycle](architecture.md#property-lifecycle-status)). Turning the shortcut
+    off must change speed and nothing else: it is a setting about how many requests to
+    spend, never about what the scan is allowed to conclude. Tests:
+    `test_scanner.py::test_a_quick_scan_says_it_was_one_rather_than_reading_as_complete`
+    and `::test_stopping_early_is_a_speed_setting_and_never_a_behaviour_one`.
+
+29. **A segmented search is complete only if its partition was proved total.** A search
+    that overflows `max_pages_per_search` is re-run as several narrower ones — one per zone
+    id where the selection allows it, price bands otherwise — and their results merged,
+    which is the only way past a cap the portal imposes. The merge is where a gap becomes
+    invisible: a band boundary off by one euro drops every listing at that price, and the
+    result still arrives as one tidy list with a plausible count. So the partition is
+    checked rather than assumed. `search_builder.price_bands`
+    produces bands that meet without overlapping, `bands_are_total` asserts they cover
+    `[low, high]` exactly, and `scanner._parts_cover_the_whole` refuses to call the run
+    complete unless the parts account for the whole; a search that cannot be partitioned
+    within `MAX_SEARCH_PARTS` (8) reports as truncated (`scan.pageCap`) instead of quietly
+    reporting a subset. The rule to hold when adding a segmentation axis — rooms, surface,
+    anything — is that the axis has to come with its own totality proof, because "these
+    ranges look like they cover it" is exactly the reasoning that fails at a boundary.
+    Tests: `test_search_builder.py::test_price_bands_leave_no_gap_and_no_overlap` and
+    `test_scanner.py::test_a_partition_that_does_not_add_up_is_never_reported_as_complete`.

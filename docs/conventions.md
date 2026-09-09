@@ -433,7 +433,8 @@ Write a fact once, in the file that owns it:
 
 The rest of `docs/` is user-facing: [`using-the-app.md`](using-the-app.md),
 [`features.md`](features.md), [`notifications.md`](notifications.md),
-[`datadome.md`](datadome.md), [`availability-check.md`](availability-check.md),
+[`scan-returns-nothing.md`](scan-returns-nothing.md),
+[`availability-check.md`](availability-check.md),
 [`remote-access.md`](remote-access.md).
 
 Specifically:
