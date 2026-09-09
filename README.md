@@ -227,7 +227,7 @@ for what the portals actually fingerprint.
 
 ### Documentation for contributors
 
-If you are changing the code rather than using the app, seven documents carry
+If you are changing the code rather than using the app, eight documents carry
 everything that is not obvious from reading it:
 
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
@@ -244,6 +244,10 @@ everything that is not obvious from reading it:
   an invariant, and how a release is cut from a tag.
 * **[Audit playbook](docs/audit.md)** — the repeatable full-project health check:
   the green baseline, the module review order, the invariant→test cross-check.
+* **[What only a person can test](docs/manual-tests.md)** — the nine checks no gate
+  can reach, in the order to run them before a release: the real portals, the
+  credentials, the package on a clean machine, the phone. Each states the reason
+  automation cannot cover it and ends in pass or fail.
 * **[Roadmap](docs/roadmap.md)** — what is known and not done, with the blocker
   stated as plainly as the ambition: every limit still standing and what lifting
   it would cost, the findings a review deliberately did not act on, and what
@@ -278,6 +282,14 @@ cd frontend
 npm run e2e:browser   # once: fetches Chromium
 npm run e2e
 ```
+
+None of it touches a real estate portal, which is what makes it dependable and also
+what it cannot tell you: a green suite means the logic is correct, not that the
+portals still parse. The checks that need a person — a real scan from a real
+connection, the credentials actually used, the package started on a PC that has
+never had the toolchain, the phone over Tailscale — are listed in
+[What only a person can test](docs/manual-tests.md), with the right answer written
+down for each. Run them before tagging a release.
 
 ### Dependency locking
 

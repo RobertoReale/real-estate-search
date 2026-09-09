@@ -253,7 +253,10 @@ audit them on purpose.
   card", check all three, not just invariant 20's.
 - **Live scraping cannot be tested offline** (DataDome). The suite simulates the portal
   HTML; the real fetch is only ever verified by hand with `AdProbe`. Treat a green suite as
-  "logic is correct", not "the portal still parses".
+  "logic is correct", not "the portal still parses". Everything that follows from that
+  sentence — which checks a person has to run, in what order, and what the right answer
+  looks like — is [`manual-tests.md`](manual-tests.md), and it is what the owner reads
+  before deciding a release is good.
 - **Portal filter tokens rot when the portals change their UI.** Every token in
   `search_builder.py` was measured against a portal result total, never inferred. Re-measure
   with a known-good control before trusting a sweep (see the token rows in
@@ -295,6 +298,12 @@ enforces it:
 
 Record anything that failed these as a fix in the same session, with a test when it is a
 code fix.
+
+A clean audit is still not a good release. It says the code is right about everything the
+machine can judge; it says nothing about whether the portals still parse, the credentials
+still work, or the package starts on a PC that has never had the toolchain. Before a tag,
+run [`manual-tests.md`](manual-tests.md) as well — nine checks, each with the structural
+reason no gate can reach it, and each ending in pass or fail rather than an impression.
 
 ---
 
