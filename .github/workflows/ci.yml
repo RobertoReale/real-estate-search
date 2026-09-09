@@ -262,7 +262,7 @@ jobs:
       # test.
       - name: Keep the report
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: frontend/playwright-report/
@@ -320,7 +320,7 @@ jobs:
       # number in the log cannot explain by itself.
       - name: Keep the report
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-visual-report
           path: frontend/playwright-report/
@@ -393,7 +393,7 @@ jobs:
       # over and by how much — the assertion output only says that one did.
       - name: Keep the report
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-report
           path: frontend/.lighthouse/
