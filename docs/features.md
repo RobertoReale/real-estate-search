@@ -147,8 +147,11 @@
   the routing server — which also means a newly-found listing shows no commute
   until you press the button again (it tells you how many are left). And by
   default the routing goes to OpenStreetMap's free demo server, which only knows
-  the **road** network: "on foot" and "bike" are routed there as if driving, so
-  set your own OSRM server in the same panel if you need true walking times.
+  the **road** network: "on foot" and "bike" are routed there as if driving, and
+  the card says so. The same panel has a walking router and a cycling router
+  field for that — leave them blank and nothing changes, or point one at a host
+  that serves that graph (`https://routing.openstreetmap.de/routed-foot`, or your
+  own OSRM) and that mode alone is measured properly, badge gone.
 * **Price trends**: a chart of how the median €/sqm has moved over time in each
   area you track. The app records one median per area per day, so the line starts
   after a couple of days of scans and grows more useful the longer it runs. It

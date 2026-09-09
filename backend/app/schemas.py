@@ -118,8 +118,9 @@ class CommuteOut(ApiOut):
     duration_s: float
     # True when this walk or ride was measured on the driving network, which is
     # what the public OSRM demo answers with for every profile it is asked for.
-    # The badge says so beside the time; a self-hosted router built with the
-    # foot profile clears it (`commute.is_car_routing`).
+    # The badge says so beside the time; pointing this mode at a router with a
+    # real pedestrian or cycling graph (`osrm_url_foot`, `osrm_url_bike`) clears
+    # it, per mode (`commute.is_car_routing`).
     car_routing: bool = False
 
 
@@ -414,10 +415,11 @@ class ScraperStatusOut(ApiOut):
     data_version: str = ""
     progress: ScanProgressOut = ScanProgressOut()
     # How long a listing has to go unseen by a clean full scan before it is
-    # marked gone (`scanner.GONE_AFTER_DAYS`). Not a setting — it is a constant
-    # of the scanner — but the card that shows the "no longer available" badge
-    # has to be able to say how long that took, and it must read the number
-    # rather than repeat it.
+    # marked gone: the `gone_after_days` setting, defaulting to
+    # `scanner.GONE_AFTER_DAYS`. The card that shows the "no longer available"
+    # badge has to be able to say how long that took, and it must read the
+    # number from here rather than repeat it — which is also what makes the
+    # badge follow the setting the moment it changes.
     gone_after_days: int = 0
 
 
@@ -580,6 +582,8 @@ class SettingsIn(BaseModel):
     stop_when_nothing_new: bool | None = None
     full_sweep_every_days: int | None = None
     health_alert_after_failures: int | None = None
+    gone_after_days: int | None = None
+    max_notifications_per_scan: int | None = None
     proxy_url: str | None = None
     proxy_urls: list[str] | None = None
     scrape_api_provider: str | None = None
@@ -593,6 +597,8 @@ class SettingsIn(BaseModel):
     commute_enabled: bool | None = None
     commute_points: list[dict] | None = None
     osrm_url: str | None = None
+    osrm_url_foot: str | None = None
+    osrm_url_bike: str | None = None
     nl_parser_backend: str | None = None
     llm_base_url: str | None = None
     llm_api_key: str | None = None
@@ -615,6 +621,19 @@ class SettingsIn(BaseModel):
     def failures_not_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
             raise ValueError("must be >= 0 (0 disables health alerting)")
+        return v
+
+    @field_validator("gone_after_days", "max_notifications_per_scan")
+    @classmethod
+    def at_least_one(cls, v: int | None) -> int | None:
+        # Zero days would mark a listing gone the moment one scan misses it,
+        # which is the failure the day-based threshold exists to prevent; zero
+        # notifications would leave only the "… and N more" summary, which reads
+        # as a broken integration. The scanner floors both anyway — this is so a
+        # typed 0 is refused where the user can see it rather than silently
+        # corrected somewhere else.
+        if v is not None and v < 1:
+            raise ValueError("must be >= 1")
         return v
 
     @field_validator("idealista_api_max_pages")
@@ -1194,6 +1213,8 @@ class SettingsOut(ApiOut):
     commute_enabled: bool = False
     commute_points: list[CommutePointOut] = []
     osrm_url: str = ""
+    osrm_url_foot: str = ""
+    osrm_url_bike: str = ""
     nl_parser_backend: str = "deterministic"
     llm_base_url: str = ""
     llm_api_key: str = ""
@@ -1208,6 +1229,8 @@ class SettingsOut(ApiOut):
     stop_when_nothing_new: bool = True
     full_sweep_every_days: int = 7
     health_alert_after_failures: int = 3
+    gone_after_days: int = 7
+    max_notifications_per_scan: int = 15
     proxy_url: str = ""
     proxy_urls: list[str] = []
     scrape_api_provider: str = "scrapfly"

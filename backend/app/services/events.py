@@ -153,7 +153,7 @@ def collect_snapshot() -> dict[str, Any]:
     from . import scheduler
     from .availability_check import get_prop_check_progress
     from .geocoder import get_geocode_progress
-    from .scanner import GONE_AFTER_DAYS, get_scan_progress, scan_state
+    from .scanner import get_scan_progress, gone_after_days, scan_state
 
     with SessionLocal() as db:
         data_version = properties_version(db)
@@ -165,7 +165,7 @@ def collect_snapshot() -> dict[str, Any]:
         paused=bool(load_settings().get("scanning_paused")),
         data_version=data_version,
         progress=schemas.ScanProgressOut(**get_scan_progress()),
-        gone_after_days=GONE_AFTER_DAYS,
+        gone_after_days=gone_after_days(),
     )
     return {
         "status": status.model_dump(mode="json"),

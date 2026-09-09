@@ -18,9 +18,9 @@ from ..database import get_db
 from ..services import scheduler
 from ..services.events import properties_version
 from ..services.scanner import (
-    GONE_AFTER_DAYS,
     get_scan_journal,
     get_scan_progress,
+    gone_after_days,
     run_scan,
     scan_state,
 )
@@ -89,13 +89,14 @@ def scraper_status(db: Session = Depends(get_db)):
     moment. The journal is the opposite case — it changes once per search, is
     read when somebody asks, and has its own route below.
     """
+    settings = load_settings()
     return {
         **scan_state,
         "next_auto_run": scheduler.next_run_time(),
-        "paused": bool(load_settings().get("scanning_paused")),
+        "paused": bool(settings.get("scanning_paused")),
         "data_version": properties_version(db),
         "progress": get_scan_progress(),
-        "gone_after_days": GONE_AFTER_DAYS,
+        "gone_after_days": gone_after_days(settings),
     }
 
 

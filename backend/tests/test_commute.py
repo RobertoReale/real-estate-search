@@ -165,6 +165,29 @@ def test_a_car_leg_is_never_flagged_wherever_it_was_routed(db):
     assert (prop.commutes or [])[0]["car_routing"] is False
 
 
+def test_a_mode_can_be_pointed_at_its_own_router(db):
+    """The whole reason the walk was a car's walk is that one URL had to serve
+    three profiles. A host with a pedestrian graph publishes it on its own base
+    path — FOSSGIS splits `routed-car` from `routed-foot` — so the foot setting
+    has to win for foot and change nothing else."""
+    settings = _settings([OFFICE], osrm_url_foot="https://routing.openstreetmap.de/routed-foot")
+    assert commute.base_url_for(settings, "foot") == "https://routing.openstreetmap.de/routed-foot"
+    assert commute.base_url_for(settings, "car") == commute.DEFAULT_OSRM_URL
+    assert commute.base_url_for(settings, "bike") == commute.DEFAULT_OSRM_URL
+    # and the badge follows the host that answered, per mode
+    assert commute.is_car_routing(settings, "foot") is False
+    assert commute.is_car_routing(settings, "bike") is True
+
+
+def test_a_blank_per_mode_url_changes_nothing(db):
+    """The default path must work with nothing added: an empty override is not a
+    host, it is the absence of one, and the app then behaves exactly as it did
+    before the setting existed."""
+    settings = _settings([OFFICE], osrm_url="http://nas.local:5000", osrm_url_foot="   ")
+    assert commute.base_url_for(settings, "foot") == "http://nas.local:5000"
+    assert commute.base_url_for({}, "foot") == commute.DEFAULT_OSRM_URL
+
+
 def test_an_unrouted_leg_is_simply_absent(db):
     prop = _prop()
     db.add(prop)
@@ -248,6 +271,32 @@ def test_two_places_on_one_mode_cost_a_single_request(db, monkeypatch):
     commute.compute_missing_commutes(db)
     # one per distinct mode, not one per place
     assert sorted(calls) == ["driving", "walking"]
+
+
+def test_each_mode_is_asked_of_its_own_host_at_no_extra_request(db, monkeypatch):
+    """Pointing foot at a pedestrian router must not cost a single call more
+    than one URL did: the matrix per mode is the same matrix, sent elsewhere."""
+    db.add(_prop())
+    db.commit()
+    save_settings(
+        _settings(
+            [OFFICE, {**OFFICE, "name": "Metro", "lat": 45.47, "lng": 9.18, "mode": "foot"}],
+            osrm_url="http://nas.local:5000",
+            osrm_url_foot="http://nas.local:5001",
+        )
+    )
+    calls = []
+
+    def fake(origin, dests, profile, base):
+        calls.append((profile, base))
+        return [(1.0, 2.0)] * len(dests)
+
+    monkeypatch.setattr(commute, "_osrm_table", fake)
+    commute.compute_missing_commutes(db)
+    assert sorted(calls) == [
+        ("driving", "http://nas.local:5000"),
+        ("walking", "http://nas.local:5001"),
+    ]
 
 
 def test_a_cached_leg_is_not_re_routed(db, monkeypatch):

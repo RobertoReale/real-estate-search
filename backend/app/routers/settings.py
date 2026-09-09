@@ -10,11 +10,13 @@ never "erase it".
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..config import DATA_DIR, load_settings, save_settings
-from ..services import notifier, scheduler
+from ..database import get_db
+from ..services import commute, notifier, scheduler
 
 router = APIRouter()
 
@@ -58,7 +60,8 @@ def get_settings():
 
 
 @router.put("/api/settings", response_model=schemas.SettingsOut)
-def update_settings(data: schemas.SettingsIn):
+def update_settings(data: schemas.SettingsIn, db: Session = Depends(get_db)):
+    before = load_settings()
     values = data.model_dump(exclude_none=True)
     # do not overwrite secrets with their masked versions
     if values.get("telegram_bot_token", "").endswith("..."):
@@ -78,6 +81,14 @@ def update_settings(data: schemas.SettingsIn):
     save_settings(values)
     if "scan_interval_minutes" in values:
         scheduler.reschedule(int(values["scan_interval_minutes"]))
+    # A routed leg is only meaningful against the host that answered it, and the
+    # cache key records the mode and the two pins but not the router. Pointing a
+    # mode at a graph that actually walks and then finding every badge unchanged
+    # — because the old car-routed answers are still cached — is the failure this
+    # avoids: the setting would look ignored. Only on an actual change, so an
+    # ordinary save never throws the batch's work away.
+    if any(values.get(k, before.get(k)) != before.get(k) for k in commute.URL_SETTINGS):
+        commute.clear_commute_cache(db)
     return get_settings()
 
 

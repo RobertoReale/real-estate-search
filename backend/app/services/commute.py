@@ -28,8 +28,18 @@ door rather than inventing a second way of doing the same thing:
 **The limitation worth stating**: the public demo server
 (`router.project-osrm.org`) is built on the driving network alone. It accepts
 the walking and cycling profiles and answers with car routing, so "on foot" is
-only truly on foot against a self-hosted OSRM. `osrm_url` is the setting that
-points there.
+only truly on foot against a router that has a pedestrian graph.
+
+That is why the base URL is **per travel mode** rather than one string. A host
+that serves a real foot or bike graph puts it on its own base path instead of
+behind OSRM's `/{profile}/` segment — the FOSSGIS instance splits the three
+across `routed-car`, `routed-foot` and `routed-bike`, and a self-hosted OSRM is
+built from one `.lua` profile per process — so a single URL can be correct for
+at most one of them. `osrm_url` is the base and the only one with a default;
+`osrm_url_foot` and `osrm_url_bike` override it for their mode and are blank
+out of the box, which is exactly today's behaviour. Fill one in and that mode's
+number stops being a car's route on foot's clock, and `is_car_routing` stops
+saying so on the badge.
 """
 
 import json
@@ -72,6 +82,19 @@ MODE_PROFILES = {
     "bike": "cycling",
 }
 DEFAULT_MODE = "car"
+
+# The setting that carries each mode's own base URL. `car` has none: `osrm_url`
+# *is* the car URL as well as the fallback for the other two, so adding
+# `osrm_url_car` would give the same value two homes and let them disagree.
+MODE_URL_SETTINGS = {
+    "foot": "osrm_url_foot",
+    "bike": "osrm_url_bike",
+}
+
+# Every setting that decides which router answers. `routers/settings.py` drops
+# the cached legs when one of these changes, since a cache row records the mode
+# and the two pins but not the host that produced it.
+URL_SETTINGS = ("osrm_url", *MODE_URL_SETTINGS.values())
 
 # Coordinates are keyed at 5 decimals (~1 m). Finer than that is noise from the
 # geocoder anyway, and it lets two listings in the same building share a row.
@@ -280,20 +303,38 @@ def _user_agent() -> str:
     return _get_user_agent()
 
 
+def base_url_for(settings: dict, mode: str) -> str:
+    """The routing host this mode's requests go to.
+
+    The mode's own setting when it has one, `osrm_url` otherwise, and the
+    public demo when that is blank too. One function so the batch that spends
+    the request and the badge that judges the answer can never pick different
+    hosts for the same leg.
+    """
+    own = MODE_URL_SETTINGS.get(mode)
+    if own:
+        url = str(settings.get(own) or "").strip()
+        if url:
+            return url
+    return str(settings.get("osrm_url") or DEFAULT_OSRM_URL).strip() or DEFAULT_OSRM_URL
+
+
 def is_car_routing(settings: dict, mode: str) -> bool:
     """Was this leg measured on the driving network rather than on its own?
 
     True only for the walking and cycling profiles against the public demo,
     which accepts them and answers with car routing anyway (see the module
-    header). A self-hosted OSRM built with the foot profile answers False, and
-    so does a car leg everywhere — a car measured on the road network is simply
-    correct. The card shows the difference; deciding it here is what stops the
-    client re-deriving a fact from a URL.
+    header). A router with a real pedestrian graph — the FOSSGIS `routed-foot`
+    host, or a self-hosted OSRM built with `foot.lua` — answers False, and so
+    does a car leg everywhere: a car measured on the road network is simply
+    correct. It asks `base_url_for` rather than reading `osrm_url`, so pointing
+    one mode elsewhere clears the warning on that mode alone. The card shows
+    the difference; deciding it here is what stops the client re-deriving a
+    fact from a URL.
     """
     if mode == "car":
         return False
-    url = (settings.get("osrm_url") or DEFAULT_OSRM_URL).strip()
-    return PUBLIC_OSRM_HOST in url
+    return PUBLIC_OSRM_HOST in base_url_for(settings, mode)
 
 
 def annotate_commutes(db: Session, props: list[Property], settings: dict) -> None:
@@ -362,7 +403,10 @@ def _compute_missing_commutes_inner(db: Session, max_calls: int | None = -1) -> 
     from ..config import load_settings
 
     settings = load_settings()
-    base_url = (settings.get("osrm_url") or DEFAULT_OSRM_URL).strip()
+    # Resolved once for the whole run: a mid-batch settings change would
+    # otherwise route half the properties against one host and half against
+    # another, and the cache row cannot tell which one answered.
+    base_urls = {mode: base_url_for(settings, mode) for mode in MODE_PROFILES}
     # allow_network here: this is the paced batch, and a saved place given as an
     # address has to become a coordinate once before anything can be routed to it.
     points = resolve_points(db, points_from_settings(settings), allow_network=True)
@@ -425,7 +469,7 @@ def _compute_missing_commutes_inner(db: Session, max_calls: int | None = -1) -> 
                 summary["remaining"] += 1
                 continue
 
-            spent = _route_property(db, prop.id, origin, missing, base_url, summary)
+            spent = _route_property(db, prop.id, origin, missing, base_urls, summary)
             budget -= spent
             db.commit()
             _commute_progress.update(
@@ -458,11 +502,15 @@ def _route_property(
     prop_id: int,
     origin: tuple[float, float],
     points: list[dict],
-    base_url: str,
+    base_urls: dict[str, str],
     summary: dict,
 ) -> int:
     """Route one property to its missing places, grouped by travel mode. Returns
-    how many network requests it spent, so the caller can bill the budget."""
+    how many network requests it spent, so the caller can bill the budget.
+
+    Grouping by mode was already how the request count stays at one per mode
+    rather than one per place; it is now also what lets each mode go to its own
+    host, at exactly the same number of requests as before."""
     spent = 0
     by_mode: dict[str, list[dict]] = {}
     for point in points:
@@ -472,7 +520,7 @@ def _route_property(
         destinations = [(p["lat"], p["lng"]) for p in group]
         spent += 1
         try:
-            results = _osrm_table(origin, destinations, MODE_PROFILES[mode], base_url)
+            results = _osrm_table(origin, destinations, MODE_PROFILES[mode], base_urls[mode])
         except Exception as e:
             # Transport failure: cache nothing, so the next run asks again.
             logger.warning("commute: routing failed for property #%s (%s)", prop_id, e)
