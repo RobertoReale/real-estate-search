@@ -24,10 +24,10 @@ rem from before the command ran. The keyword form is evaluated at run time.
 if not exist "backend\.venv\Scripts\python.exe" (
     call :require_python
     if errorlevel 1 goto :setup_failed
-    echo [SETUP] Creating Python virtual environment...
+    echo [SETUP] Creazione dell'ambiente virtuale Python...
     python -m venv backend\.venv
     if errorlevel 1 goto :venv_failed
-    echo [SETUP] Installing backend dependencies...
+    echo [SETUP] Installazione delle dipendenze del backend...
     backend\.venv\Scripts\pip install -r backend\requirements.txt
     if errorlevel 1 goto :pip_failed
 )
@@ -44,7 +44,7 @@ if errorlevel 1 goto :frontend_failed
 
 echo.
 echo Dashboard: http://localhost:8000
-echo Press Ctrl+C in this window to stop.
+echo Premi Ctrl+C in questa finestra per fermare l'applicazione.
 echo.
 
 rem Opens the browser once the port actually answers. It has to run alongside
@@ -58,31 +58,32 @@ exit /b 0
 
 :venv_failed
 echo.
-echo [ERROR] Could not create the virtual environment in backend\.venv.
-echo         On Windows the usual cause is a missing "venv" module or no write
-echo         permission in this folder. Delete backend\.venv if it is there and
-echo         run this script again.
+echo [ERRORE] Impossibile creare l'ambiente virtuale in backend\.venv.
+echo          Su Windows la causa solita e' il modulo "venv" mancante oppure
+echo          l'assenza dei permessi di scrittura in questa cartella. Cancella
+echo          backend\.venv se esiste e riesegui questo script.
 goto :setup_failed
 
 :pip_failed
 echo.
-echo [ERROR] Installing the backend dependencies failed.
-echo         Most often this is no internet connection - check it and run this
-echo         script again. If the error above names a package that failed to
-echo         build, the Python version is probably out of range: this project
-echo         needs 3.11 to 3.14.
+echo [ERRORE] Installazione delle dipendenze del backend non riuscita.
+echo          Nella maggior parte dei casi manca la connessione a internet:
+echo          controllala e riesegui questo script. Se l'errore qui sopra nomina
+echo          un pacchetto che non si e' compilato, la versione di Python e'
+echo          probabilmente fuori intervallo: questo progetto richiede dalla
+echo          3.11 alla 3.14.
 goto :setup_failed
 
 :frontend_failed
 echo.
-echo [ERROR] Could not build the dashboard - see the message above.
-echo         Building it needs Node.js 18+ on PATH. A downloaded release comes
-echo         with the dashboard already built and does not need Node at all.
+echo [ERRORE] Impossibile compilare la dashboard - vedi il messaggio qui sopra.
+echo          Per compilarla serve Node.js 18+ nel PATH. Una release scaricata
+echo          arriva con la dashboard gia' compilata e non richiede Node.
 goto :setup_failed
 
 :setup_failed
 echo.
-echo Setup stopped - nothing was started.
+echo Installazione interrotta - non e' stato avviato niente.
 pause
 exit /b 1
 
@@ -99,12 +100,13 @@ rem the process still reports success.
 python -c "import sys; raise SystemExit(0 if (3,11) <= sys.version_info < (3,15) else 1)" 2>nul
 if errorlevel 1 (
     echo.
-    echo [ERROR] This project needs Python 3.11 to 3.14 ^(3.12 is the tested pick^).
-    echo         Found:
+    echo [ERRORE] Questo progetto richiede Python dalla 3.11 alla 3.14 ^(la 3.12
+    echo          e' quella su cui gira la verifica^).
+    echo          Trovato:
     python --version 2>nul
-    echo         Nothing printed above means Python is not on PATH at all.
-    echo         Install it from https://www.python.org/downloads/ with
-    echo         "Add python.exe to PATH" ticked, then run this script again.
+    echo          Se qui sopra non c'e' niente, Python non e' nel PATH.
+    echo          Installalo da https://www.python.org/downloads/ spuntando
+    echo          "Add python.exe to PATH", poi riesegui questo script.
     exit /b 1
 )
 exit /b 0

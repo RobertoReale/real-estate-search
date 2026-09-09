@@ -49,7 +49,7 @@ Don't have a Raspberry Pi yet? You can make the app run in the background on
 Windows, with no console window.
 
 **First, decide whether you need a service at all.** The packaged app (see the
-[README](../README.md#windows-without-installing-anything)) already runs with no
+[README](../README.md#windows-senza-installare-niente)) already runs with no
 console window: it sits in the notification area, and you can put a shortcut to
 `RealEstateSearch.exe` in your Startup folder (`Win+R` → `shell:startup`) to have
 it come up at every login. For most people that is the whole answer, and it
