@@ -106,8 +106,7 @@ own state:
   grouped per ecosystem. The frontend one is an ordinary diff. The backend one is a *notice
   that an update exists*, not a diff to merge: the three `requirements*.txt` are compiled
   from the `.in` files beside them, so the pin is moved in the `.in` and all three locks are
-  recompiled ([`README.md` → *Dipendenze
-  bloccate*](../README.md#dipendenze-bloccate)) and pushed over the branch.
+  recompiled ([dependencies.md](dependencies.md)) and pushed over the branch.
 
 ---
 

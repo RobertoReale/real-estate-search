@@ -180,8 +180,8 @@ chain is not.
 
 **Do.** Start this at item 1 and read it a day later. The first scan of a search sends
 nothing at all — it is building the baseline, and `baseline_done` is what gates the silence
-([invariant 3](invariants.md), and [`README.md`](../README.md#come-va-la-prima-scansione) →
-*Come va la prima scansione*). So:
+([invariant 3](invariants.md), and [`README.md`](../README.md#la-prima-scansione-è-diversa) →
+*La prima scansione è diversa*). So:
 after item 1's first scan, leave the search enabled and let the scheduler run it again
 overnight on a city with real turnover.
 

@@ -460,7 +460,7 @@ Two consequences worth stating, because both have a wrong-looking shape that inv
 highest-traffic document is the one that drifts fastest, and two copies of it means shipping
 the stale one. An English-speaking engineer is one link away from `docs/`, which is where
 their questions are answered. And **a link from `docs/` into the README points at an Italian
-anchor** (`#dipendenze-bloccate`, `#windows-senza-installare-niente`) from English prose;
+anchor** (`#windows-senza-installare-niente`, `#la-prima-scansione-è-diversa`) from English prose;
 that is correct, not a leftover.
 
 The messages in the two `.bat` files are **ASCII only** — no `è`, `più`, `già`. The Windows
