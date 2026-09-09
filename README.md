@@ -187,20 +187,27 @@ The **first** scan of any search profile retrieves all existing listings and sav
 
 ---
 
-## Keeping Scans Unblocked (DataDome)
+## When a Scan Stops Returning Listings
 
-Both portals sit behind **DataDome**, an anti-bot system that occasionally
-blocks a scan instead of returning listings — expected, not a bug: a blocked
-profile is retried on the next scan, and you're alerted only after several
-failures in a row. The most effective fix is handing the scraper a real
-browser's `datadome` cookie, which the app can grab for you automatically; a
-proxy pool or a paid scraping API are further options for a stubborn block. For
-Idealista there is also an **official API** — if you are granted a key, searches
-on that portal ask the portal for its own data instead of reading its pages, so
-there is nothing left to block (searches it cannot express exactly keep using
-the scraper). See [Keeping Scans Unblocked](docs/datadome.md) for all the
-levers, from most to least automatic, for what the portals actually fingerprint,
-and for how to tell a stale TLS profile from an address that has gone bad.
+"Nothing came back" has three different causes and they want different things
+from you. **`No results`** is an answer: the portal was asked and had nothing
+that day. **`Error`** means the search's URL is wrong or the portal changed its
+markup. **`Blocked`** means the portal refused the request rather than answering
+it — both sites sit behind an anti-bot service — and that one is expected rather
+than a bug: the search is retried on the next scan, and you're alerted only
+after several failures in a row. A blocked search leaves the answer on your
+screen **incomplete rather than empty**, and the app says so on the row it
+happened to.
+
+For a block, the first thing to try is a fresh `datadome` cookie, which the app
+can grab from a local browser for you. For Idealista there is also an **official
+API** — if you are granted a key, searches on that portal ask the portal for its
+own data instead of reading its pages, so there is nothing left to refuse
+(searches it cannot express exactly keep using the scraper); Immobiliare has no
+equivalent. See
+[A Scan Stopped Returning Listings](docs/scan-returns-nothing.md) for telling
+the three causes apart, for what you can change and what each change costs, and
+for what the portals actually fingerprint.
 
 ## Technical Architecture
 
@@ -226,7 +233,7 @@ everything that is not obvious from reading it:
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
   the data schema, the property lifecycle, the migration strategy, and the known
   fragilities with the symptom each one produces.
-* **[Invariants](docs/invariants.md)** — twenty-three rules that must not break, each
+* **[Invariants](docs/invariants.md)** — twenty-nine rules that must not break, each
   with the regression that put it there. Read the relevant one *before* editing,
   not after.
 * **[Conventions](docs/conventions.md)** — how code is written and tested here.

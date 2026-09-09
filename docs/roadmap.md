@@ -67,7 +67,7 @@ these rows need. Two more are one machine: a self-hosted Nominatim.
 Eight. These are the ones with no excuse, which is why they are last: they are the cheapest
 and therefore the least interesting thing on this page.
 
-Three of the eight have since been lifted, and are marked **done** below rather than
+Four of the eight have since been lifted, and are marked **done** below rather than
 deleted: each was lifted by *offering* something, so the limit still stands on a default
 install and the inventory still states it. That is the shape a lift takes here — the app
 must keep working with nothing added, so the deliverable is a setting the owner may leave
@@ -88,7 +88,7 @@ worth it. That is a decision, not an oversight.
 | `scan.pageCap` | Already mostly done: an over-cap search is re-run as several non-overlapping narrower ones and merged. Raising `max_pages_per_search` covers the remainder, at one more request per page. The cap is a dial the owner can already turn. |
 | `card.goneAfter` | **Done.** `gone_after_days` is in Settings, 2 to 30 days, still 7 by default — the dial was the deliverable, not a smaller default, because shortening it trades directly against the block tolerance it was chosen for. A zero is refused rather than obeyed. |
 | Notifications capped at 15 | **Done.** `max_notifications_per_scan` is in Settings, still 15 by default. Nothing was lost silently before either — the overflow message already named the count it suppressed — so this was always a preference about volume. |
-| The demo corpus is synthetic | It stays synthetic; real listings are the portals' content. What is missing is the statement, and the mode that would carry the banner is not built. Until it is, this row is waiting on a feature rather than on a method. |
+| A quick scan is a partial reading | **Done**, in both directions and neither of them new: `stop_when_nothing_new` turns the shortcut off and every scan reads to the cap, and left on it is bounded anyway — a search's first scan is a full sweep, and so is one every `full_sweep_every_days`. What is deliberately not lifted is the label on the journal row: a quick scan is worth having, and worth saying it was one. |
 
 ---
 
@@ -105,7 +105,7 @@ to kill it.
 
 **1. The scrapers would run from a datacenter IP, and that is the hard one.** The whole
 anti-blocking ladder — `curl_cffi` TLS impersonation with rotating profiles, the Camoufox
-browser, the harvested DataDome cookie ([`datadome.md`](datadome.md)) — is tuned for a
+browser, the harvested DataDome cookie ([`scan-returns-nothing.md`](scan-returns-nothing.md)) — is tuned for a
 residential connection scanning a handful of searches a day. From AWS or Hetzner the same
 requests meet a much harder wall, much sooner, and the cookie a real browser earned on a home
 connection does not transfer. The realistic answer is to stop scraping directly and pay per

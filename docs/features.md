@@ -220,4 +220,5 @@
   they do in the HTML dossier, so that step needs a connection.
 * **Is this ad still online?**: see [Is This Ad Still Online?](availability-check.md)
   for the full walkthrough — checking a selection against the portals on demand,
-  why it is paced the way it is, and dealing with DataDome blocks during a check.
+  why it is paced the way it is, and what to do when a portal keeps interrupting
+  a check.

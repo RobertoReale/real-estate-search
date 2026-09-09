@@ -36,7 +36,7 @@ progress bar. It finishes whatever listing is already in flight — there is no
 way to interrupt a live request — and leaves the rest of the selection
 unchecked; re-select it later to pick up where you left off.
 
-## When DataDome keeps interrupting
+## When the check keeps getting interrupted
 
 Turn on **"Run the check through the browser"** in **Settings** (under the
 automatic cookie section). The check then runs through a real local browser
@@ -45,7 +45,7 @@ request per ad — so it does not collect a 403 per listing. Slower per ad, but
 it does not stop mid-run. This needs the optional browser engine installed, the
 same one as the automatic cookie grab.
 
-If DataDome still challenges even that browser with a CAPTCHA, tick **"Show the
+If the portal still challenges even that browser with a CAPTCHA, tick **"Show the
 browser window during the check"** right below it. Because you start the check
 yourself and watch it run, the browser opens **visible**: solve the CAPTCHA once
 in the window and the run continues on its own — that single solve earns a real
@@ -68,7 +68,7 @@ the fresh, unblocked session carries over to the next run automatically.
 ## Being challenged less in the first place
 
 Switch the **Browser engine** (same Settings section) to **Camoufox** — a
-stealth Firefox that hides the automation signals DataDome looks for, so it is
+stealth Firefox that hides the automation signals the portals look for, so it is
 flagged far less often than plain Chromium. It is a one-click install (~150 MB,
 one time); leave the engine on **Auto** and it is used automatically once
 installed, falling back to Chromium if anything goes wrong.

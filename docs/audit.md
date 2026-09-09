@@ -144,8 +144,8 @@ a cold browser — it injects the real `datadome_cookie`. See
 
 ## 1. Invariant audit (are they *true*, are they *necessary*?)
 
-The 23 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
-past regression, or for 22 and 23 the shipped defect it keeps from returning), a code home,
+The 29 invariants live in [`invariants.md`](invariants.md). Each one has: a history (a real
+past regression, or for 22 to 29 the shipped defect it keeps from returning), a code home,
 and at least one regression test. To audit an invariant:
 
 1. **Necessary?** Read its paragraph. Every invariant records a bug that actually
@@ -192,6 +192,12 @@ named, the invariant has two halves that fail independently.
 | 21 | A search can be silenced without being paused | `services/notifier.py` `profile_channels`, `services/scanner.py` | `test_scanner.py::test_a_muted_search_scans_but_never_notifies`, `test_features.py::test_profile_channels_tells_muted_apart_from_unspecified` |
 | 22 | OMI band never replaces the listing median, and neither is shown unlabelled | `services/omi_benchmark.py`, `services/deal_score.py` `_score_property`, `services/exporter.py` `_print_facts`, `frontend/src/routes/property/Benchmarks.tsx` | `test_omi_benchmark.py::test_the_annotation_writes_the_omi_fields_and_nothing_else`, `marketPosition.test.ts` "never reads the OMI band (invariant 22)" |
 | 23 | A subprocess whose output is committed is decoded explicitly | `scripts/gen_api_types.py` `generate` | `test_generated_artifacts.py::test_the_type_generator_decodes_its_subprocess_explicitly` |
+| 24 | A zone centroid is never handed over as an address | `services/geocoder.py` (`SOURCE_ADDRESS`/`SOURCE_ZONE`, `is_approximate`), `frontend/src/components/MapView.tsx` | `test_geocoder.py::test_a_pin_records_where_it_came_from`, `::test_an_unknown_source_is_not_called_approximate` |
+| 25 | An out-of-area listing is reported, never dropped | `services/scanner.py` `_outside_requested_area` | `test_scanner.py::test_an_out_of_area_listing_is_kept_not_dropped`, `::test_an_out_of_area_listing_from_a_drawn_search_is_kept_too` |
+| 26 | Determinate progress only against a declared total | `frontend/src/routes/activity/progress.ts` `pageProportion` | `progress.test.ts` "refuses a fraction where the portal declared no total", "never runs past the total the portal stated" |
+| 27 | A stored secret is never overwritten by its own mask | `routers/settings.py` `update_settings`, `config.SECRET_SETTINGS` | `test_features.py::test_no_stored_secret_is_overwritten_by_its_own_mask`, `test_routes.py::test_a_saved_secret_survives_a_later_save_that_masks_it_back` |
+| 28 | A quick scan never claims completeness | `services/scanner.py` `_quick_scan_note`, `_sweeps_to_the_cap` | `test_scanner.py::test_a_quick_scan_says_it_was_one_rather_than_reading_as_complete`, `::test_stopping_early_is_a_speed_setting_and_never_a_behaviour_one` |
+| 29 | A segmented search is complete only if its partition was proved total | `services/search_builder.py` `price_bands`/`bands_are_total`, `services/scanner.py` `_parts_cover_the_whole` | `test_search_builder.py::test_price_bands_leave_no_gap_and_no_overlap`, `test_scanner.py::test_a_partition_that_does_not_add_up_is_never_reported_as_complete` |
 
 ---
 

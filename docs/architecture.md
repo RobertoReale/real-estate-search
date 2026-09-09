@@ -11,7 +11,7 @@ on `localhost`.
 
 Companion documents:
 
-- [`invariants.md`](invariants.md) — the twenty-three rules that must not break, each with
+- [`invariants.md`](invariants.md) — the twenty-nine rules that must not break, each with
   the regression it prevents. Every "invariant N" below refers to that file.
 - [`conventions.md`](conventions.md) — how code is written here, and how it is tested.
 - [`audit.md`](audit.md) — the procedure for a full-project health check.
@@ -131,14 +131,43 @@ any ──user presses "Hide"──▶ hidden ──user presses "Restore"──
 any ──user marks "Sold"──▶ sold ──user presses "Restore"──▶ active
 ```
 
-Marking `gone` happens only during **complete and clean** scans: all profiles, none
-`blocked`/`error`. `gone_after_days` is a setting (`scanner.gone_after_days` reads it,
-falling back to `GONE_AFTER_DAYS` and flooring at 1 — a threshold of zero would mean "gone
-the moment one scan misses it", which is the failure the day-based rule exists to
-prevent). The day-based threshold absorbs a block lasting hours, but after weeks
-with the PC off every property is already past the cutoff — a single blocked startup scan
-would mark the whole dashboard `gone` and poison `gone_at` (days-on-market) with fake
-dates.
+### Which scans may claim completeness
+
+`gone` is the only status inferred from *absence*, so it is the only one that depends on a
+scan being entitled to say "I looked everywhere". Three conditions, and each one rules out
+a different way of being wrong:
+
+- **All profiles, not one.** `run_scan(profile_id=...)` scans a single search and says
+  nothing whatsoever about properties belonging to the others, so the marking is behind
+  `if profile_id is None`.
+- **Clean, not merely finished.** No `blocked_portals` and no `errors`. A refusal returns
+  the same "not in the results" as a withdrawal, so a scan that collected one skips the
+  marking entirely and logs how many blocks and errors made it stand down.
+- **Not cut short.** A quick scan (`stop_when_nothing_new`, the default) stops at the
+  first page holding nothing it had not already seen, which means it refreshed
+  `last_seen_at` for the listings it read and for no others. That is safe here *because
+  of the second half of the shortcut and not on its own*: `_sweeps_to_the_cap` forces a
+  full sweep on a search's first scan and once every `full_sweep_every_days` after it,
+  counted from `SearchProfile.last_full_sweep_at` — which is stamped only by a sweep that
+  got through, so a fortnight of blocks does not read as a fortnight of complete readings.
+  The default is 7 days and `gone_after_days` is also 7, and **that is a coupling rather
+  than a coincidence**: it is what guarantees every listing has been looked for by a full
+  reading of its search inside the window before absence is allowed to mean anything.
+  Shortening `gone_after_days` below `full_sweep_every_days` breaks it, and the direction
+  of the damage is properties marked `gone` that were sitting on a page nobody read.
+
+The scan reports its own kind rather than leaving it to be inferred: `mode` is `full` or
+`quick` on every journal row, and `_quick_scan_note` appends the words to the detail line
+([`limits.md`](limits.md)). A partial reading described in the words of a complete one is
+the one sort of wrong the user cannot detect for themselves, which is why completeness is
+a claim the code has to earn in three places rather than a default.
+
+`gone_after_days` is a setting (`scanner.gone_after_days` reads it, falling back to
+`GONE_AFTER_DAYS` and flooring at 1 — a threshold of zero would mean "gone the moment one
+scan misses it", which is the failure the day-based rule exists to prevent). The day-based
+threshold absorbs a block lasting hours, but after weeks with the PC off every property is
+already past the cutoff — a single blocked startup scan would mark the whole dashboard
+`gone` and poison `gone_at` (days-on-market) with fake dates.
 
 `sold` is a user-set, sacred state exactly like `hidden`
 ([invariant 5](invariants.md) — a scan never reverts it; needed because a "VENDUTO"
