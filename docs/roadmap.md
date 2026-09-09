@@ -180,3 +180,44 @@ row by row, where a single `UPDATE … WHERE last_seen_at < ?` would do it. It i
 and not a change, because §7's rule applies: it runs **once per clean full scan**, not per
 request, and no measurement shows it costs anything at the sizes this app holds. It is
 recorded so that whoever does measure it at 100 000 properties finds it already named.
+
+---
+
+## 4. The dependency queue
+
+An open pull request on a finished product is a question nobody answered, and there are
+only two honest answers: it is taken, or it is closed with the reason written down.
+"Still open" is neither.
+
+**The queue was cleared on 2026-09-09.** Three were open — the actions group (7 updates),
+the backend group (pydantic, ruff) and the frontend group (three dev packages). All three
+were taken, each as its own commit so that one bad version can be reverted without losing
+the other two, and the eight gates of [`audit.md` §0](audit.md) are green on the result.
+Nothing was held: no version failed a gate, so no held row follows this paragraph. Two
+earlier ones had already been closed by the bot itself as superseded by the three above.
+
+Neither lock was taken as the bot wrote it, and the reason is per-ecosystem. The backend
+one edits the compiled `requirements*.txt` without touching the `.in` file they come from,
+and it recompiles without `--universal`: its diff dropped `colorama`, `tzdata`, `pefile`
+and `macholib` along with the `sys_platform` markers that select them, which would have
+shipped a Windows build with no `tzdata` for `tzlocal` to find. The frontend one writes a
+`package-lock.json` without the six packages `@tailwindcss/oxide-wasm32-wasi` declares in
+`bundleDependencies`, which is the shape `npm ci` refuses on the runner's npm. Both were
+treated as a notice — take the versions, regenerate the lock by the commands
+[`README.md`](../README.md#dependency-locking) documents.
+
+**It does not stay cleared.** The bot opens more every week, and the release procedure is
+where that is caught: check `gh pr list --state open` before tagging, so a release is never
+cut over an unanswered question.
+
+### The release workflow's action pins do not run until a tag
+
+`release.yml` triggers on `push: tags: ["v*"]` and `workflow_dispatch` alone. Six of the
+seven pins bumped on 2026-09-09 live only there — `softprops/action-gh-release` and the
+five `docker/*` actions — so no push to a branch exercises them, and the first thing that
+does is the release they are needed for. A `workflow_dispatch` on a branch would cover the
+five docker ones safely, because both the image push and the release creation are gated on
+`github.ref_type == 'tag'`; `action-gh-release` cannot be exercised without cutting a real
+release. This is recorded rather than fixed because the cost of the failure is one red
+release run and one re-tag, and the alternative — a second workflow that exists only to
+prove the first one's pins resolve — is more machinery than the risk is worth.

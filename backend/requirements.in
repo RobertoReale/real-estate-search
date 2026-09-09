@@ -18,7 +18,7 @@ alembic>=1.13
 curl_cffi==0.16.2
 beautifulsoup4>=4.12
 apscheduler>=3.10
-pydantic>=2.7
+pydantic>=2.13.5
 
 # NOT a runtime dependency, deliberately:
 #
