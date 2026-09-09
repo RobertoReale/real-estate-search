@@ -422,7 +422,7 @@ Write a fact once, in the file that owns it:
 
 | File | Owns | Update it when |
 |---|---|---|
-| [`../README.md`](../README.md) | what the user can do, and how | a user-facing feature, setting, or startup script changes |
+| [`../README.md`](../README.md) | what the user can do, and how — **in Italian**, see below | a user-facing feature, setting, or startup script changes |
 | [`architecture.md`](architecture.md) | how the program is put together: the "Where to Act" map, the data schema, the property lifecycle, the migration strategy, the known fragilities | a file moves, a module is added, a schema concept changes |
 | [`invariants.md`](invariants.md) | the rules that must not break, and the regression each one prevents | an invariant is added, retired, or its guard moves |
 | [`limits.md`](limits.md) | every limit the software has, the API field its number comes from, and the surface that states it | a cap, a best-effort match or a partial answer is added, or the screen that announces one moves |
@@ -436,6 +436,37 @@ The rest of `docs/` is user-facing: [`using-the-app.md`](using-the-app.md),
 [`scan-returns-nothing.md`](scan-returns-nothing.md),
 [`availability-check.md`](availability-check.md),
 [`remote-access.md`](remote-access.md).
+
+### Which language a document is written in
+
+**The product is Italian, the workshop is English**, and the line is drawn once so it does
+not have to be argued per file:
+
+- **Italian** — `README.md`, the GitHub description and topics, the release notes, and every
+  string the packaged app shows *outside* the interface: the tray menu and its alerts, the
+  messages `scripts/windows/start.bat`, `scripts/windows/serve.bat` and
+  `scripts/linux/start.sh` print, the web manifest's description. These are read by somebody
+  who wants a house, and the interface they are about to open is in Italian by default —
+  only a stored choice moves it off Italian ([`architecture.md`](architecture.md) → *UI
+  language*).
+- **English** — everything under `docs/`, `implementation_plan.md`, every code comment and
+  docstring, every commit message, the workflows, and the scripts that only a developer runs
+  (`dev.bat`, `install-playwright.bat`, the service helpers). These are read by somebody
+  changing the software, who arrives from a stack trace or from another project's
+  conventions.
+
+Two consequences worth stating, because both have a wrong-looking shape that invites a
+"fix". **There is no English `README`** — no `README.en.md`, no bilingual file: the
+highest-traffic document is the one that drifts fastest, and two copies of it means shipping
+the stale one. An English-speaking engineer is one link away from `docs/`, which is where
+their questions are answered. And **a link from `docs/` into the README points at an Italian
+anchor** (`#dipendenze-bloccate`, `#windows-senza-installare-niente`) from English prose;
+that is correct, not a leftover.
+
+The messages in the two `.bat` files are **ASCII only** — no `è`, `più`, `già`. The Windows
+console runs code page 850, so a UTF-8 accented byte in a `.bat` reaches the user as
+mojibake; `chcp 65001` would fix the accents and risk the one thing that must work on a
+stranger's machine. `start.sh` has no such problem and keeps its accents.
 
 Specifically:
 

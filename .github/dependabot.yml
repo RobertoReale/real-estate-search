@@ -14,7 +14,7 @@ updates:
   # The backend, which is the awkward one. `requirements.txt`,
   # `requirements-dev.txt` and `requirements-package.txt` are not hand-written:
   # they are compiled from the `.in` files beside them with
-  # `uv pip compile --generate-hashes` (README.md -> Dependency locking), and CI
+  # `uv pip compile --generate-hashes` (README.md -> Dipendenze bloccate), and CI
   # installs them with `pip install --require-hashes`.
   #
   # So a pull request here is a *notice that an update exists*, not a diff to

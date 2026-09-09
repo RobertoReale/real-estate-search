@@ -266,7 +266,7 @@ shipped a Windows build with no `tzdata` for `tzlocal` to find. The frontend one
 `package-lock.json` without the six packages `@tailwindcss/oxide-wasm32-wasi` declares in
 `bundleDependencies`, which is the shape `npm ci` refuses on the runner's npm. Both were
 treated as a notice — take the versions, regenerate the lock by the commands
-[`README.md`](../README.md#dependency-locking) documents.
+[`README.md`](../README.md#dipendenze-bloccate) documents.
 
 **It does not stay cleared.** The bot opens more every week, and the release procedure is
 where that is caught: check `gh pr list --state open` before tagging, so a release is never

@@ -70,10 +70,11 @@ def main() -> int:
         # also means the dashboard the user wanted is already open somewhere.
         _alert(
             "Real Estate Search",
-            f"The application could not start on port {PORT}.\n\n"
-            "It is most often already running - check the notification area - "
-            f"or another program is using the port. Set APP_PORT to choose "
-            f"a different one.\n\nDetails are in:\n{config.LOG_PATH}",
+            f"L'applicazione non è riuscita a partire sulla porta {PORT}.\n\n"
+            "Nella maggior parte dei casi è già in esecuzione - guarda nell'area "
+            "di notifica - oppure un altro programma sta usando la porta. "
+            "Imposta APP_PORT per scegliere un'altra porta."
+            f"\n\nI dettagli sono in:\n{config.LOG_PATH}",
         )
 
     threading.Thread(target=_first_open, daemon=True, name="open-dashboard").start()
@@ -86,10 +87,12 @@ def main() -> int:
         icon.stop()
 
     menu = pystray.Menu(
-        pystray.MenuItem("Open dashboard", lambda: webbrowser.open(DASHBOARD_URL), default=True),
-        pystray.MenuItem("Open data folder", lambda: _open_folder(config.DATA_DIR)),
+        pystray.MenuItem(
+            "Apri la dashboard", lambda: webbrowser.open(DASHBOARD_URL), default=True
+        ),
+        pystray.MenuItem("Apri la cartella dei dati", lambda: _open_folder(config.DATA_DIR)),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Quit", _quit),
+        pystray.MenuItem("Esci", _quit),
     )
     tooltip = f"Real Estate Search - {DASHBOARD_URL}"
     if adopted:

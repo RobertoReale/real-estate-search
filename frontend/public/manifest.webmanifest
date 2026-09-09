@@ -1,7 +1,7 @@
 {
   "name": "Real Estate Search",
   "short_name": "Immobili",
-  "description": "Monitors Immobiliare.it and Idealista listings, deduplicates and filters them.",
+  "description": "Sorveglia gli annunci di Immobiliare.it e Idealista, li unifica e li filtra.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
