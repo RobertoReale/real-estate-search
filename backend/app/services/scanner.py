@@ -35,15 +35,50 @@ logger = logging.getLogger(__name__)
 
 # On the first scan of a profile *all* properties are "new": sending
 # a notification for each would mean hundreds of Telegram messages.
-# The first pass only builds the comparison baseline.
+# The first pass only builds the comparison baseline. The default of the
+# `max_notifications_per_scan` setting — read through the function below, never
+# directly, or a changed setting would apply to some categories and not others.
 MAX_NOTIFICATIONS_PER_SCAN = 15
 
 # A property not seen for this many days is marked "gone"
 # (sold/withdrawn). The threshold is in days — and not "absent from latest scan" —
 # to tolerate temporary portal blocks: a 403 lasting a few hours must not make
 # half the database vanish. If the listing reappears, the scan automatically
-# brings it back to "active".
+# brings it back to "active". The default of the `gone_after_days` setting, and
+# read through the function below for the same reason.
 GONE_AFTER_DAYS = 7
+
+
+def gone_after_days(settings: dict | None = None) -> int:
+    """How many days unseen make a listing "gone", as configured.
+
+    Floored at one day. The whole point of a day-based threshold is that it
+    outlives a block, and zero would mean "gone the moment a scan misses it" —
+    the behaviour the constant above exists to prevent, reachable by typing a 0
+    into a settings file.
+    """
+    if settings is None:
+        settings = load_settings()
+    try:
+        return max(1, int(settings.get("gone_after_days", GONE_AFTER_DAYS)))
+    except (TypeError, ValueError):
+        return GONE_AFTER_DAYS
+
+
+def max_notifications_per_scan(settings: dict | None = None) -> int:
+    """How many notifications one scan may send per category, as configured.
+
+    Floored at one: a cap of zero would suppress every individual message and
+    leave only the "… and N more" line, which reads as a broken integration
+    rather than as a choice.
+    """
+    if settings is None:
+        settings = load_settings()
+    try:
+        return max(1, int(settings.get("max_notifications_per_scan", MAX_NOTIFICATIONS_PER_SCAN)))
+    except (TypeError, ValueError):
+        return MAX_NOTIFICATIONS_PER_SCAN
+
 
 # Immobiliare exposes floor in structured form ("T" = ground, "S" =
 # basement): must be translated into text, otherwise it escapes keyword filtering.
@@ -713,7 +748,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
             _locate_scanned_properties(db, settings, started_at, summary)
             # only on full scans: scanning a single profile says nothing
             # about properties belonging to other profiles. And only on
-            # *clean* full scans: the day-based GONE_AFTER_DAYS threshold
+            # *clean* full scans: the day-based "gone after" threshold
             # absorbs a block lasting hours, but after weeks with the PC off
             # every property is already past the cutoff, so a single blocked
             # startup scan would mark the whole dashboard "gone" and stamp
@@ -727,7 +762,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
                         len(summary["errors"]),
                     )
                 else:
-                    summary["gone"] = _mark_vanished_properties(db)
+                    summary["gone"] = _mark_vanished_properties(db, settings)
                     db.commit()
                 # Record today's median €/sqm for the trend charts. Idempotent
                 # (one per day) and fail-open, so it is safe to call on every
@@ -817,10 +852,11 @@ def _locate_scanned_properties(db, settings: dict, started_at: datetime, summary
         logger.exception("scan: post-scan geocoding failed")
 
 
-def _mark_vanished_properties(db) -> int:
-    """Marks "gone" those properties that no scan has seen for GONE_AFTER_DAYS
-    days: almost always means sold or withdrawn from the market."""
-    cutoff = datetime.now(UTC) - timedelta(days=GONE_AFTER_DAYS)
+def _mark_vanished_properties(db, settings: dict | None = None) -> int:
+    """Marks "gone" those properties that no scan has seen for the configured
+    number of days: almost always means sold or withdrawn from the market."""
+    days = gone_after_days(settings)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     count = 0
     query = select(Property).where(Property.status.in_(("active", "filtered")))
     for prop in db.scalars(query):
@@ -831,11 +867,11 @@ def _mark_vanished_properties(db) -> int:
             prop.status = "gone"
             # the listing disappeared when it was last seen, not today:
             # dating it "now" would inflate every days-on-market statistic
-            # by GONE_AFTER_DAYS
+            # by the whole threshold
             prop.gone_at = last_seen
             count += 1
     if count:
-        logger.info("%d properties not seen for %d days marked as 'gone'", count, GONE_AFTER_DAYS)
+        logger.info("%d properties not seen for %d days marked as 'gone'", count, days)
     return count
 
 
@@ -1450,33 +1486,35 @@ def _dispatch_notifications(
 
     Every capped list announces its own overflow ("… and N more"): silently
     dropping the tail would make a busy scan under-report exactly when the
-    most is happening."""
+    most is happening. The cap is read once here, so the three categories can
+    never disagree about it mid-scan."""
+    cap = max_notifications_per_scan()
     sent = 0
-    for prop in new_properties[:MAX_NOTIFICATIONS_PER_SCAN]:
+    for prop in new_properties[:cap]:
         if notifier.notify_new_property(prop, channels):
             sent += 1
 
-    remaining = len(new_properties) - MAX_NOTIFICATIONS_PER_SCAN
+    remaining = len(new_properties) - cap
     if remaining > 0:
         notifier.broadcast(
             f"… and <b>{remaining}</b> more new properties. Open the dashboard to see them all.",
             channels,
         )
 
-    for prop, old_price, new_price in price_drops[:MAX_NOTIFICATIONS_PER_SCAN]:
+    for prop, old_price, new_price in price_drops[:cap]:
         if notifier.notify_price_drop(prop, old_price, new_price, channels):
             sent += 1
-    remaining = len(price_drops) - MAX_NOTIFICATIONS_PER_SCAN
+    remaining = len(price_drops) - cap
     if remaining > 0:
         notifier.broadcast(
             f"… and <b>{remaining}</b> more price changes. Open the dashboard to see them all.",
             channels,
         )
 
-    for prop, previous in (reactivated or [])[:MAX_NOTIFICATIONS_PER_SCAN]:
+    for prop, previous in (reactivated or [])[:cap]:
         if notifier.notify_property_reactivated(prop, previous, channels):
             sent += 1
-    remaining = len(reactivated or []) - MAX_NOTIFICATIONS_PER_SCAN
+    remaining = len(reactivated or []) - cap
     if remaining > 0:
         notifier.broadcast(
             f"… and <b>{remaining}</b> more properties back on the market. "

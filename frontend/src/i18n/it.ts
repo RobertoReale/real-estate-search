@@ -749,6 +749,14 @@ export const it: Dict = {
   "settings.pauseScans": "Metti in pausa le scansioni automatiche",
   "settings.pauseScansNote":
     'Impedisce alle scansioni programmate di contattare i portali — utile per far riposare la connessione quando sei via. "Scansiona ora" continua a funzionare su richiesta.',
+  "settings.goneAfter": "Segna un annuncio come sparito dopo",
+  "settings.goneAfterNote":
+    "Quanto a lungo un annuncio deve restare invisibile a una scansione completa prima che la scheda dica «non più disponibile». Si misura in giorni perché qualche ora di blocchi del portale non svuoti la griglia; un annuncio che riappare torna subito attivo.",
+  "settings.nDays": "{count} giorni",
+  "settings.notifyCap": "Notifiche per scansione",
+  "settings.notifyCapNote":
+    "Il numero massimo di messaggi singoli che una scansione invia per categoria — nuovi annunci, variazioni di prezzo. Ciò che eccede finisce in un'unica riga «e altri N», non viene perso.",
+  "settings.nNotifications": "{count} messaggi",
   "settings.healthTitle": "Avvisi sulla salute degli scraper",
   "settings.healthNote":
     "Uno scraper rotto è silenzioso: nessun annuncio somiglia in tutto e per tutto a un mercato fermo. Ricevi un avviso quando una ricerca fallisce questo numero di scansioni di fila. I portali bloccano gli scraper ogni tanto, quindi il valore 1 grida al lupo.",
@@ -790,7 +798,11 @@ export const it: Dict = {
   "settings.commuteRemovePoint": "Rimuovi questo luogo",
   "settings.commuteOsrmUrl": "Server di routing (OSRM)",
   "settings.commuteOsrmNote":
-    "Lascia vuoto per il server dimostrativo pubblico. È costruito solo sulla rete stradale, quindi lì «a piedi» e «bici» vengono calcolati come in auto — indica il tuo OSRM per avere tempi reali a piedi e in bici.",
+    "Lascia vuoto per il server dimostrativo pubblico. È costruito solo sulla rete stradale, quindi lì «a piedi» e «bici» vengono calcolati come in auto — i due campi qui sotto servono a rimediare.",
+  "settings.commuteOsrmUrlFoot": "Server per i percorsi a piedi (facoltativo)",
+  "settings.commuteOsrmUrlBike": "Server per i percorsi in bici (facoltativo)",
+  "settings.commuteOsrmModeNote":
+    "Un server con un vero grafo pedonale o ciclabile lo pubblica su un indirizzo suo. Compilane uno e quella modalità viene calcolata davvero: da quei tempi sparisce la nota «misurato sulla rete stradale». Vuoto significa il server qui sopra, e in nessun caso costa richieste in più.",
   "settings.commuteCompute": "Calcola ora i tempi di percorrenza",
   "settings.commuteComputing": "Calcolo in corso…",
   "settings.commuteComputeNote":

@@ -67,15 +67,27 @@ these rows need. Two more are one machine: a self-hosted Nominatim.
 Eight. These are the ones with no excuse, which is why they are last: they are the cheapest
 and therefore the least interesting thing on this page.
 
+Three of the eight have since been lifted, and are marked **done** below rather than
+deleted: each was lifted by *offering* something, so the limit still stands on a default
+install and the inventory still states it. That is the shape a lift takes here — the app
+must keep working with nothing added, so the deliverable is a setting the owner may leave
+alone, never a new requirement.
+
+The two zone rows are the ones deliberately left. Their method is a call to Immobiliare's
+geography autocomplete, which means saving a search would put one more request on the
+portal; the whole anti-blocking posture is built on making fewer of those, so lifting these
+two waits for a method that does not spend requests, or for the judgement that the spend is
+worth it. That is a decision, not an oversight.
+
 | `data-limit` | What lifting it takes |
 |---|---|
-| `profiles.zoneBestEffort` | Call the geography autocomplete the scraper already calls, from the search builder, and keep the ids. Everything needed exists; only the builder does not reach for it. It does make saving a search perform a network call, which it never does today. |
-| `profiles.zoneFirstNameOnly` | The same call: with names resolved to ids, all of them travel as repeated query params instead of only the first. One method closes both rows. |
+| `profiles.zoneBestEffort` | Call the geography autocomplete the scraper already calls, from the search builder, and keep the ids. Everything needed exists; only the builder does not reach for it. It does make saving a search perform a network call, which it never does today — and that request lands on a portal, which is the reason this one is still here. |
+| `profiles.zoneFirstNameOnly` | The same call: with names resolved to ids, all of them travel as repeated query params instead of only the first. One method closes both rows, and the same request cost stops both. |
 | `profiles.areaNeedsUrl` | The builder already parses `vrt` and `centro`+`raggio` out of a pasted URL, and the dashboard already draws polygons in the format the geo filter reads. Emitting those params from the drawn shape closes the loop. Immobiliare only — Idealista's URL grammar has no equivalent, so a drawn search stays one-portal. |
-| `commute.carRouting` | Point `osrm_url` at a host that serves a real pedestrian graph; the public demo answers "on foot" on the driving graph, measurably. That host splits profiles across path prefixes, so a mixed-mode setup needs the base URL to become per-mode — a change inside this repository. |
+| `commute.carRouting` | **Done.** `osrm_url_foot` and `osrm_url_bike` sit beside `osrm_url`: a mode with one set is measured on that host's own graph and drops the "measured on the road network" badge, per mode. Blank is the default and routes exactly as before, so the limit still stands until someone fills one in. |
 | `scan.pageCap` | Already mostly done: an over-cap search is re-run as several non-overlapping narrower ones and merged. Raising `max_pages_per_search` covers the remainder, at one more request per page. The cap is a dial the owner can already turn. |
-| `card.goneAfter` | Expose the "gone after 7 days" constant as a setting. Shortening it trades directly against the block tolerance it was chosen for, so **the dial is the deliverable, not a smaller default**. |
-| Notifications capped at 15 | Expose or raise the per-scan notification cap. Nothing is lost silently today — the overflow message already names the count it suppressed — so this is a preference about volume. |
+| `card.goneAfter` | **Done.** `gone_after_days` is in Settings, 2 to 30 days, still 7 by default — the dial was the deliverable, not a smaller default, because shortening it trades directly against the block tolerance it was chosen for. A zero is refused rather than obeyed. |
+| Notifications capped at 15 | **Done.** `max_notifications_per_scan` is in Settings, still 15 by default. Nothing was lost silently before either — the overflow message already named the count it suppressed — so this was always a preference about volume. |
 | The demo corpus is synthetic | It stays synthetic; real listings are the portals' content. What is missing is the statement, and the mode that would carry the banner is not built. Until it is, this row is waiting on a feature rather than on a method. |
 
 ---

@@ -7,22 +7,34 @@ import { splitList, useSectionState, type Section } from "./state";
 interface Values {
   interval: number;
   paused: boolean;
+  goneAfter: number;
+  notifyCap: number;
   healthAfter: number;
   keywords: string;
 }
 
+/** Days unseen before a listing is called gone. The threshold is in days rather
+ *  than "missing from the last scan" so a run of 403s cannot empty the grid,
+ *  which is why the shortest offer is still measured in days. */
+const GONE_AFTER_DAYS = [2, 3, 5, 7, 14, 30];
+const NOTIFY_CAPS = [5, 10, 15, 25, 50];
+
 export function useScanningSection(): Section<Values> {
   return useSectionState<Values>(
-    { interval: 60, paused: false, healthAfter: 3, keywords: "" },
+    { interval: 60, paused: false, goneAfter: 7, notifyCap: 15, healthAfter: 3, keywords: "" },
     (s) => ({
       interval: s.scan_interval_minutes,
       paused: s.scanning_paused ?? false,
+      goneAfter: s.gone_after_days,
+      notifyCap: s.max_notifications_per_scan,
       healthAfter: s.health_alert_after_failures,
       keywords: s.excluded_keywords.join(", "),
     }),
     (v) => ({
       scan_interval_minutes: v.interval,
       scanning_paused: v.paused,
+      gone_after_days: v.goneAfter,
+      max_notifications_per_scan: v.notifyCap,
       health_alert_after_failures: v.healthAfter,
       excluded_keywords: splitList(v.keywords),
     }),
@@ -52,6 +64,28 @@ export function ScanningSection({ section }: { section: Section<Values> }) {
           {t("settings.pauseScans")}
           <span className="block text-xs t-dim">{t("settings.pauseScansNote")}</span>
         </>} />
+
+      <label className="text-xs t-muted block mt-3" htmlFor="gone-after">
+        {t("settings.goneAfter")}
+      </label>
+      <select data-action="settings.scanning.goneAfter" id="gone-after" className="input w-full mt-1"
+        value={values.goneAfter} onChange={(e) => set("goneAfter", Number(e.target.value))}>
+        {GONE_AFTER_DAYS.map((n) => (
+          <option key={n} value={n}>{t("settings.nDays", { count: n })}</option>
+        ))}
+      </select>
+      <p className="text-xs t-dim mt-1">{t("settings.goneAfterNote")}</p>
+
+      <label className="text-xs t-muted block mt-3" htmlFor="notify-cap">
+        {t("settings.notifyCap")}
+      </label>
+      <select data-action="settings.scanning.notifyCap" id="notify-cap" className="input w-full mt-1"
+        value={values.notifyCap} onChange={(e) => set("notifyCap", Number(e.target.value))}>
+        {NOTIFY_CAPS.map((n) => (
+          <option key={n} value={n}>{t("settings.nNotifications", { count: n })}</option>
+        ))}
+      </select>
+      <p className="text-xs t-dim mt-1">{t("settings.notifyCapNote")}</p>
 
       <SectionHeading icon={Alarm}>{t("settings.healthTitle")}</SectionHeading>
       <p className="text-xs t-dim mb-2">{t("settings.healthNote")}</p>

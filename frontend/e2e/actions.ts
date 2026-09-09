@@ -459,6 +459,8 @@ export const ACTIONS = {
   "settings.scanning.interval": { what: "the scan frequency select", does: "sets how often the scheduler runs" },
   "settings.scanning.pause": { what: "the pause-scans checkbox", does: "stops the scheduler without deleting anything" },
   "settings.scanning.healthAfter": { what: "the health-alert threshold", does: "sets how many failures in a row raise an alert" },
+  "settings.scanning.goneAfter": { what: "the gone-after threshold", does: "sets how many days unseen make a listing no longer available" },
+  "settings.scanning.notifyCap": { what: "the notifications-per-scan cap", does: "sets how many individual messages one scan sends per category" },
   "settings.scanning.keywords": { what: "the global exclusion keywords", does: "records the words that disqualify a listing everywhere" },
 
   // ── Settings: smart match ───────────────────────────────────────────────
@@ -478,6 +480,8 @@ export const ACTIONS = {
   "settings.commute.pointMode": { what: "a place's travel mode", does: "chooses car, foot or bike" },
   "settings.commute.removePoint": { what: "the delete button on a place", does: "removes that place" },
   "settings.commute.osrmUrl": { what: "the OSRM URL", does: "points the routing at a self-hosted server" },
+  "settings.commute.osrmUrlFoot": { what: "the walking router URL", does: "measures the walks on a pedestrian graph instead of the road network" },
+  "settings.commute.osrmUrlBike": { what: "the cycling router URL", does: "measures the rides on a cycling graph instead of the road network" },
   "settings.commute.compute": { what: "Compute the commutes", does: "saves, routes what it can and reports how many" },
 
   // ── Settings: assistant and the listing reader ──────────────────────────

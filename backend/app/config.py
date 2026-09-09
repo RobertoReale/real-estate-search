@@ -269,8 +269,18 @@ DEFAULT_SETTINGS = {
     # OSRM routing endpoint. The public demo server is a courtesy instance built
     # on the DRIVING network alone: it accepts the walking and cycling profiles
     # and answers with car routing, so "on foot" is only truly on foot against a
-    # self-hosted OSRM — which is what this setting is for.
+    # router that has a pedestrian graph.
     "osrm_url": "https://router.project-osrm.org",
+    # …and the per-mode overrides, because one URL cannot be right for all three
+    # profiles. A host that serves a real foot or bike graph does so on its own
+    # base path rather than behind OSRM's `/{profile}/` segment — FOSSGIS splits
+    # them across `routed-car`, `routed-foot` and `routed-bike`, and a
+    # self-hosted instance is built from one .lua profile per process. Blank
+    # means "use `osrm_url`", which is the default and is exactly the behaviour
+    # this app has always had; filling one in is what makes that mode's number
+    # its own (`commute.base_url_for`, `commute.is_car_routing`).
+    "osrm_url_foot": "",
+    "osrm_url_bike": "",
     "nl_parser_backend": "deterministic",  # deterministic | llm
     "llm_base_url": "",  # OpenAI-compatible base, e.g. http://localhost:11434/v1
     "llm_api_key": "",  # blank for a local Ollama server
@@ -323,11 +333,26 @@ DEFAULT_SETTINGS = {
     # for one at any time (`POST /api/scrapers/trigger?full=true`), and the
     # first scan of a search is always a full sweep.
     "full_sweep_every_days": 7,
+    # How long a listing may go unseen by a clean full scan before it is marked
+    # "gone". The default is `scanner.GONE_AFTER_DAYS` and the comment there
+    # says why it is a number of days rather than "absent from the latest
+    # scan": a 403 lasting a few hours must not make half the database vanish.
+    # Shortening it buys a dashboard that goes stale less slowly and spends
+    # exactly that tolerance, which is why the dial exists and the default does
+    # not move. Clamped to at least 1 day by `scanner.gone_after_days`.
+    "gone_after_days": 7,
     # Scraper health alerting: notify after this many *consecutive* failed
     # scans of the same profile. A single blocked scan is a transient
     # DataDome 403, not a broken scraper — alerting on it trains the user to
     # ignore the alerts. 0 disables health alerting entirely.
     "health_alert_after_failures": 3,
+    # How many individual notifications one scan may send per category (new,
+    # price change, back on the market). The default is
+    # `scanner.MAX_NOTIFICATIONS_PER_SCAN`; nothing is lost past it either way,
+    # because the tail is announced as "… and N more", so this is a preference
+    # about how much a busy scan is allowed to say. Clamped to at least 1 by
+    # `scanner.max_notifications_per_scan`.
+    "max_notifications_per_scan": 15,
     "proxy_url": "",
     # Optional residential proxy pool. `proxy_url` stays as the one-element
     # shorthand; this list adds IP diversity: each scraper session sticks to one

@@ -1448,6 +1448,8 @@ test("every setting, and the tests beside them", async ({ page }) => {
   await toggle(page, "settings.scanning.pause");
   await toggle(page, "settings.scanning.pause");
   await choose(page, "settings.scanning.healthAfter", "5");
+  await choose(page, "settings.scanning.goneAfter", "14");
+  await choose(page, "settings.scanning.notifyCap", "25");
   await fill(page, "settings.scanning.keywords", "asta, nuda proprieta");
 
   // Smart match: the checkbox is what reveals the rest of the section.
@@ -1465,6 +1467,8 @@ test("every setting, and the tests beside them", async ({ page }) => {
   // Commute: same shape, plus a list that grows and shrinks.
   await setTicked(page, "settings.commute.enable", true);
   await fill(page, "settings.commute.osrmUrl", "http://127.0.0.1:5000");
+  await fill(page, "settings.commute.osrmUrlFoot", "http://127.0.0.1:5001");
+  await fill(page, "settings.commute.osrmUrlBike", "http://127.0.0.1:5002");
   await press(page, "settings.commute.addPoint");
   await fill(page, "settings.commute.pointName", "Work");
   await fill(page, "settings.commute.pointAddress", "Piazza Duomo, Milano");

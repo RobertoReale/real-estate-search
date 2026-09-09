@@ -746,6 +746,14 @@ export const en = {
   "settings.pauseScans": "Pause automatic scans",
   "settings.pauseScansNote":
     'Stops scheduled scans from touching the portals — useful for resting the connection while you are away. "Scan now" still works on demand.',
+  "settings.goneAfter": "Mark a listing gone after",
+  "settings.goneAfterNote":
+    "How long a listing has to go unseen by a full scan before the card says “no longer available”. Counted in days so a few hours of portal blocks cannot empty the grid; a listing that reappears comes straight back.",
+  "settings.nDays": "{count} days",
+  "settings.notifyCap": "Notifications per scan",
+  "settings.notifyCapNote":
+    "The most individual messages one scan sends per category — new listings, price changes. Anything beyond it is summarised in a single “and N more” line rather than dropped.",
+  "settings.nNotifications": "{count} messages",
   "settings.healthTitle": "Scraper health alerts",
   "settings.healthNote":
     "A broken scraper is silent: no listings looks exactly like a quiet market. Get notified when a search fails this many scans in a row. Portals block scrapers occasionally, so a value of 1 will cry wolf.",
@@ -787,7 +795,11 @@ export const en = {
   "settings.commuteRemovePoint": "Remove this place",
   "settings.commuteOsrmUrl": "Routing server (OSRM)",
   "settings.commuteOsrmNote":
-    "Leave blank for the public demo server. It is built on the driving network alone, so “on foot” and “bike” are routed as a car there — point this at your own OSRM for true walking and cycling times.",
+    "Leave blank for the public demo server. It is built on the driving network alone, so “on foot” and “bike” are routed as a car there — the two fields below are how you fix that.",
+  "settings.commuteOsrmUrlFoot": "Walking router (optional)",
+  "settings.commuteOsrmUrlBike": "Cycling router (optional)",
+  "settings.commuteOsrmModeNote":
+    "A router with a real pedestrian or cycling graph publishes it on its own address. Fill one in and that mode is measured properly — the “measured on the road network” note disappears from those times. Blank means the server above, and costs no extra requests either way.",
   "settings.commuteCompute": "Compute commute times now",
   "settings.commuteComputing": "Computing…",
   "settings.commuteComputeNote":

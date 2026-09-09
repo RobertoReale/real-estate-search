@@ -322,6 +322,62 @@ def test_gone_marking_handles_aware_and_naive_timestamps_together(db):
     assert scanner._mark_vanished_properties(db) == 2
 
 
+def test_how_long_unseen_counts_as_gone_is_the_owner_s_to_set(db):
+    """Seven days is a default, not a law: it was chosen so a run of 403s
+    cannot empty the grid, and somebody scanning a fast market wants the badge
+    sooner. The setting decides, and with none saved the number is exactly the
+    one the app has always used."""
+    four_days_ago = datetime.now(UTC) - timedelta(days=4)
+    prop = _prop(title="Sparito", fingerprint="a")
+    db.add(prop)
+    db.commit()
+    prop.last_seen_at = four_days_ago
+    db.commit()
+
+    # the default is unchanged: four days unseen is not yet gone
+    assert scanner.gone_after_days({}) == scanner.GONE_AFTER_DAYS
+    assert scanner._mark_vanished_properties(db, {}) == 0
+
+    assert scanner._mark_vanished_properties(db, {"gone_after_days": 3}) == 1
+    assert prop.status == "gone"
+
+
+def test_a_gone_threshold_of_zero_is_refused_rather_than_obeyed(db):
+    """Zero would mean "gone the moment one scan misses it", which is the exact
+    failure the day-based threshold exists to prevent — reachable by typing a 0
+    into a settings file. Floored at a day; junk falls back to the default."""
+    assert scanner.gone_after_days({"gone_after_days": 0}) == 1
+    assert scanner.gone_after_days({"gone_after_days": -5}) == 1
+    assert scanner.gone_after_days({"gone_after_days": "soon"}) == scanner.GONE_AFTER_DAYS
+
+
+def test_the_notification_cap_is_the_owner_s_to_set(monkeypatch):
+    """Fifteen is a guess about what a phone can absorb, and the person holding
+    the phone is better placed to make it. Below one it is refused: a cap of
+    zero leaves only the "… and N more" line, which reads as a broken
+    integration rather than as a choice."""
+    sent, summaries = [], []
+    monkeypatch.setattr(
+        scanner.notifier, "notify_new_property", lambda p, channels=None: sent.append(p) or True
+    )
+    monkeypatch.setattr(
+        scanner.notifier,
+        "broadcast",
+        lambda text, channels=None, subject=None: summaries.append(text) or True,
+    )
+    monkeypatch.setattr(scanner, "load_settings", lambda: {"max_notifications_per_scan": 3})
+
+    scanner._dispatch_notifications([_prop(title=f"Casa {i}") for i in range(10)], [])
+
+    assert len(sent) == 3
+    assert len(summaries) == 1 and "7" in summaries[0]
+    assert scanner.max_notifications_per_scan({"max_notifications_per_scan": 0}) == 1
+    assert (
+        scanner.max_notifications_per_scan({"max_notifications_per_scan": None})
+        == scanner.MAX_NOTIFICATIONS_PER_SCAN
+    )
+
+
 def test_hidden_property_is_not_reactivated(db, monkeypatch):
     """ "Hide property" must resist subsequent scans: hidden status
     never returns to active on its own (unlike filtered/gone)."""

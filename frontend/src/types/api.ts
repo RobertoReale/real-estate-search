@@ -3219,6 +3219,10 @@ export interface components {
             full_sweep_every_days?: number | null;
             /** Health Alert After Failures */
             health_alert_after_failures?: number | null;
+            /** Gone After Days */
+            gone_after_days?: number | null;
+            /** Max Notifications Per Scan */
+            max_notifications_per_scan?: number | null;
             /** Proxy Url */
             proxy_url?: string | null;
             /** Proxy Urls */
@@ -3247,6 +3251,10 @@ export interface components {
             }[] | null;
             /** Osrm Url */
             osrm_url?: string | null;
+            /** Osrm Url Foot */
+            osrm_url_foot?: string | null;
+            /** Osrm Url Bike */
+            osrm_url_bike?: string | null;
             /** Nl Parser Backend */
             nl_parser_backend?: string | null;
             /** Llm Base Url */
@@ -3431,6 +3439,16 @@ export interface components {
              */
             osrm_url: string;
             /**
+             * Osrm Url Foot
+             * @default
+             */
+            osrm_url_foot: string;
+            /**
+             * Osrm Url Bike
+             * @default
+             */
+            osrm_url_bike: string;
+            /**
              * Nl Parser Backend
              * @default deterministic
              */
@@ -3500,6 +3518,16 @@ export interface components {
              * @default 3
              */
             health_alert_after_failures: number;
+            /**
+             * Gone After Days
+             * @default 7
+             */
+            gone_after_days: number;
+            /**
+             * Max Notifications Per Scan
+             * @default 15
+             */
+            max_notifications_per_scan: number;
             /**
              * Proxy Url
              * @default

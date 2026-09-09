@@ -25,7 +25,8 @@ from sqlalchemy.pool import StaticPool
 
 from app import config, main
 from app.database import Base, get_db
-from app.models import Listing, Property
+from app.models import CommuteCache, Listing, Property
+from app.services import commute
 
 
 @pytest.fixture
@@ -567,6 +568,40 @@ def test_a_saved_secret_survives_a_later_save_that_masks_it_back(client):
     assert saved["max_pages_per_search"] == 4
     assert saved["idealista_api_key_set"] is True
     assert config.load_settings()["idealista_api_key"] == "real-key"
+
+
+def _with_session(fn):
+    """One short-lived session on the fixture's engine, like a request gets."""
+    gen = main.app.dependency_overrides[get_db]()
+    db = next(gen)
+    try:
+        return fn(db)
+    finally:
+        db.close()
+
+
+def test_pointing_a_mode_at_another_router_forgets_what_the_old_one_measured(client):
+    """A cached leg records the mode and the two pins — not the host that
+    answered. So saving a walking router and then finding every badge still
+    reading "measured on the road network" would look like the setting was
+    ignored, when in truth nothing had been re-routed. Changing a URL drops the
+    legs; saving anything else keeps the batch's work.
+    """
+    api = client
+    key = commute.cache_key("foot", 45.46, 9.19, 45.48, 9.20)
+    _with_session(
+        lambda db: (
+            db.add(CommuteCache(leg=key, distance_m=1400.0, duration_s=1080.0)),
+            db.commit(),
+        )
+    )
+
+    assert api.put("/api/settings", json={"max_pages_per_search": 4}).status_code == 200
+    assert _with_session(lambda db: db.query(CommuteCache).count()) == 1
+
+    saved = api.put("/api/settings", json={"osrm_url_foot": "http://nas.local:5001"}).json()
+    assert saved["osrm_url_foot"] == "http://nas.local:5001"
+    assert _with_session(lambda db: db.query(CommuteCache).count()) == 0
 
 
 def test_finishing_the_setup_is_remembered_with_the_settings(client):
