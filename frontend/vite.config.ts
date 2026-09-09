@@ -28,5 +28,12 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // The 5000 ms default is not enough on a loaded machine: the suite went red
+    // on a docs-only commit, failing a different number of tests each run, and
+    // passed unchanged once the clock was raised. A test that is genuinely
+    // broken fails on its assertion, not on the timer, so a generous budget
+    // costs nothing and removes a whole class of false reds — here and on any
+    // CI runner sharing its cores.
+    testTimeout: 20000,
   },
 });
