@@ -220,7 +220,7 @@ and for how to tell a stale TLS profile from an address that has gone bad.
 
 ### Documentation for contributors
 
-If you are changing the code rather than using the app, six documents carry
+If you are changing the code rather than using the app, seven documents carry
 everything that is not obvious from reading it:
 
 * **[Architecture](docs/architecture.md)** — where to act for each kind of change,
@@ -237,6 +237,10 @@ everything that is not obvious from reading it:
   an invariant, and how a release is cut from a tag.
 * **[Audit playbook](docs/audit.md)** — the repeatable full-project health check:
   the green baseline, the module review order, the invariant→test cross-check.
+* **[Roadmap](docs/roadmap.md)** — what is known and not done, with the blocker
+  stated as plainly as the ambition: every limit still standing and what lifting
+  it would cost, the findings a review deliberately did not act on, and what
+  stands between this and a hosted, multi-account version.
 
 ---
 

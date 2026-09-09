@@ -1,25 +1,138 @@
 # Roadmap
 
-What is known and not done. Every entry here was found by a review that had the evidence in
-front of it and decided, deliberately, not to act — so each one carries the evidence and the
-reason, not just the intention. An item with neither is a wish, and belongs in an issue
-rather than in this file.
+What is known and not done, and where this product goes after 2.0.0.
+
+Every entry here was found by somebody who had the evidence in front of them and decided,
+deliberately, not to act — so each one carries the evidence and the reason, not just the
+intention. An item with neither is a wish, and belongs in an issue rather than in this file.
 
 Two rules keep it honest:
 
 - **A row states its blocker as plainly as its ambition.** A roadmap that lists only what
-  would be nice is a wish list; the value is in what has to be solved first.
+  would be nice is a wish list; the value is in what has to be solved first. The corollary
+  is about order: the hard entries come first on this page, because a list that hides them
+  behind the easy ones reads as progress and is not.
 - **A row is removed when it is done or when it is withdrawn**, and a withdrawn row says
   why. Nothing accumulates here silently.
 
 ---
 
-## Found by the backend review, not done
+## 1. Every limit still standing
+
+[`limits.md`](limits.md) is the inventory of everything this software cannot do, and its
+second table — [*What it would take to lift each one*](limits.md#what-it-would-take-to-lift-each-one)
+— says, per limit, the method and the price. **The standing goal is to lift all of them**,
+and every row that survives is a roadmap item by definition. What follows carries each one
+by its `data-limit` id with the method compressed to a line; the row in `limits.md` is the
+copy that is maintained, and this page links to it rather than restating it.
+
+The verdicts are the ones `limits.md` defines: **open** (nobody has a good answer),
+**liftable but it costs something** (a key, a server, a machine kept running), and
+**liftable now** (this repository already has what it needs).
+
+### Open — no method exists yet
+
+Five, and they are the honest part of this page. Two of them are not defects at all, which
+is stated rather than hidden: for those, "lifting" would mean discarding a correct answer,
+and the goal above does not apply.
+
+| `data-limit` | Why nobody has a method |
+|---|---|
+| `scan.portalBlocked` | Idealista's half costs a key — its own API has no DataDome in front of it. Immobiliare publishes no developer API at all, and the third-party "Immobiliare APIs" resell the same scraping and carry the same 403. A portal refusing a scraper is the portal working as intended. |
+| `profiles.zoneIdsUnnamed` | The geography autocomplete resolves text to ids, never ids back to text, and nothing published maps an Immobiliare zone id to a name. Caching the pairing when a name *is* resolved helps only ids this installation has already met. |
+| `handoff.<criterion>` | A deal score, a tag, a status: the criteria that drop are the ones no portal has a concept for. Any mapping would be an invention presented as a filter, so exact/widened/dropped-and-why is the whole of what is available. |
+| `map.zoneCentroid` | There is no source of exact coordinates for a listing whose address nobody publishes. Withholding it is the portals' product decision, not a gap here. **Not a defect.** |
+| `benchmark.omiIsNotTheMedian` | OMI publishes a band derived from recorded transactions; the median is what is being asked today. The two measure different things correctly, and the only way to make them agree is to throw one away — which [invariant 22](invariants.md) exists to prevent. **Not a defect, and not wanted.** |
+
+### Liftable, but it costs something
+
+Seven. Four of them are the same purchase: **an Idealista API key**, issued by hand with
+[no self-service signup](https://developers.idealista.com/access-request). That single key
+is the highest-leverage item on this page, and it has a first cost that is not the money —
+the key must exist before anyone can check whether the endpoints behind it have the shape
+these rows need. Two more are one machine: a self-hosted Nominatim.
+
+| `data-limit` | What lifting it needs | What it costs |
+|---|---|---|
+| `profiles.zoneCarry` | Idealista's internal `locationId`, which is not derivable offline; its location lookup sits behind the key, and so does its documentation. | An Idealista key, whose first purchase is the ability to check the endpoint at all. |
+| `profiles.zonePreferred` | Nothing of its own — this line exists only to name the trustworthy side while the two sides differ, and disappears with `profiles.zoneCarry`. | The same key. Not separately purchasable. |
+| `profiles.reviewApprox` | Each widening is a specific filter token, and this project measures portal tokens against real result totals rather than inferring them. Measuring an Idealista token means running the search against Idealista. | The same key, which buys the measurement. Guessing the token is the failure mode the rule exists to prevent. |
+| `profiles.reviewDropped` | Same method. The concrete casualty is named: this codebase counts Italian *locali* where the API filters `bedrooms`, and "locali − 1" is the plausible guess that silently returns the wrong set. | The same key. Until then declining is visible and guessing is not. |
+| `settings.idealistaReach` | Raise `idealista_api_max_pages`; each extra page is 50 more listings and one more request. | Quota on that key, against a ceiling agreed privately when it is issued and published nowhere. |
+| `geocode.pace` | Run Nominatim yourself and point `nominatim_url` at it — the setting already exists for this. The public instance restricts scheduled scripts to 4 requests a minute, which is exactly what a scheduled scan is. | A machine kept running: 2 GB RAM floor, plus a 2.07 GB Italy extract to import. It buys unmetered geocoding. |
+| `scan.outsideArea`, `card.outsideArea` | The polygon test already flags the strays; *dropping* them needs a coordinate for every listing, and the unplaced ones are precisely those the paced geocoder has not reached. | The same self-hosted geocoder — this row is `geocode.pace`'s cost, spent inside a scan rather than after it. |
+
+### Liftable now — the work is here and nothing must be obtained
+
+Eight. These are the ones with no excuse, which is why they are last: they are the cheapest
+and therefore the least interesting thing on this page.
+
+| `data-limit` | What lifting it takes |
+|---|---|
+| `profiles.zoneBestEffort` | Call the geography autocomplete the scraper already calls, from the search builder, and keep the ids. Everything needed exists; only the builder does not reach for it. It does make saving a search perform a network call, which it never does today. |
+| `profiles.zoneFirstNameOnly` | The same call: with names resolved to ids, all of them travel as repeated query params instead of only the first. One method closes both rows. |
+| `profiles.areaNeedsUrl` | The builder already parses `vrt` and `centro`+`raggio` out of a pasted URL, and the dashboard already draws polygons in the format the geo filter reads. Emitting those params from the drawn shape closes the loop. Immobiliare only — Idealista's URL grammar has no equivalent, so a drawn search stays one-portal. |
+| `commute.carRouting` | Point `osrm_url` at a host that serves a real pedestrian graph; the public demo answers "on foot" on the driving graph, measurably. That host splits profiles across path prefixes, so a mixed-mode setup needs the base URL to become per-mode — a change inside this repository. |
+| `scan.pageCap` | Already mostly done: an over-cap search is re-run as several non-overlapping narrower ones and merged. Raising `max_pages_per_search` covers the remainder, at one more request per page. The cap is a dial the owner can already turn. |
+| `card.goneAfter` | Expose the "gone after 7 days" constant as a setting. Shortening it trades directly against the block tolerance it was chosen for, so **the dial is the deliverable, not a smaller default**. |
+| Notifications capped at 15 | Expose or raise the per-scan notification cap. Nothing is lost silently today — the overflow message already names the count it suppressed — so this is a preference about volume. |
+| The demo corpus is synthetic | It stays synthetic; real listings are the portals' content. What is missing is the statement, and the mode that would carry the banner is not built. Until it is, this row is waiting on a feature rather than on a method. |
+
+---
+
+## 2. After 2.0.0: the hosted, multi-account version
+
+Recorded because it was asked for, and because knowing the blockers changes what is worth
+building now. **This is a direction, not a commitment.**
+
+Today the product is one person, one machine, one database, and its entire security model is
+that the API answers only on loopback ([invariant 14](invariants.md)). "Available on the web,
+with accounts" is not a feature added to that — it is a different product built on the same
+engine. Four things stand between here and there, in descending order of how likely each is
+to kill it.
+
+**1. The scrapers would run from a datacenter IP, and that is the hard one.** The whole
+anti-blocking ladder — `curl_cffi` TLS impersonation with rotating profiles, the Camoufox
+browser, the harvested DataDome cookie ([`datadome.md`](datadome.md)) — is tuned for a
+residential connection scanning a handful of searches a day. From AWS or Hetzner the same
+requests meet a much harder wall, much sooner, and the cookie a real browser earned on a home
+connection does not transfer. The realistic answer is to stop scraping directly and pay per
+request through the Idealista official API or a scraping provider — which converts a free
+local tool into a per-user variable cost, and makes pricing a product decision before it is
+an engineering one. Every other item here is work; this one is a question that has to be
+answered before the work is worth starting.
+
+**2. Invariant 14's premise disappears.** "The bind address is the access control" cannot
+survive a public host. That means real authentication — sessions, password reset, email
+verification — and multi-tenancy: an owner column on every table, and every query in the
+application filtered by it. That is not a feature, it is a change to the shape of every read
+in the codebase, and the one place a mistake shows another person's shortlist.
+
+**3. Legal posture changes with the money.** Collecting listings for yourself and operating a
+service that collects them for paying customers are different things in front of a portal's
+terms, and holding accounts brings GDPR obligations the local app has never had: a data
+controller, a retention policy, deletion on request. Worth an actual opinion before the first
+paying user, not after.
+
+**4. Cost and operations.** Scans are long-running and bursty, so per-user scheduling, a job
+queue, per-tenant rate limits and a database that is not SQLite-on-one-disk all arrive
+together, along with backups and monitoring that are somebody's job rather than a folder.
+
+**What 2.0.0 buys either way.** Nothing in it is wasted on that path and most of it is a
+prerequisite: the URL and routing are what make a shareable link possible at all; the
+generated API client is what lets a second frontend exist; the event stream is how a browser
+learns about a scan it did not start; the design system and the information architecture are
+the difference between a tool and something a stranger will pay for; and the browser suite is
+the only way any of it stays true once more than one person depends on it.
+
+---
+
+## 3. Found by the backend review, not done
 
 The review is [`audit.md`](audit.md) §2–§3 (correctness), §6 (security) and §7
-(efficiency). It ran at the end of phase H — after the scan was rewritten and before the
-interface was built on it — under a standing rule that it was a review and not a rewrite:
-anything that would change behaviour a test asserts stops and becomes a row here.
+(efficiency). It ran after the scan was rewritten and before the interface was built on it,
+under a standing rule that it was a review and not a rewrite: anything that would change
+behaviour a test asserts stops and becomes a row here.
 
 ### Idealista's own delay floor is overwritten by the scanner
 
@@ -47,7 +160,7 @@ delays chosen per host rather than globally.
 
 ### A scraped URL's scheme is checked where it is exported, and nowhere else
 
-The HTML dossier now refuses to link anything that is not `http(s)` (`exporter._safe_url`,
+The HTML dossier refuses to link anything that is not `http(s)` (`exporter._safe_url`,
 `audit.md` §6.1). Two other consumers of the same field were deliberately left alone:
 
 - **ingestion** — `scrapers/immobiliare.py` and `idealista.py` store whatever the portal's
@@ -55,8 +168,10 @@ The HTML dossier now refuses to link anything that is not `http(s)` (`exporter._
   the URL is also the identity two sightings of an ad are matched on (`listing_key`,
   `merge_scrapes`, `_already_seen`), so dropping or blanking one is a change to
   deduplication, not to rendering.
-- **the frontend**, which renders the same value as a link. It is being replaced wholesale
-  by phases B–E, so it is F.7's to read, not the backend review's.
+- **the frontend**, which renders the same value as a link and has never applied the scheme
+  rule. It was being replaced wholesale while the backend review ran, so reading the
+  rebuilt version is the security pass's job rather than the backend review's
+  ([`audit.md`](audit.md) §6.2).
 
 ### `_mark_vanished_properties` walks every active property in Python
 
