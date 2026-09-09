@@ -36,7 +36,10 @@ fast-forward:
 - **A merge commit, because the branch name is the only surviving description.** Branches
   are cheap and get forgotten; `git log --merges` afterwards is a list of the units this
   project was actually built out of, which is a shorter and more honest history than the
-  list of commits.
+  list of commits. That is also why the branch itself goes once it is merged — the merge
+  commit already carries the name, so the ref is a duplicate, and left alone they
+  accumulate one per unit until `git branch` is unreadable. `git branch -d` after the
+  merge, or `git branch --merged master` to catch up on the backlog.
 - **No work-in-progress commits.** A commit that never had green gates is a commit
   `git bisect` will eventually stop on, and it will waste the session it stops in. Squash
   the exploration; commit the conclusion.
