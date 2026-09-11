@@ -66,6 +66,13 @@ the same portal page in your own browser, on the same connection, with no proxy.
   If the machine is permanently in a datacenter, the local levers are the wrong
   tool for it: the two portal-side options below are what is left.
 
+**If you would rather measure than guess:** `python -m app.livecheck <search URL>`
+asks that one search through every transport separately — each TLS profile with
+no cookie, the saved cookie, and the paid provider if you allow it — and prints
+what each one got back and what the parsers made of it. That answers "burnt
+profile or bad address?" in one run, with numbers, instead of by inference.
+[`live-checks.md`](live-checks.md) has the commands and the spending limits.
+
 **Where to look while diagnosing:** the **Scraper health** panel on the dashboard
 names the transport that carried each day's scans — a day labelled
 `local (curl_cffi)` with no blocks is the cheap path doing its job. The activity

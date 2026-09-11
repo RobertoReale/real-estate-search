@@ -326,6 +326,17 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   *declares* in order to be named, kept in step with the inventory in `e2e/actions.ts` by a
   gate that fails the build if the two drift.
 
+- **A spec never leans on what happens to be installed on the machine.** Parts of the UI
+  render only when the backend reports an optional dependency present or absent —
+  `datadome_harvester_available` and `camoufox_available` are import probes of the
+  backend's own environment, so the screen a spec is given depends on whose venv it runs
+  in. A spec that needs one of those branches pins the flag through `patched()` rather than
+  hoping, and the two halves are pinned by two different tests: a developer who installs
+  Playwright for anything else otherwise turns the "Install Playwright" button into a
+  control that never appears and a press that waits out the full test timeout, on a suite
+  that is green everywhere else. The rule generalises past these two flags — anything the
+  backend reports about its host is an input to be stated, not a constant.
+
 - **Which tier a new test goes in is decided by what the defect needs in order to be
   visible**, never by which harness is nearest to hand. Pure logic — a codec, a formatter,
   a dictionary, a payload built from eight sections — is a vitest, because a test that can
