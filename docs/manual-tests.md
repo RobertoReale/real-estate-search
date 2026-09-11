@@ -69,6 +69,12 @@ every gate in this repository.
 in a city you know — Milan is a safe control because it always has stock — and run a **full**
 scan of each. Read the scan journal row, not just the grid.
 
+**Before you do it by hand**, `python -m app.livecheck` runs the same two searches through
+every transport separately and reports which one answered and what the parsers made of it —
+see [`live-checks.md`](live-checks.md). It does not replace this item, because it proves the
+transports and the parsers rather than the product, but it turns a failure here from "blocked,
+somehow" into the specific rung that refused.
+
 **Pass.** Both rows finish `ok`. Each reports a listing count in the same order of magnitude
 as the portal's own result header for the same search, opened in a browser side by side.
 Titles are real titles, prices are real prices, and the zone on a card is a zone rather than

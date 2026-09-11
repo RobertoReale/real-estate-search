@@ -395,6 +395,7 @@ La documentazione tecnica, **in inglese**, è in [`docs/`](docs/):
 | [development-cycle](docs/development-cycle.md) | l'unità di lavoro, i controlli prima di ogni commit, come si taglia una release da un tag |
 | [dependencies](docs/dependencies.md) | i lockfile del backend e del frontend, come si rigenerano, le trappole |
 | [audit](docs/audit.md) | il controllo di salute dell'intero progetto, ripetibile |
+| [live-checks](docs/live-checks.md) | come verificare, transport per transport, se una ricerca funziona ancora davvero sui portali |
 | [manual-tests](docs/manual-tests.md) | i nove controlli che nessun test automatico può fare |
 | [roadmap](docs/roadmap.md) | cosa si sa e non è fatto, con il costo di ogni limite ancora in piedi |
 

@@ -90,3 +90,8 @@ backend/backups/
 # harvesting (services/cookie_harvester.py): local browser state, same
 # never-commit rule as case.db and settings.json.
 backend/browser_profile/
+
+# What `python -m app.livecheck` writes: one directory per run, holding the
+# report and the pages the portals answered with. A captured page is the
+# portal's, not ours, so it stays on the machine that fetched it.
+backend/live-checks/
