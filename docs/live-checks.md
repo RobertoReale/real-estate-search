@@ -26,12 +26,13 @@ could climb, and tries them in order — free first, cheapest evidence first, mo
 last. Nothing in `app/scrapers/` is modified or re-implemented: the scrapers are
 driven from outside, so what the report measures is what a scan would get.
 
-Three ways to say what to check:
+Four ways to say what to check:
 
 | | |
 |---|---|
 | `python -m app.livecheck URL [URL …]` | the searches you name |
 | `--profiles` | every active saved search, read out of `case.db` **read-only** (`file:…?mode=ro`) |
+| `--suite` | the tracked reference searches: one per shape a search can have |
 | `--replay DIR` | re-parse an earlier run's saved pages; makes no network call at all |
 
 ### The rungs
@@ -83,6 +84,74 @@ transport was refused must still read `no rung worked`.
 
 **Exit code:** 0 when every portal checked had at least one rung that parsed
 listings or *proved* the search matches nothing; 1 otherwise.
+
+## The reference suite
+
+One search is not every search. The shapes a user can create take different code
+paths — `_api_params`, `_absorb_query`, `search_builder` — and each has broken
+separately before, so a green run on a city search says nothing about the four
+shapes below it.
+
+```bash
+cd backend && .venv\Scripts\python -m app.livecheck --suite
+```
+
+`--suite` checks a tracked list instead of a URL. The searches are public and
+generic; none of them comes from `case.db`, because a report is a file that gets
+pasted into an issue.
+
+| Entry | Portal | Shape |
+|---|---|---|
+| `imm-city` | Immobiliare | a city |
+| `imm-zone-path` | Immobiliare | a zone in the path, with price and room filters |
+| `imm-zone-ids` | Immobiliare | zone ids in the query (`idMZona[]`) |
+| `imm-polygon` | Immobiliare | a drawn polygon (`search-list` + `vrt`) |
+| `imm-radius` | Immobiliare | a radius around a point (`centro` + `raggio`) |
+| `ide-city` | Idealista | a city |
+| `ide-zone` | Idealista | a zone with filters |
+| `*-form` | both | the same criteria built by `search_builder`, as the form builds them |
+
+The `-form` entries are **derived**, never typed out: each one is what
+`build_search_urls` produces from the criteria of the pasted entry it restates.
+A builder that started producing something else would fail the offline test
+rather than quietly measure a different search.
+
+The list is checked before a single request leaves. Every entry must still parse
+as the shape it claims, name the portal it claims, survive `search_validator`
+with no zone warning, and be a different search from every other entry. If any of
+that stops being true the run refuses with exit code 2 and says which entry —
+a suite that has drifted would report a green table for shapes it never checked.
+
+**It climbs one rung, not the matrix.** Each search stops at the first rung that
+parses, so a suite run costs a handful of requests rather than one per rung per
+search. `--all-rungs` asks every rung of every search; it is the full matrix, and
+it is the thing the budget exists to make you ask for on purpose. The request cap
+scales with the list — three requests per search of the busiest portal — so the
+second half of the suite is not refused by a cap sized for one URL.
+
+**Exit code:** 0 only when **every** reference search had a rung that answered.
+The per-portal verdict cannot say this: one working city search would cover for
+four broken shapes.
+
+### `--compare-form`
+
+```bash
+cd backend && .venv\Scripts\python -m app.livecheck --compare-form
+```
+
+Implies `--suite`, and prints a second table: the pasted search's total and the
+form-built total side by side, with `search_validator`'s review of what the
+restatement approximated or dropped. It is the computed half of item 2 of
+[`manual-tests.md`](manual-tests.md) — the gap between two totals is only a bug
+when the review did not predict it.
+
+The review is free; it is computed offline whether or not the run had a total to
+put beside it. So a shape the form cannot express says so in words —
+*the builder has no grammar for a search drawn on the map*, and `drawn_area
+dropped` — instead of showing an empty cell that reads as "not checked". The
+converse case is the one worth the run: Idealista's zone URL and the form's route
+to the same zone carry identical criteria through different grammars, which is
+exactly where two different totals are legitimate.
 
 ## The budgets are the rules
 
@@ -140,6 +209,9 @@ interfere with a running app.
   tool is how you get the evidence it asks you for without guessing.
 * Before a release, item 1 of [`manual-tests.md`](manual-tests.md) is still a
   real scan through the app — a live check proves the transports and the parsers,
-  not the product.
+  not the product. `--compare-form` computes the numbers item 2 asks for, but not
+  the screen that has to show them.
+* A portal changed something overnight and you want to know how much of the
+  product it took with it: `--suite` answers it shape by shape in one run.
 * The parsing strategies themselves, and which portal quirk each one exists for,
   are in [`architecture.md`](architecture.md).

@@ -47,6 +47,7 @@ from ..scrapers.transport import (
 )
 from .budget import CREDITS_PER_PAGE, Budget
 from .report import (
+    OK_OUTCOMES,
     Attempt,
     Run,
     capture_name,
@@ -455,7 +456,12 @@ def select_rungs(rungs: list[Rung], wanted: list[str] | None) -> list[Rung]:
 
 
 def _immobiliare_targets(
-    scraper: ImmobiliareScraper, search_url: str, budget: Budget, attempts: list[Attempt]
+    scraper: ImmobiliareScraper,
+    search_url: str,
+    budget: Budget,
+    attempts: list[Attempt],
+    *,
+    search: str = "",
 ) -> list[Target]:
     """The api-next page and the HTML page, in that order.
 
@@ -467,7 +473,9 @@ def _immobiliare_targets(
     failure is the reason api-next cannot be asked for at all.
     """
     html = Target(name="html p1", url=search_url, kind="html")
-    attempt = Attempt(portal="immobiliare", rung="prepare", target="geography", kind="prepare")
+    attempt = Attempt(
+        portal="immobiliare", rung="prepare", target="geography", kind="prepare", search=search
+    )
 
     metered = _MeteredSession(scraper.session, "immobiliare", budget)
     original = scraper.session
@@ -606,6 +614,8 @@ def run_rungs(
     *,
     capture: Callable[[Attempt, Target, str], str] | None = None,
     secrets: list[str] | None = None,
+    stop_at_first: bool = False,
+    search: str = "",
 ) -> list[Attempt]:
     """Every rung against every target it serves, each measured on its own.
 
@@ -613,6 +623,12 @@ def run_rungs(
     the attempt, so a run that stopped early says so in the same table as the
     requests it did make. Nothing here retries: a rung that was refused is a
     finding, and asking again is the loop invariant 8 forbids.
+
+    `stop_at_first` returns as soon as one attempt parses. It is what the
+    reference suite runs on: the question there is "does this search still
+    work", and once the cheapest rung has answered it, every further rung is a
+    request that buys nothing and spends the address. The full matrix is still
+    one flag away for the run that needs it.
     """
     secrets = secrets or []
     attempts: list[Attempt] = []
@@ -628,6 +644,7 @@ def run_rungs(
                 url=redact(target.url, secrets),
                 contract=target.contract,
                 city=target.city,
+                search=search,
             )
             if rung.paid:
                 refusal = rung.unavailable or budget.refuse_paid(rung.remaining_credits, rung.cost)
@@ -662,6 +679,8 @@ def run_rungs(
             if capture is not None and fetched.body:
                 attempt.capture = capture(attempt, target, fetched.body)
             attempts.append(attempt)
+            if stop_at_first and attempt.outcome in OK_OUTCOMES:
+                return attempts
     return attempts
 
 
@@ -699,11 +718,18 @@ def run_checks(
     rung_filter: list[str] | None = None,
     out_root: Path | None = None,
     settings: dict | None = None,
+    labels: list[str] | None = None,
+    stop_at_first: bool = False,
 ) -> Run:
     """Check every URL through every selected rung and write the record.
 
     One run, one directory: the table on stdout and `report.json` describe the
     same attempts, and the captures beside them are what `--replay` re-reads.
+
+    `labels` names the searches, one per URL, and every attempt a URL produces
+    carries its name — the geography row included, so a suite table can be read
+    a search at a time. `stop_at_first` is passed through to each search's
+    rungs.
     """
     settings = load_settings() if settings is None else settings
     secrets = _secrets_of(settings)
@@ -719,8 +745,10 @@ def run_checks(
     wants_browser = bool(rung_filter) and "browser" in (rung_filter or [])
     browser = _BrowserRung() if wants_browser else None
 
+    names = list(labels or []) + [""] * max(0, len(urls) - len(labels or []))
+
     try:
-        for url in urls:
+        for url, name in zip(urls, names, strict=True):
             portal = portal_of(url)
             if not portal:
                 run.attempts.append(
@@ -730,27 +758,47 @@ def run_checks(
                         target="-",
                         url=redact(url, secrets),
                         error="this URL belongs to no portal this tool can check",
+                        search=name,
                     )
                 )
-                continue
-            scraper = _scraper_for(portal, budget.delay_seconds)
-            if isinstance(scraper, ImmobiliareScraper):
-                targets = _immobiliare_targets(scraper, url, budget, run.attempts)
+            elif refusal := budget.refuse_direct(portal):
+                # Checked before the geography lookup rather than inside the
+                # rungs, because that lookup succeeds against an endpoint
+                # anti-bot rarely guards and clears the blocked streak as it
+                # goes. Without this, a portal dropped on the first search of a
+                # run would be resurrected by every search after it — the retry
+                # loop invariant 8 forbids, spread over a list of URLs.
+                run.attempts.append(
+                    Attempt(
+                        portal=portal,
+                        rung="-",
+                        target="-",
+                        url=redact(url, secrets),
+                        skipped=refusal,
+                        search=name,
+                    )
+                )
             else:
-                targets = _idealista_targets(url)
-            rungs = select_rungs(
-                build_rungs(portal, scraper, budget, settings=settings, browser=browser),
-                rung_filter,
-            )
-            run.attempts += run_rungs(
-                portal,
-                scraper,
-                targets,
-                rungs,
-                budget,
-                capture=capture,
-                secrets=secrets,
-            )
+                scraper = _scraper_for(portal, budget.delay_seconds)
+                if isinstance(scraper, ImmobiliareScraper):
+                    targets = _immobiliare_targets(scraper, url, budget, run.attempts, search=name)
+                else:
+                    targets = _idealista_targets(url)
+                rungs = select_rungs(
+                    build_rungs(portal, scraper, budget, settings=settings, browser=browser),
+                    rung_filter,
+                )
+                run.attempts += run_rungs(
+                    portal,
+                    scraper,
+                    targets,
+                    rungs,
+                    budget,
+                    capture=capture,
+                    secrets=secrets,
+                    stop_at_first=stop_at_first,
+                    search=name,
+                )
     finally:
         if browser is not None:
             browser.close()

@@ -1,8 +1,9 @@
 """`python -m app.livecheck` — run a search through every transport separately.
 
-Three ways to say what to check: URLs on the command line, `--profiles` for the
-saved searches the app actually monitors, or `--replay DIR` to re-run the
-parsers over an earlier run's captures without touching the network.
+Four ways to say what to check: URLs on the command line, `--profiles` for the
+saved searches the app actually monitors, `--suite` for the tracked reference
+searches that cover every shape a search can have, or `--replay DIR` to re-run
+the parsers over an earlier run's captures without touching the network.
 
 Everything that costs something is off by default. The browser rung has to be
 asked for by name (invariant 18), the paid rung needs `--paid`, and the credit
@@ -23,6 +24,14 @@ from .budget import (
 )
 from .report import render, succeeded
 from .rungs import active_profiles, replay, run_checks
+from .suite import (
+    every_search_answered,
+    render_comparison,
+    render_suite,
+    request_cap,
+    run_suite,
+    suite_complaints,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -38,6 +47,27 @@ def _parser() -> argparse.ArgumentParser:
         "--profiles",
         action="store_true",
         help="check every active saved search instead (the database is opened read-only)",
+    )
+    p.add_argument(
+        "--suite",
+        action="store_true",
+        help=(
+            "check the tracked reference searches instead: one per shape a search "
+            "can have, climbing one rung each and stopping at the first that parses"
+        ),
+    )
+    p.add_argument(
+        "--all-rungs",
+        action="store_true",
+        help="with --suite: try every rung against every search, not just the first that parses",
+    )
+    p.add_argument(
+        "--compare-form",
+        action="store_true",
+        help=(
+            "implies --suite: also print the pasted and form-built totals side by "
+            "side, with what the restatement approximated or dropped"
+        ),
     )
     p.add_argument(
         "--replay",
@@ -72,8 +102,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--max-requests",
         type=int,
-        default=DEFAULT_MAX_REQUESTS,
-        help=f"requests per portal from this connection (default {DEFAULT_MAX_REQUESTS})",
+        default=None,
+        help=(
+            f"requests per portal from this connection (default {DEFAULT_MAX_REQUESTS}; "
+            "--suite scales it to the number of searches)"
+        ),
     )
     p.add_argument(
         "--delay",
@@ -87,6 +120,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    suite = args.suite or args.compare_form
 
     if args.replay:
         run = replay(Path(args.replay))
@@ -96,13 +130,30 @@ def main(argv: list[str] | None = None) -> int:
     urls = list(args.urls)
     if args.profiles:
         urls += active_profiles()
-    if not urls:
-        print("nothing to check: pass a search URL, --profiles, or --replay DIR", file=sys.stderr)
+    if suite and urls:
+        # Refused rather than merged: the suite's request cap is sized for the
+        # suite, and quietly checking someone's saved searches under it would
+        # cut one list or the other short without saying which.
+        print("--suite checks its own list: drop the URLs and --profiles", file=sys.stderr)
+        return 2
+    if not suite and not urls:
+        print(
+            "nothing to check: pass a search URL, --profiles, --suite, or --replay DIR",
+            file=sys.stderr,
+        )
+        return 2
+    if suite and (complaints := suite_complaints()):
+        # The list has stopped describing the shapes it claims to, so nothing it
+        # measured would mean what the table says. Caught before a request.
+        print("\n".join(["the reference suite is not sound:", *complaints]), file=sys.stderr)
         return 2
 
     settings = load_settings()
+    max_requests = args.max_requests
+    if max_requests is None:
+        max_requests = request_cap() if suite else DEFAULT_MAX_REQUESTS
     budget = Budget(
-        max_requests=args.max_requests,
+        max_requests=max_requests,
         delay_seconds=(
             args.delay
             if args.delay is not None
@@ -113,12 +164,28 @@ def main(argv: list[str] | None = None) -> int:
         paid=args.paid,
     )
     rung_filter = [r.strip() for r in args.rungs.split(",") if r.strip()] if args.rungs else None
+    out_root = Path(args.out) if args.out else None
+
+    if suite:
+        run = run_suite(
+            budget=budget,
+            rung_filter=rung_filter,
+            out_root=out_root,
+            settings=settings,
+            all_rungs=args.all_rungs,
+        )
+        print(render(run))
+        print(f"\n{render_suite(run)}")
+        if args.compare_form:
+            print(f"\n{render_comparison(run)}")
+        print(f"\nwritten to {run.directory}")
+        return 0 if every_search_answered(run) else 1
 
     run = run_checks(
         urls,
         budget=budget,
         rung_filter=rung_filter,
-        out_root=Path(args.out) if args.out else None,
+        out_root=out_root,
         settings=settings,
     )
     print(render(run))

@@ -24,10 +24,18 @@ from pathlib import Path
 
 import pytest
 
-from app.livecheck.budget import BLOCKED_STREAK_LIMIT, CREDITS_PER_PAGE, Budget
+from app.livecheck import suite
+from app.livecheck.__main__ import main
+from app.livecheck.budget import (
+    BLOCKED_STREAK_LIMIT,
+    CREDITS_PER_PAGE,
+    DEFAULT_MAX_REQUESTS,
+    Budget,
+)
 from app.livecheck.report import (
     Attempt,
     Run,
+    capture_name,
     new_run_directory,
     redact,
     render,
@@ -54,6 +62,8 @@ from app.livecheck.rungs import (
 )
 from app.scrapers.idealista import IdealistaScraper
 from app.scrapers.immobiliare import ImmobiliareScraper
+from app.services.search_builder import build_search_urls, parse_search_url
+from app.services.search_validator import normalize_profile_url
 
 SEARCH_URL = "https://www.immobiliare.it/vendita-case/milano/bicocca/"
 FAKE_KEY = "sf_live_0123456789abcdef0123456789abcdef"
@@ -791,3 +801,284 @@ def test_the_saved_searches_are_read_read_only(tmp_path):
 
 def test_no_saved_database_is_no_profiles(tmp_path):
     assert active_profiles(tmp_path / "nothing-here.db") == []
+
+
+# --- the reference suite ------------------------------------------------
+#
+# The suite is a tracked list, so the list itself is what these tests hold
+# still. A reference search that quietly stopped being the shape its name
+# claims would not fail anything live: the run would come back green having
+# measured the same city search six times. Every claim the list makes is
+# therefore asserted here, offline and for free, and the tool refuses to make a
+# request while any of them is false.
+
+
+def a_reference(name: str) -> suite.Reference:
+    entry = suite.by_name(name)
+    assert entry is not None, f"no reference search is named {name}"
+    return entry
+
+
+def test_every_reference_search_is_sound():
+    assert suite.suite_complaints() == []
+
+
+@pytest.mark.parametrize("entry", suite.entries(), ids=lambda e: e.name)
+def test_a_reference_search_parses_as_the_shape_it_claims(entry):
+    assert portal_of(entry.url) == entry.portal
+    parsed = parse_search_url(entry.url)
+
+    assert {k: parsed.get(k) for k in entry.expect} == entry.expect
+
+
+def test_the_suite_covers_every_shape_a_search_can_have():
+    assert {e.shape for e in suite.entries()} == {
+        "city",
+        "zone in the path",
+        "zone ids in the query",
+        "drawn polygon",
+        "radius around a point",
+        "zone with filters",
+        "form",
+    }
+    assert {e.portal for e in suite.entries()} == {"immobiliare", "idealista"}
+
+
+def test_no_two_reference_searches_are_the_same_search():
+    # Two entries that normalise to one URL are one measurement wearing two
+    # names, and the table would report the missing shape as working.
+    normalised = [normalize_profile_url(e.url) for e in suite.PASTED]
+
+    assert len(set(normalised)) == len(normalised)
+
+
+def test_each_form_entry_restates_one_pasted_search():
+    for entry in suite.FORM:
+        origin = suite.by_name(entry.restates)
+
+        assert origin is not None and not origin.is_form
+        assert entry.url == build_search_urls(parse_search_url(origin.url))[entry.portal]
+
+
+def test_the_form_reproduces_an_immobiliare_search_exactly():
+    again = suite.restate(a_reference("imm-zone-path"))
+
+    assert again.same_search and not again.dropped and not again.changed
+    assert again.notes == []
+
+
+def test_the_form_reaches_an_idealista_zone_by_another_grammar():
+    again = suite.restate(a_reference("ide-zone"))
+
+    # Every criterion survives; it is the route to the zone that differs, and a
+    # different route is what can return a different total.
+    assert not again.dropped and not again.changed
+    assert not again.same_search
+    assert again.notes == ["the same criteria, in a grammar the pasted URL did not use"]
+
+
+@pytest.mark.parametrize("name", ["imm-polygon", "imm-radius"])
+def test_a_search_drawn_on_the_map_cannot_be_restated_by_the_form(name):
+    again = suite.restate(a_reference(name))
+
+    assert again.url == ""
+    assert "no grammar" in again.why_not
+    assert "drawn_area dropped" in again.notes
+    # And the finding is not swallowed by a URL with a hole where the shape was.
+    assert not again.same_search
+
+
+def test_the_request_cap_scales_with_the_number_of_searches():
+    busiest = max(
+        sum(1 for e in suite.entries() if e.portal == portal)
+        for portal in {e.portal for e in suite.entries()}
+    )
+
+    assert suite.request_cap() == suite.REQUESTS_PER_ENTRY * busiest
+    assert suite.request_cap() > DEFAULT_MAX_REQUESTS
+    # A shorter list never drops the cap below the single-search default.
+    assert suite.request_cap(suite.PASTED[:1]) == DEFAULT_MAX_REQUESTS
+
+
+def test_the_suite_stops_at_the_first_rung_that_parses(scraper):
+    rungs = [
+        a_rung("curl:one", [Fetched(status=200, body=API_NEXT)]),
+        a_rung("curl:two", [Fetched(status=200, body=API_NEXT)]),
+    ]
+
+    attempts = run_rungs(
+        "immobiliare", scraper, [api_target()], rungs, a_budget(), stop_at_first=True
+    )
+
+    assert [a.rung for a in attempts] == ["curl:one"]
+
+
+def test_a_refused_rung_is_not_a_reason_to_stop(scraper):
+    rungs = [
+        a_rung("curl:one", [Fetched(status=403, body=BLOCKED_HTML)]),
+        a_rung("curl:two", [Fetched(status=200, body=API_NEXT)]),
+        a_rung("curl:three", [Fetched(status=200, body=API_NEXT)]),
+    ]
+
+    attempts = run_rungs(
+        "immobiliare", scraper, [api_target()], rungs, a_budget(), stop_at_first=True
+    )
+
+    # The refusal is reported, the next rung answers, and the third is spared.
+    assert [(a.rung, a.outcome) for a in attempts] == [
+        ("curl:one", "blocked"),
+        ("curl:two", "ok"),
+    ]
+
+
+def test_the_whole_matrix_is_still_one_flag_away(scraper):
+    rungs = [
+        a_rung("curl:one", [Fetched(status=200, body=API_NEXT)]),
+        a_rung("curl:two", [Fetched(status=200, body=API_NEXT)]),
+    ]
+
+    attempts = run_rungs("immobiliare", scraper, [api_target()], rungs, a_budget())
+
+    assert [a.rung for a in attempts] == ["curl:one", "curl:two"]
+
+
+def test_each_attempt_says_which_search_it_belongs_to(scraper):
+    attempts = run_rungs(
+        "immobiliare",
+        scraper,
+        [api_target()],
+        [a_rung("curl:one", [Fetched(status=200, body=API_NEXT)])],
+        a_budget(),
+        search="imm-city",
+    )
+    lines = render_table(attempts).splitlines()
+
+    assert attempts[0].search == "imm-city"
+    assert lines[0].startswith("SEARCH")
+    assert lines[1].startswith("imm-city")
+
+
+def test_one_search_alone_gets_no_search_column():
+    table = render_table([Attempt(portal="immobiliare", rung="curl:one", target="html p1")])
+
+    assert not table.splitlines()[0].startswith("SEARCH")
+
+
+def test_two_searches_of_one_shape_do_not_overwrite_each_others_capture():
+    first = Attempt(portal="immobiliare", rung="curl:one", target="html p1", search="imm-city")
+    second = Attempt(portal="immobiliare", rung="curl:one", target="html p1", search="imm-zone-ids")
+
+    assert capture_name(first, ".html") != capture_name(second, ".html")
+
+
+def test_a_dropped_portal_is_not_resurrected_by_the_next_search(tmp_path):
+    # Immobiliare's geography lookup answers an endpoint anti-bot rarely guards,
+    # and clears the blocked streak as it goes. Without a check before it, a
+    # portal dropped on the first search would be asked again by every search
+    # after it: the retry loop invariant 8 forbids, spread over a list of URLs.
+    budget = a_budget()
+    for _ in range(BLOCKED_STREAK_LIMIT):
+        budget.record_outcome("immobiliare", blocked=True)
+
+    run = run_checks(
+        [SEARCH_URL],
+        budget=budget,
+        out_root=tmp_path,
+        settings={},
+        labels=["imm-city"],
+    )
+
+    assert [(a.rung, a.outcome) for a in run.attempts] == [("-", "skipped")]
+    assert "blocked attempts in a row" in run.attempts[0].skipped
+    assert run.attempts[0].search == "imm-city"
+    assert budget.requests_made("immobiliare") == 0
+
+
+def _answered(name: str, declared: int | None = None) -> Attempt:
+    entry = a_reference(name)
+    return Attempt(
+        portal=entry.portal,
+        rung="curl:one",
+        target="html p1",
+        listings=25,
+        declared_total=declared,
+        search=name,
+    )
+
+
+def test_one_broken_shape_fails_the_whole_suite():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [_answered(e.name) for e in suite.entries()]
+
+    assert suite.every_search_answered(run)
+
+    run.attempts[-1].listings = 0
+    run.attempts[-1].refused_status = True
+
+    # One working city search must not cover for a shape that stopped working.
+    assert not suite.every_search_answered(run)
+    assert succeeded(run)
+
+
+def test_resolving_the_geography_cannot_answer_for_a_search():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [
+        Attempt(
+            portal="immobiliare",
+            rung="prepare",
+            target="geography",
+            kind="prepare",
+            resolved=True,
+            search="imm-city",
+        )
+    ]
+
+    assert not suite.every_search_answered(run)
+
+
+def test_the_roll_up_reports_one_line_per_search():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [_answered("imm-city", 12000), _answered("ide-city", 9000)]
+
+    rendered = suite.render_suite(run)
+
+    assert "imm-city" in rendered and "ide-city" in rendered
+    assert "12,000" in rendered
+    assert "2 of 2 reference searches answered" in rendered
+
+
+def test_the_comparison_sets_the_pasted_and_form_totals_side_by_side():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [_answered("ide-zone", 140), _answered("ide-zone-form", 173)]
+
+    lines = suite.render_comparison(run).splitlines()
+    row = next(line for line in lines if line.startswith("ide-zone "))
+
+    assert "140" in row and "173" in row
+    assert "the same criteria, in a grammar the pasted URL did not use" in row
+    # And the shape the form cannot build says so instead of showing a total.
+    assert "no grammar" in next(line for line in lines if line.startswith("imm-polygon"))
+
+
+def test_the_comparison_declares_no_total_the_portal_did_not_state():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [_answered("ide-zone")]
+
+    row = next(
+        line for line in suite.render_comparison(run).splitlines() if line.startswith("ide-zone ")
+    )
+
+    # Invariant 26: what it served, said as what it served.
+    assert "25 on p1" in row
+
+
+def test_the_suite_checks_its_own_list_and_says_so(capsys):
+    assert main(["--suite", SEARCH_URL]) == 2
+
+    assert "--suite checks its own list" in capsys.readouterr().err
+
+
+def test_nothing_to_check_names_the_suite_too(capsys):
+    assert main([]) == 2
+
+    assert "--suite" in capsys.readouterr().err
