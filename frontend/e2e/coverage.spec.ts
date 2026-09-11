@@ -1401,8 +1401,9 @@ test("deleting a search, and the counts it shows first", async ({ page }) => {
 
 test("every setting, and the tests beside them", async ({ page }) => {
   // Telegram and SMTP send from the backend; the harvester subtree only renders
-  // when Playwright is importable, which it deliberately is not here. The
-  // controls are pressed for real against answers from this side.
+  // when Playwright is importable by the backend, which is a property of the
+  // machine rather than of the run — so it is pinned here instead of hoped for.
+  // The controls are pressed for real against answers from this side.
   // Both directions, not just the read: a save answers with the settings too,
   // and an unpatched answer to the PUT takes the harvester subtree back off
   // the screen the moment anything is saved.
@@ -1560,6 +1561,16 @@ test("every setting, and the tests beside them", async ({ page }) => {
 /* ────────────────────────── when the backend refuses ────────────────────────── */
 
 test("the app stays usable when the backend refuses everything", async ({ page }) => {
+  // The one test in the suite whose length is arithmetic rather than an
+  // accident: it presses every control on the page, and a control the refusal
+  // left disabled or a toast left covered costs the full five seconds below
+  // before the sweep moves on. A hundred of those do not fit in the three
+  // minutes every other test is given, so this one asks for the long budget
+  // instead of passing by being on a fast enough machine. Each click stays
+  // bounded, so a real hang still fails it — only the total is allowed to be
+  // what a sweep costs.
+  test.slow();
+
   await page.goto("/");
   await waitForResults(page);
   await press(page, "filters.advanced.toggle");
@@ -1766,6 +1777,14 @@ test("the backups and the resets", async ({ page }) => {
   // they run once nothing else needs it. The run seeds a fresh data directory
   // every time (playwright.config.ts), so nothing here outlives the run.
   acceptDialogs(page, "RIPRISTINA");
+  // The mirror of the settings test above: "Install Playwright" is the branch
+  // shown when the backend cannot import it, so the flag is pinned off here as
+  // the other test pins it on. Left to the machine it is not a constant — a
+  // developer venv with Playwright in it (the cookie harvester's own optional
+  // dependency) renders the installed branch instead, and this press then waits
+  // three minutes for a button that was never going to appear.
+  await patched(page, (url) => url.pathname === "/api/settings",
+    (body) => ({ ...body, datadome_harvester_available: false }));
   await page.route("**/api/system/restart", (route) =>
     route.fulfill({ json: { ok: true, reload: false } }));
   await page.route("**/api/settings/install-harvester", (route) =>
