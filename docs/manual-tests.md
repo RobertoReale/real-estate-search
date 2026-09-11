@@ -122,6 +122,12 @@ city-wide equivalent, **and the review says so before the scan rather than after
 Idealista's half is the wider one, `idealista_unsupported` has already named the parameter
 it dropped.
 
+**Shortcut for the numbers.** `python -m app.livecheck --compare-form`
+([`live-checks.md`](live-checks.md)) prints the two totals side by side with the same
+review, for the reference searches, without opening the app. Run it first: it tells you
+whether there is a gap to go looking at. What stays manual is the screen — that the review
+reaches the user *before* the scan, in the place they would read it.
+
 **Fail means.** A difference the review did not predict is the failure. A silently wider
 Idealista half with an empty "dropped" cell is a missing entry in `idealista_unsupported()`
 — and its docstring warns that the last two additions turned out to be parameters that did

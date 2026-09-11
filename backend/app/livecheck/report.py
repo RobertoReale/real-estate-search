@@ -99,6 +99,9 @@ class Attempt:
     # the attempt so `--replay` can re-parse that capture like any other.
     contract: str = ""
     city: str = ""
+    # Which named search this attempt belongs to, when the run checked several
+    # at once. Empty for a single URL, where the column would say nothing.
+    search: str = ""
 
     @property
     def blocked(self) -> bool:
@@ -196,9 +199,16 @@ def _row(attempt: Attempt) -> list[str]:
 
 
 def render_table(attempts: list[Attempt]) -> str:
-    """The run as a plain-text table, one line per attempt."""
-    rows = [list(_HEADERS)] + [_row(a) for a in attempts]
-    widths = [max(len(row[i]) for row in rows) for i in range(len(_HEADERS))]
+    """The run as a plain-text table, one line per attempt.
+
+    A run that checked several named searches gets a `SEARCH` column in front;
+    one that checked a single URL does not, because every row would repeat the
+    same word.
+    """
+    labelled = any(a.search for a in attempts)
+    headers = (("SEARCH",) if labelled else ()) + _HEADERS
+    rows = [list(headers)] + [([a.search] if labelled else []) + _row(a) for a in attempts]
+    widths = [max(len(row[i]) for row in rows) for i in range(len(headers))]
     return "\n".join(
         "  ".join(cell.ljust(w) for cell, w in zip(row, widths, strict=True)).rstrip()
         for row in rows
@@ -212,7 +222,7 @@ def _credits_note(attempt: Attempt) -> str:
     return f", {attempt.credits} credits" if attempt.credits else ""
 
 
-def _pages(attempts: Iterable[Attempt]) -> list[Attempt]:
+def pages(attempts: Iterable[Attempt]) -> list[Attempt]:
     """The attempts that actually asked a portal for a page.
 
     Resolving Immobiliare's geography is a request and is reported as one, but it
@@ -227,7 +237,7 @@ def _pages(attempts: Iterable[Attempt]) -> list[Attempt]:
 
 def _free_summary(attempts: list[Attempt]) -> str:
     """What the rungs that leave from this machine had to say, in one clause."""
-    direct = [a for a in _pages(attempts) if a.rung.split(":", 1)[0] not in ("api", "official")]
+    direct = [a for a in pages(attempts) if a.rung.split(":", 1)[0] not in ("api", "official")]
     tried = [a for a in direct if not a.skipped]
     if not tried:
         return "no free rung was tried"
@@ -254,7 +264,7 @@ def verdicts(run: Run) -> dict[str, str]:
     out: dict[str, str] = {}
     for portal in run.portals:
         attempts = [a for a in run.attempts if a.portal == portal]
-        winner = next((a for a in _pages(attempts) if a.outcome in OK_OUTCOMES), None)
+        winner = next((a for a in pages(attempts) if a.outcome in OK_OUTCOMES), None)
         if winner:
             what = "works" if winner.outcome == "ok" else "answers (nothing matches this search)"
             head = f"{portal}: {what} via {winner.rung} ({winner.target}{_credits_note(winner)})"
@@ -270,7 +280,7 @@ def succeeded(run: Run) -> bool:
     if not run.portals:
         return False
     return all(
-        any(a.outcome in OK_OUTCOMES for a in _pages(run.attempts) if a.portal == portal)
+        any(a.outcome in OK_OUTCOMES for a in pages(run.attempts) if a.portal == portal)
         for portal in run.portals
     )
 
@@ -296,8 +306,13 @@ def new_run_directory(root: Path) -> Path:
 
 
 def capture_name(attempt: Attempt, suffix: str) -> str:
-    """A file name for a captured body: readable, and unique per attempt."""
-    stem = f"{attempt.portal}-{attempt.rung}-{attempt.target}"
+    """A file name for a captured body: readable, and unique per attempt.
+
+    The search name leads it when there is one: several searches of the same
+    shape climb the same rungs, and without it the second one's capture would
+    overwrite the first and `--replay` would report one page twice.
+    """
+    stem = "-".join(p for p in (attempt.search, attempt.portal, attempt.rung, attempt.target) if p)
     return re.sub(r"[^a-z0-9.+-]+", "_", stem.lower()) + suffix
 
 
