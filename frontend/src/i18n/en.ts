@@ -402,10 +402,10 @@ export const en = {
 
   "setup.field.datadome_cookie": "DataDome cookie",
   "setup.hint.datadome_cookie":
-    "From your browser on immobiliare.it: developer tools, Application, Cookies, the value named 'datadome'. It expires after a few hours.",
-  "setup.field.datadome_auto_refresh": "Fetch that cookie automatically",
+    "From your browser on immobiliare.it: developer tools, Application, Cookies, the value named 'datadome'. It does not expire on a clock — it lasts until the portal stops accepting it.",
+  "setup.field.datadome_auto_refresh": "Use a browser when fast requests get blocked",
   "setup.hint.datadome_auto_refresh":
-    "Opens a real browser in the background when the stored cookie is old, and takes a fresh one.",
+    "Opens a real browser in the background and carries on from there. It does not fetch a new cookie: that has to be asked for by hand in Settings, in a visible window.",
   "setup.field.browser_engine": "Browser to use for it",
   "setup.hint.browser_engine":
     "Camoufox is harder for a portal to recognise; Chromium starts faster.",
@@ -479,7 +479,8 @@ export const en = {
   "setup.detected.harvester": "Browser automation is installed",
   "setup.detected.noHarvester": "Browser automation is not installed",
   "setup.detected.camoufox": "Camoufox is installed",
-  "setup.detected.cookie": "A cookie is stored, good for about {minutes} minutes",
+  "setup.detected.cookie": "A cookie is stored and the portal accepts it",
+  "setup.detected.cookieRefused": "The stored cookie was refused: grab a new one",
   "setup.detected.noCookie": "No cookie stored yet",
 
   "setup.section.title": "Guided setup",
@@ -875,13 +876,15 @@ export const en = {
   "settings.cookiePlaceholder": "Paste datadome cookie value",
 
   // ── settings: cookie harvester & browser ────────────────────────────────
-  "settings.harvestTitle": "Grab the cookie automatically",
+  "settings.harvestTitle": "Grab the cookie with a browser",
   "settings.harvestNote":
-    "Opens a local browser, earns a fresh cookie, and saves it — no copy/paste. A window may open: if the portal shows a CAPTCHA, solve it once and it is remembered next time.",
+    "Opens a local browser, earns a fresh cookie, and saves it — no copy/paste. The window opens in view: if the portal shows a CAPTCHA, solve it once and it is remembered next time. You need to be here — a hidden browser cannot earn a cookie.",
   "settings.grabCookie": "Grab a fresh cookie now",
   "settings.openingBrowser": "Opening browser…",
   "settings.cookieGrabbed": "Fresh DataDome cookie saved ({preview}).",
-  "settings.autoRefreshCookie": "Refresh the cookie automatically before each scan (headless)",
+  "settings.autoRefreshCookie": "When fast requests get blocked, carry on with a background browser",
+  "settings.cookieRefused":
+    "On {date} the stored cookie was refused by {what}. Grab a new one below: it needs a visible window, a hidden browser cannot earn one.",
   "settings.browserFirst":
     'Run the "still online?" check through the browser instead of fast requests — slower per ad, but it holds a real cookie so DataDome does not interrupt it with 403 blocks.',
   "settings.browserHeadful":

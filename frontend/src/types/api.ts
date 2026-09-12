@@ -1585,10 +1585,10 @@ export interface components {
             /** Last Error */
             last_error: string | null;
             /**
-             * Cookie Refreshed
+             * Session Resets
              * @default 0
              */
-            cookie_refreshed: number;
+            session_resets: number;
             /**
              * Transport
              * @default
@@ -3413,8 +3413,6 @@ export interface components {
             datadome_cookie?: string | null;
             /** Datadome Auto Refresh */
             datadome_auto_refresh?: boolean | null;
-            /** Datadome Cookie Ttl Minutes */
-            datadome_cookie_ttl_minutes?: number | null;
             /** Availability Browser First */
             availability_browser_first?: boolean | null;
             /** Availability Browser Headful */
@@ -3773,10 +3771,15 @@ export interface components {
              */
             datadome_cookie_updated_at: string;
             /**
-             * Datadome Cookie Ttl Minutes
-             * @default 50
+             * Datadome Cookie Refused At
+             * @default
              */
-            datadome_cookie_ttl_minutes: number;
+            datadome_cookie_refused_at: string;
+            /**
+             * Datadome Cookie Refused Detail
+             * @default
+             */
+            datadome_cookie_refused_detail: string;
             /**
              * Datadome Harvester Available
              * @default false

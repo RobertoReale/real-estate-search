@@ -678,16 +678,45 @@ def test_immobiliare_falls_back_to_html_when_api_is_unusable(monkeypatch):
     assert result.listings[0].price == 200000
 
 
-def test_api_block_recovers_the_cookie_once_when_opted_in(monkeypatch):
-    """On a 403 under every impersonation, an opt-in reactive harvest mints a
-    fresh cookie and retries the page — exactly once, never in a loop."""
+def test_api_block_records_the_refusal_once_and_launches_nothing(monkeypatch):
+    """A 403 under every impersonation used to fire a headless re-mint here.
+    That could not work and destroyed the cookie it was trying to renew
+    (`docs/live-checks.md` §5), so what is left is bookkeeping: note which rung
+    was refused — once per walk, not once per page — and let the ladder escalate.
+    """
+    from app.services import cookie_harvester
+
     s = _api_first_scraper(monkeypatch)
     monkeypatch.setattr(s, "_rotate_session", lambda: False)
-    recoveries = []
-    monkeypatch.setattr(s, "_recover_cookie", lambda: (recoveries.append(1), True)[1])
+    monkeypatch.setattr(s, "fetch", lambda url: "")
+
+    def no_browser(*_a, **_k):
+        raise AssertionError("a blocked scan must never launch a browser")
+
+    monkeypatch.setattr(cookie_harvester, "harvest", no_browser)
+    noted = []
+    monkeypatch.setattr(
+        cookie_harvester,
+        "note_cookie_refused",
+        lambda portal, rung, status=None: noted.append((portal, rung, status)),
+    )
+    setattr(s, "session", _FakeApiSession(lambda u, p, h: _FakeApiResp(403)))
+
+    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
+    assert result.blocked is True
+    assert noted == [("immobiliare", "api-next", 403)]
+
+
+def test_a_page_that_answers_clears_an_earlier_refusal(monkeypatch):
+    """The mirror of the above: once the portal answers again, Settings must
+    stop telling the user to replace a cookie that demonstrably works."""
+    from app.services import cookie_harvester
+
+    s = _api_first_scraper(monkeypatch)
+    accepted = []
+    monkeypatch.setattr(cookie_harvester, "note_cookie_accepted", lambda: accepted.append(1))
     responses = iter(
         [
-            _FakeApiResp(403),
             _FakeApiResp(200, {"results": [_API_ENTRY], "maxPages": 1}),
             _FakeApiResp(200, {"results": []}),
         ]
@@ -695,22 +724,8 @@ def test_api_block_recovers_the_cookie_once_when_opted_in(monkeypatch):
     setattr(s, "session", _FakeApiSession(lambda u, p, h: next(responses)))
 
     result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
-    assert recoveries == [1]
     assert [l.portal_id for l in result.listings] == ["999"]
-
-
-def test_api_block_without_optin_stays_blocked(monkeypatch):
-    """Reactive recovery is opt-in: with `datadome_auto_refresh` off, a 403 is
-    reported as blocked and no browser is launched."""
-    s = _api_first_scraper(monkeypatch)
-    monkeypatch.setattr(s, "_rotate_session", lambda: False)
-    monkeypatch.setattr("app.config.load_settings", lambda: {"datadome_auto_refresh": False})
-    setattr(s, "session", _FakeApiSession(lambda u, p, h: _FakeApiResp(403)))
-    # HTML fallback also finds nothing here; the api-next block must survive.
-    monkeypatch.setattr(s, "fetch", lambda url: "")
-
-    result = s.scrape("https://www.immobiliare.it/vendita-case/milano/")
-    assert result.blocked is True
+    assert accepted
 
 
 def test_immobiliare_entry_to_listing_handles_range_rooms():

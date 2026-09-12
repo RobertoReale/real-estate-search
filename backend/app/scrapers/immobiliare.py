@@ -124,10 +124,9 @@ class ImmobiliareScraper(BaseScraper):
     def __init__(self, delay_seconds: float = 6.0, max_pages: int = 10):
         super().__init__(delay_seconds=delay_seconds, max_pages=max_pages)
         self._warmed = False
-        # At most one reactive cookie recovery per scrape: a fresh headless
-        # harvest is expensive and, against a hard block, retrying it in a loop
-        # only hammers the IP the scans need (invariant 8/18).
-        self._cookie_recovered = False
+        # One cookie-refusal note per scrape: the first page to be refused under
+        # every impersonation says everything the later ones would repeat.
+        self._cookie_noted = False
         # Whether the api-next walk has already escalated to the paid provider.
         # One escalation per scrape (invariant 8): once it has happened the rest
         # of the pages go the same way, and once it has failed the walk ends.
@@ -502,7 +501,7 @@ class ImmobiliareScraper(BaseScraper):
         """One api-next page, through whichever transport still answers.
 
         Invariant 8's ladder on the JSON path: the session in hand, the next TLS
-        impersonation, a freshly minted DataDome cookie, and at the top **one**
+        impersonation, and at the top **one**
         escalation to the paid provider — after which the rest of the walk goes
         through it rather than spending a guaranteed-blocked request per page on
         the residential IP. Returns None when nothing answered, with the reason
@@ -518,12 +517,15 @@ class ImmobiliareScraper(BaseScraper):
         if resp.status_code in (403, 429) and self._rotate_session():
             # retry the same page under a different TLS impersonation
             resp = self._api_get(params, referer, page)
-        if resp.status_code in (403, 429) and not self._cookie_recovered and self._recover_cookie():
-            # every handshake blocked: the cookie has demonstrably burned —
-            # mint a fresh one once and retry the page through it
-            self._cookie_recovered = True
-            resp = self._api_get(params, referer, page)
+        if resp.status_code in (403, 429) and not self._cookie_noted:
+            # every handshake blocked, the saved cookie among them: it has
+            # demonstrably burned. Nothing here can mint a replacement — that
+            # takes a visible browser and a person (invariant 18) — so record
+            # what refused it, for Settings to show, and escalate below.
+            self._cookie_noted = True
+            self._note_cookie_refused(resp.status_code)
         if resp.status_code not in (403, 429):
+            self._note_cookie_accepted()
             return resp
         answer = self._api_via_scrape_api(params, page)
         if answer is None:
@@ -534,35 +536,27 @@ class ImmobiliareScraper(BaseScraper):
         self._api_escalated = True
         return answer
 
-    def _recover_cookie(self) -> bool:
-        """Reactive DataDome cookie recovery when api-next answers 403/429 under
-        every impersonation. Opt-in (`datadome_auto_refresh`) and best-effort —
-        the SAME lever the availability check fires on a block
-        (`availability_check._try_cookie_recovery`) and the scanner runs before a scan
-        (invariant 18): mint a fresh cookie in a headless browser, rebuild the
-        session around it, re-warm the homepage so the new cookie is carried in.
-        Returns whether it recovered. Never raises into the scrape."""
-        from ..config import load_settings
+    def _note_cookie_refused(self, status: int) -> None:
+        """Write down that the saved DataDome cookie was refused, so Settings can
+        name the rung, the status and the hour rather than leaving the user to
+        guess why a scan came back empty.
 
-        if not load_settings().get("datadome_auto_refresh"):
-            return False
+        This is where a reactive *headless* re-mint used to live, and taking it
+        out is the point: measured on 2026-09-12 a headless grab cannot earn a
+        cookie and burns the one in hand (`docs/live-checks.md` §5), so it turned
+        a search that was merely blocked into a portal the whole app could no
+        longer reach. The escalation from here is the paid rung, already the next
+        step in `_api_page`."""
         from ..services import cookie_harvester
 
-        if not cookie_harvester.is_available():
-            return False
-        logger.info("immobiliare: api-next blocking; grabbing a fresh DataDome cookie")
-        try:
-            recovery = cookie_harvester.refresh_into_settings("immobiliare", headless=True)
-        except Exception:
-            logger.exception("immobiliare: reactive cookie recovery failed")
-            return False
-        if not recovery.get("ok"):
-            return False
-        self._imp_index = 0
-        self.session = self._new_session()
-        self._warmed = False
-        self.warm_session()
-        return True
+        cookie_harvester.note_cookie_refused("immobiliare", "api-next", status)
+
+    def _note_cookie_accepted(self) -> None:
+        """The mirror of the above: the portal answered, so an older refusal on
+        record is stale and must stop being shown."""
+        from ..services import cookie_harvester
+
+        cookie_harvester.note_cookie_accepted()
 
     def _classify_empty_first_page(self, data: dict, result: ScrapeResult) -> None:
         """Decide what a first api-next page that yielded no listing *means*.

@@ -774,15 +774,13 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
     scan_state["last_portals"] = summary["portals"]
     try:
         settings = load_settings()
-        # opt-in: refresh a stale/missing DataDome cookie in a local browser
-        # before the scrapers build their sessions, so a scheduled scan starts
-        # with a live cookie instead of one that expired since last time.
-        # Best-effort and lazily imported (Playwright is optional); a failure
-        # here must never stop the scan, so settings are simply re-read.
-        from . import cookie_harvester
-
-        if cookie_harvester.maybe_auto_refresh(settings):
-            settings = load_settings()
+        # A scan used to try to renew the DataDome cookie here, in a headless
+        # browser, on the theory that the one on file had expired. Both halves
+        # of that theory were wrong (`docs/live-checks.md` §§3-5): the cookie
+        # does not expire on a clock, and a headless grab cannot earn one and
+        # burns the cookie it finds. A scan now takes the cookie as it is; if
+        # the portal refuses it, that is recorded and Settings asks for a new
+        # one, which only a person at a visible browser can provide.
         db = SessionLocal()
         try:
             query = select(SearchProfile).where(SearchProfile.is_active.is_(True))

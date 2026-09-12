@@ -504,7 +504,7 @@ export const ACTIONS = {
   "settings.scraping.cookie": { what: "the DataDome cookie", does: "holds the pasted cookie, and the badge says it is unsaved" },
   "settings.scraping.grabCookie": { what: "Grab the cookie", does: "opens a browser to harvest a fresh cookie, and says how it went" },
   "settings.scraping.stopGrab": { what: "Stop, while the browser is open", does: "closes the harvesting browser" },
-  "settings.scraping.autoRefresh": { what: "the auto-refresh checkbox", does: "lets a scan harvest a cookie by itself" },
+  "settings.scraping.autoRefresh": { what: "the carry-on-with-a-browser checkbox", does: "lets a blocked request continue through the background browser" },
   "settings.scraping.browserFirst": { what: "the browser-first checkbox", does: "puts the browser at the top of the transport ladder" },
   "settings.scraping.browserHeadful": { what: "the visible-browser checkbox", does: "shows the harvesting browser rather than hiding it" },
   "settings.scraping.humanize": { what: "the humanize checkbox", does: "slows the harvesting browser's movements" },

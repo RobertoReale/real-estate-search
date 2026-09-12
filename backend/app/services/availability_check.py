@@ -55,44 +55,27 @@ MIN_PROBE_DELAY = {"immobiliare": 6.0, "idealista": 8.0}
 # an answer: stop, and tell the user why the batch ended early.
 BLOCK_STREAK_ABORT = 3
 
-# When checking large batches (e.g. 218 listings), allow up to 2 cookie refreshes
-# or deep session resets before aborting.
-MAX_COOKIE_REFRESHES_PER_CHECK = 2
+# When checking large batches (e.g. 218 listings), allow up to four deep session
+# resets — rotate the TLS impersonation, sleep, start over — before giving up.
+# Four is what this budget has always been worth in practice: it used to be "two
+# cookie re-mints, then two rotations", and the re-mint half never ran with the
+# option off, which is its default.
+MAX_SESSION_RESETS_PER_CHECK = 4
 
 
-def _try_cookie_recovery(probe, portal: str, settings: dict, summary: dict) -> bool:
-    """Recover from a block during the availability check by minting a fresh
-    DataDome cookie in a headless browser and rebuilding the probe's session
-    around it, so the batch can carry on instead of giving up.
+def _note_cookie_refused(probe, portal: str, settings: dict) -> None:
+    """Write down that the saved DataDome cookie was refused, so Settings can
+    say which rung stopped working and when, instead of leaving a user to guess
+    why a batch ended early.
 
-    Opt-in (`datadome_auto_refresh`) and best-effort: a missing browser, a
-    CAPTCHA it cannot pass headless, or a refresh failure all return False and
-    the caller aborts as before. This is the *same* mechanism the scanner runs
-    before a scan (invariant 18) — here it fires reactively, on a block, which
-    is exactly when the cookie has demonstrably burned.
+    Only meaningful while a cookie is actually being presented, so it is skipped
+    once the batch has switched to the browser, which carries its own session.
     """
-    if not settings.get("datadome_auto_refresh"):
-        return False
+    if not settings.get("datadome_cookie") or getattr(probe, "_browser_primary", False):
+        return
     from . import cookie_harvester
 
-    if not cookie_harvester.is_available():
-        return False
-    logger.info("availability check: portal blocking; grabbing a fresh DataDome cookie")
-    try:
-        result = cookie_harvester.refresh_into_settings(portal, headless=True)
-    except Exception:
-        logger.exception("availability check: cookie recovery failed")
-        return False
-    if not result.get("ok"):
-        return False
-    # Rebuild the probe around the new cookie, back to the preferred handshake,
-    # and force a re-warm of the homepage so the fresh cookie is carried in.
-    probe._imp_index = 0
-    probe.session = probe._new_session()
-    probe._warmed_hosts = set()
-    probe.was_blocked = False
-    summary["cookie_refreshed"] = summary.get("cookie_refreshed", 0) + 1
-    return True
+    cookie_harvester.note_cookie_refused(portal, "availability check")
 
 
 _prop_check_progress: dict = {"active": False, "done": 0, "total": 0, "gone": 0}
@@ -164,7 +147,7 @@ def _check_properties_availability_inner(
         "capped": False,
         "cancelled": False,
         "last_error": None,
-        "cookie_refreshed": 0,
+        "session_resets": 0,
         "transport": "fast requests (curl)",
     }
     _prop_check_progress.update(
@@ -204,7 +187,7 @@ def _check_properties_availability_inner(
                 )
         _prop_check_progress.update(transport=summary["transport"])
         block_streak = 0
-        refreshes_used = 0
+        resets_used = 0
         probes_used = 0
         for index, prop in enumerate(properties):
             if _prop_check_cancel_event.is_set():
@@ -304,14 +287,14 @@ def _check_properties_availability_inner(
                         )
                         summary["aborted"] = True
                         break
-                    if refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK and _try_cookie_recovery(
-                        probe, listing.portal, settings, summary
-                    ):
-                        refreshes_used += 1
-                        block_streak = 0
-                        continue
+                    # Three refusals in a row with the saved cookie on board is
+                    # the cookie telling us it has burned. A headless re-mint
+                    # used to run here; it cannot work and destroys the cookie
+                    # it means to renew (`docs/live-checks.md` §5), so all that
+                    # is left to do about it is write it down for Settings.
+                    _note_cookie_refused(probe, listing.portal, settings)
                     if (
-                        refreshes_used < MAX_COOKIE_REFRESHES_PER_CHECK + 2
+                        resets_used < MAX_SESSION_RESETS_PER_CHECK
                         and len(getattr(probe, "impersonations", [])) > 1
                     ):
                         logger.info(
@@ -323,7 +306,8 @@ def _check_properties_availability_inner(
                             probe.session = probe._new_session()
                         probe._warmed_hosts = set()
                         probe.was_blocked = False
-                        refreshes_used += 1
+                        resets_used += 1
+                        summary["session_resets"] = resets_used
                         block_streak = 0
                         continue
                     if (

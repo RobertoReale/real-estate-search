@@ -97,27 +97,22 @@ least automatic.
 ### Give the scraper a real browser's cookie
 
 The single most effective change is handing the scraper a **`datadome` cookie**
-earned by a real browser on your own connection. Three ways to do it:
+earned by a real browser on your own connection. Two ways to do it:
 
-* **Automatic (recommended)** — in **Settings → Advanced Scraping**, press
+* **The button (recommended)** — in **Settings → Advanced Scraping**, press
   **"Grab a fresh cookie now"**. The app opens a local browser, earns the
-  cookie, and saves it for you — no copy/paste. A window may briefly appear; if
-  the portal shows a CAPTCHA, solve it once and it is remembered for next time.
-  Not every block page has anything to solve, though — a hard "access
-  restricted" wall just sits there — so a **⏹ Stop** button appears next to it
-  while it runs, in case you'd rather give up than wait out the full timeout.
-  You can also tick **"Refresh automatically before each scan"** so a scheduled
-  scan always starts with a live cookie. With that option on, the app *also*
-  grabs a fresh cookie **on the fly if the "Check if still online" button gets
-  blocked** mid-run — it swaps in a new cookie and keeps going instead of
-  stopping (bounded to a couple of attempts, so it never turns into hammering).
-  **Leave that tick-box off for Immobiliare for now.** The unattended refresh
-  runs the browser headless, and headless is where the portal draws its hardest
-  line: measured on 2026-09-12 it was served a CAPTCHA with nothing in it to
-  solve, so the refresh cannot succeed — and the attempt spent the working
-  cookie it was meant to renew ([`live-checks.md`](live-checks.md) §4–§5). The
-  option is off by default and that default is the safe one until the refresh
-  learns to run headful.
+  cookie, and saves it for you — no copy/paste. A window appears; if the portal
+  shows a CAPTCHA, solve it once and it is remembered for next time. Not every
+  block page has anything to solve, though — a hard "access restricted" wall
+  just sits there — so a **⏹ Stop** button appears next to it while it runs, in
+  case you'd rather give up than wait out the full timeout.
+  **Nothing does this on your behalf, and that is deliberate.** A cookie can
+  only be earned by a browser you can see: measured on 2026-09-12, a hidden one
+  was served a CAPTCHA with nothing in it to solve, and the attempt *spent* the
+  working cookie it was meant to renew ([`live-checks.md`](live-checks.md)
+  §4–§5). So there is no "refresh before each scan" option any more. When the
+  portal stops accepting the cookie, Settings says so — naming what refused it
+  and when — and waits for you to press the button.
   This needs a one-time install of the
   browser engine, run **inside the backend's virtual environment** — not a
   system-wide `pip` — since that is the Python the app actually runs on:

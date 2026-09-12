@@ -1,14 +1,13 @@
 """Cookie harvester: the browser launch itself cannot be tested offline (it
 needs a real browser and a live DataDome challenge, which the project has never
 simulated — see developer notes §Testing). What IS testable is every decision *around*
-the launch: which cookie to pick, when a cookie is stale, and the scanner's
-opt-in gating. Those are the parts that would silently misbehave, so those are
-the parts covered here."""
-
-from datetime import UTC, datetime, timedelta
+the launch: which cookie to pick, that headless never gets to launch at all, and
+the bookkeeping that records whether the cookie in hand still works. Those are
+the parts that would silently misbehave, so those are the parts covered here."""
 
 import pytest
 
+from app.config import load_settings, save_settings
 from app.services import cookie_harvester as ch
 
 
@@ -28,119 +27,100 @@ def test_pick_datadome_ignores_placeholder_and_missing():
     assert ch._pick_datadome([]) is None
 
 
-def test_cookie_is_stale_true_when_unknown_or_unparseable():
-    now = datetime(2026, 7, 11, tzinfo=UTC)
-    # no timestamp: cannot prove freshness, so refresh
-    assert ch.cookie_is_stale("", 50, now) is True
-    assert ch.cookie_is_stale(None, 50, now) is True
-    assert ch.cookie_is_stale("not-a-date", 50, now) is True
+def test_refresh_refuses_headless_without_launching_anything(monkeypatch):
+    """A headless grab is not a degraded grab, it is a destructive one: measured
+    on 2026-09-12 it drew a `t=bv` CAPTCHA (nothing to solve) and burned the
+    working cookie it presented on the way in. So the refusal has to come
+    *before* the browser, not after a failed harvest."""
+
+    def boom(*_a, **_k):
+        raise AssertionError("a headless grab must never reach the browser")
+
+    monkeypatch.setattr(ch, "harvest", boom)
+    result = ch.refresh_into_settings(headless=True)
+    assert result["ok"] is False
+    assert "headless" in result["error"].lower()
 
 
-def test_cookie_is_stale_respects_ttl():
-    now = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
-    fresh = (now - timedelta(minutes=10)).isoformat()
-    old = (now - timedelta(minutes=55)).isoformat()
-    assert ch.cookie_is_stale(fresh, 50, now) is False
-    assert ch.cookie_is_stale(old, 50, now) is True
-
-
-def test_cookie_is_stale_reattaches_utc_to_naive_timestamp():
-    # save_settings writes an aware ISO string, but a hand-edited settings.json
-    # could carry a naive one; comparing naive vs aware would raise
-    now = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
-    naive_recent = datetime(2026, 7, 11, 11, 55).isoformat()  # no tzinfo
-    assert ch.cookie_is_stale(naive_recent, 50, now) is False
-
-
-def test_maybe_auto_refresh_is_noop_when_disabled(monkeypatch):
-    # opt-in: a scan must never launch a browser the user did not enable, even
-    # if Playwright happens to be installed — which is what the two monkeypatches
-    # stand in for. Without them the assertion passed on any machine WITHOUT
-    # Playwright whatever the flag said, so dropping the flag from the guard
-    # broke nothing here.
-    launched = {"n": 0}
-    monkeypatch.setattr(ch, "is_available", lambda: True)
-    monkeypatch.setattr(
-        ch,
-        "refresh_into_settings",
-        lambda **_: launched.__setitem__("n", launched["n"] + 1) or {"ok": True},
-    )
-    assert ch.maybe_auto_refresh({"datadome_auto_refresh": False}) is False
-    assert launched["n"] == 0, "the browser was launched without the opt-in"
-
-
-def test_maybe_auto_refresh_skips_a_fresh_cookie(monkeypatch):
-    called = {"n": 0}
-    monkeypatch.setattr(ch, "is_available", lambda: True)
-    monkeypatch.setattr(
-        ch,
-        "refresh_into_settings",
-        lambda **_: called.__setitem__("n", called["n"] + 1) or {"ok": True},
-    )
-    fresh = datetime.now(UTC).isoformat()
-    refreshed = ch.maybe_auto_refresh(
-        {
-            "datadome_auto_refresh": True,
-            "datadome_cookie": "sometoken",
-            "datadome_cookie_updated_at": fresh,
-            "datadome_cookie_ttl_minutes": 50,
-        }
-    )
-    assert refreshed is False
-    assert called["n"] == 0, "a still-fresh cookie must not trigger a browser launch"
-
-
-def test_maybe_auto_refresh_harvests_a_stale_cookie(monkeypatch):
-    monkeypatch.setattr(ch, "is_available", lambda: True)
-    monkeypatch.setattr(ch, "refresh_into_settings", lambda **_: {"ok": True})
-    stale = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
-    assert (
-        ch.maybe_auto_refresh(
-            {
-                "datadome_auto_refresh": True,
-                "datadome_cookie": "sometoken",
-                "datadome_cookie_updated_at": stale,
-                "datadome_cookie_ttl_minutes": 50,
-            }
-        )
-        is True
-    )
-
-
-def test_refresh_waits_longer_for_a_human_than_for_headless(monkeypatch):
+def test_refresh_waits_for_a_human(monkeypatch):
     """The visible grab exists so a human can solve a CAPTCHA, but they first
-    have to notice the window: with the headless 45s deadline the harvest
+    have to notice the window: with the old headless 45s deadline the harvest
     regularly expired mid-solve, failing the exact case it was built for."""
     seen = {}
 
     def fake_harvest(portal, headless, timeout_seconds):
-        seen[headless] = timeout_seconds
+        seen["headless"] = headless
+        seen["timeout"] = timeout_seconds
         return ch.HarvestResult(error="stop here")
 
     monkeypatch.setattr(ch, "harvest", fake_harvest)
-    ch.refresh_into_settings(headless=False)
-    ch.refresh_into_settings(headless=True)
-    assert seen[True] == ch.HEADLESS_TIMEOUT_SECONDS
-    assert seen[False] == ch.HEADFUL_TIMEOUT_SECONDS
-    assert seen[False] > seen[True]
+    monkeypatch.setattr(ch, "_is_session_zero_nt", lambda: False)
+    ch.refresh_into_settings()
+    assert seen["headless"] is False
+    assert seen["timeout"] == ch.HEADFUL_TIMEOUT_SECONDS
 
 
-def test_auto_refresh_that_raises_does_not_reach_the_scan(monkeypatch):
-    """Fail-open, at the seam the scan actually calls.
+def test_a_successful_grab_clears_an_earlier_refusal(monkeypatch):
+    """Settings must stop asking for a cookie the moment it has been given one —
+    a banner that outlives its own cause trains the user to ignore it."""
+    monkeypatch.setattr(ch, "_is_session_zero_nt", lambda: False)
+    monkeypatch.setattr(
+        ch,
+        "harvest",
+        lambda portal, headless, timeout_seconds: ch.HarvestResult(cookie="freshTokenValue123"),
+    )
+    save_settings({"datadome_cookie": "oldTokenValue123"})
+    ch.note_cookie_refused("immobiliare", "api-next", 403)
+    assert load_settings()["datadome_cookie_refused_at"]
 
-    `harvest()` catches its own failures, but the pre-scan entry point drives a
-    browser launch, a navigation and a settings write on top of it — a timeout
-    or a Chromium that will not start there would otherwise come out as an
-    exception in `run_scan`, and a scan is not allowed to fail because an
-    optional convenience did.
-    """
+    result = ch.refresh_into_settings()
+    assert result["ok"] is True
+    # the token itself is never echoed back to the client
+    assert "freshTokenValue123" not in str(result)
+    after = load_settings()
+    assert after["datadome_cookie"] == "freshTokenValue123"
+    assert after["datadome_cookie_refused_at"] == ""
+    assert after["datadome_cookie_refused_detail"] == ""
 
-    def boom(**_):
-        raise RuntimeError("browser would not start")
 
-    monkeypatch.setattr(ch, "is_available", lambda: True)
-    monkeypatch.setattr(ch, "refresh_into_settings", boom)
-    assert ch.maybe_auto_refresh({"datadome_auto_refresh": True}) is False
+def test_refusal_is_recorded_once_and_names_what_refused_it():
+    """This is what replaced the fifty-minute TTL. It must be idempotent: a
+    blocked scan walking twenty pages describes one refusal, not twenty."""
+    save_settings({"datadome_cookie": "someTokenValue123"})
+    ch.note_cookie_refused("immobiliare", "api-next", 403)
+    first = load_settings()
+    assert first["datadome_cookie_refused_at"]
+    assert "immobiliare" in first["datadome_cookie_refused_detail"]
+    assert "403" in first["datadome_cookie_refused_detail"]
+
+    ch.note_cookie_refused("immobiliare", "api-next", 429)
+    assert load_settings()["datadome_cookie_refused_at"] == first["datadome_cookie_refused_at"]
+
+
+def test_acceptance_clears_the_refusal_and_a_missing_cookie_records_nothing():
+    save_settings({"datadome_cookie": "someTokenValue123"})
+    ch.note_cookie_refused("immobiliare", "api-next", 403)
+    ch.note_cookie_accepted()
+    assert load_settings()["datadome_cookie_refused_at"] == ""
+
+    # no cookie configured: there is nothing whose standing could be in question,
+    # and a warning about a cookie the user never set is just noise
+    save_settings({"datadome_cookie": ""})
+    ch.note_cookie_refused("immobiliare", "api-next", 403)
+    assert load_settings()["datadome_cookie_refused_at"] == ""
+
+
+def test_recording_a_refusal_never_breaks_the_scrape_that_saw_it(monkeypatch):
+    """Fail-open (invariant 18): custody bookkeeping runs inside the scrapers'
+    retry ladder, and a settings file that cannot be written is not a reason for
+    a scan to raise."""
+
+    def boom(*_a, **_k):
+        raise OSError("settings.json is read-only")
+
+    monkeypatch.setattr(ch, "load_settings", boom)
+    ch.note_cookie_refused("immobiliare", "api-next", 403)
+    ch.note_cookie_accepted()
 
 
 def test_harvest_fails_open_when_playwright_absent(monkeypatch):
@@ -189,7 +169,7 @@ def test_harvest_does_not_abort_on_403_when_headful(monkeypatch):
     # monkeypatch target is a string, so pytest imports playwright.sync_api to
     # resolve it. Playwright is optional by design (invariant 18) and absent
     # from a default install, so skip here rather than at module level — the
-    # other 19 tests cover pure decision logic and must keep running on a clean
+    # other 18 tests cover pure decision logic and must keep running on a clean
     # machine, which is exactly what CI is.
     pytest.importorskip("playwright")
 

@@ -16,10 +16,20 @@ Every design choice here is deliberate:
     graceful "not available", never an ImportError at import time. The offline
     test suite never launches a browser.
 
-  * SAME MACHINE, SAME IP. A DataDome cookie is bound to the IP that earned it
-    and lives ~1 hour, so it must be harvested on the box that runs the scans —
-    which it is, since everything is local. A cookie minted on a cloud IP would
-    be worthless (and cloud IPs are blocked harder anyway, invariant 8).
+  * SAME MACHINE, SAME IP. A cookie minted on a cloud IP would be worthless, and
+    cloud IPs are blocked harder anyway (invariant 8), so the grab happens on the
+    box that runs the scans — which it is, since everything is local. It is *not*
+    short-lived: measured from this connection on 2026-09-12, a cookie 50 hours
+    old still returned 25 listings, and DataDome documents a lifetime between
+    seven days and a year (`docs/live-checks.md` §3). What ends it is a refusal,
+    not a clock.
+
+  * HEADFUL ONLY. A headless browser cannot mint: it draws a `t=bv` CAPTCHA with
+    nothing to solve, and on the way out it presents — and burns — the cookie the
+    profile already holds (`docs/live-checks.md` §5). So `refresh_into_settings`
+    refuses to launch headless, and the cookie is renewed by a person pressing
+    the button in Settings. A search that is refused while nobody is at the
+    keyboard escalates to the paid rung instead.
 
   * PERSISTENT PROFILE. The browser uses a persistent user-data-dir, so anything
     solved once — the DataDome cookie, a cookie-consent banner, even a CAPTCHA —
@@ -37,12 +47,11 @@ import os
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from ..config import BASE_DIR, BROWSER_PROFILE_DIR, DATA_DIR, load_settings, save_settings
-from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +71,18 @@ UNAVAILABLE_MESSAGE = (
     "Install it once with:  pip install playwright  &&  playwright install chromium"
 )
 
-# A DataDome cookie lives ~1 hour; refresh a little before that so a scheduled
-# scan never fires with a cookie that died minutes ago.
-DEFAULT_TTL_MINUTES = 50
+HEADLESS_MINT_MESSAGE = (
+    "A headless browser cannot earn a DataDome cookie — it is served a CAPTCHA "
+    "with nothing to solve, and it burns the cookie already saved on the way out. "
+    "Open Settings and press 'Grab a fresh cookie now', which uses a visible window."
+)
 
 # How long to wait for the cookie to appear. Headless gets no help, so waiting
-# longer than 45s only delays the scan it runs in front of. A headful grab is
-# different: its whole point is that a human can solve a CAPTCHA, and they
-# first have to notice the window — 45s regularly expired mid-solve, failing
-# the exact scenario the visible browser exists for.
+# longer than 45s only delays whatever it runs in front of — it remains the
+# default of the low-level `harvest()`, which nothing in the app now drives
+# headless. A headful grab is different: its whole point is that a human can
+# solve a CAPTCHA, and they first have to notice the window — 45s regularly
+# expired mid-solve, failing the exact scenario the visible browser exists for.
 HEADLESS_TIMEOUT_SECONDS = 45
 HEADFUL_TIMEOUT_SECONDS = 240
 
@@ -197,19 +209,50 @@ def _pick_datadome(cookies: Sequence[Mapping[str, Any]]) -> str | None:
     return None
 
 
-def cookie_is_stale(updated_at: str | None, ttl_minutes: int, now: datetime) -> bool:
-    """Whether a cookie saved at `updated_at` (ISO string) is past its TTL.
+def note_cookie_refused(portal: str, rung: str, status: int | None = None) -> None:
+    """Record that the portal refused a request carrying the saved cookie.
 
-    An unknown or unparseable timestamp counts as stale: if we cannot prove the
-    cookie is fresh, refreshing is the safe default. Pure and testable.
+    This is what replaced the fifty-minute TTL. A timer only ever *predicted*
+    death — badly: a cookie sixty-one times past that TTL returned 25 listings
+    on 2026-09-12, while the one that actually stopped working did so minutes
+    after a headless browser presented it (`docs/live-checks.md` §§3-5). A
+    refusal is the observable event, so it is the one the app records and shows.
+
+    The detail is written for a person reading Settings, so it names the rung
+    and the status rather than an internal enum; `status` is optional because
+    not every caller has one number to blame (a block streak is three). Fail-open
+    and idempotent: the file is written only on the transition into refusal, so
+    a blocked scan walking twenty pages writes once.
     """
-    if not updated_at:
-        return True
+    _note_cookie_state(f"{portal} {rung} (HTTP {status})" if status else f"{portal} {rung}")
+
+
+def note_cookie_accepted() -> None:
+    """Record that the saved cookie was answered. Clears a previous refusal so
+    Settings stops asking for a new cookie once the old one works again — a
+    banner that survives its own cause is worse than no banner."""
+    _note_cookie_state("")
+
+
+def _note_cookie_state(detail: str) -> None:
+    now = datetime.now(UTC).isoformat() if detail else ""
     try:
-        saved = datetime.fromisoformat(updated_at)
-    except ValueError:
-        return True
-    return now - as_utc(saved) >= timedelta(minutes=max(ttl_minutes, 1))
+        settings = load_settings()
+        if not settings.get("datadome_cookie"):
+            return
+        if bool(settings.get("datadome_cookie_refused_at")) == bool(detail):
+            return
+        save_settings(
+            {
+                "datadome_cookie_refused_at": now,
+                "datadome_cookie_refused_detail": detail,
+            }
+        )
+        if detail:
+            logger.warning("cookie custody: the saved DataDome cookie was refused by %s", detail)
+    except Exception:
+        # Custody bookkeeping is never allowed to break the scrape it observes.
+        logger.exception("cookie custody: could not record the cookie's standing")
 
 
 def is_camoufox_available() -> bool:
@@ -627,13 +670,23 @@ def _refresh_via_active_session_nt(portal: str) -> dict:
         kernel32.CloseHandle(h_token)
 
 
-def refresh_into_settings(portal: str = "immobiliare", headless: bool = True) -> dict:
+def refresh_into_settings(portal: str = "immobiliare", headless: bool = False) -> dict:
     """Harvest a cookie and, on success, persist it (with a timestamp) into
-    settings.json so the scrapers pick it up on their next session."""
-    if not headless and _is_session_zero_nt():
+    settings.json so the scrapers pick it up on their next session.
+
+    **Headless is refused before anything is launched.** It is not a degraded
+    grab, it is a destructive one: measured on 2026-09-12 (`docs/live-checks.md`
+    §5) a headless run of this very function drew a `t=bv` CAPTCHA — the variant
+    that presents nothing to solve — and the DataDome session it offered on the
+    way in stopped being accepted fourteen minutes later, taking the working
+    cookie in `settings.json` with it. The `headless=True` parameter is kept so
+    an old caller gets this sentence instead of a browser.
+    """
+    if headless:
+        return {"ok": False, "error": HEADLESS_MINT_MESSAGE}
+    if _is_session_zero_nt():
         return _refresh_via_active_session_nt(portal)
-    timeout = HEADLESS_TIMEOUT_SECONDS if headless else HEADFUL_TIMEOUT_SECONDS
-    result = harvest(portal, headless=headless, timeout_seconds=timeout)
+    result = harvest(portal, headless=False, timeout_seconds=HEADFUL_TIMEOUT_SECONDS)
     if not result.cookie:
         return {"ok": False, "error": result.error or "No cookie obtained"}
     now = datetime.now(UTC)
@@ -641,6 +694,10 @@ def refresh_into_settings(portal: str = "immobiliare", headless: bool = True) ->
         {
             "datadome_cookie": result.cookie,
             "datadome_cookie_updated_at": now.isoformat(),
+            # a cookie just earned carries no refusal; leaving the old marker
+            # would have Settings asking for the cookie it has just been given
+            "datadome_cookie_refused_at": "",
+            "datadome_cookie_refused_detail": "",
         }
     )
     return {
@@ -650,25 +707,6 @@ def refresh_into_settings(portal: str = "immobiliare", headless: bool = True) ->
         # never echo the full token back to the client
         "cookie_preview": result.cookie[:6] + "…",
     }
-
-
-def maybe_auto_refresh(settings: dict) -> bool:
-    """Refresh the cookie headless before a scan when the user opted in and the
-    current cookie is missing or past its TTL. Best-effort: returns whether it
-    actually refreshed, and never raises into the scan."""
-    if not settings.get("datadome_auto_refresh") or not is_available():
-        return False
-    ttl = int(settings.get("datadome_cookie_ttl_minutes") or DEFAULT_TTL_MINUTES)
-    fresh = settings.get("datadome_cookie") and not cookie_is_stale(
-        settings.get("datadome_cookie_updated_at"), ttl, datetime.now(UTC)
-    )
-    if fresh:
-        return False
-    try:
-        return bool(refresh_into_settings(headless=True).get("ok"))
-    except Exception:
-        logger.exception("cookie-harvest: auto-refresh failed")
-        return False
 
 
 if __name__ == "__main__":

@@ -396,7 +396,6 @@ def test_the_api_walk_escalates_once_and_carries_on_through_the_provider(monkeyp
     # what the scanner sets in the default `scrape_api_mode="fallback"`
     scraper.use_scrape_api = False
     monkeypatch.setattr(scraper, "_rotate_session", lambda: False)
-    monkeypatch.setattr(scraper, "_recover_cookie", lambda: False)
     monkeypatch.setattr(
         scraper,
         "_api_params",

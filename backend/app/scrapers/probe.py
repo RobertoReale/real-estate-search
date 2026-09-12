@@ -171,8 +171,7 @@ class AdProbe(BaseScraper):
     def start_browser_session(self) -> bool:
         """Opens a persistent Playwright context reused across ad checks.
 
-        Opt-in via `datadome_auto_refresh` — the same switch that authorises
-        every other unattended browser launch (invariant 18). Disabled or
+        Opt-in via any of the three browser switches (invariant 18). Disabled or
         unavailable, it reports False and the caller aborts the batch as
         before, instead of launching a browser the user never asked for.
         """
@@ -188,9 +187,10 @@ class AdProbe(BaseScraper):
 
             s = load_settings()
             # Any of these switches is an explicit opt-in to a browser launch
-            # (invariant 18): the reactive cookie/refresh machinery, the
-            # availability check's browser-first transport, or its headful
-            # "let me solve the CAPTCHA myself" mode.
+            # (invariant 18): the unattended browser fallback, the availability
+            # check's browser-first transport, or its headful "let me solve the
+            # CAPTCHA myself" mode. None of them arms a cookie *grab* — that one
+            # is headful and user-triggered (services/cookie_harvester.py).
             if not (
                 s.get("datadome_auto_refresh")
                 or s.get("availability_browser_first")
