@@ -21,9 +21,13 @@ from .parsing import detect_contract
 from .transport import (
     BlockedError,
     build_scrape_api_request,
+    new_scrape_api_session,
     proxy_pool,
     resolve_impersonations,
     scrape_api_config,
+    scrape_api_cost,
+    scrape_api_error,
+    scrape_api_upstream_status,
     unwrap_scrape_api_response,
 )
 
@@ -260,6 +264,9 @@ class BaseScraper:
         configured = load_settings().get("tls_impersonations") or []
         self.impersonations = resolve_impersonations(configured, list(type(self).impersonations))
         self.session = self._new_session()
+        # Built on first use and kept for the rest of the scrape, so the pages
+        # after an escalation reuse one connection to the provider.
+        self._api_session = None
 
     def _new_session(self):
         session = curl_requests.Session(
@@ -335,19 +342,34 @@ class BaseScraper:
     def warm_session(self) -> None:
         """Hook: subclasses visit the homepage to acquire cookies."""
 
-    def _fetch_via_scrape_api(self, url: str, provider: str, key: str) -> str:
-        """Fetch through the configured scraping API instead of curl_cffi.
+    def scrape_api_session(self):
+        """The session the provider calls go through, built once per scraper.
 
-        The provider solves DataDome for us, so the returned HTML is fed to the
-        exact same parsers. A provider-level refusal (bad key, quota exhausted,
-        or a page the provider itself could not solve) surfaces as BlockedError,
-        which the fetch() loop already knows how to rotate/abandon on.
+        Never `self.session`: that one is the *portal's*, and sending the
+        provider call through it was the defect this method exists to prevent —
+        it carried the DataDome cookie, the portal `Referer`/`Sec-Fetch-*`
+        headers and, fatally, the 30 s timeout, which aborted a solved page the
+        provider had already charged for.
+        """
+        if self._api_session is None:
+            self._api_session = new_scrape_api_session()
+        return self._api_session
+
+    def _scrape_api_get(self, url: str, provider: str, key: str) -> tuple[int, str]:
+        """One call to the provider: `(status the PORTAL gave it, body)`.
+
+        A provider-level refusal — rejected key, exhausted quota, a challenge
+        the provider itself could not solve — raises BlockedError naming the
+        provider's own error code, because those three have opposite answers
+        (edit the settings, wait for the quota, try another transport) and an
+        unnamed "HTTP 422" tells the user which of them happened.
         """
         req = build_scrape_api_request(provider, key, url)
+        session = self.scrape_api_session()
         # curl_cffi's typed .request narrows `method` to a Literal and its
         # return to Response|None (streaming overload); we pass a runtime string
         # and always get a Response, so go through an untyped handle.
-        send = typing.cast(typing.Any, self.session.request)
+        send = typing.cast(typing.Any, session.request)
         resp = send(
             req.method,
             req.url,
@@ -356,12 +378,39 @@ class BaseScraper:
             json=req.json_body,
             allow_redirects=True,
         )
-        if resp.status_code in (401, 402, 403, 429):
+        # Logged for every call, refused or not: the provider bills the attempt,
+        # so a call whose cost is never written down is money the user cannot
+        # account for. `None` means the provider named no price, never zero.
+        cost = scrape_api_cost(provider, resp)
+        logger.info(
+            "%s: scrape API (%s) answered HTTP %s in %s credits",
+            self.portal,
+            provider,
+            resp.status_code,
+            cost if cost is not None else "an unstated number of",
+        )
+        if resp.status_code >= 400:
+            code = scrape_api_error(provider, resp)
             raise BlockedError(
-                f"{self.portal}: scrape API ({provider}) refused (HTTP {resp.status_code}) on {url}"
+                f"{self.portal}: scrape API ({provider}) refused "
+                f"(HTTP {resp.status_code}{f', {code}' if code else ''}) on {url}"
             )
-        resp.raise_for_status()
-        return unwrap_scrape_api_response(provider, resp)
+        body = unwrap_scrape_api_response(provider, resp)
+        return scrape_api_upstream_status(provider, resp) or resp.status_code, body
+
+    def _fetch_via_scrape_api(self, url: str, provider: str, key: str) -> str:
+        """Fetch a page through the configured scraping API instead of curl_cffi.
+
+        The provider solves DataDome for us, so the returned HTML is fed to the
+        exact same parsers.
+        """
+        status, body = self._scrape_api_get(url, provider, key)
+        if status in (403, 429):
+            # The provider answered; the portal, through it, did not.
+            raise BlockedError(
+                f"{self.portal}: blocked through scrape API ({provider}, HTTP {status}) on {url}"
+            )
+        return body
 
     def _fetch_once(self, url: str) -> str:
         provider, key = scrape_api_config()

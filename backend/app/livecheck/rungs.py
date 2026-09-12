@@ -41,8 +41,12 @@ from ..scrapers.idealista import IdealistaScraper
 from ..scrapers.immobiliare import API_LISTINGS, API_TOTAL_KEYS, ImmobiliareScraper
 from ..scrapers.page_text import declared_result_total, has_block_marker, text_says_no_results
 from ..scrapers.transport import (
+    SCRAPE_API_TIMEOUT_SECONDS,
     build_scrape_api_request,
     scrape_api_config,
+    scrape_api_cost,
+    scrape_api_error,
+    scrape_api_upstream_status,
     unwrap_scrape_api_response,
 )
 from .budget import CREDITS_PER_PAGE, Budget
@@ -63,10 +67,10 @@ from .report import (
 OUTPUT_DIRNAME = "live-checks"
 
 # The paid provider renders and solves a challenge before it answers, so its
-# call is slow by design. The app's own 30 s ceiling is what turned a successful
-# Scrapfly page into `curl: (28) Operation timed out` — billed, and thrown away
-# unread. The instrument that has to see that page waits properly for it.
-PAID_TIMEOUT_SECONDS = 180
+# call is slow by design; `transport.SCRAPE_API_TIMEOUT_SECONDS` is the number
+# the provider's own documentation asks for, and the app and this instrument
+# wait exactly as long as each other.
+PAID_TIMEOUT_SECONDS = SCRAPE_API_TIMEOUT_SECONDS
 
 # Long enough for a browser to get past a challenge, short enough that an
 # unattended run cannot hang on one.
@@ -215,31 +219,6 @@ def _curl_rung(name: str, session: Any) -> Rung:
     return Rung(name=name, fetch=fetch)
 
 
-def _upstream_status(provider: str, resp: Any) -> int | None:
-    """The status the *portal* gave the provider, which is the number that
-    matters: the provider's own 200 only says the provider answered."""
-    if provider != "scrapfly":
-        return None
-    try:
-        status = resp.json()["result"]["status_code"]
-    except Exception:
-        return None
-    return status if isinstance(status, int) else None
-
-
-def _reported_cost(provider: str, resp: Any) -> int | None:
-    """What the provider says this call billed. `None` when it did not say —
-    never a zero, which the credit cap would read as a free call."""
-    header = resp.headers.get("X-Scrapfly-Api-Cost") if provider == "scrapfly" else None
-    if header and str(header).strip().isdigit():
-        return int(str(header).strip())
-    try:
-        cost = resp.json()["context"]["cost"]["total"]
-    except Exception:
-        return None
-    return cost if isinstance(cost, int) else None
-
-
 def account_credits(provider: str, key: str, timeout: float = 20.0) -> tuple[int | None, str]:
     """(credits left on the provider account, why they could not be read).
 
@@ -275,12 +254,16 @@ def _paid_rung(provider: str, key: str, remaining: int | None) -> Rung:
             resp = session.post(req.url, params=req.params, headers=req.headers, json=req.json_body)
         else:
             resp = session.get(req.url, params=req.params, headers=req.headers)
-        credits = _reported_cost(provider, resp)
+        credits = scrape_api_cost(provider, resp)
         if resp.status_code >= 400:
+            code = scrape_api_error(provider, resp)
             return Fetched(
                 status=resp.status_code,
                 credits=credits,
-                error=f"the provider refused (HTTP {resp.status_code}): {resp.text[:300]}",
+                error=(
+                    f"the provider refused (HTTP {resp.status_code}"
+                    f"{f', {code}' if code else ''}): {resp.text[:300]}"
+                ),
             )
         try:
             body = unwrap_scrape_api_response(provider, resp)
@@ -289,7 +272,7 @@ def _paid_rung(provider: str, key: str, remaining: int | None) -> Rung:
                 status=resp.status_code, credits=credits, error=f"{type(e).__name__}: {e}"
             )
         return Fetched(
-            status=_upstream_status(provider, resp) or resp.status_code,
+            status=scrape_api_upstream_status(provider, resp) or resp.status_code,
             body=body,
             credits=credits,
         )

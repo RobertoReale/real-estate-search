@@ -22,6 +22,7 @@ safety net is cheaper than no fallback at all.
 import json
 import logging
 import re
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
@@ -37,9 +38,23 @@ from .parsing import (
     to_float,
     to_int,
 )
-from .transport import BlockedError
+from .transport import BlockedError, scrape_api_config
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _ApiAnswer:
+    """An api-next page that came back through the provider, wearing the two
+    attributes the walk reads off a `curl_cffi` response — so the page that was
+    paid for and the page that was free are handled by the same code."""
+
+    status_code: int
+    text: str
+
+    def json(self):
+        return json.loads(self.text)
+
 
 AD_URL_RE = re.compile(r"immobiliare\.it/annunci/(\d+)")
 # hrefs in search result pages are relative: "/annunci/123/"
@@ -113,6 +128,10 @@ class ImmobiliareScraper(BaseScraper):
         # harvest is expensive and, against a hard block, retrying it in a loop
         # only hammers the IP the scans need (invariant 8/18).
         self._cookie_recovered = False
+        # Whether the api-next walk has already escalated to the paid provider.
+        # One escalation per scrape (invariant 8): once it has happened the rest
+        # of the pages go the same way, and once it has failed the walk ends.
+        self._api_escalated = False
 
     def warm_session(self) -> None:
         """Visits the homepage to obtain the DataDome cookie."""
@@ -450,6 +469,71 @@ class ImmobiliareScraper(BaseScraper):
             headers={"Referer": referer},
         )
 
+    def _api_url(self, params, page: int) -> str:
+        """The api-next page as one absolute URL — the shape the provider takes,
+        which is handed the target rather than asked to pass a request through."""
+        query = urlencode({**params, "pag": str(page)}, doseq=True)
+        return f"{API_LISTINGS}?{query}"
+
+    def _api_via_scrape_api(self, params, page: int) -> "_ApiAnswer | None":
+        """The api-next page through the paid provider, or None if unavailable.
+
+        This is the top of invariant 8's ladder for the JSON path, and it is the
+        JSON page — not the HTML one — because that is what the numbers said
+        (both measured through the provider on 2026-09-12, page 1 of the Milan
+        sale search, 30 credits each): api-next returned 25 listings, the
+        portal's declared total of 18172 and `maxPages`, in 249 KB and 22.6 s;
+        the HTML page returned the same 25 listings and no declared total at all
+        — invariant 26 leaves the progress bar undrawn without one — in 1.17 MB
+        and 30.5 s. Same price, a fifth of the bytes, and the one answer the
+        user's progress reporting needs.
+        """
+        provider, key = scrape_api_config()
+        if not key:
+            return None
+        try:
+            status, body = self._scrape_api_get(self._api_url(params, page), provider, key)
+        except BlockedError as e:
+            logger.warning("immobiliare: api-next through %s refused: %s", provider, e)
+            return None
+        return _ApiAnswer(status, body)
+
+    def _api_page(self, params, referer: str, page: int, result: ScrapeResult):
+        """One api-next page, through whichever transport still answers.
+
+        Invariant 8's ladder on the JSON path: the session in hand, the next TLS
+        impersonation, a freshly minted DataDome cookie, and at the top **one**
+        escalation to the paid provider — after which the rest of the walk goes
+        through it rather than spending a guaranteed-blocked request per page on
+        the residential IP. Returns None when nothing answered, with the reason
+        already written into `result`.
+        """
+        if self._api_escalated:
+            answer = self._api_via_scrape_api(params, page)
+            if answer is None:
+                result.blocked = True
+                result.error = "immobiliare: the scrape API stopped answering api-next"
+            return answer
+        resp = self._api_get(params, referer, page)
+        if resp.status_code in (403, 429) and self._rotate_session():
+            # retry the same page under a different TLS impersonation
+            resp = self._api_get(params, referer, page)
+        if resp.status_code in (403, 429) and not self._cookie_recovered and self._recover_cookie():
+            # every handshake blocked: the cookie has demonstrably burned —
+            # mint a fresh one once and retry the page through it
+            self._cookie_recovered = True
+            resp = self._api_get(params, referer, page)
+        if resp.status_code not in (403, 429):
+            return resp
+        answer = self._api_via_scrape_api(params, page)
+        if answer is None:
+            result.blocked = True
+            result.error = f"immobiliare: API blocked (HTTP {resp.status_code})"
+            return None
+        logger.info("immobiliare: api-next blocked locally, carrying on through the scrape API")
+        self._api_escalated = True
+        return answer
+
     def _recover_cookie(self) -> bool:
         """Reactive DataDome cookie recovery when api-next answers 403/429 under
         every impersonation. Opt-in (`datadome_auto_refresh`) and best-effort —
@@ -512,6 +596,14 @@ class ImmobiliareScraper(BaseScraper):
         self, search_url: str, result: ScrapeResult, known: KnownListing | None = None
     ) -> None:
         result.page_limit = self.max_pages
+        # `scrape_api_mode="always"` means every fetch, and this is the fetch
+        # that matters on this portal: without this line the setting reached the
+        # HTML path (`_fetch_once`) alone and left the primary JSON walk going
+        # out on the residential connection the user had just asked it to stop
+        # using. In the default `"fallback"` mode the scanner sets the flag to
+        # False and the walk starts local; with no provider configured there is
+        # nothing to start on either way.
+        self._api_escalated = self.use_scrape_api and bool(scrape_api_config()[1])
         params = self._api_params(search_url)
         if params is None:
             result.error = "immobiliare: unable to parse search URL (unrecognized location)"
@@ -539,22 +631,8 @@ class ImmobiliareScraper(BaseScraper):
 
         for page in range(1, self.max_pages + 1):
             self.report_progress(phase="fetching", page=page)
-            resp = self._api_get(params, referer, page)
-            if resp.status_code in (403, 429) and self._rotate_session():
-                # retry the same page under a different TLS impersonation
-                resp = self._api_get(params, referer, page)
-            if (
-                resp.status_code in (403, 429)
-                and not self._cookie_recovered
-                and self._recover_cookie()
-            ):
-                # every handshake blocked: the cookie has demonstrably burned —
-                # mint a fresh one once and retry the page through it
-                self._cookie_recovered = True
-                resp = self._api_get(params, referer, page)
-            if resp.status_code in (403, 429):
-                result.blocked = True
-                result.error = f"immobiliare: API blocked (HTTP {resp.status_code})"
+            resp = self._api_page(params, referer, page, result)
+            if resp is None:
                 return
             if resp.status_code != 200:
                 result.error = f"immobiliare: API HTTP {resp.status_code}"

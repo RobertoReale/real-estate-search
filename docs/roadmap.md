@@ -146,6 +146,10 @@ The review is [`audit.md`](audit.md) §2–§3 (correctness), §6 (security) and
 under a standing rule that it was a review and not a rewrite: anything that would change
 behaviour a test asserts stops and becomes a row here.
 
+A live check lands here under the same rule for a different reason: it may only spend the
+credits and the requests it was given, so a defect it can see but cannot afford to verify a
+fix for is written down rather than guessed at. The last row is one of those.
+
 ### Idealista's own delay floor is overwritten by the scanner
 
 `IdealistaScraper.__init__` raises whatever delay it is given to at least 8 seconds, with a
@@ -242,6 +246,29 @@ app against a corpus of a chosen size and measuring inside the page. `measure_fr
 deliberately does not: it needs no browser and no backend, and keeping it that way is worth
 more than the one number it cannot produce. Whoever needs that number builds the harness
 first, and [`audit.md`](audit.md) §7.4 says so.
+
+### A blocked residential connection drops the paid rung with it
+
+In the live checker, `livecheck/rungs.py` consults `budget.refuse_direct(portal)` for the
+whole search: three refusals in a row from this address and every remaining entry for that
+portal is skipped, including its `api:` rung — whose request leaves from the provider's
+network and not from here. The run `20260912-043617` in [`live-checks.md`](live-checks.md)
+shows the shape: five Immobiliare searches reported as dropped, one of which had a rung that
+demonstrably works. The circuit breaker is right about the connection and wrong about the
+conclusion.
+
+**Why it was not fixed where it was found.** Letting the paid rung past the breaker means
+paying for it, and the fix cannot be believed without a run that does: five entries at 30
+credits is 150, twice the budget that task was given. There is a second half, too — when the
+direct budget refuses, the geography lookup the Immobiliare target needs is refused with it,
+so a paid rung let through today would fall back to the HTML page, which is the target the
+same measurement rejected.
+
+**What doing it looks like.** Two budgets consulted at two different points rather than one
+consulted at the top: the direct ledger gates the free rungs, the credit ledger gates the
+paid one, and a search whose free rungs are all refused still reaches `api:` while credits
+remain above the floor. The geography lookup then needs a provider route of its own, or the
+paid rung needs a target that does not depend on one.
 
 ---
 

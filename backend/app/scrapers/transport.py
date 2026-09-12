@@ -196,6 +196,31 @@ class _ScrapeApiRequest:
     json_body: dict | None = None
 
 
+# Scrapfly documents a **155-second read timeout** on the scrape endpoint and
+# tells callers to configure their client to match it
+# (https://scrapfly.io/docs/scrape-api/getting-started): solving an anti-bot
+# challenge is slow by design, and the call is billed the moment the provider
+# starts it. The app used to send this request through the *portal* session,
+# whose 30 s ceiling cut a solved page off mid-download — paid for, and thrown
+# away unread (measured 2026-09-11: the provider answered the same search in 3 s
+# with a full page; the app's own call ended at 30 s with 0 bytes).
+SCRAPE_API_TIMEOUT_SECONDS = 155
+
+
+def new_scrape_api_session():
+    """A session that talks to the provider and to nothing else.
+
+    The provider is not the portal, and every property the portal session
+    carries is wrong here: the DataDome cookie pinned to `.immobiliare.it`, the
+    `Sec-Fetch-*`/`Referer` headers describing a navigation inside the portal,
+    the residential proxy the pool handed out, and the short timeout sized for a
+    portal that answers in a second. This session carries none of them.
+    """
+    from curl_cffi import requests as curl_requests
+
+    return curl_requests.Session(timeout=SCRAPE_API_TIMEOUT_SECONDS)
+
+
 def scrape_api_config() -> tuple[str, str]:
     """(provider, key) from settings; key is "" when the local path should run."""
     from ..config import load_settings
@@ -241,6 +266,65 @@ def build_scrape_api_request(provider: str, key: str, url: str) -> _ScrapeApiReq
             f"&country=it&url={quote(url, safe='')}"
         ),
     )
+
+
+def scrape_api_error(provider: str, resp) -> str:
+    """The provider's *own* error code for this call, or "" if it named none.
+
+    A refusal from the provider and a refusal from the portal look identical
+    from the outside — both end the fetch — and they need opposite answers: an
+    exhausted quota or a rejected key is fixed in the settings, an unsolvable
+    challenge is fixed by trying something else. Scrapfly publishes the code
+    twice, in the `x-scrapfly-reject-*` headers and under `result.error`
+    (https://scrapfly.io/docs/scrape-api/errors), so the header is read first
+    and the body only when the header is absent. Zyte answers RFC 7807, whose
+    `type` is the code.
+    """
+    if provider == "scrapfly":
+        header = resp.headers.get("x-scrapfly-reject-code") if hasattr(resp, "headers") else None
+        if header:
+            return str(header).strip()
+    try:
+        data = resp.json()
+    except Exception:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    if provider == "zyte":
+        return str(data.get("type") or "").strip()
+    error = data.get("result", {}).get("error") if isinstance(data.get("result"), dict) else None
+    if isinstance(error, dict) and error.get("code"):
+        return str(error["code"]).strip()
+    # A plan/auth refusal never reaches `result` at all: it is the whole body.
+    if data.get("code"):
+        return str(data["code"]).strip()
+    return ""
+
+
+def scrape_api_cost(provider: str, resp) -> int | None:
+    """What the provider says this call billed. `None` when it did not say —
+    never a zero, which a credit cap would read as a free call."""
+    if provider == "scrapfly" and hasattr(resp, "headers"):
+        header = resp.headers.get("X-Scrapfly-Api-Cost")
+        if header and str(header).strip().isdigit():
+            return int(str(header).strip())
+    try:
+        cost = resp.json()["context"]["cost"]["total"]
+    except Exception:
+        return None
+    return cost if isinstance(cost, int) else None
+
+
+def scrape_api_upstream_status(provider: str, resp) -> int | None:
+    """The status the *portal* gave the provider, which is the number that
+    matters: the provider's own 200 only says the provider answered."""
+    if provider != "scrapfly":
+        return None
+    try:
+        status = resp.json()["result"]["status_code"]
+    except Exception:
+        return None
+    return status if isinstance(status, int) else None
 
 
 def unwrap_scrape_api_response(provider: str, resp) -> str:
