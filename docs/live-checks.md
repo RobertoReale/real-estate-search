@@ -202,6 +202,100 @@ The tool opens nothing for writing under the data directory, binds no port, and
 touches `case.db` read-only and only to read saved search URLs. It cannot
 interfere with a running app.
 
+## Measurements — 2026-09-12
+
+The baseline every later investigation starts from, taken from the owner's
+residential connection in the small hours of 2026-09-12. Four runs, all of them
+kept under the per-portal cap in any fifteen-minute window: `20260912-032029`
+(the free matrix), `20260912-032453` and `20260912-032527` (two targeted
+follow-ups), `20260912-032600` (the paid rung), and `20260912-034103` (the suite
+through the rung that works, taken after the window had drained). Sixty credits
+spent in total, on one entry; the account was above the 500 floor throughout.
+
+**Every reference search works today — through the saved cookie.** Run
+`20260912-034103`, `--suite --rungs curl+cookie`, nine of nine:
+
+| Search | Portal | Shape | Target | HTTP | Ads | Declared |
+|---|---|---|---|---|---|---|
+| `imm-city` | Immobiliare | city | api-next p1 | 200 | 25 | 18,172 |
+| `imm-zone-path` | Immobiliare | zone in the path | api-next p1 | 200 | 25 | 258 |
+| `imm-zone-ids` | Immobiliare | zone ids in the query | api-next p1 | 200 | 25 | 981 |
+| `imm-polygon` | Immobiliare | drawn polygon | api-next p1 | 200 | 25 | 1,184 |
+| `imm-radius` | Immobiliare | radius around a point | api-next p1 | 200 | 25 | 3,378 |
+| `ide-city` | Idealista | city | html p1 | 200 | 30 | 14,751 |
+| `ide-zone` | Idealista | zone with filters | html p1 | 200 | 30 | 65 |
+| `imm-zone-path-form` | Immobiliare | form | api-next p1 | 200 | 25 | 258 |
+| `ide-zone-form` | Idealista | form | html p1 | 200 | 30 | — |
+
+`imm-zone-path-form` declared the same 258 as the pasted `imm-zone-path` it
+restates: the builder and the typed URL reached the same search. `ide-zone-form`
+parsed thirty listings and published no total, which is a blank and not a zero
+(invariant 26).
+
+**Without the cookie, the two portals behave differently.** Run
+`20260912-032029`, `--suite --all-rungs`, plus the follow-up `20260912-032527`
+that reached the profiles the run never got to:
+
+| Rung | Immobiliare | Idealista |
+|---|---|---|
+| `curl:safari184` | 403 | 200, 30 ads |
+| `curl:chrome131_android` | 403 | **403** |
+| `curl:safari180` | 403 | 200, 30 ads |
+| `curl:safari18_4_ios` | not attempted — the name is rejected before any request | same |
+| `curl:firefox147` | 403 | 200, 30 ads |
+| `curl:safari260` | not reached (breaker) | 200, 30 ads |
+| `curl+cookie` | 200, 25 ads | 200, 30 ads |
+
+Both refusals are DataDome: the body is the `geo.captcha-delivery.com`
+interstitial (`rt:'i'`), served for both portals. On Immobiliare's **api-next**
+target that interstitial arrives as **JSON** — a `{"url":"https://geo.captcha-delivery.com/interstitial/?…"}`
+object rather than the HTML block page — so anything that looks for the block
+page's markup alone will read a refusal as a malformed answer.
+
+**The paid rung works, slowly.** Run `20260912-032600`, `--rungs api --paid
+--max-credits 100`, on `imm-city`: api-next p1 answered 200 with 25 ads and the
+same 18,172 total, and html p1 answered 200 with 25 ads. Thirty credits each,
+sixty for the pair. What matters is the clock: **22,593 ms** and **30,549 ms**
+end to end. The provider is not answering in three seconds when it has an
+anti-bot challenge to solve, and a client timeout of thirty seconds sits on top
+of that distribution rather than clear of it.
+
+### What this rules in, and what it rules out
+
+* **Ruled out: this address is blocked.** It is not. Every shape on both portals
+  answered from it, and Idealista answered cookieless on four profiles.
+* **Ruled in: cookieless impersonation is refused by Immobiliare**, uniformly —
+  four different profiles, both targets, always the same DataDome interstitial.
+  The saved cookie is the entire difference between a refusal and 25 listings.
+* **Ruled in: `chrome131_android` is burnt on Idealista**, and the profile is the
+  cause rather than the address: in the same run, in the same minute, from the
+  same connection, it drew a 403 on all three Idealista searches while four other
+  profiles drew 200s.
+* **Ruled out: `safari18_4_ios` is a working profile.** curl_cffi 0.16.2 rejects
+  the name with `ImpersonateError` before opening a connection, so it has never
+  been one of six profiles here — it is five and a gap. The compact spelling
+  `safari184_ios` is accepted by the same build; upstream
+  [documents both spellings as supported](https://curl-cffi.readthedocs.io/en/latest/impersonate/targets.html),
+  which this build does not honour.
+* **Ruled out: the paid provider was silently failing.** It returns a complete,
+  parseable page. What it does not do is return it quickly.
+
+### The trap in reading `--all-rungs`
+
+`--suite --all-rungs` reported `immobiliare: no rung worked` in run
+`20260912-032029`, and that verdict was an artefact. The rungs are ordered
+cheapest-evidence-first, so all six cookieless profiles are tried before
+`curl+cookie`; the third consecutive 403 tripped the blocked-streak limit and
+dropped the portal for the rest of the run — before the one rung that works was
+ever asked, and before four of the five Immobiliare shapes were reached at all.
+Twenty-five minutes later the same searches answered on the first attempt.
+
+So an Immobiliare verdict from `--all-rungs` says *the free cookieless rungs were
+refused*, never *the portal is dead*. The rows below the streak limit are
+**untried**, and the report says so in the note column — read that column before
+concluding anything from an empty one. The cheap confirmation is one targeted
+run: `--rungs curl+cookie` against a single URL costs two requests.
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:
