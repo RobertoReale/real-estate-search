@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useT } from "../../i18n";
+import { formatDateTime, useT } from "../../i18n";
 import {
   useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser, useScrapeApiCredits,
 } from "../../queries/settings";
@@ -300,6 +300,18 @@ export function ScrapingSection(
               since={settings.datadome_cookie_updated_at}
               dirty={!!values.cookie.trim()} />
           </div>
+          {/* The cookie has no expiry to count down — it works until the portal
+              refuses it, and that refusal is the only honest thing to show. It
+              names the rung and the hour so the answer to "why did the scan come
+              back empty" is on screen rather than in a log. */}
+          {settings.datadome_cookie_refused_at && !values.cookie.trim() && (
+            <p className="text-xs text-caution-ink mt-1">
+              {t("settings.cookieRefused", {
+                what: settings.datadome_cookie_refused_detail,
+                date: formatDateTime(settings.datadome_cookie_refused_at),
+              })}
+            </p>
+          )}
         </div>
 
         {/* Automatic harvesting: only offered when Playwright is installed,

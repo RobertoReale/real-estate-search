@@ -412,13 +412,17 @@ DEFAULT_SETTINGS = {
     # to present (invariant 8).
     "tls_impersonations": list(DEFAULT_TLS_IMPERSONATIONS),
     "datadome_cookie": "",
-    # Automatic DataDome cookie refresh via a local browser (optional, needs
-    # Playwright — see services/cookie_harvester.py). Opt-in: a scan must not
-    # launch a browser the user never asked for. updated_at/ttl let the scanner
-    # decide when the cookie is stale enough to re-harvest before a scan.
+    # Opt-in to a browser the availability check may drive unattended (optional,
+    # needs Playwright — see services/cookie_harvester.py). It does NOT arm a
+    # cookie grab: minting is headful and user-triggered, because a headless one
+    # destroys the cookie it means to renew (invariant 18).
     "datadome_auto_refresh": False,
     "datadome_cookie_updated_at": "",
-    "datadome_cookie_ttl_minutes": 50,
+    # The cookie's standing, written by cookie_harvester.note_cookie_refused /
+    # note_cookie_accepted. This is what replaced a TTL: the cookie dies when the
+    # portal says so, which is observable, not when a timer guesses.
+    "datadome_cookie_refused_at": "",
+    "datadome_cookie_refused_detail": "",
     # Availability check transport. When on, the "is this ad still online?"
     # batch runs entirely through a persistent headless browser (Playwright)
     # instead of curl_cffi, so it earns a real DataDome cookie once and reuses
@@ -540,14 +544,16 @@ SECRET_SETTINGS = (
 
 def save_settings(new_values: dict) -> dict:
     settings = load_settings()
-    # The updated_at timestamp is metadata about the cookie, so it follows the
-    # cookie wherever the new value comes from. Without this, a cookie pasted
-    # by hand kept the old timestamp: the UI showed a stale "Last refreshed"
-    # and the auto-refresh (cookie_harvester.maybe_auto_refresh) judged the
-    # fresh paste stale and launched a browser for nothing on the next scan.
-    # The harvester passes its own timestamp explicitly, which wins below.
+    # The timestamp and the refusal marker are metadata about the cookie, so
+    # they follow the cookie wherever the new value comes from. Without this, a
+    # cookie pasted by hand kept the old timestamp and the old refusal: the UI
+    # showed a stale "Last refreshed" and went on telling the user to replace
+    # the cookie they had just replaced. The harvester passes its own values
+    # explicitly, which win below.
     if new_values.get("datadome_cookie") and "datadome_cookie_updated_at" not in new_values:
         new_values = {
+            "datadome_cookie_refused_at": "",
+            "datadome_cookie_refused_detail": "",
             **new_values,
             "datadome_cookie_updated_at": datetime.now(UTC).isoformat(),
         }

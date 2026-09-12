@@ -182,10 +182,10 @@ def test_browser_primary_block_streak_aborts_without_grinding_curl_levers(db, mo
         return p
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("curl_cffi cookie recovery must not run in browser-primary mode")
+        raise AssertionError("the curl_cffi levers must not run in browser-primary mode")
 
     monkeypatch.setattr(availability_check, "AdProbe", make_probe)
-    monkeypatch.setattr(availability_check, "_try_cookie_recovery", fail_if_called)
+    monkeypatch.setattr(availability_check, "_note_cookie_refused", fail_if_called)
     monkeypatch.setattr(
         availability_check, "load_settings", lambda: {"availability_browser_first": True}
     )

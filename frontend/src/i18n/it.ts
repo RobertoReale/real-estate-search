@@ -405,10 +405,10 @@ export const it: Dict = {
 
   "setup.field.datadome_cookie": "Cookie DataDome",
   "setup.hint.datadome_cookie":
-    "Dal tuo browser su immobiliare.it: strumenti per sviluppatori, Application, Cookie, il valore che si chiama «datadome». Scade dopo qualche ora.",
-  "setup.field.datadome_auto_refresh": "Prendi il cookie automaticamente",
+    "Dal tuo browser su immobiliare.it: strumenti per sviluppatori, Application, Cookie, il valore che si chiama «datadome». Non scade a orologio: vale finché il portale continua ad accettarlo.",
+  "setup.field.datadome_auto_refresh": "Usa il browser quando le richieste rapide vengono bloccate",
   "setup.hint.datadome_auto_refresh":
-    "Apre un browser vero in background quando il cookie salvato è vecchio e ne prende uno nuovo.",
+    "Apre un browser vero in background e continua da lì. Non prende un cookie nuovo: quello va chiesto a mano dalle impostazioni, con una finestra visibile.",
   "setup.field.browser_engine": "Browser da usare",
   "setup.hint.browser_engine":
     "Camoufox è più difficile da riconoscere per un portale; Chromium si avvia più in fretta.",
@@ -482,7 +482,8 @@ export const it: Dict = {
   "setup.detected.harvester": "L'automazione del browser è installata",
   "setup.detected.noHarvester": "L'automazione del browser non è installata",
   "setup.detected.camoufox": "Camoufox è installato",
-  "setup.detected.cookie": "C'è un cookie salvato, buono per circa {minutes} minuti",
+  "setup.detected.cookie": "C'è un cookie salvato e il portale lo accetta",
+  "setup.detected.cookieRefused": "Il cookie salvato è stato rifiutato: prendine uno nuovo",
   "setup.detected.noCookie": "Nessun cookie salvato",
 
   "setup.section.title": "Configurazione guidata",
@@ -880,14 +881,16 @@ export const it: Dict = {
   "settings.cookiePlaceholder": "Incolla il valore del cookie datadome",
 
   // ── impostazioni: raccolta cookie e browser ─────────────────────────────
-  "settings.harvestTitle": "Ottieni il cookie automaticamente",
+  "settings.harvestTitle": "Ottieni il cookie con un browser",
   "settings.harvestNote":
-    "Apre un browser locale, ottiene un cookie fresco e lo salva — senza copia/incolla. Potrebbe aprirsi una finestra: se il portale mostra un CAPTCHA, risolvilo una volta e verrà ricordato.",
+    "Apre un browser locale, ottiene un cookie fresco e lo salva — senza copia/incolla. La finestra si apre in vista: se il portale mostra un CAPTCHA, risolvilo una volta e verrà ricordato. Serve che tu sia qui — un browser nascosto non può ottenere un cookie.",
   "settings.grabCookie": "Ottieni subito un cookie fresco",
   "settings.openingBrowser": "Apertura del browser…",
   "settings.cookieGrabbed": "Nuovo cookie DataDome salvato ({preview}).",
   "settings.autoRefreshCookie":
-    "Rinnova il cookie automaticamente prima di ogni scansione (headless)",
+    "Quando le richieste rapide vengono bloccate, continua con un browser in background",
+  "settings.cookieRefused":
+    "Il {date} il cookie salvato è stato rifiutato da {what}. Prendine uno nuovo qui sotto: serve una finestra visibile, un browser nascosto non può ottenerlo.",
   "settings.browserFirst":
     'Esegui la verifica "è ancora online?" tramite browser invece che con richieste rapide — più lento per annuncio, ma mantiene un cookie reale così DataDome non lo interrompe con blocchi 403.',
   "settings.browserHeadful":

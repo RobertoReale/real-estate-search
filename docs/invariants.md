@@ -263,11 +263,15 @@ each invariant to its code home and its test file. See also
     that the block lands on the residential IP the scheduled scans depend on — insisting
     there is far more expensive than a half-finished check.
 
-    The one exception to "abandon on a streak" is **opt-in** (`datadome_auto_refresh`): on
-    reaching the streak, `_try_cookie_recovery` mints a fresh cookie in a headless browser,
-    rebuilds the probe's session around it, and carries on — bounded by
-    `MAX_COOKIE_REFRESHES_PER_CHECK` per batch, so it is a couple of last-resort recoveries,
-    not a retry loop. The same flag arms one further lever: a blocked probe may switch to a
+    The exceptions to "abandon on a streak" are bounded and few. On reaching the streak the
+    batch rotates its TLS impersonation, sleeps 12s and starts the session over, up to
+    `MAX_SESSION_RESETS_PER_CHECK` times per batch — a handful of last-resort recoveries, not
+    a retry loop. It also writes down that the saved cookie was refused
+    (`cookie_harvester.note_cookie_refused`), which is bookkeeping rather than a lever: a
+    headless re-mint used to run here and was removed in favour of it, because measurement
+    showed it cannot earn a cookie and destroys the one already in hand
+    ([`live-checks.md`](live-checks.md) §5). Opt-in (`datadome_auto_refresh`) arms one
+    further lever: a blocked probe may switch to a
     **persistent headless browser session** (`AdProbe.start_browser_session`, one launch per
     batch, all Playwright calls on one dedicated thread because the sync API is
     greenlet-bound to its creating thread) and finish the batch through it; with the flag
@@ -283,8 +287,8 @@ each invariant to its code home and its test file. See also
     In browser-primary mode a headless CAPTCHA sets `was_blocked` too, so a browser the
     portal is *also* challenging still hits the streak — and there the abort is
     **immediate**: when `_browser_primary` is set the streak handler skips the curl-only
-    recovery levers (fresh cookie, TLS rotation) entirely, because none can clear a browser
-    CAPTCHA and each costs a headless relaunch or a 12s sleep, which is exactly what once
+    levers (the refusal note, TLS rotation) entirely, because none can clear a browser
+    CAPTCHA and the rotation costs a 12s sleep, which is exactly what once
     left the progress bar frozen for minutes on an already-lost batch. The escape hatch from
     that abort is attended, not automatic: `availability_browser_headful` (invariant 18)
     opens the browser **visible** and waits for the user to solve the CAPTCHA by hand
@@ -319,29 +323,34 @@ each invariant to its code home and its test file. See also
     engine). Playwright is **not** in `requirements.txt`: it plus a browser is ~300 MB and
     the project targets a Raspberry Pi, so it is imported lazily and `is_available()` gates
     every entry point; its absence degrades to the manual paste, never an `ImportError`.
-    Auto-refresh before a scan is **opt-in** (`datadome_auto_refresh`, default off) — a scan
-    must never launch a browser the user did not ask for — and `maybe_auto_refresh()` only
-    re-harvests a cookie past its TTL (default 50 min, chosen to sit under a DataDome
-    lifetime of ~60 that measurement has since disproved: a cookie 50 hours old still
-    answered on 2026-09-12, and the vendor documents a lifetime of 7 days to a year —
-    [`live-checks.md`](live-checks.md) §3). The harvest is
-    **fail-open** like the availability probe (invariant 16): a missing browser, a timeout,
-    or a headless CAPTCHA returns no cookie and the scan proceeds with whatever it had. A
-    single `_harvest_lock` (like `_scan_lock`) serialises launches, because two browsers on
-    the one persistent `browser_profile/` dir race and Chromium refuses the second.
+    The harvest is **fail-open** like the availability probe (invariant 16): a missing
+    browser or a timeout returns no cookie and the scan proceeds with whatever it had, and
+    so does the custody bookkeeping below — a settings file that cannot be written is not a
+    reason for a scan to raise. A single `_harvest_lock` (like `_scan_lock`) serialises
+    launches, because two browsers on the one persistent `browser_profile/` dir race and
+    Chromium refuses the second.
 
-    The manual API grab is **headful** on purpose (the user is present to solve a CAPTCHA
-    once; the persistent profile then remembers it); the pre-scan auto-refresh is headless
-    (unattended). The same `datadome_auto_refresh` flag also arms a **reactive** headless
-    refresh inside the availability check (`_try_cookie_recovery`, invariant 16) and the
-    probe's persistent browser fallback (`AdProbe.start_browser_session`, invariant 16):
-    pre-scan it fires when the cookie is past its TTL, on a block it fires because the
-    cookie has demonstrably burned. One further flag authorises an unattended launch:
-    `availability_browser_first`, which makes the availability check run entirely through
-    the persistent headless browser from the first ad (invariant 16);
-    `AdProbe.start_browser_session` accepts *any* of these three switches
-    (`datadome_auto_refresh`, `availability_browser_first`, `availability_browser_headful`)
-    as the opt-in.
+    **Minting is headful and user-triggered. There is no headless mint, and no TTL.**
+    `refresh_into_settings` refuses `headless=True` before it launches anything. Both halves
+    of the mechanism it replaced were measured wrong on 2026-09-12
+    ([`live-checks.md`](live-checks.md) §§3–5): a cookie 50 hours past the 50-minute TTL
+    still returned 25 listings and the vendor documents a lifetime of 7 days to a year, so
+    the timer was predicting a death that does not happen on a clock; and a headless grab
+    drew a `t=bv` CAPTCHA — the variant with nothing to solve — while *presenting and
+    burning* the working cookie the shared profile already held, so the "refresh" was the
+    only thing that ever killed a cookie. What ends a cookie is a refusal, which is
+    observable: `note_cookie_refused` / `note_cookie_accepted` record the transition (once,
+    not once per page) into `datadome_cookie_refused_at`/`_detail`, Settings shows which
+    rung refused it and when, and a person presses "grab a fresh cookie" in a visible
+    window. A search blocked while nobody is at the keyboard escalates to the paid rung
+    (invariant 8) instead of trying to mint.
+
+    The flags therefore authorise a browser to **read**, never to mint.
+    `datadome_auto_refresh` arms the probe's persistent browser fallback on a block
+    (`AdProbe.start_browser_session`, invariant 16); `availability_browser_first` makes the
+    availability check run through that browser from the first ad; `availability_browser_headful`
+    makes it visible. `AdProbe.start_browser_session` accepts *any* of these three as the
+    opt-in.
 
     Every **unattended** launch is headless. The one **attended** exception beyond the
     manual grab is `availability_browser_headful`: the availability check is user-triggered

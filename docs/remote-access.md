@@ -102,12 +102,13 @@ Both self-elevate via UAC. Remember to start the service again afterwards
 
 > Notes: don't run `start.bat` or the packaged app at the same time (they use
 > port 8000 too — stop the service first). After changing the code, rebuild the
-> frontend and restart. The automatic DataDome cookie grab runs headless
-> (`maybe_auto_refresh`) cleanly in the background right when needed. Any
-> **interactive** browser step (solving a CAPTCHA by hand) still works under
-> the service: **"Grab a fresh cookie now"** in Settings relaunches the browser
-> inside your own desktop session instead of the service's invisible one, so a
-> real window opens for you to solve it in. The availability check's own
+> frontend and restart. Getting a DataDome cookie is an **interactive** step —
+> a hidden browser is served a CAPTCHA it cannot solve — and it still works
+> under the service: **"Grab a fresh cookie now"** in Settings relaunches the
+> browser inside your own desktop session instead of the service's invisible
+> one, so a real window opens for you to solve it in. Nothing grabs a cookie on
+> its own, so a service left alone for a week will eventually show "the stored
+> cookie was refused" in Settings and wait for you. The availability check's own
 > **"Show the browser window during the check"** option cannot do this — it
 > runs the browser in the service itself, so under the service it is always
 > headless no matter the setting (see [Is This Ad Still Online?](availability-check.md)

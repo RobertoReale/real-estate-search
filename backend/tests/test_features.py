@@ -987,9 +987,9 @@ def test_no_stored_secret_is_overwritten_by_its_own_mask():
 
 
 def test_manual_cookie_paste_stamps_its_own_timestamp():
-    """A datadome cookie pasted by hand must refresh datadome_cookie_updated_at:
-    otherwise the UI shows a stale "Last refreshed" and the pre-scan
-    auto-refresh judges the fresh paste stale, launching a browser for nothing.
+    """A datadome cookie pasted by hand must refresh datadome_cookie_updated_at,
+    or Settings dates the new cookie to whenever the last one arrived — the one
+    number a user has to judge "is this the cookie I just pasted?" by.
     The harvester's own explicit timestamp must still win over the stamp.
 
     Writes to the throwaway settings.json of the `isolated_settings` fixture."""

@@ -38,12 +38,12 @@ unchecked; re-select it later to pick up where you left off.
 
 ## When the check keeps getting interrupted
 
-Turn on **"Run the check through the browser"** in **Settings** (under the
-automatic cookie section). The check then runs through a real local browser
-(headless) that earns a genuine cookie once and reuses it, instead of a fresh
+Turn on **"Run the check through the browser"** in **Settings** (under
+*Grab the cookie with a browser*). The check then runs through a real local
+browser (headless) that holds one session and reuses it, instead of a fresh
 request per ad — so it does not collect a 403 per listing. Slower per ad, but
 it does not stop mid-run. This needs the optional browser engine installed, the
-same one as the automatic cookie grab.
+same one the cookie button uses.
 
 If the portal still challenges even that browser with a CAPTCHA, tick **"Show the
 browser window during the check"** right below it. Because you start the check
@@ -59,7 +59,7 @@ a Windows service has no desktop of its own (Session 0), so there is no screen
 to open a window on, and the check runs headless regardless of the tick box. If
 a run under the service gets blocked, don't wait on a window that will never
 appear — click **"Grab a fresh cookie now"** (same Settings page, under
-*Automatic cookie grab*) first. That button *does* pop a real, visible window
+*Grab the cookie with a browser*) first. That button *does* pop a real, visible window
 even with the service running, because it relaunches the browser inside your own
 logged-in desktop session rather than the service's. Solve the CAPTCHA there
 once. It shares the same on-disk browser profile as the availability check, so

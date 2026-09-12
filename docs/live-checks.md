@@ -552,6 +552,36 @@ minutes; and the thing that destroys it is the app's own unattended browser.
 What R.4 should not spend a line on: a `curl_cffi` upgrade (§1), a homepage
 warm-up row (§2), or a headless browser rung (§5).
 
+### What was built from it — 2026-09-12
+
+All three points, and nothing else.
+
+`refresh_into_settings` now refuses `headless=True` before it launches anything,
+so the only way to mint is the Settings button in a visible window. The TTL is
+gone — `datadome_cookie_ttl_minutes`, `cookie_is_stale()`, `maybe_auto_refresh()`
+and the scan's pre-flight call to it no longer exist, and neither does the
+availability check's reactive re-mint. What replaced them is bookkeeping:
+`note_cookie_refused` / `note_cookie_accepted` write `datadome_cookie_refused_at`
+and a human-readable `_detail` on the transition, so Settings can say *which rung
+was refused and when* instead of counting down to a death that does not happen on
+a clock. `datadome_auto_refresh` survives, renamed on screen to what it actually
+does — carry on through the persistent browser when the fast requests are blocked
+— and no longer arms any mint. The paid rung stays the escalation for a refusal
+nobody is present to answer, inside R.2's monthly ceiling.
+
+The free path was re-measured afterwards, run `20260912-192930`,
+`--suite --rungs curl+cookie`, no credits spent:
+
+| | Answered | Rung | Target |
+|---|---|---|---|
+| Immobiliare | 6 of 6 | `curl+cookie` | api-next p1, 25 ads each |
+| Idealista | 3 of 3 | `curl+cookie` | html p1, 30 ads each |
+
+Nine of nine, on the cookie minted headful at `2026-09-10T09:40Z` — **fifty-six
+hours old, and sixty-seven times the TTL that would have thrown it away.** That is the
+§3 finding holding at a second sitting, which is the whole case for deleting the
+timer.
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:

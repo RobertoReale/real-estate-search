@@ -120,7 +120,8 @@ function Detected({ settings, t }: { settings: Settings; t: TFunction }) {
       ? t("setup.detected.harvester") : t("setup.detected.noHarvester"),
     settings.camoufox_available ? t("setup.detected.camoufox") : null,
     settings.datadome_cookie_set
-      ? t("setup.detected.cookie", { minutes: settings.datadome_cookie_ttl_minutes })
+      ? t(settings.datadome_cookie_refused_at
+        ? "setup.detected.cookieRefused" : "setup.detected.cookie")
       : t("setup.detected.noCookie"),
   ].filter((line): line is string => line !== null);
 

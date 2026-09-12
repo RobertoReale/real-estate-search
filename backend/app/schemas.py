@@ -607,7 +607,6 @@ class SettingsIn(BaseModel):
     listing_audit_enabled: bool | None = None
     datadome_cookie: str | None = None
     datadome_auto_refresh: bool | None = None
-    datadome_cookie_ttl_minutes: int | None = None
     availability_browser_first: bool | None = None
     availability_browser_headful: bool | None = None
     browser_engine: str | None = None
@@ -922,8 +921,9 @@ class AvailabilityCheckSummaryOut(ApiOut):
     # block warning for a deliberate stop
     cancelled: bool = False
     last_error: str | None = None
-    # how many times a fresh DataDome cookie was grabbed mid-check to recover
-    cookie_refreshed: int = 0
+    # how many times the batch rotated its TLS handshake and started over after
+    # a block streak, before giving up
+    session_resets: int = 0
     # human-readable transport diagnostic: "fast requests (curl)",
     # "chromium (visible window)", "browser off: no option enabled", …
     transport: str = ""
@@ -1322,7 +1322,12 @@ class SettingsOut(ApiOut):
     datadome_cookie_set: bool = False
     datadome_auto_refresh: bool = False
     datadome_cookie_updated_at: str = ""
-    datadome_cookie_ttl_minutes: int = 50
+    # When the portal last refused the saved cookie, and what refused it. Empty
+    # means the cookie is working as far as anything has observed — there is no
+    # expiry to count down, because a cookie dies when it is refused, not on a
+    # timer (see services/cookie_harvester.py).
+    datadome_cookie_refused_at: str = ""
+    datadome_cookie_refused_detail: str = ""
     datadome_harvester_available: bool = False
     availability_browser_first: bool = False
     availability_browser_headful: bool = False
