@@ -865,6 +865,11 @@ export const en = {
   "settings.modeAlways": "Always (every fetch goes through the provider)",
   "settings.modeNote":
     '"Fallback" (the default) spends your API credits only during an actual outage: scans start on the free local path and escalate when blocked.',
+  "settings.monthlyCreditsLabel": "Monthly ceiling, in provider credits",
+  "settings.creditsLeft": "Your provider account reports {credits} credits left.",
+  "settings.creditsUnknown": "The provider account balance could not be read ({detail}).",
+  "settings.creditsUnsupported":
+    "This provider publishes no account balance, so only the ceiling above is counted here.",
   "settings.cookieLabel": "DataDome Cookie",
   "settings.cookieSaved": "Cookie already saved (leave empty to keep)",
   "settings.cookiePlaceholder": "Paste datadome cookie value",
@@ -1377,6 +1382,29 @@ export const en = {
   "health.colFailureRateTitle":
     "Share of scans that came back blocked or in error over the window",
   "health.colTransport": "Last transport",
+  "health.colCost": "Paid",
+  "health.colCostTitle":
+    "What the managed scrape API billed for this portal over the window, in the provider's own credits",
+  "health.credits": "{credits} cr · {calls} calls",
+  "health.creditsApprox": "≈{credits} cr · {calls} calls",
+  "health.budgetSpent":
+    "This month the scrape API has cost {spent} of {budget} credits, over {calls} calls.",
+  "health.budgetSpentApprox":
+    "This month the scrape API has cost about {spent} of {budget} credits, over {calls} calls — part of it was never quoted by the provider and is counted at the measured page price.",
+  "health.budgetSpentNoCap":
+    "This month the scrape API has cost {spent} credits, over {calls} calls. No monthly ceiling is set.",
+  "health.budgetSpentNoCapApprox":
+    "This month the scrape API has cost about {spent} credits, over {calls} calls — part of it was never quoted by the provider. No monthly ceiling is set.",
+  "health.budgetReached":
+    "The monthly scrape-API ceiling is reached: {spent} of {budget} credits spent. Scans continue on the free local path and no longer escalate to the provider.",
+  "health.budgetReachedApprox":
+    "The monthly scrape-API ceiling is reached: about {spent} of {budget} credits spent — part of it was never quoted by the provider. Scans continue on the free local path and no longer escalate to the provider.",
+  "health.budgetSince": "Reached on {date}.",
+  "health.budgetSearches": "Searches affected: {searches}.",
+  "health.budgetNoSearches":
+    "No active search would be using the provider right now, so nothing is currently losing it.",
+  "health.budgetHowToLift":
+    "Raise or clear the ceiling in Settings → Scraping (0 means no ceiling of ours); it resets on the first of next month.",
   "health.legend":
     "Green day = every scan ok · amber = some failed · red = all failed. Hover a day for the exact counts.",
   "health.dayAllOk": "all scans ok",
@@ -1455,6 +1483,10 @@ export const en = {
     "An area drawn on a portal's map, or a radius around a point, cannot be expressed here — paste that search's URL instead and it arrives exactly as drawn.",
   "limits.idealistaReach":
     "{requests} request(s) per search, so about {listings} listings each scan.",
+  "limits.scrapeCreditsCeiling":
+    "{credits} credits a month — about {pages} portal pages at the price measured so far. Past it, scans stay on the free local path until the first of next month.",
+  "limits.scrapeCreditsNoCeiling":
+    "No ceiling of ours: scans keep escalating to the provider until its own quota runs out.",
 
   // ── floor labels (utils/format) ─────────────────────────────────────────
   "floor.ground": "ground floor",

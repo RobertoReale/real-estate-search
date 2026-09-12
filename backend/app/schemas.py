@@ -589,6 +589,7 @@ class SettingsIn(BaseModel):
     scrape_api_provider: str | None = None
     scrape_api_key: str | None = None
     scrape_api_mode: str | None = None
+    scrape_api_monthly_credits: int | None = None
     transport_escalate_after_failures: int | None = None
     idealista_api_key: str | None = None
     idealista_api_secret: str | None = None
@@ -657,6 +658,15 @@ class SettingsIn(BaseModel):
     def known_scrape_mode(cls, v: str | None) -> str | None:
         if v is not None and v not in ("always", "fallback"):
             raise ValueError("must be one of: always, fallback")
+        return v
+
+    @field_validator("scrape_api_monthly_credits")
+    @classmethod
+    def credits_not_negative(cls, v: int | None) -> int | None:
+        # 0 is the "no ceiling of ours" sentinel, as in the dream fields below;
+        # a negative would read as one and is a client bug either way.
+        if v is not None and v < 0:
+            raise ValueError("must be >= 0 (0 means no monthly ceiling)")
         return v
 
     @field_validator("nl_parser_backend")
@@ -1029,6 +1039,13 @@ class ScraperHealthPortalOut(ApiOut):
     attempts: int = 0
     failures: int = 0
     block_rate: float = 0.0  # 0..1 over the window
+    # What the transport above cost over the same window, in the provider's own
+    # credits. `api_credits_estimated` is the share of it charged at the
+    # measured page price because a receipt named no figure, which is what tells
+    # the panel whether it may state the total flatly or must hedge it.
+    api_credits: int = 0
+    api_credits_estimated: int = 0
+    api_calls: int = 0
 
 
 class ScraperHealthProfileOut(ApiOut):
@@ -1041,14 +1058,43 @@ class ScraperHealthProfileOut(ApiOut):
     last_run_status: str = ""
 
 
+class ScraperHealthBudgetSearchOut(ApiOut):
+    """One search the credit ceiling is currently costing something: it would
+    have gone through the provider, and now it will not."""
+
+    profile_id: int
+    name: str
+    portal: str
+
+
+class ScraperHealthBudgetOut(ApiOut):
+    """This calendar month's paid transport: what it cost, what it may cost, and
+    what stopped when it ran out.
+
+    `monthly_credits` is 0 when no ceiling is set, and `estimated` is the share
+    of `spent` the provider never quoted — a total that is partly estimated is
+    stated as an estimate (invariant 26) rather than as a measurement.
+    """
+
+    month: str  # YYYY-MM
+    monthly_credits: int = 0
+    spent: int = 0
+    estimated: int = 0
+    calls: int = 0
+    reached: bool = False
+    reached_on: str = ""  # ISO date, empty while the ceiling stands untouched
+    searches: list[ScraperHealthBudgetSearchOut] = []
+
+
 class ScraperHealthOut(ApiOut):
-    """The scraping-health panel: per-portal history, per-search streaks, and
-    the transport the next scan would start on."""
+    """The scraping-health panel: per-portal history, per-search streaks, the
+    transport the next scan would start on, and what the month has cost."""
 
     window_days: int
     portals: list[ScraperHealthPortalOut] = []
     profiles: list[ScraperHealthProfileOut] = []
     transport: str = ""
+    budget: ScraperHealthBudgetOut | None = None
 
 
 class ScanTriggerOut(ApiOut):
@@ -1154,6 +1200,25 @@ class DatadomeRefreshOut(ApiOut):
     cookie_preview: str
 
 
+class ScrapeApiCreditsOut(ApiOut):
+    """What the provider says is left on the account behind the saved key.
+
+    `remaining` is null both when no key is saved and when the balance could not
+    be read; `configured` separates those two, and `reason` says which it was as
+    a code the dashboard translates (`unsupported` — the provider publishes no
+    balance — or `unreadable`), with the English particular in `detail`. A
+    balance nobody could read is never reported as a healthy one. The key itself
+    never appears here — it is read server-side and only the number comes back
+    (invariant 27).
+    """
+
+    provider: str
+    configured: bool = False
+    remaining: int | None = None
+    reason: str = ""
+    detail: str = ""
+
+
 class InstallOut(ApiOut):
     """One of the optional-browser installers, with the line to show the user."""
 
@@ -1237,6 +1302,11 @@ class SettingsOut(ApiOut):
     scrape_api_key: str = ""
     scrape_api_key_set: bool = False
     scrape_api_mode: str = "fallback"
+    scrape_api_monthly_credits: int = 900
+    # Not a setting either: what one page measured at, so the dashboard can turn
+    # the ceiling above into a number of pages without a second copy of the
+    # figure (scrapers/transport.ESTIMATED_CREDITS_PER_PAGE).
+    scrape_api_credits_per_page: int = 25
     transport_escalate_after_failures: int = 2
     idealista_api_key: str = ""
     idealista_api_key_set: bool = False

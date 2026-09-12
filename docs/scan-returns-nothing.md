@@ -140,9 +140,8 @@ Scrapfly, ScraperAPI or Zyte). Instead of fetching pages from your own IP, each
 scan hands the target URL to the provider, which returns the already-solved HTML
 — so blocks stop reaching your connection entirely, and detail data (like map
 coordinates) becomes fetchable. This is the one place the app can use a paid
-cloud service, and it stays **optional**: free tiers (~1,000 calls/month) can
-cover a small personal scanner, and with no key set the app runs exactly as
-before, fully local. Empty the key to go back to the local path.
+cloud service, and it stays **optional**: with no key set the app runs exactly
+as before, fully local. Empty the key to go back to the local path.
 By default a saved key is used *only as a fallback*, so credits are spent
 only during an actual outage: scans start on the free local path and escalate
 to the provider when blocked (mid-scan, once the local retries are exhausted,
@@ -150,6 +149,38 @@ or from the start when a search has already failed its last couple of scans).
 Switch **When to use it** to *"Always"* to route every fetch through the
 provider instead. The **Scraper health** panel on the dashboard shows which
 transport carried each day's scans.
+
+**A page is not a call, and the difference is the whole bill.** Providers price
+by what a fetch needed, and a page fetched the way this app asks for it — with
+the anti-bot options that make it come back at all — cost 25 Scrapfly credits
+when it was last measured, so a free grant of 1,000 credits is about 40 pages
+rather than 1,000. One search left on the paid rung, scanned hourly, spends
+roughly 600 credits a month if it is one page long, and a ten-page one spends
+the grant in two days. So the app counts, and stops:
+
+- **Settings → Advanced Scraping → *Monthly credit ceiling*** is what it may
+  spend in a calendar month, 900 by default, with the line underneath saying how
+  many pages that buys at the measured price. Set it to 0 to remove the ceiling
+  and leave the provider's own quota as the only limit.
+- Beside it, **credits left** is read from the provider's account when the key
+  can answer for it (Scrapfly only, at present). The key is never shown, sent to
+  the dashboard, or logged — the balance is read on the server and only the
+  number travels.
+- The **Scraper health** panel says what the month has cost so far, and once the
+  ceiling is reached it says so plainly: which searches are affected, the day it
+  started, and how to lift it. Those searches keep scanning on the free local
+  path — which is also the path that was being refused, so expect them to return
+  less until the ceiling is raised or the month turns over.
+- Part of a total can be an estimate: when the provider does not quote a price
+  for a call, the app charges the measured page price and says the figure is
+  approximate rather than presenting a guess as a receipt.
+
+Two things the accounting deliberately does not do. It does not know what you
+spent outside this app — the ceiling counts this app's scans, and *credits left*
+is the number to reconcile against. And a search that fails outright records no
+spending, because the receipts are written with the scan's health row and there
+is no row for a scan that never finished; the month's total can therefore
+under-count a failing search by the pages it managed before failing.
 
 ### Ask the portal instead of reading its pages
 

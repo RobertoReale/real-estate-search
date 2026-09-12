@@ -445,6 +445,46 @@ class _SearchToRun:
     seen: frozenset[tuple[str, float | None]] | None = None
 
 
+class _CreditAllowance:
+    """What this scan may still pay the provider, shared by all of its searches.
+
+    One counter for the scan and not one per search: the ceiling is a month's
+    money, and two portals being read at the same time are spending the same
+    pot. It starts at what the month's receipts already add up to
+    (`scraper_health.credits_this_month`), so a scan that begins over the
+    ceiling never reaches for the paid rung at all, and each search charges what
+    it actually spent as it finishes, which is what the next one is refused
+    against. Locked because the charging happens on the fetching threads.
+
+    Two searches that start together can each be handed the same remainder, so a
+    scan may overshoot by at most one search's worth. That is the deliberate
+    half: the alternative is dividing the month's money between searches up
+    front and refusing the one search that needed it.
+    """
+
+    def __init__(self, spent: int, budget: int) -> None:
+        self._lock = threading.Lock()
+        self._spent = spent
+        self._budget = budget
+
+    @property
+    def spent(self) -> int:
+        with self._lock:
+            return self._spent
+
+    def remaining(self) -> int | None:
+        """What one scraper may still spend, or `None` when no ceiling is set —
+        which the scrapers read as "the provider's own quota is the only limit"."""
+        if self._budget <= 0:
+            return None
+        with self._lock:
+            return max(0, self._budget - self._spent)
+
+    def charge(self, credits: int) -> None:
+        with self._lock:
+            self._spent += max(0, credits)
+
+
 @dataclass
 class _Fetched:
     """One search, as it came back off its portal. No database in sight."""
@@ -527,6 +567,22 @@ def _recognises(seen: frozenset[tuple[str, float | None]] | None) -> KnownListin
     return known
 
 
+def _allowance(db, settings: dict) -> _CreditAllowance:
+    """This scan's share of the month, read off the receipts already recorded.
+
+    Built on the writing side, where a session exists; the fetching threads only
+    ever add to it. Fail-open like the health recording it reads: a scan must
+    not be lost to a bookkeeping query, and the scrapers' own per-scrape ceiling
+    still holds.
+    """
+    try:
+        spent = scraper_health.credits_this_month(db)["spent"]
+    except Exception:
+        logger.exception("scan: the month's credit spending could not be read")
+        spent = 0
+    return _CreditAllowance(spent, transport_policy.monthly_credit_budget(settings))
+
+
 def _searches_to_run(
     db, profiles: list[SearchProfile], settings: dict, full_sweep: bool = False
 ) -> list[_SearchToRun]:
@@ -549,7 +605,9 @@ def _searches_to_run(
     ]
 
 
-def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iterator[_Fetched]:
+def _fetch_searches(
+    searches: list[_SearchToRun], settings: dict, allowance: _CreditAllowance | None = None
+) -> typing.Iterator[_Fetched]:
     """Every search, read off its portal — the hosts at the same time.
 
     Every delay in this app is owed to *one* host: `polite_sleep` spends six
@@ -581,7 +639,7 @@ def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iter
         # One host, or the user turned it off: no pool, no threads, and the
         # path the scan took before this existed, unchanged.
         for search in searches:
-            yield _fetch_search(search, settings)
+            yield _fetch_search(search, settings, allowance)
         return
 
     pools: dict[str, ThreadPoolExecutor] = {}
@@ -593,7 +651,7 @@ def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iter
                 pool = pools[search.portal] = ThreadPoolExecutor(
                     max_workers=1, thread_name_prefix=f"scan-{search.portal}"
                 )
-            pending.append(pool.submit(_fetch_search, search, settings))
+            pending.append(pool.submit(_fetch_search, search, settings, allowance))
         for future in pending:
             yield future.result()
     finally:
@@ -601,7 +659,9 @@ def _fetch_searches(searches: list[_SearchToRun], settings: dict) -> typing.Iter
             pool.shutdown(wait=True, cancel_futures=True)
 
 
-def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
+def _fetch_search(
+    search: _SearchToRun, settings: dict, allowance: _CreditAllowance | None = None
+) -> _Fetched:
     """Read one search off its portal. Never raises, never touches the database.
 
     A scraper instance is built *here*, per search, and never shared: it holds a
@@ -621,8 +681,19 @@ def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
         # "fallback" the scan starts on the free local path and only spends the
         # paid API when this profile's failure streak says local is down; the
         # default "always" keeps a configured key routing everything as before.
-        decision = transport_policy.decide(search.consecutive_failures, settings)
+        # The month's spending is the third input: past the ceiling the decision
+        # comes back with both flags down and says so in its label.
+        decision = transport_policy.decide(
+            search.consecutive_failures, settings, allowance.spent if allowance else 0
+        )
         scraper.use_scrape_api = decision.start_on_api
+        # The fallback is a separate flag from the starting rung because the
+        # ceiling has to close both: a scan that starts local and is blocked is
+        # exactly the one that would otherwise keep paying past it.
+        scraper.allow_scrape_api_fallback = decision.allow_api_fallback
+        # What is left of the month, so a single long search cannot spend past
+        # the ceiling page by page inside one scrape.
+        scraper.api_credits_left = allowance.remaining() if allowance else None
         # live reporting, for the minutes this next line takes
         scraper.on_progress = partial(fetched.progress.scraped, scraper, settings)
         fetched.scraper = scraper
@@ -635,6 +706,14 @@ def _fetch_search(search: _SearchToRun, settings: dict) -> _Fetched:
         fetched.result = result
     except Exception as e:
         fetched.error = e
+    finally:
+        # Charged here and not on the writing side, because the search that runs
+        # next on the other portal is already in flight: a bill posted only at
+        # save time would be posted after the decision it was meant to inform.
+        # A search that failed still charges — the provider bills the call, not
+        # the answer.
+        if allowance is not None:
+            allowance.charge(getattr(fetched.scraper, "api_credits_spent", 0))
     return fetched
 
 
@@ -716,7 +795,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
             # order the profiles were listed, so what the database ends up
             # holding does not depend on which host answered first.
             searches = _searches_to_run(db, profiles, settings, full_sweep)
-            for fetched in _fetch_searches(searches, settings):
+            for fetched in _fetch_searches(searches, settings, _allowance(db, settings)):
                 profile = by_id[fetched.search.id]
                 result = fetched.result
                 try:
@@ -1268,7 +1347,9 @@ def _scan_profile(
     below). This is the two halves back to back, which is what a caller holding
     a session and wanting one search scanned means by it.
     """
-    fetched = _fetch_search(_searches_to_run(db, [profile], settings, full_sweep)[0], settings)
+    fetched = _fetch_search(
+        _searches_to_run(db, [profile], settings, full_sweep)[0], settings, _allowance(db, settings)
+    )
     if fetched.error is not None:
         raise fetched.error
     return _record_scrape(db, profile, fetched, settings, summary)
@@ -1303,9 +1384,16 @@ def _record_scrape(
     profile.last_run_at = datetime.now(UTC)
     # observability: accumulate this scan into today's per-portal
     # health row. transport_used re-reads the scraper because a blocked local
-    # ladder may have escalated to the API mid-scan.
+    # ladder may have escalated to the API mid-scan, and the receipts ride with
+    # it because the transport label alone never said what it cost.
     scraper_health.record_scan(
-        db, profile.portal, outcome, transport_policy.transport_used(scraper, settings)
+        db,
+        profile.portal,
+        outcome,
+        transport_policy.transport_used(scraper, settings),
+        credits=getattr(scraper, "api_credits_spent", 0),
+        credits_estimated=getattr(scraper, "api_credits_estimated", 0),
+        api_calls=getattr(scraper, "api_calls", 0),
     )
 
     if result.blocked:

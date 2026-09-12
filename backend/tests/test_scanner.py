@@ -20,7 +20,7 @@ from app.database import Base
 from app.models import Listing, Property, SearchProfile
 from app.scrapers.base import RawListing, ScrapeResult
 from app.scrapers.immobiliare import ImmobiliareScraper
-from app.services import scanner
+from app.services import scanner, scraper_health
 from app.services.search_builder import IMMOBILIARE_ZONE_ID_PARAM
 
 from . import mock_portal
@@ -2835,3 +2835,68 @@ def test_turning_the_shortcut_off_reads_every_page_it_is_allowed_to(db, portal, 
 
     assert not result.stopped_early
     assert result.pages_fetched == EARLY_STOP_PAGES
+
+
+class _PaidScraper(_FakeScraper):
+    """A scraper that came back with a bill from the provider."""
+
+    def __init__(self, credits: int = 60, estimated: int = 0, calls: int = 2):
+        super().__init__()
+        self.api_credits_spent = credits
+        self.api_credits_estimated = estimated
+        self.api_calls = calls
+        # what the scan allowed it before it started; the scanner writes this.
+        self.api_credits_left: int | None = None
+
+
+def _run_paid(db, monkeypatch, profile, scraper, settings) -> None:
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: scraper)
+    monkeypatch.setattr(scanner.notifier, "notify_new_property", lambda p, channels=None: True)
+    monkeypatch.setattr(scanner.notifier, "broadcast", lambda t, channels=None, subject=None: True)
+    scanner._scan_profile(db, profile, {"excluded_keywords": [], **settings}, _summary())
+    db.commit()
+
+
+def test_what_the_provider_charged_a_scan_is_written_down_with_it(db, monkeypatch):
+    """The receipts have to survive the scan, or the ceiling is counted against
+    nothing: the health row is where the month's spending is added up from."""
+    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
+    db.add(profile)
+    db.commit()
+
+    _run_paid(db, monkeypatch, profile, _PaidScraper(), {"scrape_api_monthly_credits": 500})
+
+    month = scraper_health.credits_this_month(db)
+    assert month["spent"] == 60
+    assert month["calls"] == 2
+
+
+def test_a_search_is_allowed_what_is_left_of_the_month_and_not_the_whole_ceiling(db, monkeypatch):
+    """Regression shape: handing every search the full ceiling would let a scan
+    spend it again on each search. What the month already cost is subtracted
+    first, and the remainder is what the scraper is told it may pay."""
+    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
+    db.add(profile)
+    db.commit()
+    scraper_health.record_scan(db, "immobiliare", "ok", "api", credits=450, api_calls=18)
+    db.commit()
+
+    scraper = _PaidScraper()
+    _run_paid(db, monkeypatch, profile, scraper, {"scrape_api_monthly_credits": 500})
+
+    assert scraper.api_credits_left == 50
+    # …and its own bill lands on top of what was already there.
+    assert scraper_health.credits_this_month(db)["spent"] == 510
+
+
+def test_no_ceiling_leaves_the_provider_s_own_quota_as_the_only_limit(db, monkeypatch):
+    """Nought is off, not broke: the scraper is told there is nothing to count
+    against rather than being handed a remainder of zero."""
+    profile = SearchProfile(name="Test", portal="immobiliare", search_url="u")
+    db.add(profile)
+    db.commit()
+
+    scraper = _PaidScraper()
+    _run_paid(db, monkeypatch, profile, scraper, {"scrape_api_monthly_credits": 0})
+
+    assert scraper.api_credits_left is None

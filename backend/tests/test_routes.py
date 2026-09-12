@@ -570,6 +570,47 @@ def test_a_saved_secret_survives_a_later_save_that_masks_it_back(client):
     assert config.load_settings()["idealista_api_key"] == "real-key"
 
 
+def test_the_account_balance_is_read_with_the_key_and_never_sent_beside_it(client, monkeypatch):
+    """The other half of the credit ceiling: what the account has, as opposed to
+    what this machine spent. The key is read on the server and stays there —
+    the answer is a number (invariant 27)."""
+    from app.scrapers import transport
+
+    api = client
+    assert api.get("/api/settings/scrape-api-credits").json()["configured"] is False
+
+    monkeypatch.setattr(transport, "scrape_api_account_credits", lambda *a, **k: (450, ""))
+    api.put("/api/settings", json={"scrape_api_provider": "scrapfly", "scrape_api_key": "zk-test"})
+    body = api.get("/api/settings/scrape-api-credits").json()
+    assert body == {
+        "provider": "scrapfly",
+        "configured": True,
+        "remaining": 450,
+        "reason": "",
+        "detail": "",
+    }
+    assert "zk-test" not in api.get("/api/settings/scrape-api-credits").text
+
+
+def test_a_provider_with_no_balance_endpoint_says_so_in_a_code_not_a_sentence(client):
+    """The dashboard speaks two languages, so the reason has to be something it
+    can translate. The English particular rides along in `detail`."""
+    api = client
+    api.put("/api/settings", json={"scrape_api_provider": "zyte", "scrape_api_key": "zk-test"})
+    body = api.get("/api/settings/scrape-api-credits").json()
+    assert body["reason"] == "unsupported" and body["remaining"] is None
+
+
+def test_the_health_panel_is_told_the_month_s_spending_and_its_ceiling(client):
+    api = client
+    api.put("/api/settings", json={"scrape_api_key": "zk-test", "scrape_api_monthly_credits": 500})
+    budget = api.get("/api/scraper-health").json()["budget"]
+    assert budget["monthly_credits"] == 500
+    # Nothing has been scanned, so nothing has been spent and nothing is paused.
+    assert budget["spent"] == 0 and budget["reached"] is False
+    assert budget["searches"] == []
+
+
 def _with_session(fn):
     """One short-lived session on the fixture's engine, like a request gets."""
     gen = main.app.dependency_overrides[get_db]()

@@ -16,6 +16,7 @@ from app import config
 from app.scrapers.base import ScrapeResult
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.scrapers.transport import (
+    ESTIMATED_CREDITS_PER_PAGE,
     SCRAPE_API_TIMEOUT_SECONDS,
     BlockedError,
     build_scrape_api_request,
@@ -478,3 +479,125 @@ def test_always_mode_sends_the_json_walk_through_the_provider_from_the_start(mon
     assert len(provider.calls) == 1
     assert len(result.listings) == 1
     assert not result.blocked
+
+
+# --- what it cost, and the point at which it stops being spent -----------------
+
+
+class _FreeLocalSession:
+    """The residential path, always answering. Records what it was asked for,
+    so "it carried on without the provider" is a claim with evidence."""
+
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def get(self, url, **kw):
+        self.calls.append(url)
+        return _ApiResponse(status_code=200, text="<html>free</html>")
+
+
+def test_the_receipt_of_every_call_is_added_to_this_scrape_s_bill(monkeypatch):
+    _with_key(monkeypatch)
+    scraper = ImmobiliareScraper()
+    _provider_session(
+        scraper,
+        _ApiResponse(
+            json_data={"result": {"content": "<html>OK</html>"}},
+            headers={"X-Scrapfly-Api-Cost": "30"},
+        ),
+        _ApiResponse(
+            json_data={"result": {"content": "<html>OK</html>"}},
+            headers={"X-Scrapfly-Api-Cost": "25"},
+        ),
+    )
+    scraper._fetch_once("https://www.immobiliare.it/1/")
+    scraper._fetch_once("https://www.immobiliare.it/2/")
+
+    assert scraper.api_calls == 2
+    assert scraper.api_credits_spent == 55
+    # Both prices were quoted, so none of the total is a guess.
+    assert scraper.api_credits_estimated == 0
+
+
+def test_a_call_the_provider_priced_at_nothing_is_charged_the_measured_page_price(monkeypatch):
+    """A receipt with no price on it must not cost zero.
+
+    Zero is what a provider whose headers changed would look like, and it would
+    let a whole month's ceiling be spent without the number ever moving. The
+    measured page price stands in, and the share it stands in for is carried
+    separately so nothing downstream states an estimate as a fact (invariant 26).
+    """
+    _with_key(monkeypatch)
+    scraper = ImmobiliareScraper()
+    _provider_session(scraper, _ApiResponse(json_data={"result": {"content": "<html>OK</html>"}}))
+    scraper._fetch_once("https://www.immobiliare.it/x/")
+
+    assert scraper.api_credits_spent == ESTIMATED_CREDITS_PER_PAGE
+    assert scraper.api_credits_estimated == ESTIMATED_CREDITS_PER_PAGE
+
+
+def test_the_allowance_is_checked_before_the_call_that_would_overshoot_it(monkeypatch):
+    _with_key(monkeypatch)
+    scraper = ImmobiliareScraper()
+    scraper.api_credits_left = 2 * ESTIMATED_CREDITS_PER_PAGE
+    assert scraper.scrape_api_affordable() is True
+    # The real price only exists on the receipt, so the check is made against
+    # the measured one: the last page of an allowance may overshoot it.
+    scraper.api_credits_spent = ESTIMATED_CREDITS_PER_PAGE + 1
+    assert scraper.scrape_api_affordable() is False
+
+
+def test_a_scrape_that_runs_out_mid_walk_finishes_on_the_free_path(monkeypatch):
+    """Page 4 of a ten-page search can be the one that reaches the ceiling.
+
+    The walk carries on locally rather than ending there — a partial read is
+    worth more than none — and the paid rung stays off for the rest of it,
+    including as the escalation a block would otherwise reach for.
+    """
+    _with_key(monkeypatch)
+    scraper = ImmobiliareScraper()
+    scraper.use_scrape_api = True
+    scraper.api_credits_left = ESTIMATED_CREDITS_PER_PAGE
+    provider = _provider_session(
+        scraper,
+        _ApiResponse(
+            json_data={"result": {"content": "<html>paid</html>"}},
+            headers={"X-Scrapfly-Api-Cost": "25"},
+        ),
+    )
+    local = _FreeLocalSession()
+    monkeypatch.setattr(scraper, "session", local)
+
+    assert scraper._fetch_once("https://www.immobiliare.it/1/") == "<html>paid</html>"
+    assert scraper._fetch_once("https://www.immobiliare.it/2/") == "<html>free</html>"
+
+    assert len(provider.calls) == 1
+    assert local.calls == ["https://www.immobiliare.it/2/"]
+    assert scraper.use_scrape_api is False
+    assert scraper.allow_scrape_api_fallback is False
+
+
+def test_an_exhausted_local_ladder_does_not_escalate_past_the_ceiling(monkeypatch):
+    """The half that would otherwise keep paying.
+
+    `fetch` reaches for the provider precisely when everything else has been
+    refused, so a ceiling that only governed the starting rung would hold right
+    up until the moment it mattered.
+    """
+    _with_key(monkeypatch)
+    scraper = ImmobiliareScraper(delay_seconds=0)
+    scraper.use_scrape_api = False
+    scraper.api_credits_left = 0
+    monkeypatch.setattr(scraper, "_rotate_session", lambda: False)
+
+    def refused(url, **kw):
+        return _ApiResponse(status_code=403, text="")
+
+    monkeypatch.setattr(scraper, "session", type("S", (), {"get": staticmethod(refused)})())
+    provider = _provider_session(
+        scraper, _ApiResponse(json_data={"result": {"content": "<html/>"}})
+    )
+
+    with pytest.raises(BlockedError):
+        scraper.fetch("https://www.immobiliare.it/x/")
+    assert provider.calls == []

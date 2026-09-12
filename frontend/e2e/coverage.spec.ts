@@ -1500,6 +1500,7 @@ test("every setting, and the tests beside them", async ({ page }) => {
   await choose(page, "settings.scraping.apiProvider", "zyte");
   await fill(page, "settings.scraping.apiKey", "scrape-key");
   await choose(page, "settings.scraping.apiMode", "always");
+  await fill(page, "settings.scraping.apiMonthlyCredits", "600");
   await fill(page, "settings.scraping.cookie", "datadome=coverage");
   await toggle(page, "settings.scraping.autoRefresh");
   await toggle(page, "settings.scraping.autoRefresh");

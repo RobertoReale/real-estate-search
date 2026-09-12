@@ -379,6 +379,16 @@ DEFAULT_SETTINGS = {
     # during an actual outage. "always" = a set key routes every fetch through
     # the provider unconditionally.
     "scrape_api_mode": "fallback",  # fallback | always
+    # What the provider may be paid per calendar month, in its own credits, and
+    # the reason this setting exists at all: the meter runs on a schedule nobody
+    # is watching. At the measured ~25 credits a page (transport.
+    # ESTIMATED_CREDITS_PER_PAGE) and one scan an hour, a single one-page search
+    # spends ~600 credits a month and a ten-page one empties a 1,000-credit free
+    # plan in two days. The default leaves a margin under that plan; reaching it
+    # stops the escalation (scrapers/transport_policy.py) and says so on screen,
+    # rather than letting the provider's own quota be the first news of it. 0
+    # turns the ceiling off and hands the limit back to the provider.
+    "scrape_api_monthly_credits": 900,
     "transport_escalate_after_failures": 2,
     # Idealista's official Search API (developers.idealista.com), the one
     # transport that asks the portal for its own data instead of working around

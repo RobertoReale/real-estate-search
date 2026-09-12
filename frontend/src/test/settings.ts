@@ -30,6 +30,7 @@ const EMPTY: Settings = {
   proxy_url: "", proxy_urls: [],
   scrape_api_provider: "", scrape_api_key: "", scrape_api_key_set: false,
   scrape_api_mode: "fallback", transport_escalate_after_failures: 2,
+  scrape_api_monthly_credits: 900, scrape_api_credits_per_page: 25,
   idealista_api_key: "", idealista_api_key_set: false,
   idealista_api_secret: "", idealista_api_secret_set: false,
   idealista_api_max_pages: 1,

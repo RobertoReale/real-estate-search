@@ -47,6 +47,7 @@ export const keys = {
    *  re-fetching the history on every frame of the progress. */
   scanJournal: ["scan-journal"] as const,
   settings: ["settings"] as const,
+  scrapeApiCredits: ["scrape-api-credits"] as const,
 
   marketVelocity: (contract: string, city: string) =>
     ["market-velocity", contract, city] as const,

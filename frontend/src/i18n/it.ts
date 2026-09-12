@@ -870,6 +870,11 @@ export const it: Dict = {
   "settings.modeAlways": "Sempre (ogni richiesta passa dal provider)",
   "settings.modeNote":
     '"Ripiego" (l\'impostazione predefinita) consuma i crediti API solo durante un vero disservizio: le scansioni partono dal percorso locale gratuito e passano al provider quando vengono bloccate.',
+  "settings.monthlyCreditsLabel": "Tetto mensile, in crediti del provider",
+  "settings.creditsLeft": "Il tuo account presso il provider dichiara {credits} crediti residui.",
+  "settings.creditsUnknown": "Non è stato possibile leggere il saldo dell'account ({detail}).",
+  "settings.creditsUnsupported":
+    "Questo provider non pubblica il saldo dell'account: qui si conta solo il tetto qui sopra.",
   "settings.cookieLabel": "Cookie DataDome",
   "settings.cookieSaved": "Cookie già salvato (lascia vuoto per mantenerlo)",
   "settings.cookiePlaceholder": "Incolla il valore del cookie datadome",
@@ -1395,6 +1400,29 @@ export const it: Dict = {
   "health.colFailureRateTitle":
     "Quota di scansioni tornate bloccate o in errore nel periodo",
   "health.colTransport": "Ultimo trasporto",
+  "health.colCost": "Speso",
+  "health.colCostTitle":
+    "Quanto ha fatturato l'API di scraping per questo portale nel periodo, nei crediti del provider",
+  "health.credits": "{credits} cr · {calls} chiamate",
+  "health.creditsApprox": "≈{credits} cr · {calls} chiamate",
+  "health.budgetSpent":
+    "Questo mese l'API di scraping è costata {spent} crediti su {budget}, in {calls} chiamate.",
+  "health.budgetSpentApprox":
+    "Questo mese l'API di scraping è costata circa {spent} crediti su {budget}, in {calls} chiamate — una parte non è mai stata quotata dal provider ed è conteggiata al prezzo di pagina misurato.",
+  "health.budgetSpentNoCap":
+    "Questo mese l'API di scraping è costata {spent} crediti, in {calls} chiamate. Nessun tetto mensile impostato.",
+  "health.budgetSpentNoCapApprox":
+    "Questo mese l'API di scraping è costata circa {spent} crediti, in {calls} chiamate — una parte non è mai stata quotata dal provider. Nessun tetto mensile impostato.",
+  "health.budgetReached":
+    "Tetto mensile dell'API di scraping raggiunto: {spent} crediti spesi su {budget}. Le scansioni proseguono sul percorso locale gratuito e non passano più al provider.",
+  "health.budgetReachedApprox":
+    "Tetto mensile dell'API di scraping raggiunto: circa {spent} crediti spesi su {budget} — una parte non è mai stata quotata dal provider. Le scansioni proseguono sul percorso locale gratuito e non passano più al provider.",
+  "health.budgetSince": "Raggiunto il {date}.",
+  "health.budgetSearches": "Ricerche interessate: {searches}.",
+  "health.budgetNoSearches":
+    "Al momento nessuna ricerca attiva userebbe il provider, quindi non si sta perdendo nulla.",
+  "health.budgetHowToLift":
+    "Alza o togli il tetto in Impostazioni → Scraping (0 significa nessun tetto nostro); si azzera il primo del mese prossimo.",
   "health.legend":
     "Giorno verde = tutte le scansioni ok · ambra = alcune fallite · rosso = tutte fallite. Passa sopra un giorno per i conteggi esatti.",
   "health.dayAllOk": "tutte le scansioni ok",
@@ -1476,6 +1504,10 @@ export const it: Dict = {
     "Un'area disegnata sulla mappa di un portale, o un raggio attorno a un punto, qui non è esprimibile — incolla l'URL di quella ricerca e arriva esattamente com'è stata disegnata.",
   "limits.idealistaReach":
     "{requests} richiesta/e per ricerca, quindi circa {listings} annunci a scansione.",
+  "limits.scrapeCreditsCeiling":
+    "{credits} crediti al mese — circa {pages} pagine di portale al prezzo misurato finora. Superato il tetto, le scansioni restano sul percorso locale gratuito fino al primo del mese prossimo.",
+  "limits.scrapeCreditsNoCeiling":
+    "Nessun tetto nostro: le scansioni continuano a passare al provider finché non finisce la sua quota.",
 
   "floor.numbered": "piano {floor}",
 };

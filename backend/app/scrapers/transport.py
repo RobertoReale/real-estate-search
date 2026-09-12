@@ -206,6 +206,18 @@ class _ScrapeApiRequest:
 # with a full page; the app's own call ended at 30 s with 0 bytes).
 SCRAPE_API_TIMEOUT_SECONDS = 155
 
+# What one Scrapfly page cost on 2026-09-10 with asp=true and render_js=false,
+# measured against the Bicocca search and confirmed by the provider's own billing
+# table: https://scrapfly.io/docs/scrape-api/billing
+#
+# It is an estimate and every caller treats it as one. The same search billed 30
+# on 2026-09-11 — the anti-bot surcharge depends on what the portal put in the
+# way that day, and the price is only knowable from the receipt. So it is used in
+# exactly two places: to check a cap *before* a call, and to charge a call whose
+# receipt named no price, where reading the silence as zero would let an
+# unreadable receipt spend a budget without moving it.
+ESTIMATED_CREDITS_PER_PAGE = 25
+
 
 def new_scrape_api_session():
     """A session that talks to the provider and to nothing else.
@@ -313,6 +325,33 @@ def scrape_api_cost(provider: str, resp) -> int | None:
     except Exception:
         return None
     return cost if isinstance(cost, int) else None
+
+
+def scrape_api_account_credits(
+    provider: str, key: str, timeout: float = 20.0
+) -> tuple[int | None, str]:
+    """(credits left on the provider account, why they could not be read).
+
+    Scrapfly publishes it at `GET /account` (https://scrapfly.io/docs/account);
+    the others do not, and unknown stays unknown — a balance nobody could read is
+    not a balance that is fine, so the callers refuse rather than assume. The
+    failure text is the exception's *type* only: its message would quote the URL
+    back, and that URL carries the key.
+    """
+    from curl_cffi import requests as curl_requests
+
+    if provider != "scrapfly":
+        return None, f"{provider} publishes no account balance this app can read"
+    try:
+        resp = curl_requests.get(
+            "https://api.scrapfly.io/account", params={"key": key}, timeout=timeout
+        )
+        remaining = resp.json()["subscription"]["usage"]["scrape"]["remaining"]
+    except Exception as e:
+        return None, f"the account endpoint did not answer ({type(e).__name__})"
+    if not isinstance(remaining, int):
+        return None, "the account endpoint reported no remaining scrape credits"
+    return remaining, ""
 
 
 def scrape_api_upstream_status(provider: str, resp) -> int | None:

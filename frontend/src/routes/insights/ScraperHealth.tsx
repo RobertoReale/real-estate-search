@@ -18,6 +18,7 @@ export default function ScraperHealthPanel() {
 
   const failingProfiles = data?.profiles.filter((p) => p.consecutive_failures > 0) ?? [];
   const empty = data && data.portals.length === 0;
+  const budget = data?.budget;
 
   return (
     <Card asChild padding="lg">
@@ -68,6 +69,49 @@ export default function ScraperHealthPanel() {
             </p>
           )}
 
+          {/* What the paid rung has cost this month. Stated whenever anything
+              was spent, not only when the ceiling is hit: the point of the
+              number is to be seen before it stops something. `estimated` is the
+              share the provider never quoted, and a total that is partly
+              estimated is said as an estimate (invariant 26). */}
+          {budget && budget.spent > 0 && !budget.reached && (
+            <p className="text-xs t-muted">
+              {t(budget.monthly_credits > 0
+                ? (budget.estimated > 0 ? "health.budgetSpentApprox" : "health.budgetSpent")
+                : (budget.estimated > 0 ? "health.budgetSpentNoCapApprox" : "health.budgetSpentNoCap"), {
+                spent: budget.spent,
+                budget: budget.monthly_credits,
+                calls: budget.calls,
+              })}
+            </p>
+          )}
+
+          {/* The ceiling reached: which searches it is costing, since when, and
+              how to lift it — a scan that quietly changed transport is a scan
+              whose results quietly changed too. */}
+          {budget?.reached && (
+            <div className="rounded-xl panel p-3 space-y-1">
+              <p className="text-sm accent-bad inline-flex items-center gap-1.5">
+                <Warning className="shrink-0" />
+                {t(budget.estimated > 0 ? "health.budgetReachedApprox" : "health.budgetReached", {
+                  spent: budget.spent,
+                  budget: budget.monthly_credits,
+                })}
+              </p>
+              {budget.reached_on && (
+                <p className="text-xs t-dim">{t("health.budgetSince", { date: budget.reached_on })}</p>
+              )}
+              <p className="text-xs t-body">
+                {budget.searches.length > 0
+                  ? t("health.budgetSearches", {
+                    searches: budget.searches.map((s) => s.name).join(", "),
+                  })
+                  : t("health.budgetNoSearches")}
+              </p>
+              <p className="text-xs t-dim">{t("health.budgetHowToLift")}</p>
+            </div>
+          )}
+
           {empty && (
             <EmptyState className="panel rounded-xl"
               icon={<Health size={ICON_SIZE.display} strokeWidth={1.25} />}
@@ -98,7 +142,15 @@ export default function ScraperHealthPanel() {
                       title={t("health.colFailureRateTitle")}>
                       {t("health.colFailureRate")}
                     </th>
-                    <th className="py-2 pl-3 font-medium">{t("health.colTransport")}</th>
+                    <th className="py-2 px-3 font-medium">{t("health.colTransport")}</th>
+                    {/* Beside the transport and not on a page of its own: the
+                        label says what carried the scan, and this says what
+                        that cost. */}
+                    <th
+                      className="py-2 pl-3 font-medium text-right"
+                      title={t("health.colCostTitle")}>
+                      {t("health.colCost")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="tnum">
@@ -121,7 +173,15 @@ export default function ScraperHealthPanel() {
                         }`}>
                         {(p.block_rate * 100).toFixed(0)}%
                       </td>
-                      <td className="py-2 pl-3 t-body">{p.last_transport || "—"}</td>
+                      <td className="py-2 px-3 t-body">{p.last_transport || "—"}</td>
+                      <td className="py-2 pl-3 text-right t-body">
+                        {p.api_credits > 0
+                          ? t(p.api_credits_estimated > 0 ? "health.creditsApprox" : "health.credits", {
+                            credits: p.api_credits,
+                            calls: p.api_calls,
+                          })
+                          : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

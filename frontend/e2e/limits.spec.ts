@@ -153,3 +153,57 @@ test("only the two limits that mean the answer is incomplete are coloured like i
   }
   await expect(limit(page, "scan.outsideArea")).not.toHaveClass(/text-caution-ink/);
 });
+
+test("the credit ceiling is said in pages, at the price the backend measured", async ({ page }) => {
+  // Twenty is not what a page costs — twenty-five is, and is what the copy
+  // would hardcode. Six hundred at twenty is thirty pages; at twenty-five it
+  // would be twenty-four.
+  await patched(page, (url) => url.pathname === "/api/settings",
+    (body) => ({ ...body, scrape_api_credits_per_page: 20, scrape_api_monthly_credits: 600 }));
+
+  await page.goto("/");
+  await waitForResults(page);
+  await press(page, "nav.settings");
+
+  await expect(limit(page, "settings.scrapeCredits")).toContainText("600 crediti");
+  await expect(limit(page, "settings.scrapeCredits")).toContainText("30 pagine");
+
+  // The field, not the saved value — and zero is the one figure that means
+  // something else entirely, so it stops being a count of pages.
+  await fill(page, "settings.scraping.apiMonthlyCredits", "300");
+  await expect(limit(page, "settings.scrapeCredits")).toContainText("15 pagine");
+  await fill(page, "settings.scraping.apiMonthlyCredits", "0");
+  await expect(limit(page, "settings.scrapeCredits")).toContainText("Nessun tetto");
+});
+
+test("the ceiling reached says what it costs, and hedges a total the provider never quoted", async ({ page }) => {
+  // Neither figure is a default: the ceiling ships at 900 and no scan in this
+  // suite spends anything at all.
+  let estimated = 0;
+  await patched(page, (url) => url.pathname === "/api/scraper-health", (body) => ({
+    ...body,
+    budget: {
+      month: "2026-03", monthly_credits: 750, spent: 780, estimated, calls: 31,
+      reached: true, reached_on: "2026-03-09",
+      searches: [{ profile_id: 1, name: "Trilocale Navigli", portal: "immobiliare" }],
+    },
+  }));
+
+  await page.goto("/insights");
+  const notice = page.getByText("Tetto mensile dell'API di scraping raggiunto");
+  await expect(notice).toContainText("780");
+  await expect(notice).toContainText("750");
+  // Every credit was quoted by the provider, so the total is stated flatly.
+  await expect(notice).not.toContainText("circa");
+  await expect(page.getByText("Raggiunto il 2026-03-09")).toBeVisible();
+  // Which searches are paying for it, by name: the pause changes what a scan
+  // collects, and "some searches" would not let anyone check that.
+  await expect(page.getByText("Ricerche interessate:")).toContainText("Trilocale Navigli");
+
+  // Part of the spend was never quoted and is counted at the measured page
+  // price, which is a guess: invariant 26 forbids stating it as the total.
+  estimated = 120;
+  await page.reload();
+  await expect(page.getByText("Tetto mensile dell'API di scraping raggiunto"))
+    .toContainText("circa 780");
+});

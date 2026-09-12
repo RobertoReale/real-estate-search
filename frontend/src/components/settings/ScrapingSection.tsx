@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useT } from "../../i18n";
 import {
-  useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser,
+  useCancelDatadomeRefresh, useDatadomeRefresh, useInstallBrowser, useScrapeApiCredits,
 } from "../../queries/settings";
 import type { Settings } from "../../types";
 import { Limit } from "../Limit";
@@ -17,6 +17,7 @@ interface Values {
   apiProvider: string;
   apiKey: string;
   apiMode: string;
+  apiMonthlyCredits: number;
   idealistaKey: string;
   idealistaSecret: string;
   idealistaMaxPages: number;
@@ -32,7 +33,8 @@ export function useScrapingSection(): Section<Values> {
   return useSectionState<Values>(
     {
       proxyUrl: "", proxyUrls: "", apiProvider: "scrapfly", apiKey: "",
-      apiMode: "fallback", idealistaKey: "", idealistaSecret: "", idealistaMaxPages: 1,
+      apiMode: "fallback", apiMonthlyCredits: 900,
+      idealistaKey: "", idealistaSecret: "", idealistaMaxPages: 1,
       cookie: "", autoRefresh: false, browserFirst: false,
       browserHeadful: false, engine: "auto", humanize: true,
     },
@@ -42,6 +44,7 @@ export function useScrapingSection(): Section<Values> {
       apiProvider: s.scrape_api_provider || "scrapfly",
       apiKey: "", // write-only
       apiMode: s.scrape_api_mode || "fallback",
+      apiMonthlyCredits: s.scrape_api_monthly_credits ?? 900,
       idealistaKey: "", // write-only
       idealistaSecret: "", // write-only
       idealistaMaxPages: s.idealista_api_max_pages ?? 1,
@@ -60,6 +63,10 @@ export function useScrapingSection(): Section<Values> {
         proxy_urls: v.proxyUrls.split("\n").map((u) => u.trim()).filter(Boolean),
         scrape_api_provider: v.apiProvider,
         scrape_api_mode: v.apiMode,
+        // 0 is a real answer here — "no ceiling of mine, the provider's own
+        // quota is the limit" — so a cleared field is floored at 0 and not at
+        // the default, unlike the Idealista page count above.
+        scrape_api_monthly_credits: Math.max(0, Math.round(v.apiMonthlyCredits || 0)),
         // Each page is one metered request, and the backend refuses 0 — so a
         // cleared field means the conservative default, never "unlimited".
         idealista_api_max_pages: Math.max(1, v.idealistaMaxPages || 1),
@@ -90,6 +97,10 @@ export function ScrapingSection(
   const cancelGrab = useCancelDatadomeRefresh();
   const installBrowser = useInstallBrowser();
   const grabbing = grab.isPending;
+  const credits = useScrapeApiCredits(!!settings.scrape_api_key_set);
+  // The measured page price comes from the backend rather than being repeated
+  // here; the guard is for a stored settings file written before it existed.
+  const creditsPerPage = settings.scrape_api_credits_per_page || 25;
 
   /** Opens a local browser to grab a fresh cookie. Headful on the server side,
    * so a CAPTCHA (if any) can be solved once — hence the "a window may open"
@@ -244,6 +255,39 @@ export function ScrapingSection(
               <option value="always">{t("settings.modeAlways")}</option>
             </select>
             <p className="text-xs t-dim mt-1">{t("settings.modeNote")}</p>
+          </div>
+          {/* The money ceiling. The scans are on a timer and the provider bills
+              per page, so without a number here the first news of the spending
+              is the provider's own quota running out mid-scan. */}
+          <div>
+            <label className="text-xs t-muted block mb-1" htmlFor="scraping-api-credits">
+              {t("settings.monthlyCreditsLabel")}
+            </label>
+            <Input data-action="settings.scraping.apiMonthlyCredits" id="scraping-api-credits"
+              type="number" min={0} step={25} className="w-full sm:w-40"
+              value={values.apiMonthlyCredits}
+              onChange={(e) => set("apiMonthlyCredits", Number(e.target.value))} />
+            <Limit id="settings.scrapeCredits">
+              {values.apiMonthlyCredits > 0
+                ? t("limits.scrapeCreditsCeiling", {
+                  credits: values.apiMonthlyCredits,
+                  pages: Math.floor(values.apiMonthlyCredits / creditsPerPage),
+                })
+                : t("limits.scrapeCreditsNoCeiling")}
+            </Limit>
+            {/* What the account has, as opposed to what this app spent: the two
+                differ as soon as the same key is used anywhere else. Only asked
+                for when a key is saved, and an unreadable balance says so
+                rather than showing nothing. */}
+            {settings.scrape_api_key_set && credits.data && (
+              <p className="text-xs t-dim mt-1">
+                {credits.data.remaining !== null
+                  ? t("settings.creditsLeft", { credits: credits.data.remaining })
+                  : credits.data.reason === "unsupported"
+                    ? t("settings.creditsUnsupported")
+                    : t("settings.creditsUnknown", { detail: credits.data.detail })}
+              </p>
+            )}
           </div>
         </div>
         <div>

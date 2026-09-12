@@ -19,6 +19,7 @@ from ..config import DEFAULT_TLS_IMPERSONATIONS
 from .page_text import declared_result_total, text_says_no_results
 from .parsing import detect_contract
 from .transport import (
+    ESTIMATED_CREDITS_PER_PAGE,
     BlockedError,
     build_scrape_api_request,
     new_scrape_api_session,
@@ -241,6 +242,18 @@ class BaseScraper:
     # "fallback"` (the default) starts on the free path and only escalates on
     # a block.
     use_scrape_api = True
+    # Whether a blocked local ladder may escalate to the provider at the bottom
+    # of `fetch`. Separate from `use_scrape_api` because the two are refused for
+    # different reasons and only one of them is about money: the monthly credit
+    # ceiling takes rung 4 off the ladder completely, and a ceiling that still
+    # let a blocked scan escalate would be no ceiling at all.
+    allow_scrape_api_fallback = True
+    # What this scrape may still spend, in provider credits. None = uncapped,
+    # which is what every caller outside the scanner wants (an ad probe is one
+    # page and the user is waiting for it). The scanner sets it from what is
+    # left of `scrape_api_monthly_credits`, so a ten-page search cannot walk
+    # through the month's ceiling inside a single scrape.
+    api_credits_left: int | None = None
     # Who is watching this scrape, if anyone. The scanner sets it for the
     # duration of one profile so the dashboard can say which page is in flight
     # and how long the next pause is; every other caller leaves it None and the
@@ -267,6 +280,13 @@ class BaseScraper:
         # Built on first use and kept for the rest of the scrape, so the pages
         # after an escalation reuse one connection to the provider.
         self._api_session = None
+        # This scrape's own bill, read back by the scanner and written to the
+        # health row. `_estimated` is the part of it the receipts did not state:
+        # counted, because a call whose price went unread still cost money, but
+        # counted separately, because it is not a figure the provider gave.
+        self.api_credits_spent = 0
+        self.api_credits_estimated = 0
+        self.api_calls = 0
 
     def _new_session(self):
         session = curl_requests.Session(
@@ -382,6 +402,15 @@ class BaseScraper:
         # so a call whose cost is never written down is money the user cannot
         # account for. `None` means the provider named no price, never zero.
         cost = scrape_api_cost(provider, resp)
+        self.api_calls += 1
+        if cost is None:
+            # Charged at the measured page price rather than at nothing: an
+            # unreadable receipt that cost zero would let a provider whose
+            # headers changed spend a whole month's ceiling without moving it.
+            self.api_credits_spent += ESTIMATED_CREDITS_PER_PAGE
+            self.api_credits_estimated += ESTIMATED_CREDITS_PER_PAGE
+        else:
+            self.api_credits_spent += cost
         logger.info(
             "%s: scrape API (%s) answered HTTP %s in %s credits",
             self.portal,
@@ -412,8 +441,33 @@ class BaseScraper:
             )
         return body
 
+    def scrape_api_affordable(self) -> bool:
+        """Is there room in this scrape's credit allowance for another call?
+
+        Checked against the measured page price *before* the call, since the
+        real one only exists on the receipt: the last page of an allowance may
+        overshoot it, and the next call is then refused. Overshooting and
+        admitting it beats charging a page the estimate and calling it settled.
+        """
+        if self.api_credits_left is None:
+            return True
+        return self.api_credits_spent + ESTIMATED_CREDITS_PER_PAGE <= self.api_credits_left
+
     def _fetch_once(self, url: str) -> str:
         provider, key = scrape_api_config()
+        if key and self.use_scrape_api and not self.scrape_api_affordable():
+            # Mid-scrape the ceiling arrives between two pages: page 4 of a
+            # ten-page search can be the one that reaches it. The walk carries
+            # on down the free path rather than ending here — a partial read is
+            # worth more than none, and the block that may follow is recorded
+            # like any other.
+            logger.info(
+                "%s: scrape API budget spent (%s credits), continuing on the local path",
+                self.portal,
+                self.api_credits_spent,
+            )
+            self.use_scrape_api = False
+            self.allow_scrape_api_fallback = False
         if key and self.use_scrape_api:
             return self._fetch_via_scrape_api(url, provider, key)
         resp = self.session.get(url, allow_redirects=True)
@@ -453,7 +507,12 @@ class BaseScraper:
                     # rung before giving up — but only once (use_scrape_api
                     # flips), so an API refusal still terminates.
                     provider, key = scrape_api_config()
-                    if key and not self.use_scrape_api:
+                    if (
+                        key
+                        and not self.use_scrape_api
+                        and self.allow_scrape_api_fallback
+                        and self.scrape_api_affordable()
+                    ):
                         logger.info(
                             "%s: local transports exhausted, escalating to scrape API (%s)",
                             self.portal,

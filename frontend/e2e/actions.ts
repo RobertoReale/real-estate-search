@@ -500,6 +500,7 @@ export const ACTIONS = {
   "settings.scraping.apiProvider": { what: "the scraping-service select", does: "chooses which service the key belongs to" },
   "settings.scraping.apiKey": { what: "the scraping-service key", does: "holds the key, and the badge says it is unsaved" },
   "settings.scraping.apiMode": { what: "the when-to-use select", does: "chooses fallback-only or always" },
+  "settings.scraping.apiMonthlyCredits": { what: "the monthly credit ceiling", does: "sets how many credits a month the service may be paid, 0 for no ceiling" },
   "settings.scraping.cookie": { what: "the DataDome cookie", does: "holds the pasted cookie, and the badge says it is unsaved" },
   "settings.scraping.grabCookie": { what: "Grab the cookie", does: "opens a browser to harvest a fresh cookie, and says how it went" },
   "settings.scraping.stopGrab": { what: "Stop, while the browser is open", does: "closes the harvesting browser" },
