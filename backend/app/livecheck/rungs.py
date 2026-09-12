@@ -43,6 +43,7 @@ from ..scrapers.page_text import declared_result_total, has_block_marker, text_s
 from ..scrapers.transport import (
     SCRAPE_API_TIMEOUT_SECONDS,
     build_scrape_api_request,
+    scrape_api_account_credits,
     scrape_api_config,
     scrape_api_cost,
     scrape_api_error,
@@ -219,27 +220,9 @@ def _curl_rung(name: str, session: Any) -> Rung:
     return Rung(name=name, fetch=fetch)
 
 
-def account_credits(provider: str, key: str, timeout: float = 20.0) -> tuple[int | None, str]:
-    """(credits left on the provider account, why they could not be read).
-
-    Scrapfly publishes it at `GET /account`
-    (https://scrapfly.io/docs/account); the others do not, and unknown is
-    refused by `Budget.refuse_paid` rather than assumed to be fine. The failure
-    text is the exception's *type* only: its message would quote the URL back,
-    and that URL carries the key.
-    """
-    if provider != "scrapfly":
-        return None, f"{provider} publishes no account balance this tool can read"
-    try:
-        resp = curl_requests.get(
-            "https://api.scrapfly.io/account", params={"key": key}, timeout=timeout
-        )
-        remaining = resp.json()["subscription"]["usage"]["scrape"]["remaining"]
-    except Exception as e:
-        return None, f"the account endpoint did not answer ({type(e).__name__})"
-    if not isinstance(remaining, int):
-        return None, "the account endpoint reported no remaining scrape credits"
-    return remaining, ""
+# The account balance the paid rung is refused against; one implementation, in
+# `scrapers/transport.py`, shared with the Settings panel that shows it.
+account_credits = scrape_api_account_credits
 
 
 def _paid_rung(provider: str, key: str, remaining: int | None) -> Rung:

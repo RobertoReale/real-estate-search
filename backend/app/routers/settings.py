@@ -56,6 +56,11 @@ def get_settings():
     from ..scrapers.idealista_api import MAX_ITEMS_PER_PAGE
 
     settings["idealista_api_page_size"] = MAX_ITEMS_PER_PAGE
+    # and what one scrape-API page measured at, so the credit ceiling can be
+    # shown in pages by the panel that sets it
+    from ..scrapers.transport import ESTIMATED_CREDITS_PER_PAGE
+
+    settings["scrape_api_credits_per_page"] = ESTIMATED_CREDITS_PER_PAGE
     return settings
 
 
@@ -90,6 +95,40 @@ def update_settings(data: schemas.SettingsIn, db: Session = Depends(get_db)):
     if any(values.get(k, before.get(k)) != before.get(k) for k in commute.URL_SETTINGS):
         commute.clear_commute_cache(db)
     return get_settings()
+
+
+@router.get("/api/settings/scrape-api-credits", response_model=schemas.ScrapeApiCreditsOut)
+def scrape_api_credits():
+    """What the provider says is left on the account behind the saved key.
+
+    The app's own ceiling (`scrape_api_monthly_credits`) counts what this
+    machine spent; this is the other half — what the account has, including what
+    was spent from anywhere else. Sync `def` so the provider call runs in a
+    threadpool rather than on the event loop (invariant 15), and the key is read
+    here and never sent to the browser (invariant 27).
+    """
+    settings = load_settings()
+    provider = (settings.get("scrape_api_provider") or "scrapfly").strip().lower()
+    key = (settings.get("scrape_api_key") or "").strip()
+    if not key:
+        return {"provider": provider, "configured": False, "remaining": None, "reason": ""}
+    from ..scrapers.transport import scrape_api_account_credits
+
+    remaining, detail = scrape_api_account_credits(provider, key)
+    if remaining is not None:
+        reason = ""
+    else:
+        # A stable code and not the sentence itself: the dashboard says this in
+        # the user's language, and the English particular rides along in
+        # `detail` for the one who has to work out why.
+        reason = "unsupported" if provider != "scrapfly" else "unreadable"
+    return {
+        "provider": provider,
+        "configured": True,
+        "remaining": remaining,
+        "reason": reason,
+        "detail": detail,
+    }
 
 
 @router.post("/api/settings/datadome-refresh", response_model=schemas.DatadomeRefreshOut)

@@ -37,14 +37,22 @@ def scraper_health_endpoint(
     attempts/blocked/errors accumulated at scan time, the transport that
     carried the last scan, and the live per-profile failure streaks. This is
     the panel that turns "scans mysteriously stopped" into a visible trend and
-    says when to add proxies or a scrape-API key."""
+    says when to add proxies or a scrape-API key.
+
+    `budget` is the same question asked about money: what the paid transport has
+    cost this calendar month, whether that reached the ceiling, and which
+    searches stopped using it when it did. The transport label is worked out
+    with the month's spending in it, so the panel and the next scan cannot
+    disagree about which rung is available."""
     from ..scrapers import transport_policy
     from ..services import scraper_health
 
     settings = load_settings()
     health = scraper_health.get_health(db, days=days)
     worst_streak = max((p["consecutive_failures"] for p in health["profiles"]), default=0)
-    health["transport"] = transport_policy.decide(worst_streak, settings).label
+    budget = scraper_health.credit_budget(db, settings)
+    health["transport"] = transport_policy.decide(worst_streak, settings, budget["spent"]).label
+    health["budget"] = budget
     return health
 
 

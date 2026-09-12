@@ -27,18 +27,18 @@ exists so a deliberate operator can measure a later rung on its own instead.
 import random
 import time
 
-# What one Scrapfly page cost on 2026-09-10 with asp=true and render_js=false,
-# measured against the Bicocca search and confirmed by the provider's own
-# billing table: https://scrapfly.io/docs/scrape-api/billing
+from ..scrapers.transport import ESTIMATED_CREDITS_PER_PAGE
+
+# The measured page price, which lives with the provider code that reads the
+# receipts (`scrapers/transport.py`) because the scans account for their own
+# spending against the same figure. Re-exported under the name this module has
+# always used.
 #
-# It is an estimate, and the run treats it as one. The same search billed 30 on
-# 2026-09-11 — the anti-bot surcharge depends on what the portal put in the way
-# that day, and the price is only knowable from the receipt. So the cap is
-# checked against this figure *before* a call and charged the receipt after,
+# The cap is checked against it *before* a call and charged the receipt after,
 # which means one page may overshoot the cap by the difference and the next call
 # is then refused. Refusing afterwards is the honest half: the alternative is
 # pretending a bill was smaller than it was.
-CREDITS_PER_PAGE = 25
+CREDITS_PER_PAGE = ESTIMATED_CREDITS_PER_PAGE
 
 DEFAULT_MAX_REQUESTS = 12
 DEFAULT_MAX_CREDITS = CREDITS_PER_PAGE

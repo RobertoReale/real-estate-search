@@ -90,6 +90,10 @@ export type ScraperHealthDay = Schemas["ScraperHealthDayOut"];
 export type ScraperHealthPortal = Schemas["ScraperHealthPortalOut"];
 export type ScraperHealthProfileStreak = Schemas["ScraperHealthProfileOut"];
 export type ScraperHealth = Schemas["ScraperHealthOut"];
+/** This month's paid scraping: what it cost, its ceiling, and what stopped. */
+export type ScraperHealthBudget = Schemas["ScraperHealthBudgetOut"];
+/** What the provider's own account has left, as opposed to what this app spent. */
+export type ScrapeApiCredits = Schemas["ScrapeApiCreditsOut"];
 export type PricingTrendPoint = Schemas["PricingTrendPoint"];
 export type PricingTrend = Schemas["PricingTrendOut"];
 export type TrendArea = Schemas["TrendAreaOut"];

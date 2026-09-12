@@ -46,6 +46,19 @@ export function useSaveSettings() {
   });
 }
 
+/** What the provider's account has left, asked only when a key is actually
+ *  saved: without one there is nothing to ask about, and the call would be a
+ *  round trip to be told so. One read per opening of the dialog — a balance
+ *  that moves once per scan does not need polling. */
+export function useScrapeApiCredits(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.scrapeApiCredits,
+    queryFn: () => api.scrapeApiCredits(),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 export function useTelegramTest() {
   return useMutation({ mutationFn: () => api.telegramTest() });
 }

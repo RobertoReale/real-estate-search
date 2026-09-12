@@ -8,6 +8,7 @@ import type {
   GeocodeProgress, GeocodeSummary, ListingAudit, LogTail, MarketVelocity, PricingTrend,
   ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, PropertyPage, ScanJournalEntry, ScanStatus,
+  ScrapeApiCredits,
   ScraperHealth,
   SearchBuilderParams,
   SearchBuilderUrls, SearchProfile, SearchProfileParams, Settings, Tag, TrendArea,
@@ -482,6 +483,11 @@ export const api = {
     return request<Settings>("/settings", {
       method: "PUT", body: JSON.stringify(data),
     });
+  },
+  /** What the scrape-API provider says is left on the account behind the saved
+   *  key. The key stays in the backend; only the number comes back. */
+  scrapeApiCredits() {
+    return request<ScrapeApiCredits>("/settings/scrape-api-credits");
   },
   /** Send a test broadcast message to verify Telegram bot credentials. */
   telegramTest() {

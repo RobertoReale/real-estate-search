@@ -363,6 +363,20 @@ class ScraperHealthSnapshot(Base):
     # human-readable label of the transport the *last* scan of the day used
     # ("local (curl_cffi)", "managed scrape API", ...), for the health panel
     last_transport: Mapped[str] = mapped_column(String, default="")
+    # What the paid transport billed on this day, in the provider's credits, and
+    # how much of that figure was never quoted to us. The meter runs on the
+    # scan schedule, so the only place a month's spending can be reconstructed
+    # from is the days it was spent on; the monthly ceiling
+    # (`scrape_api_monthly_credits`) is summed off these rows and nowhere else.
+    api_credits: Mapped[int] = mapped_column(Integer, default=0)
+    # The part of `api_credits` charged at the measured page price because the
+    # provider's receipt named none. Kept apart rather than folded in, so a
+    # total nobody stated is never presented as one that was: the panel says
+    # "about" exactly when this is non-zero (invariant 26).
+    api_credits_estimated: Mapped[int] = mapped_column(Integer, default=0)
+    # Provider calls made on this day, priced or not. `api_credits / api_calls`
+    # is the only per-page price this app ever knows to be true.
+    api_calls: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

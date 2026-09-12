@@ -629,6 +629,12 @@ export interface paths {
          *     carried the last scan, and the live per-profile failure streaks. This is
          *     the panel that turns "scans mysteriously stopped" into a visible trend and
          *     says when to add proxies or a scrape-API key.
+         *
+         *     `budget` is the same question asked about money: what the paid transport has
+         *     cost this calendar month, whether that reached the ceiling, and which
+         *     searches stopped using it when it did. The transport label is worked out
+         *     with the month's spending in it, so the panel and the next scan cannot
+         *     disagree about which rung is available.
          */
         get: operations["scraper_health_endpoint_api_scraper_health_get"];
         put?: never;
@@ -1105,6 +1111,32 @@ export interface paths {
         get: operations["get_settings_api_settings_get"];
         /** Update Settings */
         put: operations["update_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/scrape-api-credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scrape Api Credits
+         * @description What the provider says is left on the account behind the saved key.
+         *
+         *     The app's own ceiling (`scrape_api_monthly_credits`) counts what this
+         *     machine spent; this is the other half — what the account has, including what
+         *     was spent from anywhere else. Sync `def` so the provider call runs in a
+         *     threadpool rather than on the event loop (invariant 15), and the key is read
+         *     here and never sent to the browser (invariant 27).
+         */
+        get: operations["scrape_api_credits_api_settings_scrape_api_credits_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2691,6 +2723,100 @@ export interface components {
             status: string;
         };
         /**
+         * ScrapeApiCreditsOut
+         * @description What the provider says is left on the account behind the saved key.
+         *
+         *     `remaining` is null both when no key is saved and when the balance could not
+         *     be read; `configured` separates those two, and `reason` says which it was as
+         *     a code the dashboard translates (`unsupported` — the provider publishes no
+         *     balance — or `unreadable`), with the English particular in `detail`. A
+         *     balance nobody could read is never reported as a healthy one. The key itself
+         *     never appears here — it is read server-side and only the number comes back
+         *     (invariant 27).
+         */
+        ScrapeApiCreditsOut: {
+            /** Provider */
+            provider: string;
+            /**
+             * Configured
+             * @default false
+             */
+            configured: boolean;
+            /** Remaining */
+            remaining: number | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+        };
+        /**
+         * ScraperHealthBudgetOut
+         * @description This calendar month's paid transport: what it cost, what it may cost, and
+         *     what stopped when it ran out.
+         *
+         *     `monthly_credits` is 0 when no ceiling is set, and `estimated` is the share
+         *     of `spent` the provider never quoted — a total that is partly estimated is
+         *     stated as an estimate (invariant 26) rather than as a measurement.
+         */
+        ScraperHealthBudgetOut: {
+            /** Month */
+            month: string;
+            /**
+             * Monthly Credits
+             * @default 0
+             */
+            monthly_credits: number;
+            /**
+             * Spent
+             * @default 0
+             */
+            spent: number;
+            /**
+             * Estimated
+             * @default 0
+             */
+            estimated: number;
+            /**
+             * Calls
+             * @default 0
+             */
+            calls: number;
+            /**
+             * Reached
+             * @default false
+             */
+            reached: boolean;
+            /**
+             * Reached On
+             * @default
+             */
+            reached_on: string;
+            /**
+             * Searches
+             * @default []
+             */
+            searches: components["schemas"]["ScraperHealthBudgetSearchOut"][];
+        };
+        /**
+         * ScraperHealthBudgetSearchOut
+         * @description One search the credit ceiling is currently costing something: it would
+         *     have gone through the provider, and now it will not.
+         */
+        ScraperHealthBudgetSearchOut: {
+            /** Profile Id */
+            profile_id: number;
+            /** Name */
+            name: string;
+            /** Portal */
+            portal: string;
+        };
+        /**
          * ScraperHealthDayOut
          * @description One day's scraping counters for one portal.
          */
@@ -2720,8 +2846,8 @@ export interface components {
         };
         /**
          * ScraperHealthOut
-         * @description The scraping-health panel: per-portal history, per-search streaks, and
-         *     the transport the next scan would start on.
+         * @description The scraping-health panel: per-portal history, per-search streaks, the
+         *     transport the next scan would start on, and what the month has cost.
          */
         ScraperHealthOut: {
             /** Window Days */
@@ -2741,6 +2867,7 @@ export interface components {
              * @default
              */
             transport: string;
+            budget: components["schemas"]["ScraperHealthBudgetOut"] | null;
         };
         /**
          * ScraperHealthPortalOut
@@ -2775,6 +2902,21 @@ export interface components {
              * @default 0
              */
             block_rate: number;
+            /**
+             * Api Credits
+             * @default 0
+             */
+            api_credits: number;
+            /**
+             * Api Credits Estimated
+             * @default 0
+             */
+            api_credits_estimated: number;
+            /**
+             * Api Calls
+             * @default 0
+             */
+            api_calls: number;
         };
         /**
          * ScraperHealthProfileOut
@@ -3233,6 +3375,8 @@ export interface components {
             scrape_api_key?: string | null;
             /** Scrape Api Mode */
             scrape_api_mode?: string | null;
+            /** Scrape Api Monthly Credits */
+            scrape_api_monthly_credits?: number | null;
             /** Transport Escalate After Failures */
             transport_escalate_after_failures?: number | null;
             /** Idealista Api Key */
@@ -3558,6 +3702,16 @@ export interface components {
              * @default fallback
              */
             scrape_api_mode: string;
+            /**
+             * Scrape Api Monthly Credits
+             * @default 900
+             */
+            scrape_api_monthly_credits: number;
+            /**
+             * Scrape Api Credits Per Page
+             * @default 25
+             */
+            scrape_api_credits_per_page: number;
             /**
              * Transport Escalate After Failures
              * @default 2
@@ -5268,6 +5422,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scrape_api_credits_api_settings_scrape_api_credits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapeApiCreditsOut"];
                 };
             };
         };
