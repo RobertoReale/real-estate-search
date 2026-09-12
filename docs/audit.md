@@ -96,8 +96,10 @@ pipeline is not a green project — check the run, not just this list.
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
 locally and red on the very next push.
 
-`npm run e2e` is the slow one — around ten minutes against the six seconds the rest of this
-list costs — and it is on it anyway, because it is the only gate that runs the *assembled*
+`npm run e2e` is the slow one — around twenty minutes on a laptop against the six seconds
+the rest of this list costs, since it drives the real Chromium build rather than the faster
+headless shell (`frontend/playwright.config.ts` says why it has to) — and it is on the list
+anyway, because it is the only gate that runs the *assembled*
 product and the only one that can notice a control that quietly stopped working. Two things
 turn it red that nothing else here can: a screen that scrolls sideways or fails an `axe-core`
 check at 390, 768 or 1440 px, and a control added without an entry in `frontend/e2e/actions.ts`.

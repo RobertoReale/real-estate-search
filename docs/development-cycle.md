@@ -62,7 +62,7 @@ in [`audit.md` §0](audit.md#0-green-baseline-run-first-every-audit) — that is
 they are written, so run them from there.
 
 The seventh is the odd one and it is worth saying why it is on the list rather than beside
-it: it costs around five minutes where the other six together cost seconds, and it is the
+it: it costs around twenty minutes where the other six together cost seconds, and it is the
 only one that runs the assembled product. It is also the only one that can tell you a
 control stopped working, or that a screen scrolls sideways on a phone. Run it last, but run
 it before the commit like the rest — CI runs it on every push, so skipping it moves the
