@@ -208,9 +208,11 @@ The baseline every later investigation starts from, taken from the owner's
 residential connection in the small hours of 2026-09-12. Four runs, all of them
 kept under the per-portal cap in any fifteen-minute window: `20260912-032029`
 (the free matrix), `20260912-032453` and `20260912-032527` (two targeted
-follow-ups), `20260912-032600` (the paid rung), and `20260912-034103` (the suite
-through the rung that works, taken after the window had drained). Sixty credits
-spent in total, on one entry; the account was above the 500 floor throughout.
+follow-ups), `20260912-032600` (the paid rung), `20260912-034103` (the suite
+through the rung that works, taken after the window had drained) and
+`20260912-043617` (the suite again, once the app's own call to the provider had
+been repaired). Ninety credits spent in total, on two entries; the account was
+above the 500 floor throughout.
 
 **Every reference search works today — through the saved cookie.** Run
 `20260912-034103`, `--suite --rungs curl+cookie`, nine of nine:
@@ -260,6 +262,45 @@ end to end. The provider is not answering in three seconds when it has an
 anti-bot challenge to solve, and a client timeout of thirty seconds sits on top
 of that distribution rather than clear of it.
 
+**And the app's own call to it received nothing.** The same page the harness got
+in three seconds, asked for by `BaseScraper._fetch_via_scrape_api`, timed out at
+thirty seconds with zero bytes — after the provider had charged for solving it.
+The cause was that the call went out on the portal's own session: a DataDome
+cookie pinned to `.immobiliare.it`, `Sec-Fetch-*` and `Referer` headers
+describing a navigation inside the portal, the proxy pool, and that thirty-second
+timeout, all aimed at an endpoint that is none of those things. The provider now
+gets a plain session of its own and the read timeout
+[its documentation asks for](https://scrapfly.io/docs/scrape-api/getting-started),
+155 s, which is five times the tail measured above rather than inside it.
+
+Re-measured after the repair — run `20260912-043617`, `--suite --paid
+--max-credits 75`, thirty credits spent:
+
+| Search | Rung | Target | HTTP | Bytes | ms | Ads | Declared |
+|---|---|---|---|---|---|---|---|
+| `imm-city` | `api:scrapfly` | api-next p1 | 200 | 248,204 | 21,859 | 25 | 18,173 |
+
+Twenty-five parsed entries on page 1 against a declared 18,173, which is the
+portal's own arithmetic for a page of twenty-five. The three Idealista searches
+in the same run answered free on `curl:safari184`, so four of nine reference
+searches came back and the other five never reached a rung — see below.
+
+**And a real scan finishes.** A copy of the Bicocca search run through
+`run_scan` in a throwaway data directory, page limit 1: journal row `ok`, 25
+listings, strategy `api-next`, declared total 258, transport `local
+(curl_cffi)`. The saved cookie answered, so no escalation happened and the run
+cost nothing — which is the point of the ladder, and the reason the paid rung
+above had to be measured separately.
+
+**The residential breaker still drops a search before its paid rung.** The five
+Immobiliare entries that did not answer in `20260912-043617` were "dropped after
+3 blocked attempts in a row": the blocked-streak limit counts refusals of *this*
+connection and skips the whole search, including the provider attempt, whose exit
+is not this connection at all. Nothing in the run was wrong — the cap of 75
+credits could not have paid for five entries at 30 each anyway — but the report
+reads as five untried searches where one of them is a rung that would have
+worked. [`roadmap.md`](roadmap.md) carries it as a known limit.
+
 ### What this rules in, and what it rules out
 
 * **Ruled out: this address is blocked.** It is not. Every shape on both portals
@@ -278,7 +319,8 @@ of that distribution rather than clear of it.
   [documents both spellings as supported](https://curl-cffi.readthedocs.io/en/latest/impersonate/targets.html),
   which this build does not honour.
 * **Ruled out: the paid provider was silently failing.** It returns a complete,
-  parseable page. What it does not do is return it quickly.
+  parseable page. What it does not do is return it quickly — and until
+  2026-09-12 the app hung up on it before it could.
 
 ### The trap in reading `--all-rungs`
 

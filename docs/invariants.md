@@ -96,7 +96,17 @@ each invariant to its code home and its test file. See also
    `transport.py`): DataDome scores the exit IP as much as the handshake, so the rebuilt
    session changes both. With a configured scrape-API key the very top of the ladder is one
    escalation to the provider (`fetch()`), after which the scan carries on remotely — never
-   a retry loop on the residential IP.
+   a retry loop on the residential IP. Immobiliare's JSON path climbs the same ladder and
+   ends at the same rung (`_api_page`): the api-next page the portal refused is asked of the
+   provider, and once that has happened the remaining pages of *that* walk go the same way
+   rather than each spending a request the portal has already demonstrated it will refuse.
+   The call to the provider is **never** made on the portal's session — `new_scrape_api_session()`
+   builds a plain one, because the portal's carries a DataDome cookie pinned to the portal,
+   headers describing a navigation inside it, and a 30 s timeout that used to abort a page
+   the provider had solved and already charged for; the provider's own documentation asks
+   for 155 s. Whatever the provider refuses with becomes a `BlockedError` naming the
+   provider's error code, and the credits every call cost — refused ones included — are
+   logged, because the attempt is billed either way.
 
 9. **Never merge across contracts.** The same physical house listed both for sale and for
    rent must remain two Properties: different price scale, different meaning for the user.
