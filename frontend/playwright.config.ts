@@ -87,6 +87,17 @@ export default defineConfig({
   // rendering differences this app has never had; the browser bugs worth
   // catching here are ours.
   //
+  // `channel: "chromium"` on the two functional projects, and it is not a
+  // preference: without it `headless` runs the separate chrome-headless-shell
+  // binary, which intermittently fails to exit when the worker closes it
+  // (microsoft/playwright#39753). The worker then blocks in its own teardown,
+  // the runner force-kills it after five minutes and reports a fatal
+  // `processError` (microsoft/playwright#40637) — which is what a full green
+  // run of the journeys looked like on 2026-09-12: 51 passed, the coverage
+  // project never started, the gate red on a docs-only commit. The channel
+  // runs the real Chromium build in its new headless mode instead, so the
+  // binary the hang is reported against is not in the suite's path at all.
+  //
   // Two projects rather than one, and the split is load-bearing: A.5's second
   // gate fails on any inventoried control the run never fired, so it has to be
   // the last thing that happens. `dependencies` is what says so — the journeys
@@ -96,18 +107,23 @@ export default defineConfig({
     {
       name: "journeys",
       testIgnore: [/coverage\.spec\.ts/, /visual\.spec\.ts/],
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], channel: "chromium" },
     },
     {
       name: "coverage",
       testMatch: /coverage\.spec\.ts/,
       dependencies: ["journeys"],
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], channel: "chromium" },
     },
     // Pixel diffs are not a functional gate: they belong to their own run so a
     // font-rendering shift never blocks the coverage gate above from finishing,
     // and so a run of the suite that only wants behaviour never pays for them.
     // Picked up only by `npm run e2e:visual`, never by `npm run e2e`.
+    //
+    // Left on the default headless shell on purpose: the baselines in
+    // e2e/visual.spec.ts-snapshots were rendered by it, and a browser swap
+    // under a pixel comparison invalidates every one of them. The hang above
+    // costs this project a red run at worst — it gates nothing after itself.
     {
       name: "visual",
       testMatch: /visual\.spec\.ts/,

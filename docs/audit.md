@@ -55,12 +55,12 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1155 passed** (1155 collected; one of them skips where the optional
-Playwright is absent, so a machine without it reads 1154 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
-**79 browser tests** (49 journeys, then 30 that hold the run to the control inventory),
+Expected today: **1178 passed** (1178 collected; one of them skips where the optional
+Playwright is absent, so a machine without it reads 1177 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
+**81 browser tests** (51 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
-the type generator. The browser suite prints the two numbers worth reading: **231
-interactive elements, 267 inventoried actions**, of which **265 exercised and 2 declared
+the type generator. The browser suite prints the two numbers worth reading: **232
+interactive elements, 268 inventoried actions**, of which **266 exercised and 2 declared
 unreachable with a written reason**. If a test number changed, that is not a failure — it
 is a documentation trigger (see §4).
 
@@ -96,8 +96,10 @@ pipeline is not a green project — check the run, not just this list.
 `ruff check` *and* `ruff format --check`, so a baseline that names only the first is green
 locally and red on the very next push.
 
-`npm run e2e` is the slow one — around ten minutes against the six seconds the rest of this
-list costs — and it is on it anyway, because it is the only gate that runs the *assembled*
+`npm run e2e` is the slow one — around twenty minutes on a laptop against the six seconds
+the rest of this list costs, since it drives the real Chromium build rather than the faster
+headless shell (`frontend/playwright.config.ts` says why it has to) — and it is on the list
+anyway, because it is the only gate that runs the *assembled*
 product and the only one that can notice a control that quietly stopped working. Two things
 turn it red that nothing else here can: a screen that scrolls sideways or fails an `axe-core`
 check at 390, 768 or 1440 px, and a control added without an entry in `frontend/e2e/actions.ts`.

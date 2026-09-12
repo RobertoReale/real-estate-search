@@ -346,7 +346,7 @@ See also [`architecture.md`](architecture.md) for where each module lives,
   renders the relationship. Everything else is the browser suite: a real backend, the built
   bundle rather than the dev server, layout at a given width, tab order, and what a control
   actually does end to end. The rule cuts both ways and the second half is the one that
-  gets forgotten — the browser suite costs around five minutes against six seconds, so
+  gets forgotten — the browser suite costs around twenty minutes against six seconds, so
   putting something in it that a unit test could prove makes every future run slower for
   nothing, and it is the tier a hurried change is most tempted to reach for.
 
