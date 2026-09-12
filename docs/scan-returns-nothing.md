@@ -39,8 +39,13 @@ this page — see [`limits.md`](limits.md) for where each such statement appears
 ## If it is a block: start here
 
 **The boring cause is the likely one.** The `datadome` cookie the scraper carries
-lasts about an hour. Press **"Grab a fresh cookie now"** in **Settings →
+has stopped being accepted. Press **"Grab a fresh cookie now"** in **Settings →
 Advanced Scraping** and scan again; most of the time that is the end of it.
+A cookie does not expire on a schedule you can predict — one measured here was
+still returning listings fifty hours after it was earned, and another stopped
+working fourteen minutes after answering
+([`live-checks.md`](live-checks.md) §4) — so "it is probably too old" is a
+guess, and pressing the button is how you settle it.
 
 If blocks continue, **run the one test that separates the two real causes**: open
 the same portal page in your own browser, on the same connection, with no proxy.
@@ -106,6 +111,13 @@ earned by a real browser on your own connection. Three ways to do it:
   grabs a fresh cookie **on the fly if the "Check if still online" button gets
   blocked** mid-run — it swaps in a new cookie and keeps going instead of
   stopping (bounded to a couple of attempts, so it never turns into hammering).
+  **Leave that tick-box off for Immobiliare for now.** The unattended refresh
+  runs the browser headless, and headless is where the portal draws its hardest
+  line: measured on 2026-09-12 it was served a CAPTCHA with nothing in it to
+  solve, so the refresh cannot succeed — and the attempt spent the working
+  cookie it was meant to renew ([`live-checks.md`](live-checks.md) §4–§5). The
+  option is off by default and that default is the safe one until the refresh
+  learns to run headful.
   This needs a one-time install of the
   browser engine, run **inside the backend's virtual environment** — not a
   system-wide `pip` — since that is the Python the app actually runs on:
@@ -121,8 +133,9 @@ earned by a real browser on your own connection. Three ways to do it:
   before and simply hides the button.
 * **Manual** — open a portal page in your browser, copy the `datadome` cookie
   from the developer tools, and paste it into the Cookie field. The panel has
-  step-by-step instructions. The cookie expires after ~1 hour, so this is the
-  gesture the automatic grab removes.
+  step-by-step instructions. This is the gesture the automatic grab removes —
+  and the gesture you come back to when a cookie stops being accepted, which
+  happens on the portal's clock rather than on a predictable one.
 
 ### Leave from a different address
 
@@ -287,3 +300,34 @@ automated builds never reach a portal.
 
 Note which way the asymmetry runs: a good address will not rescue a bad
 handshake, but a bad address will undo a good one.
+
+### The loudest signal is one no handshake can carry
+
+The handshake and the address are what a scraper can choose. Neither is what
+decides an Immobiliare search today. Measured from this connection on
+2026-09-12, inside a quarter of an hour, the same address produced three
+different verdicts ([`live-checks.md`](live-checks.md), 2026-09-12):
+
+| Client | What came back |
+|---|---|
+| A saved browser cookie replayed by `curl_cffi` | 200, 25 listings |
+| `curl_cffi` with no cookie, seven profiles | 403 and the *interstitial* — a challenge |
+| Real Chrome, headless, automation flags stripped | 403 and a *CAPTCHA* with nothing to solve |
+
+Read the order: the best-disguised client of the three was treated worst. What
+separates them is not TLS and not the address — it is whether the client can be
+made to run DataDome's JavaScript and answer with what it finds. DataDome calls
+that Device Check and
+[describes it as hundreds of collected signals](https://docs.datadome.co/docs/device-check),
+canvas rendering and execution times among them, with the outcome remembered
+afterwards. A headless browser runs the JavaScript and *fails* it; `curl_cffi`
+cannot run it at all, and merely being unable to answer scores better than
+answering like automation.
+
+That is the whole reason the levers on this page are shaped the way they are.
+The cookie lever is first not because it is convenient but because a cookie is a
+**passed** Device Check, minted once by a real browser with a person behind it
+and then replayable — across fingerprints, and for days rather than the hour
+this project long assumed. Treat it as the scarce asset: it is earned headful,
+it is spent by every headless attempt to renew it, and when it is gone the
+choice is a person at the keyboard or the paid rung.

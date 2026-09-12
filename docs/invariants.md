@@ -321,7 +321,10 @@ each invariant to its code home and its test file. See also
     every entry point; its absence degrades to the manual paste, never an `ImportError`.
     Auto-refresh before a scan is **opt-in** (`datadome_auto_refresh`, default off) — a scan
     must never launch a browser the user did not ask for — and `maybe_auto_refresh()` only
-    re-harvests a cookie past its TTL (default 50 min, under DataDome's ~60). The harvest is
+    re-harvests a cookie past its TTL (default 50 min, chosen to sit under a DataDome
+    lifetime of ~60 that measurement has since disproved: a cookie 50 hours old still
+    answered on 2026-09-12, and the vendor documents a lifetime of 7 days to a year —
+    [`live-checks.md`](live-checks.md) §3). The harvest is
     **fail-open** like the availability probe (invariant 16): a missing browser, a timeout,
     or a headless CAPTCHA returns no cookie and the scan proceeds with whatever it had. A
     single `_harvest_lock` (like `_scan_lock`) serialises launches, because two browsers on

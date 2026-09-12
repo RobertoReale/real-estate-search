@@ -338,6 +338,220 @@ refused*, never *the portal is dead*. The rows below the streak limit are
 concluding anything from an empty one. The cheap confirmation is one targeted
 run: `--rungs curl+cookie` against a single URL costs two requests.
 
+## Measurements — 2026-09-12, why every free local rung is refused
+
+The baseline above ends on a fact without an explanation: from this connection
+Immobiliare refuses every cookieless local rung and answers the saved cookie.
+Five hypotheses, one harness variation each, seven runs under
+`backend/live-checks/`, sixteen requests, no credit spent. Times are local
+(UTC+2) and the run directory name is the timestamp.
+
+### 1. Stale fingerprints — ruled out
+
+| Run | Rung | api-next p1 | html p1 |
+|---|---|---|---|
+| `20260912-142304` | `curl:chrome150` | 403, 674 B | 403, 777 B |
+| `20260912-142325` | `curl:safari2601` | 403, 674 B | 403, 777 B |
+| `20260912-142348` | `curl:safari260` | 403, 669 B | 403, 774 B |
+
+`chrome150` and `safari2601` are the newest Chrome and the newest Safari the
+installed `curl_cffi` 0.16.2 carries, and neither had ever been measured here;
+`safari260` is configured but had never been reached past the blocked-streak
+limit. The first two ran from a throwaway data directory (`APP_DATA_DIR`) whose
+`settings.json` carried nothing but those two names, so no product setting was
+touched to measure them. All three draw the same DataDome interstitial as the
+four profiles measured this morning, within a handful of bytes of the same body.
+Seven of this build's fifty-four targets have now been measured against this
+portal, and there is one verdict between them.
+
+Upstream is one release ahead:
+[0.16.3](https://github.com/lexiforest/curl_cffi/releases) (2026-09-02) adds the
+TLS `trust_anchors` extension for Chrome 152 — a detail of a family already
+refused here — and since 0.16.0 the project points at the separate
+`impersonate.pro` service for fingerprints fresher than the shipped targets. The
+issue tracker carries no report of a target that gets past DataDome; what it
+does carry is [#247](https://github.com/lexiforest/curl_cffi/issues/247), Chrome
+profiles newer than 116 drawing challenges where Safari and Firefox do not,
+which runs the opposite way from "newer is better".
+
+**Verdict: the profile name is not the variable, and a `curl_cffi` upgrade is
+not the free path.** [Invariant 8](invariants.md) is why this is a table and not
+an opinion.
+
+### 2. The missing warm-up — ruled out as the cause
+
+Run `20260912-141559`, the profile that had just been refused, against the
+homepage instead of a search:
+
+| Rung | Target | HTTP | Bytes | ms |
+|---|---|---|---|---|
+| `curl:safari184` | `https://www.immobiliare.it/` | **200** | 485,281 | 227 |
+
+That is the whole run: the geography lookup resolves nothing for a URL that is
+not a search, so `prepare` is recorded as blocked and the api-next target is
+never built. What is left is the point — **the cookieless handshake that is 403
+on `/vendita-case/milano/` is 200 on `/`**, seventy seconds apart. The address
+opens connections and the portal serves pages; what is defended is the search
+endpoint.
+
+Could a session warmed up on the homepage then carry a usable token into the
+search? Two things say no. The weak form is already measured: inside one rung
+both targets share one session, so in run `20260912-141448` the `Set-Cookie`
+that came back with the first interstitial was in the jar for the second
+request, and the second request was refused identically. The strong form cannot
+work at all, because the token records the outcome of a client-side check, and
+DataDome's own documentation describes that check as
+[JavaScript collecting "hundreds of signals"](https://docs.datadome.co/docs/device-check)
+— canvas rendering among them, execution times measured — none of which a
+`curl_cffi` session can produce.
+
+The limitation worth writing down: "homepage first, then the search, on one
+session" is not expressible in the harness, because the driver rebuilds the
+rungs per URL (`livecheck/rungs.py`). Building that warm-up row is work R.4
+should not spend.
+
+### 3. Cookie transfer — portable and long-lived, but revocable
+
+Run `20260912-141448`. The cookie in `settings.json` was minted by a **headful**
+browser on **2026-09-10T09:40:25Z** and nothing has touched it since
+(`datadome_auto_refresh` is off), so this is that cookie replayed by `curl_cffi`:
+
+| Rung | Target | HTTP | Bytes | ms | Ads | Declared |
+|---|---|---|---|---|---|---|
+| `curl:safari184` | api-next p1 | 403 | 674 | 229 | — | — |
+| `curl:safari184` | html p1 | 403 | 777 | 89 | — | — |
+| `curl+cookie` | api-next p1 | **200** | 246,462 | 606 | 25 | 18,210 |
+| `curl+cookie` | html p1 | **200** | 921,280 | 161 | 25 | — |
+
+Same process, same profile, same minute, one cookie of difference. So a cookie
+earned in a Chrome session **survives replay from a different TLS fingerprint**
+— it is not bound to the handshake that earned it. And it was **50.8 hours old**
+when it did, sixty-one times the fifty-minute TTL this app assumes.
+
+The portal's own `Set-Cookie` agrees about the lifetime: the `datadome` row
+Chrome stored in `browser_profile/` during run `20260912-141707` expires
+**2027-09-12**, a year out, and DataDome documents exactly that —
+[the cookie is encrypted, carries no PII and expires after one year](https://docs.datadome.co/docs/cookie-session-storage),
+its lifetime a customer setting that can be lowered
+[no further than seven days](https://docs.datadome.co/docs/data-privacy). What
+it stores is whether this visitor passed a CAPTCHA or Device Check, which is
+both why it is worth so much and why it is the one asset here that deserves to
+be kept rather than regenerated.
+
+**It can be revoked, though, and it was — during this session.** See §4.
+
+Not measurable from one address: whether the cookie is also bound to the IP that
+earned it. One connection gives one answer. Of the two claims in
+`cookie_harvester`'s module docstring — bound to the IP, lives about an hour —
+the second is now measured false.
+
+### 4. The address — not flagged; the cookie's own standing is what changed
+
+The same rung at the start and at the end of the session, on the same URL:
+
+| Time | Run | Rung | api-next p1 | html p1 | Body |
+|---|---|---|---|---|---|
+| 14:14 | `20260912-141448` | `curl:safari184` | 403, 674 B | 403, 777 B | `/interstitial/`, `rt:'i'` |
+| 14:28 | `20260912-142845` | `curl:safari184` | 403, 674 B | 403, 777 B | `/interstitial/`, `rt:'i'` |
+| 14:14 | `20260912-141448` | `curl+cookie` | **200**, 25 ads | **200**, 25 ads | — |
+| 14:28 | `20260912-142845` | `curl+cookie` | **403**, 669 B | not tried (breaker) | `/captcha/`, `t=fe` |
+
+**Ruled out: the address was flagged by this morning's refusals, or by this
+session's.** Byte for byte, fourteen minutes and a dozen refusals apart, the
+cookieless treatment is unchanged: the same interstitial at the same size, never
+escalated. Nothing here is IP-level.
+
+**Ruled in, and it is the finding of the day: the cookie was burned between
+those two runs, and the headless browser run of §5 is what burned it.** The
+refusal the cookie now draws is not the cookieless interstitial — it is a
+`geo.captcha-delivery.com/captcha/` with `t=fe`, a client DataDome knows and has
+stopped trusting. And its `initialCid` is
+`AHrlqAAAAAMAhjQLJNDzZBAABVqIsA==`, *the same identifier the browser run's
+CAPTCHA page carried at 14:17*, where both cookieless runs carry different ones.
+The reading — an inference from that match, not a documented field — is that the
+browser presented the very cookie `settings.json` holds (it was minted into that
+persistent profile on 2026-09-10), failed Device Check as automation, and took
+the shared DataDome session down with it. Fourteen minutes later the cookie
+replayed by `curl_cffi` inherits that verdict.
+
+The alternative reading is that the cookie simply reached the end of its life
+between 14:14 and 14:28, unaided. It fits the clock far worse than the
+`initialCid` does, and it does not explain a `t=fe` CAPTCHA instead of the
+interstitial an unknown client gets.
+
+Confirming it costs three requests — mint headful, run the headless rung, re-run
+`curl+cookie` — and they were **not** spent today: the portal is now refusing
+every rung from here, and the rule in the budgets above is that a portal which
+stops answering gets `--replay`, not another attempt. Whoever picks this up does
+it on a fresh cookie and a quiet day.
+
+**Operationally, this leaves the app without a working free rung until someone
+mints a new cookie** — *Settings → Advanced Scraping → "Grab a fresh cookie
+now"*, which is headful and needs a person for the CAPTCHA.
+
+### 5. A real browser, headless — refused harder than `curl_cffi`
+
+Run `20260912-141707`, `--rungs browser`: Playwright driving the **real Chrome**
+installed on this machine (`cookie_harvester._launch` prefers channel `chrome`,
+then `msedge`, then bundled Chromium; Camoufox is not installed), on the
+persistent `browser_profile/` directory, with
+`--disable-blink-features=AutomationControlled` and `navigator.webdriver`
+shimmed.
+
+| Rung | Target | HTTP | Body |
+|---|---|---|---|
+| `browser` | api-next p1 | 403 | CAPTCHA page |
+| `browser` | html p1 | 403 | CAPTCHA page |
+
+The body is what matters. Cookieless `curl_cffi` gets `var dd={'rt':'i',…}` and
+`i.js` — the *interstitial*, the challenge a real browser clears by running it.
+The browser got `var dd={'rt':'c',…,'t':'bv',…}` with `c.js` and an iframe
+whose query carries `&t=bv&dm=cd`: a CAPTCHA, `dm=cd` for Device Check, and the
+`bv` variant, which presents nothing to solve. **The better-equipped client was
+classified worse than the crude one.**
+
+Three consequences, all for R.4:
+
+* **A headless browser-primary scan rung is not the free path.** It measures
+  below the rung it would replace.
+* **A headless run does not fail quietly — it spends the cookie.** This is the
+  §4 finding from the other end: the run presented the profile's DataDome
+  session, was judged automation, and that session stopped working for
+  `curl_cffi` too.
+* **It also overwrites the profile.** The `datadome` row in `browser_profile/`
+  now carries a value created `2026-09-12T12:17:22Z` — written by this refused
+  run, over whatever the successful headful session of 2026-09-10 left there.
+  [Invariant 18](invariants.md)'s fail-open protects `settings.json`, not the
+  profile: the next mint starts out presenting a token earned while the client
+  was being classified as a bot. Clear that row before minting, or mint in a
+  profile of its own.
+
+### The one recommendation this points at (R.4)
+
+**Make cookie custody the product: mint headful, renew on refusal, and take the
+headless refresh path out of service. Do not build a browser-primary rung.**
+
+Everything above converges on it. The cookie is the only free rung that works
+from this connection; it is portable across fingerprints and lives for days, not
+minutes; and the thing that destroys it is the app's own unattended browser.
+
+1. **Headful only.** Headless cannot mint — it draws `t=bv`, which has nothing
+   to solve — and it burns the cookie already in hand on the way out. Today
+   `datadome_auto_refresh` is off by default, which is the only reason this cost
+   one cookie instead of every cookie; that default is now load-bearing and the
+   flag should not arm a headless launch at all until it is headful.
+2. **Stop expiring the cookie on a fifty-minute clock.**
+   `maybe_auto_refresh()` is the only reader of `datadome_cookie_ttl_minutes`,
+   and a cookie sixty-one times past that TTL returned 25 listings today. Renew
+   when a request is *refused*, which is observable, instead of when a timer
+   predicts death.
+3. **Keep the paid rung as the escalation**, inside the monthly credit ceiling
+   the metering already enforces, for the case where the cookie is refused and
+   nobody is at the keyboard.
+
+What R.4 should not spend a line on: a `curl_cffi` upgrade (§1), a homepage
+warm-up row (§2), or a headless browser rung (§5).
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:
