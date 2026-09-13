@@ -26,6 +26,10 @@ AD_URL_RE = re.compile(r"idealista\.it/immobile/(\d+)")
 # hrefs in search result pages are relative: "/immobile/123/"
 AD_PATH_RE = re.compile(r"/immobile/(\d+)")
 LISTA_RE = re.compile(r"/lista-\d+(?:\.htm)?")
+# A house number as a title writes one: "26", "3 /1", "26/A". Digits and
+# separators, with at most a single trailing letter — anything with a word in
+# it is a place name, which is the distinction `_place_from_title` rests on.
+CIVIC_RE = re.compile(r"[\d\s/.\-]*\d[\d\s/.\-]*[A-Za-z]?")
 # The page the session warms up on, named for the same reason as Immobiliare's:
 # it is a portal URL this scraper requests, so it belongs beside the other URL
 # facts rather than buried inside warm_session.
@@ -212,6 +216,13 @@ class IdealistaScraper(BaseScraper):
                         latitude=to_float(item.get("latitude")),
                         longitude=to_float(item.get("longitude")),
                         city=item.get("municipality") or city,
+                        # the embedded state names the district when it carries
+                        # one; when it does not, the title still does
+                        zone=str(
+                            item.get("neighborhood")
+                            or item.get("district")
+                            or self._place_from_title(item.get("title") or "")[1]
+                        ),
                         address=item.get("address", ""),
                         description=item.get("description", ""),
                         image_url=item.get("thumbnail", ""),
@@ -243,6 +254,7 @@ class IdealistaScraper(BaseScraper):
         for ad_id, items in anchors.items():
             best, full = max(items, key=lambda t: len(t[0].get_text(strip=True)))
             title = best.get_text(" ", strip=True) or best.get("title", "")
+            address, zone = self._place_from_title(title)
 
             container = find_card_container(items[0][0], AD_PATH_RE)
             text = container.get_text(" ", strip=True)
@@ -258,7 +270,8 @@ class IdealistaScraper(BaseScraper):
                     sqm=parse_sqm(text),
                     rooms=parse_rooms(text),
                     city=city,
-                    address=self._address_from_title(title),
+                    zone=zone,
+                    address=address,
                     # the card text contains the descriptive snippet:
                     # needed for keyword filtering
                     description=text[:800],
@@ -268,19 +281,44 @@ class IdealistaScraper(BaseScraper):
         return out
 
     @staticmethod
-    def _address_from_title(title: str) -> str:
-        """ "Trilocale in Via Volvinio, 26, Stadera, Milano" -> "Via Volvinio, 26".
+    def _place_from_title(title: str) -> tuple[str, str]:
+        """ "Trilocale in Via Volvinio, 26, Stadera, Milano" -> ("Via Volvinio, 26", "Stadera").
+
+        Idealista closes a card title with the district and then the
+        municipality, and that is the only place either appears: the search
+        pages carry no district of their own, so a scan that ignored the title
+        stored every Idealista property with an empty zone — no zone median in
+        the area comparables, no district centroid for the geocoder to fall
+        back on, and a zone filter that never matched a single Idealista
+        listing. Immobiliare has had `macrozone`/`microzone` since the
+        beginning, which is why the gap only ever showed on one portal.
+
+        Both tails are optional, so each is taken only when it cannot be
+        anything else:
+        - the municipality, when the last comma-separated part is not a civic
+          number ("…, 26" is a house number, not a comune);
+        - the district, when what is then left ends in a part that is not a
+          civic number either — "Via Roma, 12, Milano" has no district, and
+          reading "12" as one would put a house number on every card.
 
         The most common Italian phrasing is "Trilocale in vendita in Via Roma,
         12": matching the *first* "in" there captures "vendita in Via Roma"
         as the street. Strip the contract phrase before looking for the
-        location "in"."""
+        location "in".
+        """
         cleaned = re.sub(r"\bin\s+(?:vendita|affitto)\b", "", title or "")
         m = re.search(r"\bin\s+(.+)", cleaned)
         if not m:
-            return ""
-        parts = [p.strip() for p in m.group(1).split(",")]
-        return ", ".join(parts[:2])
+            return "", ""
+        parts = [p.strip() for p in m.group(1).split(",") if p.strip()]
+        if len(parts) > 1 and not CIVIC_RE.fullmatch(parts[-1]):
+            parts.pop()  # the municipality, already known from the search URL
+        zone = parts.pop() if len(parts) > 1 and not CIVIC_RE.fullmatch(parts[-1]) else ""
+        return ", ".join(parts[:2]), zone
+
+    @classmethod
+    def _address_from_title(cls, title: str) -> str:
+        return cls._place_from_title(title)[0]
 
     def next_page_url(self, search_url: str, page: int) -> str:
         # Idealista paginates with /lista-N.htm in the path

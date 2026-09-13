@@ -327,6 +327,13 @@ def upsert_listing(
             prop.coordinate_source = geocoder.SOURCE_PORTAL
         if not prop.address and raw.address:
             prop.address = raw.address
+        # The district is the one field the two portals publish unevenly, so a
+        # property first seen on the portal that omitted it stayed zone-less
+        # for good — and with it went its zone median and the district centroid
+        # the geocoder falls back on. Filling an empty one costs nothing and
+        # never overwrites a district already stated.
+        if not prop.zone and raw.zone:
+            prop.zone = raw.zone
         if prop.rooms is None and raw.rooms is not None:
             prop.rooms = raw.rooms
         if not prop.image_url and raw.image_url:

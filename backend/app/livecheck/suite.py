@@ -162,7 +162,14 @@ _RESTATED = {"immobiliare": "imm-zone-path", "idealista": "ide-zone"}
 
 
 def _built(params: dict, portal: str) -> str:
-    """What `build_search_urls` produces for `portal` from these criteria."""
+    """What `build_search_urls` produces for `portal` from these criteria.
+
+    Offline, so on Idealista this is the `/cerca/` free-text phrase rather than
+    the zone page Generate resolves to — deliberately, because the fallback
+    grammar is a live path of the product (every Generate whose zone-page probe
+    fails saves one) and this is the only check that ever requests one.
+    `Restatement.notes` is where the row says which of the two it measured.
+    """
     return str(build_search_urls(params).get(portal, ""))
 
 
@@ -298,6 +305,9 @@ class Restatement:
     # asked for that the URL about to be saved cannot carry.
     review: list[str] = field(default_factory=list)
     same_search: bool = False
+    # The URL the builder produces with no request to spend, when that is not
+    # the one Generate arrives at. Empty whenever the two agree.
+    fallback_url: str = ""
 
     @property
     def notes(self) -> list[str]:
@@ -309,13 +319,45 @@ class Restatement:
         out = [*self.review]
         out += [f"{k} dropped" for k in self.dropped if f"{k} dropped" not in out]
         out += [f"{k}: {before!r} → {after!r}" for k, (before, after) in self.changed.items()]
-        if self.url and not self.same_search and not self.dropped and not self.changed:
-            # Idealista is the case: the form reaches a zone through `/cerca/`,
-            # a free-text phrase, where the pasted URL used the zone page. Same
-            # criteria, different grammar — and different grammars are exactly
-            # what returns different totals, so it must not pass unremarked.
+        if self.fallback_url:
+            # The suite's form entry is built with no request to spend, so it
+            # measures `/cerca/` — the free-text phrase the form falls back to
+            # when Idealista's zone page cannot be confirmed. Generate does
+            # confirm it and saves the pasted URL itself, so the two totals in
+            # this row belong to two different grammars and the wider one is
+            # not what the user's own press of Generate produces. Said here
+            # because a totals gap the review did not predict is the failure.
+            out.append(
+                "Generate reaches the zone page and produces this very URL; "
+                "the form total beside it is the wider /cerca/ fallback"
+            )
+        elif self.url and not self.same_search and not self.dropped and not self.changed:
+            # Same criteria, different grammar — and different grammars are
+            # exactly what returns different totals, so it must not pass
+            # unremarked.
             out.append("the same criteria, in a grammar the pasted URL did not use")
         return out
+
+
+def _generate_would_build(params: dict, portal: str, pasted: str) -> str:
+    """The URL the dashboard's Generate arrives at, where that is knowable offline.
+
+    Generate spends one live request on Idealista's zone page
+    (`resolve_idealista_url`): if the page exists the saved URL is the zone
+    page, and only if it does not is it the `/cerca/` free-text phrase.
+    `build_search_urls` with no request to spend always answers `/cerca/`, so
+    an offline restatement used to report a grammar the user would never see —
+    and a review that predicts a difference the product does not produce is as
+    wrong as one that misses a difference it does.
+
+    There is exactly one case where the probe's answer is already known: when
+    the pasted URL *is* that zone page. The reference search works, so the page
+    exists, so Generate reaches it. Returns "" when nothing can be concluded.
+    """
+    if portal != "idealista" or not (params.get("zone") or "").strip():
+        return ""
+    zoned = str(build_search_urls({**params, "zone_page": True}).get(portal, ""))
+    return zoned if normalize_profile_url(zoned) == normalize_profile_url(pasted) else ""
 
 
 def restate(entry: Reference) -> Restatement:
@@ -330,6 +372,9 @@ def restate(entry: Reference) -> Restatement:
     built = build_search_urls(params)
     review = [*built["zone_warnings"], *(f"{f} dropped" for f in built["idealista_unsupported"])]
     url = str(built.get(entry.portal, ""))
+    fallback_url = ""
+    if generated := _generate_would_build(params, entry.portal, entry.url):
+        url, fallback_url = generated, url
 
     if not params.get("city"):
         # Every builder grammar starts from a place name. A search drawn on the
@@ -353,6 +398,7 @@ def restate(entry: Reference) -> Restatement:
         },
         review=review,
         same_search=normalize_profile_url(url) == normalize_profile_url(entry.url),
+        fallback_url=fallback_url,
     )
 
 
