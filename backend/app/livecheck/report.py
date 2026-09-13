@@ -134,6 +134,11 @@ class Run:
     attempts: list[Attempt] = field(default_factory=list)
     credits_spent: int = 0
     directory: str = ""
+    # Set when `--portal` narrowed a suite run. Recorded rather than inferred
+    # from the attempts: "the other portal was not asked about" and "the other
+    # portal was asked and answered nothing" are different findings, and a
+    # reader of the table has no way to tell them apart afterwards.
+    portal: str = ""
 
     @property
     def portals(self) -> list[str]:
@@ -326,6 +331,7 @@ def write_report(directory: Path, run: Run, secrets: Iterable[str] = ()) -> Path
         "network": run.network,
         "targets": [redact(t, secrets) for t in run.targets],
         "budget": run.budget,
+        "portal": run.portal,
         "credits_spent": run.credits_spent,
         "verdicts": verdicts(Run(**{**asdict(run), "attempts": clean})),
         "attempts": [{**asdict(a), "outcome": a.outcome} for a in clean],

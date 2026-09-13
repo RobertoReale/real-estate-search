@@ -40,6 +40,7 @@ from ..scrapers.base import BaseScraper, RawListing
 from ..scrapers.idealista import IdealistaScraper
 from ..scrapers.immobiliare import API_LISTINGS, API_TOTAL_KEYS, ImmobiliareScraper
 from ..scrapers.page_text import declared_result_total, has_block_marker, text_says_no_results
+from ..scrapers.parsing import detect_contract
 from ..scrapers.transport import (
     SCRAPE_API_TIMEOUT_SECONDS,
     build_scrape_api_request,
@@ -135,9 +136,17 @@ class Target:
     url: str
     kind: str  # api-next | html | official
     referer: str = ""
-    # what the official-API parser needs and its payload does not carry
+    # "sale" or "rent", from the search URL. Carried on every target, not only
+    # the official one whose payload omits it: a scraper only learns its contract
+    # inside `scrape()`, and this tool calls the parsers directly, so without it
+    # every rung read a rental page at the constructor's "sale" default and the
+    # sale price bounds threw away every monthly rent on it (invariant 10).
     contract: str = ""
     city: str = ""
+    # This search cannot be put to this kind of target at all (a filter the
+    # official API has no parameter for). Same contract as `Rung.unavailable`:
+    # reported as skipped with the reason, never silently absent.
+    unavailable: str = ""
 
 
 @dataclass
@@ -438,7 +447,8 @@ def _immobiliare_targets(
     request like any other, it can fail on its own, and invariant 7 means its
     failure is the reason api-next cannot be asked for at all.
     """
-    html = Target(name="html p1", url=search_url, kind="html")
+    contract = detect_contract(search_url)
+    html = Target(name="html p1", url=search_url, kind="html", contract=contract)
     attempt = Attempt(
         portal="immobiliare", rung="prepare", target="geography", kind="prepare", search=search
     )
@@ -470,6 +480,7 @@ def _immobiliare_targets(
             url=f"{API_LISTINGS}?{query}",
             kind="api-next",
             referer=search_url,
+            contract=contract,
         )
         return [api, html]
 
@@ -484,23 +495,59 @@ def _immobiliare_targets(
     return [html]
 
 
+def _no_official_plan(search_url: str) -> str:
+    """Why this search has no official-API equivalent, in the API's own terms."""
+    from ..services.search_builder import parse_idealista_url
+
+    params = parse_idealista_url(search_url)
+    if declined := idealista_api.unmapped_filters(params):
+        return f"the official API has no parameter for {', '.join(declined)}"
+    city = (params.get("city") or "").strip()
+    return f"the official API needs a centroid and none is known for {city or 'this search'}"
+
+
 def _idealista_targets(search_url: str) -> list[Target]:
-    targets = [Target(name="html p1", url=search_url, kind="html")]
-    plan = idealista_api.search_plan(search_url) if idealista_api.is_configured() else None
-    if plan:
-        params, city = plan
-        targets.append(
+    """The HTML search page, and the official API's version of the same search.
+
+    The official target is built even when it cannot be asked, because a target
+    that does not exist produces no row: created only where a key and a plan
+    both existed, the official rung vanished from the table entirely, and a run
+    with no key read as though that transport had never been on the ladder
+    rather than as one skipped for a stated reason. What the two reasons divide
+    between them: the rung owns "this transport cannot be used from here at
+    all" (no key), the target owns "this search cannot be expressed for it".
+    """
+    targets = [
+        Target(name="html p1", url=search_url, kind="html", contract=detect_contract(search_url))
+    ]
+    if not idealista_api.is_configured():
+        # The rung already carries "no Idealista API key is configured"; saying
+        # it again here would only print the same sentence twice for one row.
+        return [*targets, Target(name="official p1", url="", kind="official")]
+    plan = idealista_api.search_plan(search_url)
+    if not plan:
+        return [
+            *targets,
             Target(
                 name="official p1",
-                # The official rung has no URL to fetch: its parameters travel as
-                # a signed form post. They ride in `url` so one loop can drive
-                # every rung, and they contain no credential of their own.
-                url=json.dumps(params, sort_keys=True),
+                url="",
                 kind="official",
-                contract="rent" if params.get("operation") == "rent" else "sale",
-                city=city,
-            )
+                unavailable=_no_official_plan(search_url),
+            ),
+        ]
+    params, city = plan
+    targets.append(
+        Target(
+            name="official p1",
+            # The official rung has no URL to fetch: its parameters travel as
+            # a signed form post. They ride in `url` so one loop can drive
+            # every rung, and they contain no credential of their own.
+            url=json.dumps(params, sort_keys=True),
+            kind="official",
+            contract="rent" if params.get("operation") == "rent" else "sale",
+            city=city,
         )
+    )
     return targets
 
 
@@ -512,6 +559,10 @@ def _parse(
 ) -> tuple[list[RawListing], str, int | None, bool]:
     """The body through the real parsers. Nothing is re-implemented here: a
     harness with its own parser measures its own parser."""
+    # `scrape()` sets this before its own walk and the parsers read it off the
+    # scraper; calling them directly, as this does, has to set it too.
+    if target.contract:
+        scraper.contract = target.contract
     if target.kind == "api-next":
         data = json.loads(body)
         results = data.get("results") or []
@@ -612,12 +663,15 @@ def run_rungs(
                 city=target.city,
                 search=search,
             )
+            # The rung's reason comes first: "there is no key" is the more
+            # fundamental answer than "this search has no parameter for zone".
+            blocked = rung.unavailable or target.unavailable
             if rung.paid:
-                refusal = rung.unavailable or budget.refuse_paid(rung.remaining_credits, rung.cost)
+                refusal = blocked or budget.refuse_paid(rung.remaining_credits, rung.cost)
             elif rung.direct:
-                refusal = rung.unavailable or budget.refuse_direct(portal)
+                refusal = blocked or budget.refuse_direct(portal)
             else:
-                refusal = rung.unavailable
+                refusal = blocked
             if refusal:
                 attempt.skipped = redact(refusal, secrets)
                 attempts.append(attempt)
@@ -686,6 +740,7 @@ def run_checks(
     settings: dict | None = None,
     labels: list[str] | None = None,
     stop_at_first: bool = False,
+    only_portal: str = "",
 ) -> Run:
     """Check every URL through every selected rung and write the record.
 
@@ -695,7 +750,9 @@ def run_checks(
     `labels` names the searches, one per URL, and every attempt a URL produces
     carries its name — the geography row included, so a suite table can be read
     a search at a time. `stop_at_first` is passed through to each search's
-    rungs.
+    rungs. `only_portal` records that the caller narrowed the list, so the
+    report says the other portal was not asked about rather than leaving a
+    reader to infer it from an absence.
     """
     settings = load_settings() if settings is None else settings
     secrets = _secrets_of(settings)
@@ -706,6 +763,7 @@ def run_checks(
         targets=[redact(url, secrets) for url in urls],
         budget=budget.as_dict(),
         directory=str(directory),
+        portal=only_portal,
     )
     capture = _capture_writer(directory)
     wants_browser = bool(rung_filter) and "browser" in (rung_filter or [])
@@ -790,6 +848,7 @@ def replay(directory: Path) -> Run:
         budget=dict(data.get("budget") or {}),
         credits_spent=int(data.get("credits_spent") or 0),
         directory=str(directory),
+        portal=str(data.get("portal") or ""),
     )
     fields = set(Attempt.__dataclass_fields__)
     scrapers: dict[str, BaseScraper] = {}

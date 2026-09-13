@@ -54,8 +54,15 @@ DATADOME_BLOCK_MARKERS = (
 # text, for the same reasons as the markers above; the noun is required so a
 # card's "3 locali" or a footer's "case in vendita a Roma" cannot be read as a
 # total.
-SEARCH_TOTAL_RE = re.compile(
-    r"(\d[\d.]*)\s+(?:case|annunci|immobili|appartamenti)\s+in\s+(?:vendita|affitto)"
+# Tried in order, first match wins. The second exists because Idealista's
+# free-text grammar ("/cerca/<filters>/<Zone>_<City>/") never writes the first
+# one: it heads its results "Forlanini Milano: 114 annunci" and links "vedi 114
+# case", the noun without the contract. Requiring the "vedi" is what keeps that
+# pattern as safe as the other — a footer's "case in vendita a Roma" or a card's
+# "3 locali" cannot reach it — and on the pages that publish both, the two agree.
+SEARCH_TOTAL_RES = (
+    re.compile(r"(\d[\d.]*)\s+(?:case|annunci|immobili|appartamenti)\s+in\s+(?:vendita|affitto)"),
+    re.compile(r"vedi\s+(\d[\d.]*)\s+(?:case|annunci|immobili|appartamenti)"),
 )
 
 
@@ -117,14 +124,17 @@ def declared_result_total(html: str) -> int | None:
     ship their i18n dictionaries inside the page JSON, so a raw scan would find
     the sentence on pages that never showed it.
     """
-    match = SEARCH_TOTAL_RE.search(_visible_text(html))
-    if not match:
-        return None
-    try:
-        # Italian thousands separators: "1.234" is 1234, not 1.234
-        return int(match.group(1).replace(".", ""))
-    except ValueError:
-        return None
+    text = _visible_text(html)
+    for pattern in SEARCH_TOTAL_RES:
+        match = pattern.search(text)
+        if not match:
+            continue
+        try:
+            # Italian thousands separators: "1.234" is 1234, not 1.234
+            return int(match.group(1).replace(".", ""))
+        except ValueError:
+            return None
+    return None
 
 
 def has_block_marker(html: str) -> bool:

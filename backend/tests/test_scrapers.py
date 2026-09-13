@@ -240,6 +240,58 @@ def test_empty_search_is_an_answer_not_a_failure():
     assert text_says_no_results(IMMOBILIARE_NO_RESULTS) is True
 
 
+def _idealista_answering(status_code: int, text: str) -> IdealistaScraper:
+    """An Idealista scraper wired to one canned response instead of the network."""
+
+    class _Answer:
+        def __init__(self):
+            self.status_code = status_code
+            self.text = text
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}")
+
+    class _Session:
+        def get(self, url, **kwargs):
+            return _Answer()
+
+    scraper = IdealistaScraper()
+    setattr(scraper, "session", _Session())
+    return scraper
+
+
+def test_the_404_that_means_no_results_reaches_the_parsers(monkeypatch):
+    """The whole path, not just the marker: Idealista's empty-search page has to
+    survive `_fetch_once` and come back as HTML.
+
+    The status is the same one a dead slug gets, so only the page's own words
+    separate them — which is why the body is returned before `raise_for_status`
+    rather than after. Confirmed against the live portal on 2026-09-13: a rent
+    search capped at €200 with a 250 m² floor answered HTTP 404 carrying this
+    page, and the check read it as "nothing matches" rather than as an error.
+    """
+    from app import config
+
+    monkeypatch.setattr(config, "load_settings", lambda: dict(config.DEFAULT_SETTINGS))
+    scraper = _idealista_answering(404, IDEALISTA_NO_RESULTS)
+    assert scraper._fetch_once("https://www.idealista.it/affitto-case/milano/x/") == (
+        IDEALISTA_NO_RESULTS
+    )
+
+
+def test_a_404_that_says_nothing_is_still_a_failure(monkeypatch):
+    """The other half: a dead slug must not be excused. Without the portal's own
+    sentence there is no evidence the search resolved at all, and swallowing it
+    would turn a mistyped profile into a search that silently finds nothing."""
+    from app import config
+
+    monkeypatch.setattr(config, "load_settings", lambda: dict(config.DEFAULT_SETTINGS))
+    scraper = _idealista_answering(404, "<html><body><h1>Pagina non trovata</h1></body></html>")
+    with pytest.raises(RuntimeError):
+        scraper._fetch_once("https://www.idealista.it/affitto-case/milano/nessuna-zona/")
+
+
 def test_a_real_markup_change_still_raises_the_alarm():
     """The dangerous direction: if an empty page were assumed harmless, a portal
     rewriting its markup would go unnoticed and the searches would quietly
@@ -283,6 +335,21 @@ def test_parse_price_ignores_price_per_square_meter():
     """Regression: "3.990 €/m²" is not the property price."""
     assert parse_price("399.000 € 3.990 €/m² 3 locali 100 m²") == 399_000
     assert parse_price("5.933 €/m² 445.000 €") == 445_000
+
+
+def test_parse_price_reads_a_rent_written_per_month():
+    """Regression: "€/mese" is not "€/m²".
+
+    The per-square-metre guard used to match a bare "€/m", so it swallowed the
+    "1.150 €" of "1.150 €/mese" and every rental card on Idealista's HTML pages
+    came back with no price at all — a live check found 30 of 30 missing. The
+    card text below is the shape those pages actually serve.
+    """
+    card = "Affitto Via Mecenate, Milano 1.150 €/mese 2 locali 60 m²"
+    assert parse_price(card, contract="rent") == 1_150
+    # Both units still hide a per-square-metre figure, in either contract.
+    assert parse_price("18 €/m² 1.150 €/mese", contract="rent") == 1_150
+    assert parse_price("18 €/mq 1.150 €/mese", contract="rent") == 1_150
 
 
 def test_parse_price_prefers_main_price_over_accessories():
@@ -1511,6 +1578,29 @@ def test_a_search_page_total_is_read_only_where_the_portal_states_one():
     )
     assert declared_result_total("<html><body><a>Case in vendita a Roma</a></body>") is None
     assert declared_result_total("") is None
+
+
+def test_a_search_page_total_is_read_from_idealistas_free_text_grammar():
+    """Regression: the "/cerca/<filters>/<Zone>_<City>/" pages state their total
+    a second way.
+
+    They head the results "Forlanini Milano: 114 annunci" and link "vedi 114
+    case" — the noun without the "in vendita/affitto" the other grammar carries,
+    so the original pattern read nothing and the scan reported a count with no
+    total beside it (invariant 26). The "vedi" is what keeps the second pattern
+    as narrow as the first.
+    """
+    from app.scrapers.page_text import declared_result_total
+
+    assert declared_result_total("<html><body><a>vedi 114 case</a></body>") == 114
+    assert declared_result_total("<html><body><a>vedi 1.234 annunci</a></body>") == 1234
+    # Still no total without it: a footer link is not a statement about *this*
+    # search, and neither is a card's room count.
+    assert declared_result_total("<html><body><a>114 case</a></body>") is None
+    # Where a page publishes both, the contract-bearing sentence is the heading
+    # and answers first.
+    both = "<html><body><h1>66 case in affitto a Milano</h1><a>vedi 66 case</a></body>"
+    assert declared_result_total(both) == 66
 
 
 # --- the window a scan takes has to be the same window twice running --------

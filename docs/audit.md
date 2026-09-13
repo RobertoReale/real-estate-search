@@ -55,8 +55,8 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1176 passed** (1176 collected; one of them skips where the optional
-Playwright is absent, so a machine without it reads 1175 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
+Expected today: **1188 passed** (1188 collected; one of them skips where the optional
+Playwright is absent, so a machine without it reads 1187 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
 **81 browser tests** (51 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
 the type generator. The browser suite prints the two numbers worth reading: **232

@@ -50,8 +50,10 @@ from app.livecheck.rungs import (
     Target,
     _BudgetExhausted,
     _capture_writer,
+    _idealista_targets,
     _immobiliare_targets,
     _MeteredSession,
+    _parse,
     active_profiles,
     build_rungs,
     portal_of,
@@ -60,6 +62,7 @@ from app.livecheck.rungs import (
     run_rungs,
     select_rungs,
 )
+from app.scrapers import idealista_api
 from app.scrapers.idealista import IdealistaScraper
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.services.search_builder import build_search_urls, parse_search_url
@@ -699,6 +702,108 @@ def test_geography_refused_by_the_budget_is_not_counted_as_a_block(scraper):
     assert budget.blocked_streak("immobiliare") == 0
 
 
+IDEALISTA_SEARCH = "https://www.idealista.it/affitto-case/milano/forlanini/"
+
+
+def test_the_official_target_exists_even_when_there_is_no_key(monkeypatch):
+    """Regression: with no key configured, `_idealista_targets` built only the
+    HTML target, so the official rung had nothing of its kind to pair with and
+    `run_rungs` produced no row for it at all.
+
+    The rung carried "no Idealista API key is configured" the whole time and it
+    never reached the table: a run read as though the official API had never
+    been on the ladder rather than as one skipped for a reason. The rung's own
+    docstring promises the opposite, and so does the app — it must not imply
+    that the API was tried, in either direction.
+    """
+    monkeypatch.setattr(idealista_api, "is_configured", lambda: False)
+
+    targets = _idealista_targets(IDEALISTA_SEARCH)
+
+    assert [t.name for t in targets] == ["html p1", "official p1"]
+    official = targets[1]
+    assert official.kind == "official"
+    # Silent here on purpose: the rung states the reason, and both would print
+    # the same sentence twice against one row.
+    assert official.unavailable == ""
+
+
+def test_a_search_the_official_api_cannot_express_says_which_filter(monkeypatch):
+    """A key alone is not enough: `search_plan` declines a search whose filters
+    have no measured equivalent (the faithfulness rule). That is a different
+    answer from "no key", and it belongs to the target rather than the rung —
+    the transport is usable, this one search is not expressible for it."""
+    monkeypatch.setattr(idealista_api, "is_configured", lambda: True)
+
+    # A zone search: Idealista's own API filters by locationId, which cannot be
+    # resolved offline, so `zone` heads UNMAPPED_FILTERS.
+    targets = _idealista_targets(IDEALISTA_SEARCH)
+
+    assert [t.name for t in targets] == ["html p1", "official p1"]
+    assert "no parameter for zone" in targets[1].unavailable
+
+
+def test_a_target_that_cannot_be_asked_is_reported_and_costs_nothing():
+    """The refusal reaches the table as a skipped row, and no request is made
+    for it — the budget must not pay for a target that was never asked."""
+    budget = a_budget()
+    rung = a_rung("official", [Fetched(status=200, body="{}")], kinds=("official",), direct=False)
+    blocked = Target(
+        name="official p1", url="", kind="official", unavailable="no parameter for zone"
+    )
+
+    attempts = run_rungs("idealista", IdealistaScraper(), [blocked], [rung], budget)
+
+    assert [a.outcome for a in attempts] == ["skipped"]
+    assert attempts[0].skipped == "no parameter for zone"
+    assert budget.requests_made("idealista") == 0
+
+
+def test_the_rungs_reason_is_the_one_reported_when_both_apply():
+    """No key *and* a filter the API has no parameter for: "there is no key" is
+    the more fundamental answer, and printing the other one would send someone
+    off to rewrite a search that could not have been asked either way."""
+    budget = a_budget()
+    rung = a_rung(
+        "official",
+        [Fetched(status=200, body="{}")],
+        kinds=("official",),
+        direct=False,
+        unavailable="no Idealista API key is configured",
+    )
+    blocked = Target(
+        name="official p1", url="", kind="official", unavailable="no parameter for zone"
+    )
+
+    attempts = run_rungs("idealista", IdealistaScraper(), [blocked], [rung], budget)
+
+    assert attempts[0].skipped == "no Idealista API key is configured"
+
+
+def test_a_rental_page_is_parsed_as_a_rental_page():
+    """Regression: the instrument read every rent search as a sale.
+
+    A scraper learns its contract inside `scrape()`, and this tool calls the
+    parsers directly, so `self.contract` stayed at the constructor's "sale" and
+    the sale price bounds (invariant 10) discarded every monthly rent on the
+    page. A live check on 2026-09-13 found 30 of 30 Idealista rental cards
+    parsed with no price at all while the row still read "ok, 30 ads".
+    """
+    card = (
+        '<div class="item"><a class="item-link" href="/immobile/1/">Bilocale in Via Mecenate,'
+        ' Milano</a><span class="item-price">1.150<span>€/mese</span></span></div>'
+    )
+    scraper = IdealistaScraper()
+    target = _idealista_targets(IDEALISTA_SEARCH)[0]
+    assert target.contract == "rent"
+
+    listings, _, _, _ = _parse(scraper, target, f"<html><body>{card}</body></html>")
+
+    assert [listing.price for listing in listings] == [1150]
+    # The scraper was told, rather than the price being fixed up afterwards.
+    assert scraper.contract == "rent"
+
+
 # --- replay -------------------------------------------------------------
 
 
@@ -888,6 +993,30 @@ def test_a_search_drawn_on_the_map_cannot_be_restated_by_the_form(name):
     assert not again.same_search
 
 
+def test_one_portals_entries_can_be_asked_for_on_their_own():
+    """`--portal` exists because the other portal's entries are not free: they
+    are requests from the address invariant 8 protects, spent on a shape nobody
+    asked about. The filter must keep both the pasted and the form entries."""
+    only = suite.entries("idealista")
+
+    assert only and {e.portal for e in only} == {"idealista"}
+    assert {e.shape for e in only} >= {"zone with filters", "form"}
+    assert len(only) < len(suite.entries())
+    # And the cap follows the shorter list rather than the whole suite's.
+    assert suite.request_cap(only) < suite.request_cap()
+
+
+def test_portal_narrows_the_suite_and_nothing_else(capsys):
+    # A bare --portal is a suite run with the --suite forgotten, and so is one
+    # with a URL beside it: both are told which flag is missing, rather than the
+    # first getting the generic "nothing to check".
+    assert main(["--portal", "idealista"]) == 2
+    assert "--portal narrows --suite" in capsys.readouterr().err
+
+    assert main(["--portal", "idealista", SEARCH_URL]) == 2
+    assert "--portal narrows --suite" in capsys.readouterr().err
+
+
 def test_the_request_cap_scales_with_the_number_of_searches():
     busiest = max(
         sum(1 for e in suite.entries() if e.portal == portal)
@@ -1058,6 +1187,19 @@ def test_the_comparison_sets_the_pasted_and_form_totals_side_by_side():
     assert "the same criteria, in a grammar the pasted URL did not use" in row
     # And the shape the form cannot build says so instead of showing a total.
     assert "no grammar" in next(line for line in lines if line.startswith("imm-polygon"))
+
+
+def test_the_comparison_leaves_out_a_portal_the_run_never_asked_about():
+    """A run narrowed with `--portal` must not print the other portal's rows:
+    the review beside them still computes, so they would appear under two empty
+    totals and read as "the form agrees" rather than as "not checked"."""
+    run = Run(started_at="", network="live", targets=[], budget={}, portal="idealista")
+    run.attempts = [_answered("ide-zone", 140)]
+
+    lines = suite.render_comparison(run).splitlines()
+
+    assert any(line.startswith("ide-zone ") for line in lines)
+    assert not any(line.startswith("imm-") for line in lines)
 
 
 def test_the_comparison_declares_no_total_the_portal_did_not_state():

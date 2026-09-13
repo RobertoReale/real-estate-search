@@ -133,6 +133,22 @@ second half of the suite is not refused by a cap sized for one URL.
 The per-portal verdict cannot say this: one working city search would cover for
 four broken shapes.
 
+### `--portal`
+
+```bash
+cd backend && .venv\Scripts\python -m app.livecheck --suite --portal idealista
+```
+
+Narrows the suite to one portal's entries, and narrows the request cap with them.
+It exists for the case where one portal is under repair and the other is known
+good: checking both would spend the working portal's address on a question
+already answered, and invariant 8's whole point is that those requests are not
+free. The narrowing is recorded in `report.json` rather than inferred from which
+rows are present — "the other portal was not asked" and "the other portal
+answered nothing" are different findings, and `--compare-form` leaves the
+unasked portal's review out for the same reason. It only means anything beside
+`--suite`, and says so rather than falling through to "nothing to check".
+
 ### `--compare-form`
 
 ```bash
@@ -581,6 +597,97 @@ Nine of nine, on the cookie minted headful at `2026-09-10T09:40Z` — **fifty-si
 hours old, and sixty-seven times the TTL that would have thrown it away.** That is the
 §3 finding holding at a second sitting, which is the whole case for deleting the
 timer.
+
+## Measurements — 2026-09-13, Idealista through the same loop
+
+Every live run to this point had been an Immobiliare run that happened to carry
+Idealista's three entries along. Idealista had never been the subject of one, and
+`3 of 3 · 30 ads` above is what that costs: the row was green and three of the
+four findings below were sitting under it. **An answered row is not a correct
+one** — the count comes from the card parser, and every field inside those cards
+can be empty without the count moving.
+
+Four runs, `--rungs curl+cookie` throughout: `20260913-015929` (the survey),
+`20260913-020237` (the 404 probe, one URL), `20260913-022215` (after the first
+two fixes) and `20260913-022623` (after all four). **Seven requests in total
+against a 12-per-run cap, no credits spent, the paid rung never armed.**
+
+### 1. Every rent parsed with no price at all
+
+`ide-zone` and `ide-zone-form` reported 30 ads each and **30 of 30 had
+`price=None`**. Two independent causes, either one sufficient:
+
+* The per-square-metre guard in `parse_price` was written `€/m` with no unit
+  after it, so it matched the `€/m` of `1.150 €/mese` and deleted the rent it was
+  there to protect. It now requires the unit — `€/m²`, `€/mq`, `€/m2`.
+* The instrument never told the scraper which contract it was reading. A scraper
+  learns that inside `scrape()`, and a live check calls the parsers directly, so
+  `self.contract` stayed at the constructor's `"sale"` and invariant 10's sale
+  bounds threw away every monthly rent as implausible. `Target` now carries the
+  contract for every kind, from `detect_contract` on the search URL, and
+  `--replay` records it so a saved run re-parses the way it ran.
+
+Both were live before this cycle and neither is visible in a count. After:
+30 of 30 priced on all three entries — `1.150 €`, `1.350 €`, `1.200 €` on the
+Forlanini zone, `219.000 €`, `250.000 €`, `490.000 €` on the Milan city search.
+
+### 2. The free-text grammar states its total a second way
+
+`ide-zone-form` published no total. Idealista's zone pages head themselves
+*"66 case in affitto a Milano"*; the `/cerca/<filters>/<Zone>_<City>/` pages the
+builder produces never write that phrase — they head *"Forlanini Milano: 114
+annunci"* and link *"vedi 114 case"*, the noun without the contract.
+`declared_result_total` now tries a second pattern requiring the `vedi`, which is
+what keeps it as safe as the first: a footer's *"case in vendita a Roma"* or a
+card's *"3 locali"* cannot reach it. On pages that publish both forms the two
+agree, and invariant 26 is intact — this is still a number the portal stated.
+
+### 3. The 404 that means "nothing matches" — confirmed live
+
+`base.py` treats a 404 as an empty result set when the body says so, which is a
+guess worth checking against the portal rather than against a fixture. A rent
+search capped at €200 with a 250 m² floor
+(`/affitto-case/milano/forlanini/con-prezzo_200,dimensione_250/`) answered
+**HTTP 404 carrying a 218 KB no-results page**, and the check read it as
+`no_results` — *"answers (nothing matches this search)"* — not as an error. The
+other half is pinned synthetically: a 404 whose body says nothing of the kind
+still raises.
+
+### 4. The official rung vanished when there was no key
+
+`_idealista_targets` built the official target only where a key **and** a plan
+both existed. With neither, the rung had nothing of its kind to pair with and
+produced no row — a run with no key read as though the official API had never
+been on the ladder. The target is now always built, and the two reasons divide
+cleanly: the rung owns *"this transport cannot be used from here at all"* (no
+key), the target owns *"this search cannot be expressed for it"* (a filter in
+`UNMAPPED_FILTERS`). The rung's reason wins when both apply.
+
+### No key exists here, and the app now says so
+
+There is no Idealista API key on this machine and none was obtained: keys are
+issued by hand. The setup copy promised they were *"free and arrive in a couple
+of days"* — [the access-request page](https://developers.idealista.com/access-request)
+states neither, only *"To receive an API key get in touch and tell us a bit about
+your project."* Both language files now say what is true: keys are issued by hand
+after you describe your project, no turnaround is published, and **until you have
+one, Idealista is read from the site and the API is never contacted.** Everything
+else was already honest — `get_scraper` hands back the plain scraper,
+`transport_used` names the official API only when it was actually used, and
+Settings shows *set / not set* rather than a promise.
+
+### Where Idealista stands
+
+| Shape | Entry | Answered | Ads | Total the portal stated |
+|---|---|---|---|---|
+| a city | `ide-city` | `curl+cookie`, html p1 | 30, all priced | 14,771 |
+| a zone with filters | `ide-zone` | `curl+cookie`, html p1 | 30, all priced | 66 |
+| the form's grammar | `ide-zone-form` | `curl+cookie`, html p1 | 30, all priced | 114 |
+| the official API | — | never asked | — | no key on this machine |
+
+Three of three, on the same headful cookie, with the fields inside the cards
+checked and not just counted. `idealista_unsupported` was not reached in any run
+and no zone mapping failed, so neither is measured here.
 
 ## Where it fits
 
