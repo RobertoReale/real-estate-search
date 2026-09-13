@@ -392,7 +392,7 @@ export const en = {
   "setup.body.unblocked":
     "The portals defend themselves against automated reading, and Immobiliare is the strict one: without help it answers with a block page instead of the results. Any one of these is enough — a cookie taken from your own browser, a scraping service, or proxies.",
   "setup.body.source":
-    "Idealista publishes an official API. With a key it is read through that instead of through the site, which is both sanctioned and immune to the blocking above. Keys are free to request and take a couple of days to arrive.",
+    "Idealista publishes an official API. With a key it is read through that instead of through the site, which is both sanctioned and immune to the blocking above. Keys are issued by hand once you describe your project, and no turnaround is published. Until you have one, Idealista is read from the site and the API is never contacted.",
   "setup.body.told":
     "Otherwise the app collects quietly and you find out by opening it. Telegram is the quicker of the two to set up — talk to @BotFather, paste the token, and send your bot a message so it can find your chat id.",
   "setup.body.pace":

@@ -190,9 +190,15 @@ def _form_entries() -> tuple[Reference, ...]:
 FORM: tuple[Reference, ...] = _form_entries()
 
 
-def entries() -> tuple[Reference, ...]:
-    """Every reference search, pasted ones first."""
-    return PASTED + FORM
+def entries(portal: str = "") -> tuple[Reference, ...]:
+    """Every reference search, pasted ones first; one portal's when named.
+
+    The filter exists because the interesting question is usually about one
+    portal, and the other portal's entries are not free: they are requests from
+    the address invariant 8 protects, spent on a shape nobody asked about.
+    """
+    every = PASTED + FORM
+    return tuple(e for e in every if e.portal == portal) if portal else every
 
 
 def by_name(name: str) -> Reference | None:
@@ -372,11 +378,12 @@ def run_suite(
     out_root: Path | None = None,
     settings: dict | None = None,
     all_rungs: bool = False,
+    portal: str = "",
 ) -> Run:
     """Run every reference search the way a scan would: cheapest rung first,
     stopping at the first that parses. `all_rungs` asks for the full matrix
     instead, which is the same traffic as running each search on its own."""
-    refs = entries()
+    refs = entries(portal)
     return run_checks(
         [r.url for r in refs],
         budget=budget,
@@ -385,6 +392,7 @@ def run_suite(
         settings=settings,
         labels=[r.name for r in refs],
         stop_at_first=not all_rungs,
+        only_portal=portal,
     )
 
 
@@ -458,6 +466,11 @@ def render_comparison(run: Run) -> str:
     """
     rows = [["SEARCH", "PORTAL", "SHAPE", "PASTED", "FORM", "SAME SEARCH", "REVIEW"]]
     for entry in PASTED:
+        if run.portal and entry.portal != run.portal:
+            # `--portal` never asked about this shape. The review beside it
+            # would still compute, and printing it under two empty totals reads
+            # as "the form agrees" rather than as "not checked".
+            continue
         again = restate(entry)
         counterpart = next((f for f in FORM if f.restates == entry.name), None)
         rows.append(

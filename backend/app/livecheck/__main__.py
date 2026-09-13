@@ -23,8 +23,9 @@ from .budget import (
     Budget,
 )
 from .report import render, succeeded
-from .rungs import active_profiles, replay, run_checks
+from .rungs import PORTAL_HOSTS, active_profiles, replay, run_checks
 from .suite import (
+    entries,
     every_search_answered,
     render_comparison,
     render_suite,
@@ -60,6 +61,11 @@ def _parser() -> argparse.ArgumentParser:
         "--all-rungs",
         action="store_true",
         help="with --suite: try every rung against every search, not just the first that parses",
+    )
+    p.add_argument(
+        "--portal",
+        choices=sorted(PORTAL_HOSTS),
+        help="with --suite: check only this portal's reference searches",
     )
     p.add_argument(
         "--compare-form",
@@ -122,6 +128,13 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     suite = args.suite or args.compare_form
 
+    # Before "nothing to check": a bare `--portal idealista` is a suite run with
+    # the --suite forgotten, and the generic message would send someone to add
+    # the flag they already meant.
+    if args.portal and not suite:
+        print("--portal narrows --suite: pass --suite too", file=sys.stderr)
+        return 2
+
     if args.replay:
         run = replay(Path(args.replay))
         print(render(run))
@@ -151,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = load_settings()
     max_requests = args.max_requests
     if max_requests is None:
-        max_requests = request_cap() if suite else DEFAULT_MAX_REQUESTS
+        max_requests = request_cap(entries(args.portal or "")) if suite else DEFAULT_MAX_REQUESTS
     budget = Budget(
         max_requests=max_requests,
         delay_seconds=(
@@ -173,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
             out_root=out_root,
             settings=settings,
             all_rungs=args.all_rungs,
+            portal=args.portal or "",
         )
         print(render(run))
         print(f"\n{render_suite(run)}")

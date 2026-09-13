@@ -37,8 +37,11 @@ def detect_contract(search_url: str) -> str:
 
 # Portals write prices both as "€ 250.000" and "399.000 €".
 PRICE_RE = re.compile(r"€\s*([\d.,]+)|([\d.,]+)\s*€")
-# "3.990 €/m²" is the price per square meter, not the property price
-PRICE_PER_SQM_RE = re.compile(r"[\d.,]+\s*€\s*/\s*m", re.IGNORECASE)
+# "3.990 €/m²" is the price per square meter, not the property price. The unit
+# is required: written as a bare "m" this also matched the "m" of "1.150 €/mese"
+# and deleted the rent it was meant to protect, so every rental card on
+# Idealista's HTML pages parsed with no price at all.
+PRICE_PER_SQM_RE = re.compile(r"[\d.,]+\s*€\s*/\s*m[q²2]", re.IGNORECASE)
 # Large plots write the surface with a thousands separator ("5.000 m²"):
 # the first alternative captures that form so it is not read as 5.0 sqm.
 SQM_RE = re.compile(r"(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d{1,2})?)\s*m[q²]", re.IGNORECASE)

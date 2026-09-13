@@ -395,7 +395,7 @@ export const it: Dict = {
   "setup.body.unblocked":
     "I portali si difendono dalla lettura automatica, e Immobiliare è quello severo: senza aiuto risponde con una pagina di blocco invece che con i risultati. Basta una qualsiasi di queste: un cookie preso dal tuo browser, un servizio di scraping o dei proxy.",
   "setup.body.source":
-    "Idealista pubblica una API ufficiale. Con una chiave viene letto da lì invece che dal sito: è la via autorizzata ed è immune al blocco di cui sopra. Le chiavi sono gratuite e arrivano in un paio di giorni.",
+    "Idealista pubblica una API ufficiale. Con una chiave viene letto da lì invece che dal sito: è la via autorizzata ed è immune al blocco di cui sopra. Le chiavi vengono rilasciate a mano dopo aver descritto il proprio progetto, e non ci sono tempi dichiarati. Finché non ne hai una, Idealista viene letto dal sito e l'API non viene mai contattata.",
   "setup.body.told":
     "Altrimenti l'app raccoglie in silenzio e te ne accorgi solo aprendola. Telegram è il più rapido dei due: scrivi a @BotFather, incolla il token e manda un messaggio al tuo bot perché possa trovare la tua chat.",
   "setup.body.pace":
