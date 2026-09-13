@@ -301,15 +301,38 @@ that has never had the toolchain. The runner has Python, Node and a venv install
 job that precedes it, so a bundle that silently depends on any of them passes there and
 fails in the only place it matters: someone else's PC.
 
-**Do.** Take the zip from the GitHub release (or `dist\RealEstateSearch\` from
-`python scripts\build_release.py --package`) to a Windows machine with **no Python, no Node
-and no venv** — a fresh user account is not enough, it must be a machine that has not been
-developed on. Unzip it and double-click the executable. Complete the first-run setup, save a
-setting, run one scan.
+**Do.** The clean machine no longer has to be a second PC. Windows Sandbox is one — a
+throwaway Windows with no Python, no Node and no venv, discarded when it closes — and it
+takes a logon command, so the check drives itself:
 
-**Pass.** The tray app starts, the dashboard opens in a browser, the API answers, settings
-persist across a restart, and the scan reaches a portal. No console window reports a missing
-DLL, a missing interpreter or a missing data file.
+```powershell
+gh release download v2.0.0 --pattern *.zip
+powershell -ExecutionPolicy Bypass -File scripts\windows\sandbox-smoke.ps1 -Zip RealEstateSearch-v2.0.0-windows-x64.zip
+```
+
+It maps the folder holding the zip in read-only and one folder to write the verdict to, then
+has the sandbox unzip the bundle, start `RealEstateSearch.exe`, answer on its own loopback,
+serve the dashboard with its built bundle, save a setting, get killed and started again, and
+come back with the setting still set. One pass/fail line per step, then it closes the
+sandbox. About three minutes. `-Folder dist\RealEstateSearch` tests a local
+`python scripts\build_release.py --package` instead of a published zip.
+
+**What is left to do by hand is the scan.** The sandbox runs with networking disabled, and
+that is deliberate: it shares this machine's connection, and the app scans real portals on a
+schedule from whatever host it runs on — an unbudgeted scan leaving from here is how the
+address gets blocked for a day. So complete the first-run setup and run one scan on a
+machine you are watching, and keep that half of this item human.
+
+If Windows Sandbox is not available — the optional feature is off, virtualization is off in
+firmware, or this is a Home edition — the script prints which of those it is and exits 2
+without changing anything. Enabling the feature needs an administrator and a reboot and is
+not something the script does; until then this item is a second PC again.
+
+**Pass.** Every step the script prints says PASS: the bundle unzips, the tray app starts, the
+API answers, the dashboard is served with its built assets, and the setting survives a
+restart. By hand, the scan reaches a portal. No dialog reports a missing DLL, a missing
+interpreter or a missing data file — the script fails the `api` step on one, since a windowed
+build has no console to print it to and a message box is the only way it can complain.
 
 **Fail means.** Blocks the release — this is the artifact most users get, and the "without
 installing anything" path in [`README.md`](../README.md) points them straight at it. A
