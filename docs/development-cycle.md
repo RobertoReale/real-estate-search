@@ -179,9 +179,9 @@ Two deliberate omissions, both worth knowing before "improving" the workflow:
 `workflow_dispatch` runs the same workflow against a branch: it builds and smoke-tests the
 package and builds the image without pushing it, so the packaging can be exercised without
 minting a version number to throw away. Doing that before the tag is not optional —
-[`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) is where it sits
-in the release checklist, because these two jobs are the only ones a tag starts that CI has
-never run.
+[`manual-tests.md` → what a tool decides now](manual-tests.md#what-a-tool-decides-now) is
+where it sits in the release checklist, beside the two `gh` commands that read the queue,
+because these two jobs are the only ones a tag starts that CI has never run.
 
 ---
 

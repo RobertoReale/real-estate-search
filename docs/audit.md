@@ -188,7 +188,8 @@ Where they differ, and why:
   proves it is the **Windows package** job in `release.yml`, which freezes the bundle and
   starts it. That job answers to `workflow_dispatch` as well as to a tag, which is why
   dispatching it by hand is part of the release checklist rather than an option —
-  [`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) owns the step.
+  [`manual-tests.md` → what a tool decides now](manual-tests.md#what-a-tool-decides-now) owns
+  the step, in the row for the queue at the tag.
 
 Nothing on either side is disabled to keep the pipeline green. A job that fails is a defect
 to fix or a limit to record in [`limits.md`](limits.md); deleting it and calling the result
@@ -356,8 +357,9 @@ code fix.
 A clean audit is still not a good release. It says the code is right about everything the
 machine can judge; it says nothing about whether the portals still parse, the credentials
 still work, or the package starts on a PC that has never had the toolchain. Before a tag,
-run [`manual-tests.md`](manual-tests.md) as well — nine checks, each with the structural
-reason no gate can reach it, and each ending in pass or fail rather than an impression.
+run [`manual-tests.md`](manual-tests.md) as well — six checks a person still has to make,
+each with the structural reason no gate can reach it, and each ending in pass or fail rather
+than an impression, plus one line per check that a tool took over, with its command.
 
 ---
 
