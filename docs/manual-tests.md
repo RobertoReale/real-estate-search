@@ -255,17 +255,34 @@ never seen it and cannot: it is one file, on one disk, and it is the whole point
 product. Likewise `restore` is unit-tested against fixtures; the question here is whether a
 real backup taken by the shipped app on the previous version restores into this one.
 
-**Do.** On a **copy** of the real `case.db`, start the new build and let it migrate. Then, in
-Settings, list the backups: confirm the pre-upgrade snapshot (`case-pre-*`) that
-`database._snapshot_before_upgrade` takes is there. Download one copy through the browser,
-and restore a different one back over the live database. Finally, import a `case.db` carried
-from another install.
+**Do.** Run the check against the real database:
 
-**Pass.** The migration completes and the dashboard opens with every property, every price
-point and every curated field — favourites, notes, tags, hidden and sold flags — still
-attached. The `case-pre-*` snapshot exists and is outside the daily rotation, so it does not
-get pruned. Restore refuses while a scan is running (409) and succeeds when one is not. The
-downloaded file opens in any SQLite reader — that is the honest answer to "am I locked in".
+```powershell
+cd backend && .venv\Scripts\python ..\scripts\check_upgrade.py --db backups\<the-previous-release-copy>.db
+```
+
+It never writes to the file it is pointed at: it copies it aside through the SQLite backup
+API from a read-only connection, then starts a backend on port 8139 against a throwaway data
+directory and lets that copy migrate. It prints one pass/fail line per assertion — the
+schema reaches this build's head, the row counts and every curated field survive it, the
+`case-pre-*` snapshot is taken and is still listed after fifteen daily copies have rotated,
+a backup downloaded through the API opens in `sqlite3`, restore answers 409 while a scan
+holds the lock and succeeds when none does, and a second copy imports. The database is not
+one a test fixture can stand in for — it is one file, on one disk — so pointing the script
+at it is the step, and the script exists so that the verdict is not a matter of reading a
+screen carefully.
+
+What the script cannot decide is what the dashboard looks like afterwards. Do that part by
+hand: start the build on the migrated copy, open Settings, and confirm the backup list shows
+the snapshot; download one copy from the browser and restore a different one over the live
+database.
+
+**Pass.** Every line the script prints says PASS. If it reports a `WARN` that no properties
+were compared, the database you pointed it at is empty — the curated comparisons proved
+nothing, so point it at one with a scan in it. In the browser, the dashboard opens with every
+property, every price point and every curated field — favourites, notes, tags, hidden and
+sold flags — still attached, and the downloaded file opens in any SQLite reader, which is the
+honest answer to "am I locked in".
 
 **Fail means.** Any of this blocks. Data lost or curated fields reset in a migration cannot
 be undone by re-scanning and is the worst failure this product has; the pre-upgrade snapshot
