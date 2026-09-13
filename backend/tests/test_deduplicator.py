@@ -427,6 +427,55 @@ def test_a_rescan_never_touches_favorite_and_notes(db):
     assert same.notes == "viewing Friday 18:00, ask about the boiler"
 
 
+def test_merging_a_second_portal_fills_in_a_missing_zone(db):
+    """The two portals publish the district unevenly, so whichever sighting
+    arrived first decided whether the property had one at all — and a
+    zone-less property is absent from its own area comparables and has no
+    district centroid to fall back on. The merge fills an empty zone for the
+    same reason it already fills an empty address."""
+    prop, _, _ = upsert_listing(db, _raw(zone=""))
+    assert prop.zone == ""
+
+    merged, is_new, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+            latitude=None,
+            longitude=None,
+            address="via roma, 12",
+            zone="Stadera",
+        ),
+    )
+    db.commit()
+    db.refresh(merged)
+
+    assert is_new is False and merged.id == prop.id
+    assert merged.zone == "Stadera"
+
+
+def test_merging_a_second_portal_never_overwrites_a_zone_already_known(db):
+    prop, _, _ = upsert_listing(db, _raw(zone="Ticinese"))
+
+    merged, _, _ = upsert_listing(
+        db,
+        _raw(
+            portal="idealista",
+            portal_id="999",
+            url="https://www.idealista.it/immobile/999/",
+            latitude=None,
+            longitude=None,
+            address="via roma, 12",
+            zone="Stadera",
+        ),
+    )
+    db.commit()
+    db.refresh(merged)
+
+    assert merged.zone == "Ticinese"
+
+
 def test_merging_a_second_portal_never_touches_favorite_and_notes(db):
     """The merge path writes the Property too (it enriches missing fields), and
     it is a different branch of upsert_listing from the re-sighting above — so

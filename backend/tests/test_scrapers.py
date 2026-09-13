@@ -1432,6 +1432,46 @@ def test_idealista_address_survives_in_vendita_in_phrasing():
     assert fn("Villa unifamiliare") == ""
 
 
+def test_idealista_reads_the_district_out_of_the_title():
+    """Regression: a full scan of two Idealista searches saved 152 properties
+    and not one of them carried a zone, while every title named the district.
+    Idealista's search pages state it nowhere else, so the zone median, the
+    district centroid and the zone filter all had nothing to work with on that
+    portal alone."""
+    fn = IdealistaScraper._place_from_title
+    # district present: the part before the municipality
+    assert fn("Trilocale in Via Volvinio, 26, Stadera, Milano") == ("Via Volvinio, 26", "Stadera")
+    assert fn("Trilocale in Via Mecenate, 3 /1, Mecenate, Milano") == (
+        "Via Mecenate, 3 /1",
+        "Mecenate",
+    )
+    # no civic number, so the district is the second of three parts
+    assert fn("Quadrilocale in Via Gaetano de Castillia, Isola, Milano") == (
+        "Via Gaetano de Castillia",
+        "Isola",
+    )
+    # a district can be a compound name, hyphens and all
+    assert fn("Trilocale in Via Giulio e Corrado Venini, 38, NoLo - Brianza - Pasteur, Milano") == (
+        "Via Giulio e Corrado Venini, 38",
+        "NoLo - Brianza - Pasteur",
+    )
+    # and the half of this that must not move: a house number is not a district
+    assert fn("Trilocale in vendita in Via Roma, 12, Milano") == ("Via Roma, 12", "")
+    assert fn("Appartamento in affitto in Corso Lodi, 3, Milano") == ("Corso Lodi, 3", "")
+    assert fn("Villa unifamiliare") == ("", "")
+
+
+def test_idealista_cards_carry_their_zone():
+    """The same, through the parser a scan actually runs."""
+    listings, _ = IdealistaScraper().parse_page(
+        IDEALISTA_CARD_REALE, "https://www.idealista.it/vendita-case/milano-milano/"
+    )
+    by_id = {l.portal_id: l for l in listings}
+    assert by_id["36124807"].zone == "Stadera"
+    assert by_id["36124807"].address == "Via Volvinio, 26"
+    assert by_id["35972645"].zone == "Calvairate"
+
+
 # --- Was that all of them? (the page limit, said out loud) ------------------
 #
 # `max_pages_per_search` defaults to 10, and the stop condition it drives was

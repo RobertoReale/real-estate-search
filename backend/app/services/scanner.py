@@ -355,6 +355,14 @@ def _stop_reason(result: ScrapeResult | None) -> str:
         return "a whole page held nothing this search had not already seen"
     if result.truncated:
         pages = "page" if result.page_limit == 1 else "pages"
+        if result.parts:
+            # The cap is per search, and a split search is several of them: the
+            # journal row beside this sentence reports the pages of all the
+            # parts added up, so "12 pages, stopped at the page limit of 3"
+            # read as an arithmetic error until the limit said which it was.
+            return (
+                f"the page limit of {result.page_limit} {pages} on each of the {result.parts} parts"
+            )
         return f"the page limit of {result.page_limit} {pages}"
     if result.parts:
         return f"every one of the {result.parts} parts was read to the end"

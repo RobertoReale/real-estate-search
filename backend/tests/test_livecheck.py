@@ -972,14 +972,48 @@ def test_the_form_reproduces_an_immobiliare_search_exactly():
     assert again.notes == []
 
 
-def test_the_form_reaches_an_idealista_zone_by_another_grammar():
+def test_the_form_reaches_an_idealista_zone_the_way_generate_does():
+    """Regression: the restatement was built with no request to spend, so it
+    reported the `/cerca/` fallback and said "a grammar the pasted URL did not
+    use". Pressing Generate on those very criteria resolves Idealista's zone
+    page and saves the pasted URL itself — the dashboard refuses it as a
+    duplicate. A review that predicts a difference the product does not produce
+    is as wrong as one that misses a difference it does."""
     again = suite.restate(a_reference("ide-zone"))
 
-    # Every criterion survives; it is the route to the zone that differs, and a
-    # different route is what can return a different total.
     assert not again.dropped and not again.changed
-    assert not again.same_search
-    assert again.notes == ["the same criteria, in a grammar the pasted URL did not use"]
+    assert again.same_search
+    assert normalize_profile_url(again.url) == normalize_profile_url(a_reference("ide-zone").url)
+    # …and the suite's form entry still measures the fallback grammar, which is
+    # the one thing that would otherwise make the two totals disagree unasked.
+    assert "/cerca/" in again.fallback_url
+    assert again.notes == [
+        "Generate reaches the zone page and produces this very URL; "
+        "the form total beside it is the wider /cerca/ fallback"
+    ]
+
+
+def test_a_zone_the_pasted_url_did_not_reach_is_still_the_other_grammar():
+    """The inference is narrow on purpose: it is the *pasted* URL being the
+    zone page that proves the probe would succeed. A zone reached any other
+    way says nothing about it, and the review falls back to the honest
+    "different grammar" note rather than promising a page nobody has asked
+    the portal about."""
+    cerca = suite.Reference(
+        name="ide-cerca",
+        portal="idealista",
+        shape="zone",
+        url=(
+            "https://www.idealista.it/cerca/affitto-case/"
+            "con-prezzo_1800,dimensione_60/Forlanini_Milano/"
+        ),
+        expect={"city": "Milano", "zone": "Forlanini", "contract": "rent"},
+    )
+
+    again = suite.restate(cerca)
+
+    assert again.fallback_url == ""
+    assert again.same_search
 
 
 @pytest.mark.parametrize("name", ["imm-polygon", "imm-radius"])
@@ -1184,7 +1218,10 @@ def test_the_comparison_sets_the_pasted_and_form_totals_side_by_side():
     row = next(line for line in lines if line.startswith("ide-zone "))
 
     assert "140" in row and "173" in row
-    assert "the same criteria, in a grammar the pasted URL did not use" in row
+    # The two totals are two grammars — the zone page Generate saves and the
+    # `/cerca/` fallback the suite asks for — and the row has to say so, or a
+    # gap the product does not produce reads as a defect in the form.
+    assert "the wider /cerca/ fallback" in row
     # And the shape the form cannot build says so instead of showing a total.
     assert "no grammar" in next(line for line in lines if line.startswith("imm-polygon"))
 

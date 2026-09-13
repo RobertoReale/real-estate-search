@@ -125,8 +125,11 @@ it dropped.
 **Shortcut for the numbers.** `python -m app.livecheck --compare-form`
 ([`live-checks.md`](live-checks.md)) prints the two totals side by side with the same
 review, for the reference searches, without opening the app. Run it first: it tells you
-whether there is a gap to go looking at. What stays manual is the screen — that the review
-reaches the user *before* the scan, in the place they would read it.
+whether there is a gap to go looking at. Read its notes, not only its numbers: for an
+Idealista zone the shortcut spends no request, so its form total is the wider `/cerca/`
+fallback rather than the zone page Generate confirms and saves, and the row says which of
+the two it measured. What stays manual is the screen — that the review reaches the user
+*before* the scan, in the place they would read it.
 
 **Fail means.** A difference the review did not predict is the failure. A silently wider
 Idealista half with an empty "dropped" cell is a missing entry in `idealista_unsupported()`

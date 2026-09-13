@@ -164,10 +164,19 @@ when the review did not predict it.
 The review is free; it is computed offline whether or not the run had a total to
 put beside it. So a shape the form cannot express says so in words —
 *the builder has no grammar for a search drawn on the map*, and `drawn_area
-dropped` — instead of showing an empty cell that reads as "not checked". The
-converse case is the one worth the run: Idealista's zone URL and the form's route
-to the same zone carry identical criteria through different grammars, which is
-exactly where two different totals are legitimate.
+dropped` — instead of showing an empty cell that reads as "not checked".
+
+Idealista's zones are the case the review has to be careful with, because the
+form has **two** routes to one of them and they return different totals. Pressing
+Generate in the dashboard spends one request confirming the zone page exists and
+then saves that page; the suite spends no request, so its form entry is the
+`/cerca/<filters>/<Zone>_<City>/` free-text fallback, which is wider. Where the
+pasted URL *is* the zone page, its own answered row is the proof the probe would
+succeed, so the review states the URL Generate would save and adds *"Generate
+reaches the zone page and produces this very URL; the form total beside it is the
+wider /cerca/ fallback"*. Without that sentence the row read as a gap between two
+searches, when it is a gap between a live path of the product and a path the user
+never gets — and an unpredicted gap is what item 2 calls a failure.
 
 ## The budgets are the rules
 
@@ -688,6 +697,82 @@ Settings shows *set / not set* rather than a promise.
 Three of three, on the same headful cookie, with the fields inside the cards
 checked and not just counted. `idealista_unsupported` was not reached in any run
 and no zone mapping failed, so neither is measured here.
+
+## Measurements — 2026-09-13, the real scan path end to end
+
+Everything above measures transports and parsers from the outside. This one ran
+the product: a backend of its own on port 8138 with a throwaway data directory,
+the seven reference shapes created **through the API the dashboard posts to**,
+and one full scan. What it reads is the scan journal — the row the owner reads in
+item 1 of [`manual-tests.md`](manual-tests.md) — not the tool's own summary.
+**Zero credits of the 150 budgeted**: every search answered on the free local
+rung, and the paid one was never armed.
+
+| Entry | Outcome | Saved | The portal's own total | Pages | Why it stopped |
+|---|---|---|---|---|---|
+| `imm-city` | `ok` | 75 | 18,232 | 3 / 3 | the page limit of 3 pages |
+| `imm-zone-path` | `ok` | 214 | 256 | 12 / 3 | the page limit, on each of 4 parts |
+| `imm-zone-ids` | `ok` | 75 | 989 | 3 / 3 | the page limit of 3 pages |
+| `imm-polygon` | `ok` | 75 | 1,193 | 3 / 3 | the page limit of 3 pages |
+| `imm-radius` | `ok` | 75 | 3,388 | 3 / 3 | the page limit of 3 pages |
+| `ide-city` | `ok` | 90 | 14,773 | 3 / 3 | the page limit of 3 pages |
+| `ide-zone` | `ok` | 65 | 65 | 3 / 3 | nothing more to give |
+
+Seven of seven `ok`, every count consistent with the total the portal declared,
+and the one row that fetched more than the cap says so in its `detail`. Then the
+fields inside: every Immobiliare row 100% on title, zone, city, surface and URL,
+with price on 74–75 of each 75. Which is what made the Idealista column
+impossible to miss.
+
+### 1. Not one Idealista property had a zone
+
+`with_zone` was **0 of 89** and **0 of 63** — a green row, a right count, and a
+whole portal's worth of properties stored with an empty district. The zone is not
+optional furniture: the zone median, the district centroid the geocoder falls
+back on, and the zone filter all read that column, so all three were silently
+dead for half the corpus.
+
+Idealista never states the district in a field. It states it in the card title —
+*"Trilocale in Via Volvinio, 26, Stadera, Milano"* — and `_address_from_title`
+took the street and threw the rest away. `_place_from_title` now returns both,
+peeling the municipality (already known from the search URL) and then the
+district, each taken only where it cannot be anything else: a trailing *"26"* or
+*"3 /1"* is a house number, not a place. The embedded-state parser asks the title
+too, where the state itself has no `neighborhood`.
+
+The second half of the same defect was in the deduplicator. A property seen first
+on the portal that omitted the district and then on the portal that states it
+kept the empty one for good — the merge filled a missing address and never a
+missing zone. It fills both now, and still never overwrites a district already
+stated.
+
+### 2. "12 pages, the page limit of 3 pages"
+
+`imm-zone-path` split into four parts, fetched three pages of each, and reported
+both numbers in one row: `pages: 12` beside `page_limit: 3`. Read as arithmetic
+it is an error, and the structured fields gave a reader no way to tell it was
+not. `_stop_reason` now says *"the page limit of 3 pages on each of the 4
+parts"* whenever the result carries parts, which is the only case where the two
+numbers are allowed to disagree.
+
+### 3. The review was reviewing a URL the product would not save
+
+Both form-built searches were refused with **400 — an identical monitored search
+already exists**, and that refusal is the finding. With `verify: true` the
+builder confirmed the Idealista zone page and produced the pasted URL exactly;
+`--compare-form`, which spends no request, had been comparing against the wider
+`/cerca/` fallback and calling it *"the same criteria, in a grammar the pasted URL
+did not use"*. So the check reported a totals gap the user's own press of Generate
+never produces — the one thing item 2 defines as a failure. The restatement now
+infers the probe's answer where it is already known (the pasted URL *is* that zone
+page, and it answered), reports the URL Generate would save, and names the
+fallback beside it. The suite still requests the `/cerca/` grammar on purpose: it
+is a live path of the product and this is the only check that ever exercises one.
+
+None of the three could be caught offline before it was seen live, and all three
+are pinned offline now — the parser against saved cards, the stop reason against
+a split result, the restatement against the reference suite. No network in any of
+them.
 
 ## Where it fits
 

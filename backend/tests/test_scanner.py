@@ -2807,6 +2807,33 @@ def test_a_quick_scan_says_it_was_one_rather_than_reading_as_complete(
     )
 
 
+def test_a_split_search_says_the_page_limit_applied_to_each_part():
+    """Regression: a live scan of a Bicocca rental search came back as "214
+    listings across 12 pages", stopped_because "the page limit of 3 pages" —
+    the pages of four parts added up against a cap that applies to one, which
+    reads as arithmetic that does not work. The journal row has to say which
+    number the limit belongs to."""
+    split = ScrapeResult(
+        listings=[RawListing(portal="immobiliare", portal_id="1", url="u")],
+        pages_fetched=12,
+        page_limit=3,
+        truncated_by="page_limit",
+        parts=4,
+    )
+
+    assert scanner._stop_reason(split) == "the page limit of 3 pages on each of the 4 parts"
+
+    # a search that ran as one is unchanged: there are no parts to name
+    whole = ScrapeResult(
+        listings=[RawListing(portal="immobiliare", portal_id="1", url="u")],
+        pages_fetched=3,
+        page_limit=3,
+        truncated_by="page_limit",
+    )
+
+    assert scanner._stop_reason(whole) == "the page limit of 3 pages"
+
+
 def test_stopping_early_is_a_speed_setting_and_never_a_behaviour_one(
     db, portal, early_stop_profile
 ):
