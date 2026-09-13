@@ -308,7 +308,8 @@ does is the release they are needed for. The five docker ones are covered by a
 `workflow_dispatch` on a branch, which is safe because both the image push and the release
 creation are gated on `github.ref_type == 'tag'`, and since 2026-09-09 that dispatch is part
 of cutting a release rather than something available in principle —
-[`manual-tests.md` § 9](manual-tests.md#9-the-pull-request-queue-at-the-tag) owns the step.
+[`manual-tests.md` → what a tool decides now](manual-tests.md#what-a-tool-decides-now) owns
+the step.
 What is left standing is `action-gh-release`, which cannot be
 exercised without cutting a real release. That one is recorded rather than fixed because the
 cost of the failure is one red release run and one re-tag, and the alternative — a second

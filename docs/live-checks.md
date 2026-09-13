@@ -157,9 +157,11 @@ cd backend && .venv\Scripts\python -m app.livecheck --compare-form
 
 Implies `--suite`, and prints a second table: the pasted search's total and the
 form-built total side by side, with `search_validator`'s review of what the
-restatement approximated or dropped. It is the computed half of item 2 of
-[`manual-tests.md`](manual-tests.md) — the gap between two totals is only a bug
-when the review did not predict it.
+restatement approximated or dropped. It is the whole of the form-against-URL
+check [`manual-tests.md`](manual-tests.md#what-a-tool-decides-now) used to ask a
+person for — the gap between two totals is only a bug when the review did not
+predict it, and the screen that has to show the review is driven by the browser
+suite's control inventory.
 
 The review is free; it is computed offline whether or not the run had a total to
 put beside it. So a shape the form cannot express says so in words —
@@ -703,8 +705,10 @@ and no zone mapping failed, so neither is measured here.
 Everything above measures transports and parsers from the outside. This one ran
 the product: a backend of its own on port 8138 with a throwaway data directory,
 the seven reference shapes created **through the API the dashboard posts to**,
-and one full scan. What it reads is the scan journal — the row the owner reads in
-item 1 of [`manual-tests.md`](manual-tests.md) — not the tool's own summary.
+and one full scan. What it reads is the scan journal — the row the owner used to
+read by hand, now the verdict of the real-scan check in
+[`manual-tests.md`](manual-tests.md#what-a-tool-decides-now) — not the tool's own
+summary.
 **Zero credits of the 150 budgeted**: every search answered on the free local
 rung, and the paid one was never armed.
 
@@ -779,10 +783,12 @@ them.
 * A scan came back empty or blocked and you want to know why:
   [`scan-returns-nothing.md`](scan-returns-nothing.md) is the decision tree; this
   tool is how you get the evidence it asks you for without guessing.
-* Before a release, item 1 of [`manual-tests.md`](manual-tests.md) is still a
-  real scan through the app — a live check proves the transports and the parsers,
-  not the product. `--compare-form` computes the numbers item 2 asks for, but not
-  the screen that has to show them.
+* Before a release, this tool **is** the real-scan check: `--suite` for the
+  transports and the parsers, and the end-to-end run above for the product — its
+  own backend, the searches created through the API, one full scan, the journal
+  row read. Both lines are in
+  [`manual-tests.md`](manual-tests.md#what-a-tool-decides-now), which now lists
+  only what a person is still asked for.
 * A portal changed something overnight and you want to know how much of the
   product it took with it: `--suite` answers it shape by shape in one run.
 * The parsing strategies themselves, and which portal quirk each one exists for,

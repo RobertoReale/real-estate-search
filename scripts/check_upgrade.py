@@ -2,9 +2,10 @@
 
     python scripts/check_upgrade.py --db backend/backups/some-copy.db
 
-This is item 6 of [docs/manual-tests.md](../docs/manual-tests.md) with the parts a
-machine can decide taken off the person's hands. What the checklist still owns is
-the browser: clicking through Settings and seeing the copies listed. Everything
+This is the upgrade check of [docs/manual-tests.md](../docs/manual-tests.md) --
+item 6 of the list a person used to run by hand -- with the parts a machine can
+decide taken off their hands. What is left to do in the browser is clicking
+through Settings and seeing the copies listed. Everything
 underneath that -- the migration, the pre-upgrade snapshot, the rotation that must
 not prune it, the curated fields surviving, download, restore, import -- is
 mechanical, and this script does it against the one thing the offline suite can
