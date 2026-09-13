@@ -412,6 +412,7 @@ export const ACTIONS = {
   "profiles.row.notify": { what: "a search's notification select", does: "changes where that search's alerts go" },
   "profiles.row.active": { what: "a search's Active checkbox", does: "pauses the search without deleting it" },
   "profiles.row.edit": { what: "the edit button on a search", does: "opens it in the form it was created with" },
+  "profiles.row.diagnose": { what: "the diagnostics button on a search", does: "opens the panel and shows one line per transport, with the reason and what to do" },
   "profiles.row.separate": { what: "the split button on a merged pair", does: "splits the two portals back into separate searches" },
   "profiles.row.delete": { what: "the delete button on a search", does: "opens the delete dialog for it" },
 

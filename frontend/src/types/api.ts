@@ -430,6 +430,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search-profiles/{profile_id}/diagnose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Diagnose Profile
+         * @description Run the live-check ladder for one search and report every rung.
+         *
+         *     A plain `def`, so it runs in the threadpool: the ladder waits several
+         *     seconds between requests to stay polite, and an async handler holding the
+         *     loop for that long would stop `/api/scrapers/status` answering — the
+         *     progress the dashboard polls while this is on screen.
+         *
+         *     Access is whatever the app grants (invariant 14): the route is under `/api`,
+         *     so it inherits the loopback bind and the optional token like every other.
+         */
+        post: operations["diagnose_profile_api_search_profiles__profile_id__diagnose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search-profiles/bulk": {
         parameters: {
             query?: never;
@@ -1824,6 +1852,105 @@ export interface components {
             updated_at: string;
             /** Cookie Preview */
             cookie_preview: string;
+        };
+        /**
+         * DiagnoseIn
+         * @description Ask for one search's diagnosis. `paid` spends provider credits and is
+         *     refused above the month's ceiling, so it is opt-in per request.
+         */
+        DiagnoseIn: {
+            /**
+             * Paid
+             * @default false
+             */
+            paid: boolean;
+        };
+        /**
+         * DiagnosisOut
+         * @description A "try this search" run: every rung it climbed and what the whole thing
+         *     means. `winner` names the rung that answered, for the sentence the panel
+         *     writes around `advice`; it is empty unless `advice` is `works` or
+         *     `no_results`.
+         */
+        DiagnosisOut: {
+            /** Profile Id */
+            profile_id: number;
+            /** Name */
+            name: string;
+            /** Portal */
+            portal: string;
+            /** Ran At */
+            ran_at: string;
+            /**
+             * Advice
+             * @enum {string}
+             */
+            advice: "works" | "no_results" | "blocked" | "error" | "nothing_tried";
+            /**
+             * Winner
+             * @default
+             */
+            winner: string;
+            /**
+             * Paid
+             * @default false
+             */
+            paid: boolean;
+            /**
+             * Credits Spent
+             * @default 0
+             */
+            credits_spent: number;
+            /** Cooldown Seconds */
+            cooldown_seconds: number;
+            /** Rungs */
+            rungs: components["schemas"]["DiagnosisRungOut"][];
+        };
+        /**
+         * DiagnosisRungOut
+         * @description One transport, asked for one page of this search, and what it answered.
+         *
+         *     `reason` is a code and never a sentence: the browser owns the wording, in
+         *     the language its owner reads. `detail` carries the harness's own English
+         *     only where no code covers the case, so a reason this API does not yet
+         *     classify still reaches the screen instead of vanishing.
+         */
+        DiagnosisRungOut: {
+            /** Rung */
+            rung: string;
+            /** Target */
+            target: string;
+            /** Portal */
+            portal: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "ok" | "blocked" | "no_results" | "error" | "skipped";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "ok" | "blocked" | "no_results" | "error" | "no_cookie" | "no_browser" | "no_api_key" | "no_official_key" | "paid_not_requested" | "budget" | "streak" | "request_cap" | "credit_cap" | "credit_floor" | "credit_unknown" | "unsupported_search" | "skipped";
+            /** Status */
+            status: number | null;
+            /**
+             * Listings
+             * @default 0
+             */
+            listings: number;
+            /** Credits */
+            credits: number | null;
+            /**
+             * Elapsed Ms
+             * @default 0
+             */
+            elapsed_ms: number;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
         };
         /**
          * DrawnArea
@@ -4604,6 +4731,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileResultsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    diagnose_profile_api_search_profiles__profile_id__diagnose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DiagnoseIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisOut"];
                 };
             };
             /** @description Validation Error */

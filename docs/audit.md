@@ -55,12 +55,12 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1188 passed** (1188 collected; one of them skips where the optional
-Playwright is absent, so a machine without it reads 1187 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **463 frontend tests**,
-**81 browser tests** (51 journeys, then 30 that hold the run to the control inventory),
+Expected today: **1207 passed** (1207 collected; one of them skips where the optional
+Playwright is absent, so a machine without it reads 1206 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **465 frontend tests**,
+**82 browser tests** (52 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
-the type generator. The browser suite prints the two numbers worth reading: **232
-interactive elements, 268 inventoried actions**, of which **266 exercised and 2 declared
+the type generator. The browser suite prints the two numbers worth reading: **233
+interactive elements, 269 inventoried actions**, of which **267 exercised and 2 declared
 unreachable with a written reason**. If a test number changed, that is not a failure — it
 is a documentation trigger (see §4).
 

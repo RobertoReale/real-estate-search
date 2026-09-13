@@ -720,7 +720,7 @@ def _capture_writer(directory: Path) -> Callable[[Attempt, Target, str], str]:
     return write
 
 
-def _secrets_of(settings: dict) -> list[str]:
+def secrets_of(settings: dict) -> list[str]:
     """Every value that must not appear anywhere in the output."""
     keys = ("scrape_api_key", "datadome_cookie", "idealista_api_key", "idealista_api_secret")
     return [str(settings.get(key) or "").strip() for key in keys if settings.get(key)]
@@ -755,7 +755,7 @@ def run_checks(
     reader to infer it from an absence.
     """
     settings = load_settings() if settings is None else settings
-    secrets = _secrets_of(settings)
+    secrets = secrets_of(settings)
     directory = new_run_directory(out_root or (BASE_DIR / OUTPUT_DIRNAME))
     run = Run(
         started_at=datetime.now().isoformat(timespec="seconds"),

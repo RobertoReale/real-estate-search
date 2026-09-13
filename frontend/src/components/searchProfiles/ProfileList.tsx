@@ -1,21 +1,46 @@
 /** The monitored searches themselves, one row per group (a "group" being the
  * same search on both portals, folded into one card). */
 
+import { useState } from "react";
+
 import type { SearchProfilesState } from "../../hooks/useSearchProfiles";
 import { formatNumber } from "../../i18n";
 import { PortalBadge } from "../PortalBadge";
 import { combinedKeywords } from "./helpers";
 import ProfileHealth from "../../routes/searches/ProfileHealth";
+import ProfileDiagnosis from "../../routes/searches/ProfileDiagnosis";
 import { profileHealth } from "../../routes/searches/health";
+import { useDiagnoseProfiles } from "../../queries/searchProfiles";
+import { ApiError } from "../../services/api";
 import { Checkbox, Chip, IconButton } from "../../ui";
-import { Area, Delete, Edit, Filtered, Place, Price, Rooms, Split } from "../../ui/icons";
+import { Area, Delete, Edit, Filtered, Health, Place, Price, Rooms, Split } from "../../ui/icons";
 
 export function ProfileList({ sp }: { sp: SearchProfilesState }) {
   const { t, settings, profiles, groupedProfiles, selected, toggleGroup, channelOptions,
     runBulk, editGroup, separateGroup, askDelete } = sp;
+  // One panel open at a time, and therefore one run in flight: the ladder leaves
+  // from the owner's own connection, and a screen that can have four of them
+  // going at once is the burst invariant 8 forbids, built out of buttons.
+  const [diagnosed, setDiagnosed] = useState<string | null>(null);
+  const diagnose = useDiagnoseProfiles();
+
+  // The backend refuses for two reasons a user can act on, and both arrive as a
+  // status rather than as prose worth showing: the ten-minute wait, and the scan
+  // already using the connection. Anything else keeps the backend's own words.
+  const failure = diagnose.error;
+  const failureText = !failure
+    ? ""
+    : failure instanceof ApiError && failure.status === 429
+      ? t("diagnose.tooSoon")
+      : failure instanceof ApiError && failure.status === 409
+        ? t("diagnose.scanRunning")
+        : failure.message || t("diagnose.failed");
+
   return (
     <ul className="space-y-2">
       {groupedProfiles.map((group) => {
+        const groupKey = group.baseName + "-" + group.ids.join("-");
+        const isDiagnosed = diagnosed === groupKey;
         const isGroupSelected = group.ids.length > 0 && group.ids.every((id) => selected.has(id));
         const isGroupIndeterminate = !isGroupSelected && group.ids.some((id) => selected.has(id));
         const paramsProfile = group.profiles.find((p) => p.params);
@@ -29,7 +54,7 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
           // this was unreadable rather than merely tight — the name clipped to
           // "Trilo…", the URL to "https:…", and the row pushed the document
           // sideways. From `sm` up every block returns to its share of the row.
-          <li key={group.baseName + "-" + group.ids.join("-")}
+          <li key={groupKey}
             className="flex flex-wrap items-center gap-3 p-3 rounded-xl panel transition hover:shadow-sm">
             {profiles.length > 1 && (
               <input data-action="profiles.row.select" type="checkbox" className="shrink-0 cursor-pointer"
@@ -169,6 +194,24 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 runBulk(group.ids, group.is_active ? "pause" : "activate")}
               label={t("profiles.active")} />
             <div className="flex items-center gap-1 shrink-0">
+              <IconButton data-action="profiles.row.diagnose" variant="ghost" size="sm"
+                className="shrink-0" label={t("profiles.diagnoseBox")}
+                aria-expanded={isDiagnosed}
+                disabled={diagnose.isPending && !isDiagnosed}
+                onClick={() => {
+                  if (isDiagnosed) {
+                    setDiagnosed(null);
+                    return;
+                  }
+                  // Reset first: a mutation keeps its last answer, and the panel
+                  // would open on the previous row's table for as long as this
+                  // row's ladder takes to climb.
+                  diagnose.reset();
+                  setDiagnosed(groupKey);
+                  diagnose.mutate(group.profiles);
+                }}>
+                <Health size={16} />
+              </IconButton>
               <IconButton data-action="profiles.row.edit" variant="ghost" size="sm" className="shrink-0"
                 label={t("profiles.editBox")} onClick={() => editGroup(group)}>
                 <Edit size={16} />
@@ -185,6 +228,10 @@ export function ProfileList({ sp }: { sp: SearchProfilesState }) {
                 <Delete size={16} />
               </IconButton>
             </div>
+            {isDiagnosed && (
+              <ProfileDiagnosis runs={diagnose.data ?? []} pending={diagnose.isPending}
+                error={failureText} showPortal={group.profiles.length > 1} />
+            )}
           </li>
         );
       })}

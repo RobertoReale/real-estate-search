@@ -12,7 +12,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { api } from "../services/api";
-import type { SearchBuilderParams, SearchProfile } from "../types";
+import type { Diagnosis, SearchBuilderParams, SearchProfile } from "../types";
 import { keys } from "./keys";
 
 /** The searches changed, and so may the properties they are credited with. */
@@ -82,6 +82,28 @@ export function useSaveProfiles() {
       }
     },
     onSuccess: refresh,
+  });
+}
+
+/**
+ * Ask the portals, now, what this search actually gets back.
+ *
+ * One call per portal in the box and strictly in sequence: a merged search is
+ * two searches sharing a name, and the answer that matters is which of them is
+ * refused. They go one after another rather than together because both leave
+ * from the same connection, and two ladders climbing at once is the burst the
+ * harness's spacing exists to avoid.
+ *
+ * Nothing is invalidated on success: a diagnosis reports, it does not change
+ * anything the list is showing.
+ */
+export function useDiagnoseProfiles() {
+  return useMutation({
+    mutationFn: async (profiles: SearchProfile[]) => {
+      const runs: Diagnosis[] = [];
+      for (const profile of profiles) runs.push(await api.diagnoseProfile(profile.id));
+      return runs;
+    },
   });
 }
 

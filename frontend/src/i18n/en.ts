@@ -1200,6 +1200,7 @@ export const en = {
   "profiles.notifyFor": "Notifications for {name}",
   "profiles.active": "Active",
   "profiles.editBox": "Edit this search box",
+  "profiles.diagnoseBox": "Diagnose: try this search now and report every transport",
   "profiles.separateBox": "Separate the portals into independent boxes",
   "profiles.deleteBox": "Delete this search box (all its portals)",
   "profiles.chipRent": "Rent",
@@ -1207,6 +1208,57 @@ export const en = {
   "profiles.chipRooms": "{range} rooms",
   "profiles.chipMinSqm": "≥ {value} sqm",
   "profiles.chipZoneIds": "zone ids: {count}",
+
+  // ── monitored searches: the diagnosis ───────────────────────────────────
+  // The backend answers in codes; these are the codes. One line per rung says
+  // what happened, and the `next.*` sentence under the table says what to do —
+  // a diagnosis that stops at "blocked" is the log file with nicer margins.
+  "diagnose.title": "Diagnostics",
+  "diagnose.running": "Asking the portal through each transport in turn — this takes a few seconds per attempt.",
+  "diagnose.tooSoon":
+    "This search was tried a moment ago. Diagnostics runs once every ten minutes per search, so as not to hammer the portal from your connection.",
+  "diagnose.scanRunning": "A scan is running. Wait for it to finish and try again.",
+  "diagnose.failed": "The diagnosis could not be run.",
+
+  "diagnose.adviceWorks": "The search works, via {rung}",
+  "diagnose.adviceNoResults": "The portal answered: nothing matches",
+  "diagnose.adviceBlocked": "Every transport was refused by the portal",
+  "diagnose.adviceError": "The search failed for a reason that is not a refusal",
+  "diagnose.adviceNothing": "Nothing could be tried",
+  "diagnose.nextNoResults":
+    "The pipeline is healthy — the criteria are simply too narrow. Widen the price range or the zone and the scan will find something again.",
+  "diagnose.nextBlocked":
+    "Refresh the anti-bot cookie in Settings, or enable a browser or a scrape API there so the scan has another way through.",
+  "diagnose.nextError":
+    "Not a block: check the URL is still a valid results page on the portal, then look at the log for the exact failure.",
+  "diagnose.nextNothing":
+    "Every transport was switched off or unconfigured. Enable at least one in Settings — a cookie, a browser or a scrape API.",
+
+  "diagnose.reasonOk": "worked, {count} listings",
+  "diagnose.reasonBlocked": "refused by the portal ({status})",
+  "diagnose.reasonNoResults": "answered, but nothing matches this search",
+  "diagnose.reasonError": "failed",
+  "diagnose.reasonNoCookie": "no anti-bot cookie saved in Settings",
+  "diagnose.reasonNoBrowser": "no browser available on this machine",
+  "diagnose.reasonNoApiKey": "no scrape API configured in Settings",
+  "diagnose.reasonNoOfficialKey": "no Idealista API key in Settings",
+  "diagnose.reasonPaidNotRequested": "not tried: it costs credits",
+  "diagnose.reasonBudget": "not tried: this month's credit budget is spent",
+  "diagnose.reasonStreak": "not tried: the previous attempts were all refused",
+  "diagnose.reasonRequestCap": "not tried: this diagnosis reached its request limit",
+  "diagnose.reasonCreditCap": "not tried: this diagnosis reached its credit limit",
+  "diagnose.reasonCreditFloor": "not tried: too few credits left on the provider account",
+  "diagnose.reasonCreditUnknown": "not tried: the provider did not say how many credits are left",
+  "diagnose.reasonUnsupported": "the official API cannot express this search",
+  "diagnose.reasonSkipped": "not tried",
+
+  "diagnose.rungPrepare": "zone lookup",
+  "diagnose.rungDirect": "direct request",
+  "diagnose.rungCookie": "with saved cookie",
+  "diagnose.rungBrowser": "real browser",
+  "diagnose.rungApi": "scrape API (paid)",
+  "diagnose.rungOfficial": "official API",
+  "diagnose.rungOther": "other",
 
   // ── monitored searches: delete dialog ───────────────────────────────────
   "profiles.deleteOne": "Delete “{name}”?",
