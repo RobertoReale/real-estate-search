@@ -1102,6 +1102,76 @@ test("the list of searches, one row and in bulk", async ({ page }) => {
   await expect(control(page, "profiles.bulk.pause")).toBeHidden();
 });
 
+/** One rung's line as the backend sends it, so the stubs below say only what
+ *  they are actually varying. */
+function rung(over: Record<string, unknown>) {
+  return {
+    rung: "curl:chrome143", target: "html p1", portal: "immobiliare",
+    outcome: "blocked", reason: "blocked", status: 403,
+    listings: 0, credits: null, elapsed_ms: 120, detail: "",
+    ...over,
+  };
+}
+
+test("diagnosing one search", async ({ page }) => {
+  // The ladder climbs the real portals, which the suite may not reach. Only the
+  // transport is stubbed: the button, the panel and every line it renders are
+  // the app's own, including the refusal path underneath.
+  let answer: Record<string, unknown> = {
+    profile_id: 1, name: "Coverage", portal: "immobiliare",
+    ran_at: "2026-09-13T10:00:00", advice: "blocked", winner: "",
+    paid: false, credits_spent: 0, cooldown_seconds: 600,
+    rungs: [
+      rung({}),
+      rung({ rung: "curl+cookie", outcome: "skipped", reason: "no_cookie", status: null }),
+      rung({ rung: "api:none", outcome: "skipped", reason: "no_api_key", status: null }),
+    ],
+  };
+  let wait = false;
+  await page.route("**/api/search-profiles/*/diagnose", (route) => (wait
+    ? route.fulfill({ status: 429, json: { detail: "diagnosed recently" } })
+    : route.fulfill({ json: answer })));
+
+  await page.goto("/searches");
+  await expect(page.locator("[data-action='profiles.row.diagnose']").first()).toBeVisible();
+
+  // Every rung reports itself, and a run where they all failed says what to go
+  // and do about it — a diagnosis that stops at "blocked" is the log file again.
+  await press(page, "profiles.row.diagnose");
+  const panel = page.getByTestId("profile-diagnosis");
+  await expect(panel).toContainText("rifiutata dal portale (403)");
+  await expect(panel).toContainText("nessun cookie anti-bot salvato");
+  await expect(panel).toContainText("nessuna scrape API configurata");
+  await expect(panel).toContainText("Tutti i canali sono stati rifiutati");
+  await expect(panel).toContainText("Aggiorna il cookie anti-bot");
+
+  // The same button closes it again.
+  await press(page, "profiles.row.diagnose");
+  await expect(panel).toBeHidden();
+
+  // A search that works names the transport that carried it, and asks nothing.
+  answer = {
+    ...answer, advice: "works", winner: "curl+cookie",
+    rungs: [
+      rung({}),
+      rung({ rung: "curl+cookie", outcome: "ok", reason: "ok", status: 200, listings: 25 }),
+    ],
+  };
+  await press(page, "profiles.row.diagnose");
+  await expect(panel).toContainText("La ricerca funziona, tramite curl+cookie");
+  await expect(panel).toContainText("ha funzionato, 25 annunci");
+  await expect(panel).not.toContainText("Aggiorna il cookie anti-bot");
+  await press(page, "profiles.row.diagnose");
+
+  // Refused: the ten-minute limit is a sentence in the panel, not a button that
+  // silently does nothing.
+  wait = true;
+  await press(page, "profiles.row.diagnose");
+  await expect(panel).toContainText("dieci minuti");
+
+  await reachableByKeyboard(page, "a saved search", ["profiles.row.diagnose"]);
+});
+
 test("creating a search, three ways", async ({ page }) => {
   // Merging asks for the name the two searches will share, and separating asks
   // for confirmation. Dismissed — which is what Playwright does unless told

@@ -37,6 +37,7 @@ def record_scan(
     credits: int = 0,
     credits_estimated: int = 0,
     api_calls: int = 0,
+    count_attempt: bool = True,
 ) -> None:
     """Accumulate one profile-scan outcome into today's row for `portal`.
 
@@ -48,6 +49,11 @@ def record_scan(
     `credits` is what the provider billed this scan in total; `credits_estimated`
     is the part of it charged at the measured page price because a receipt named
     no figure. The second is a subset of the first, never an addition to it.
+
+    `count_attempt=False` books the spending without booking a scan. A paid
+    diagnosis (`services.diagnosis`) must charge the month's ledger — it is the
+    same account and the same ceiling — but it is not a scan of this search, and
+    counting it as one would move the block rate this panel exists to report.
     """
     try:
         today = datetime.now(UTC).date()
@@ -60,19 +66,20 @@ def record_scan(
         if row is None:
             row = ScraperHealthSnapshot(captured_on=today, portal=portal)
             db.add(row)
-        row.attempts = (row.attempts or 0) + 1
-        if status == "blocked":
-            row.blocked = (row.blocked or 0) + 1
-        elif status == "error":
-            row.errors = (row.errors or 0) + 1
-        else:
-            # `ok` and `no_results` alike: both mean the portal was reached and
-            # said what it had. Counting a search over a quiet market as a
-            # failure would put it on the same footing as a blocked one — in
-            # the block rate here, and in the streak invariant 11 alerts on,
-            # which would then never clear for a search that legitimately
-            # matches nothing.
-            row.successes = (row.successes or 0) + 1
+        if count_attempt:
+            row.attempts = (row.attempts or 0) + 1
+            if status == "blocked":
+                row.blocked = (row.blocked or 0) + 1
+            elif status == "error":
+                row.errors = (row.errors or 0) + 1
+            else:
+                # `ok` and `no_results` alike: both mean the portal was reached
+                # and said what it had. Counting a search over a quiet market as
+                # a failure would put it on the same footing as a blocked one —
+                # in the block rate here, and in the streak invariant 11 alerts
+                # on, which would then never clear for a search that
+                # legitimately matches nothing.
+                row.successes = (row.successes or 0) + 1
         row.last_transport = transport or row.last_transport
         row.api_credits = (row.api_credits or 0) + max(0, credits)
         row.api_credits_estimated = (row.api_credits_estimated or 0) + max(0, credits_estimated)

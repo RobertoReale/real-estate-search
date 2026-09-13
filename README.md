@@ -322,6 +322,15 @@ di leggere le pagine, e non c'è più niente da rifiutare (le ricerche troppo
 particolari per l'API continuano a passare dallo scraper). Per Immobiliare non
 esiste l'equivalente.
 
+Per sapere *dove* si è fermata una ricerca senza aprire nessun registro, in
+**Ricerche** ogni riga ha un pulsante **Diagnostica**: prova quella ricerca
+adesso, canale per canale, e mostra una riga per ognuno con un segno di spunta o
+una croce e il motivo in chiaro — "rifiutata dal portale (403)", "nessun cookie
+anti-bot salvato" — più la cosa da fare. Prova solo i canali gratuiti (il
+browser soltanto se l'hai acceso nelle Impostazioni) e si può ripetere una volta
+ogni dieci minuti per ricerca: la prova parte dalla tua connessione, come le
+scansioni.
+
 Come distinguere le tre cause, cosa puoi cambiare e quanto costa ogni
 cambiamento sono in
 [una scansione ha smesso di trovare annunci](docs/scan-returns-nothing.md).

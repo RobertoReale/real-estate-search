@@ -4,7 +4,7 @@
 import { formatNumber, translateCurrent } from "../i18n";
 import type {
   AssistantResult, AvailabilityCheckProgress, AvailabilityCheckSummary,
-  BackupFile, CommuteProgress, CommuteSummary,
+  BackupFile, CommuteProgress, CommuteSummary, Diagnosis,
   GeocodeProgress, GeocodeSummary, ListingAudit, LogTail, MarketVelocity, PricingTrend,
   ProfileBulkResult,
   ProfileResults, Property, PropertyFilters, PropertyPage, ScanJournalEntry, ScanStatus,
@@ -266,6 +266,17 @@ export const api = {
   getProfilesResults(ids: number[]): Promise<ProfileResults> {
     return request("/search-profiles/results", {
       method: "POST", body: JSON.stringify({ ids }),
+    });
+  },
+  /** Ask the portal, now, through every transport in turn, and report what each
+   *  one answered. Free by default: `paid` is the only way the scrape API — and
+   *  therefore real money — is spent, and the backend refuses it above the
+   *  month's ceiling regardless. One search may be diagnosed once every ten
+   *  minutes; the backend answers 429 with the wait, and 409 while a scan is
+   *  using the same connection. */
+  diagnoseProfile(id: number, paid = false): Promise<Diagnosis> {
+    return request(`/search-profiles/${id}/diagnose`, {
+      method: "POST", body: JSON.stringify({ paid }),
     });
   },
   /** Apply activate/pause/notify/delete to the selected searches (one included).

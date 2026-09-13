@@ -16,7 +16,7 @@ from .. import schemas
 from ..database import get_db
 from ..models import SearchProfile
 from ..scrapers import detect_portal
-from ..services import data_reset
+from ..services import data_reset, diagnosis
 from ..services.scanner import scan_state
 from ..services.search_validator import check_duplicate_profile
 
@@ -95,6 +95,35 @@ def profile_results(data: schemas.SearchProfileIdsIn, db: Session = Depends(get_
     summary = data_reset.profile_results(db, data.ids)
     summary.pop("properties")
     return summary
+
+
+@router.post("/api/search-profiles/{profile_id}/diagnose", response_model=schemas.DiagnosisOut)
+def diagnose_profile(
+    profile_id: int,
+    data: schemas.DiagnoseIn | None = None,
+    db: Session = Depends(get_db),
+):
+    """Run the live-check ladder for one search and report every rung.
+
+    A plain `def`, so it runs in the threadpool: the ladder waits several
+    seconds between requests to stay polite, and an async handler holding the
+    loop for that long would stop `/api/scrapers/status` answering — the
+    progress the dashboard polls while this is on screen.
+
+    Access is whatever the app grants (invariant 14): the route is under `/api`,
+    so it inherits the loopback bind and the optional token like every other.
+    """
+    profile = db.get(SearchProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+    if scan_state["running"]:
+        # A scan is already asking this portal for pages from this address.
+        # Climbing the ladder beside it is the same connection making twice the
+        # requests, which is what invariant 8 exists to keep from happening.
+        raise HTTPException(409, "A scan is running: wait for it to finish before diagnosing")
+    if left := diagnosis.cooldown_left(profile_id):
+        raise HTTPException(429, f"This search was diagnosed recently: {left}s to wait")
+    return diagnosis.diagnose(db, profile, paid=bool(data and data.paid))
 
 
 @router.post("/api/search-profiles/bulk", response_model=schemas.ProfileBulkOut)

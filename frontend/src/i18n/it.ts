@@ -1215,6 +1215,7 @@ export const it: Dict = {
   "profiles.notifyFor": "Notifiche di {name}",
   "profiles.active": "Attiva",
   "profiles.editBox": "Modifica questo box di ricerca",
+  "profiles.diagnoseBox": "Diagnostica: prova questa ricerca adesso e mostra ogni canale",
   "profiles.separateBox": "Separa i portali in box singoli indipendenti",
   "profiles.deleteBox": "Elimina questo box di ricerca (tutti i portali associati)",
   "profiles.chipRent": "Affitto",
@@ -1222,6 +1223,54 @@ export const it: Dict = {
   "profiles.chipRooms": "{range} locali",
   "profiles.chipMinSqm": "≥ {value} mq",
   "profiles.chipZoneIds": "id di zona: {count}",
+
+  // ── ricerche monitorate: la diagnostica ─────────────────────────────────
+  "diagnose.title": "Diagnostica",
+  "diagnose.running": "Sto interrogando il portale con ogni canale, uno alla volta: servono alcuni secondi per tentativo.",
+  "diagnose.tooSoon":
+    "Questa ricerca è stata provata poco fa. La diagnostica si può eseguire una volta ogni dieci minuti per ricerca, per non tempestare il portale dalla tua connessione.",
+  "diagnose.scanRunning": "È in corso una scansione. Aspetta che finisca e riprova.",
+  "diagnose.failed": "Non è stato possibile eseguire la diagnostica.",
+
+  "diagnose.adviceWorks": "La ricerca funziona, tramite {rung}",
+  "diagnose.adviceNoResults": "Il portale ha risposto: nessun annuncio corrisponde",
+  "diagnose.adviceBlocked": "Tutti i canali sono stati rifiutati dal portale",
+  "diagnose.adviceError": "La ricerca non è riuscita, ma non per un rifiuto",
+  "diagnose.adviceNothing": "Non è stato possibile provare nulla",
+  "diagnose.nextNoResults":
+    "La catena è sana: sono i criteri a essere troppo stretti. Allarga la fascia di prezzo o la zona e la scansione tornerà a trovare qualcosa.",
+  "diagnose.nextBlocked":
+    "Aggiorna il cookie anti-bot nelle Impostazioni, oppure abilita lì un browser o una scrape API, così la scansione ha un'altra strada.",
+  "diagnose.nextError":
+    "Non è un blocco: verifica che l'URL sia ancora una pagina di risultati valida sul portale, poi guarda il log per l'errore esatto.",
+  "diagnose.nextNothing":
+    "Tutti i canali sono spenti o non configurati. Abilitane almeno uno nelle Impostazioni: un cookie, un browser o una scrape API.",
+
+  "diagnose.reasonOk": "ha funzionato, {count} annunci",
+  "diagnose.reasonBlocked": "rifiutata dal portale ({status})",
+  "diagnose.reasonNoResults": "ha risposto, ma nessun annuncio corrisponde",
+  "diagnose.reasonError": "non riuscita",
+  "diagnose.reasonNoCookie": "nessun cookie anti-bot salvato nelle Impostazioni",
+  "diagnose.reasonNoBrowser": "nessun browser disponibile su questo computer",
+  "diagnose.reasonNoApiKey": "nessuna scrape API configurata nelle Impostazioni",
+  "diagnose.reasonNoOfficialKey": "nessuna chiave API Idealista nelle Impostazioni",
+  "diagnose.reasonPaidNotRequested": "non provata: consuma crediti",
+  "diagnose.reasonBudget": "non provata: il budget crediti del mese è esaurito",
+  "diagnose.reasonStreak": "non provata: i tentativi precedenti sono stati tutti rifiutati",
+  "diagnose.reasonRequestCap": "non provata: questa diagnostica ha esaurito le richieste consentite",
+  "diagnose.reasonCreditCap": "non provata: questa diagnostica ha esaurito i crediti consentiti",
+  "diagnose.reasonCreditFloor": "non provata: restano troppo pochi crediti sull'account del fornitore",
+  "diagnose.reasonCreditUnknown": "non provata: il fornitore non ha indicato quanti crediti restano",
+  "diagnose.reasonUnsupported": "l'API ufficiale non sa esprimere questa ricerca",
+  "diagnose.reasonSkipped": "non provata",
+
+  "diagnose.rungPrepare": "ricerca zona",
+  "diagnose.rungDirect": "richiesta diretta",
+  "diagnose.rungCookie": "con cookie salvato",
+  "diagnose.rungBrowser": "browser reale",
+  "diagnose.rungApi": "scrape API (a pagamento)",
+  "diagnose.rungOfficial": "API ufficiale",
+  "diagnose.rungOther": "altro",
 
   // ── ricerche monitorate: dialogo di eliminazione ────────────────────────
   "profiles.deleteOne": "Eliminare “{name}”?",

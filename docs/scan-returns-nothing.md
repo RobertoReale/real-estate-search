@@ -78,6 +78,14 @@ what each one got back and what the parsers made of it. That answers "burnt
 profile or bad address?" in one run, with numbers, instead of by inference.
 [`live-checks.md`](live-checks.md) has the commands and the spending limits.
 
+The same ladder is one press away without a terminal: **Diagnostica**, on the row
+of any saved search, runs its free rungs and shows one line per transport with
+the reason and what to do next. It is the shorter answer — the free rungs only
+(the browser rung only where a browser option is switched on), one run per search
+every ten minutes, and never while a scan is using the connection. Reach for the
+command line when the question needs the paid rung, a replayed capture, or the
+full table.
+
 **Where to look while diagnosing:** the **Scraper health** panel on the dashboard
 names the transport that carried each day's scans — a day labelled
 `local (curl_cffi)` with no blocks is the cheap path doing its job. The activity

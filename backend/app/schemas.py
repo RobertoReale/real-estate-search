@@ -48,6 +48,31 @@ AreaScope = Literal["zone", "city"]
 DealLabel = Literal["undervalued", "fair", "overpriced"]
 BuilderFloor = Literal["", "ground", "middle", "top"]
 BuilderCondition = Literal["", "new", "good", "excellent", "to_renovate"]
+# livecheck/report.py: Attempt.outcome, and what the whole run of them means.
+DiagnosisOutcome = Literal["ok", "blocked", "no_results", "error", "skipped"]
+DiagnosisAdvice = Literal["works", "no_results", "blocked", "error", "nothing_tried"]
+# services/diagnosis.py: why a rung answered as it did, as a code the browser
+# turns into a sentence. Closed on purpose — a code with no translation behind
+# it must fail the frontend build, not reach a screen as a bare identifier.
+DiagnosisReason = Literal[
+    "ok",
+    "blocked",
+    "no_results",
+    "error",
+    "no_cookie",
+    "no_browser",
+    "no_api_key",
+    "no_official_key",
+    "paid_not_requested",
+    "budget",
+    "streak",
+    "request_cap",
+    "credit_cap",
+    "credit_floor",
+    "credit_unknown",
+    "unsupported_search",
+    "skipped",
+]
 
 
 class ListingOut(ApiOut):
@@ -1129,6 +1154,52 @@ class ProfileBulkOut(ApiOut):
     ok: bool = True
     processed: int
     results: ProfileDeletedResultsOut | None = None
+
+
+class DiagnosisRungOut(ApiOut):
+    """One transport, asked for one page of this search, and what it answered.
+
+    `reason` is a code and never a sentence: the browser owns the wording, in
+    the language its owner reads. `detail` carries the harness's own English
+    only where no code covers the case, so a reason this API does not yet
+    classify still reaches the screen instead of vanishing.
+    """
+
+    rung: str  # curl:<profile> | curl+cookie | browser | api:<provider> | official | prepare
+    target: str
+    portal: str
+    outcome: DiagnosisOutcome
+    reason: DiagnosisReason
+    status: int | None = None
+    listings: int = 0
+    credits: int | None = None
+    elapsed_ms: int = 0
+    detail: str = ""
+
+
+class DiagnosisOut(ApiOut):
+    """A "try this search" run: every rung it climbed and what the whole thing
+    means. `winner` names the rung that answered, for the sentence the panel
+    writes around `advice`; it is empty unless `advice` is `works` or
+    `no_results`."""
+
+    profile_id: int
+    name: str
+    portal: str
+    ran_at: str
+    advice: DiagnosisAdvice
+    winner: str = ""
+    paid: bool = False
+    credits_spent: int = 0
+    cooldown_seconds: int
+    rungs: list[DiagnosisRungOut]
+
+
+class DiagnoseIn(BaseModel):
+    """Ask for one search's diagnosis. `paid` spends provider credits and is
+    refused above the month's ceiling, so it is opt-in per request."""
+
+    paid: bool = False
 
 
 class BackupFileOut(ApiOut):

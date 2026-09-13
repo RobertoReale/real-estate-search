@@ -54,6 +54,15 @@ export type SearchProfile = Schemas["SearchProfileOut"];
  *  with it. */
 export type ProfileResults = Schemas["ProfileResultsOut"];
 export type ProfileBulkResult = Schemas["ProfileBulkOut"];
+/** What the live-check ladder found when asked about one search: a row per
+ *  transport, plus what the run as a whole means. */
+export type Diagnosis = Schemas["DiagnosisOut"];
+export type DiagnosisRung = Schemas["DiagnosisRungOut"];
+/** The verdict on the run, and on one rung of it. Both are codes rather than
+ *  sentences: the wording is this app's, in the language its owner reads. */
+export type DiagnosisAdvice = Diagnosis["advice"];
+export type DiagnosisOutcome = DiagnosisRung["outcome"];
+export type DiagnosisReason = DiagnosisRung["reason"];
 /** User-configurable application preferences persisted in settings.json. */
 export type Settings = Schemas["SettingsOut"];
 /** Status and timing details of background scan execution, plus the live
