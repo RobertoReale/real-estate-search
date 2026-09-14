@@ -110,8 +110,18 @@ export default function AppShell() {
   // The last scan's summary is the other half of "where the scanning is up to",
   // and it is the half a user actually wants: what the last run found. It is
   // read out after the state so the two make one sentence.
-  const line = [state?.short, scanStatus?.last_summary].filter(Boolean).join(" · ");
-  const detail = [state?.long, scanStatus?.last_summary].filter(Boolean).join(" — ");
+  const counts = scanStatus?.last_counts;
+  const summary = counts
+    ? t("nav.lastScan", {
+        new: counts.new, updated: counts.updated,
+        filtered: counts.filtered, priceChanges: counts.price_changes,
+      }) + (counts.truncated
+        ? " — " + t(counts.truncated === 1 ? "nav.lastScanTruncated" : "nav.lastScanTruncatedPlural",
+                    { count: counts.truncated })
+        : "")
+    : "";
+  const line = [state?.short, summary].filter(Boolean).join(" · ");
+  const detail = [state?.long, summary].filter(Boolean).join(" — ");
 
   function scanNow() {
     triggerScan.mutate(undefined, {

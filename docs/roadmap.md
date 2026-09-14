@@ -253,6 +253,28 @@ deliberately does not: it needs no browser and no backend, and keeping it that w
 more than the one number it cannot produce. Whoever needs that number builds the harness
 first, and [`audit.md`](audit.md) §7.4 says so.
 
+### `deal_reasons` reaches an Italian screen in English
+
+Every other sentence the user reads is written by the dashboard from something the backend
+sent as data — `filtered_reason` is a bare keyword the card wraps, `last_portals` and
+`last_counts` are numbers. `deal_reasons` is the exception: `services/deal_score.py`
+`_score_property` and `services/omi_benchmark.py` append finished English strings
+("31% above zone median"), which the detail panel prints as they arrive. On the Italian
+default that is an English line in the middle of an Italian panel.
+
+**Why it was not fixed where it was found.** The strings are not in flight, they are
+**stored**: `deal_reasons` is a column on `Property` (`models.py`), written at scan time and
+read back on every render. Restructuring it into a code plus parameters — the shape the
+`filtered_reason` precedent implies — means changing the column's contents, which means a
+migration for every row already scored, touching roughly six producers across the two
+services, and rewriting the tests that assert the English substrings. That is a data-model
+change, not a rendering one, and the acceptance pass it was found in had one commit.
+
+**What doing it looks like.** Store `{code, params}` the way the frontend's `t()` already
+consumes elsewhere, with a migration that re-scores rather than translates — the numbers are
+all recoverable from the property row, so the old strings can be dropped rather than parsed.
+The two services then emit codes, and `it.ts`/`en.ts` own every word of it.
+
 ### A blocked residential connection drops the paid rung with it
 
 In the live checker, `livecheck/rungs.py` consults `budget.refuse_direct(portal)` for the

@@ -425,13 +425,31 @@ class ScanPortalOut(ApiOut):
     outcome: str = ""
 
 
+class ScanCountsOut(ApiOut):
+    """What the most recent scan did, as numbers rather than as a sentence.
+
+    The dashboard writes the line the user reads, in the user's language, so
+    what crosses the API is the facts — the same rule `ScanPortalOut` follows.
+    This was an English sentence built in the scanner until it turned up,
+    untranslated, in the header of an otherwise Italian app.
+    """
+
+    new: int = 0
+    updated: int = 0
+    filtered: int = 0
+    price_changes: int = 0
+    # How many searches stopped at the page limit with listings still to read:
+    # whether the counts above are the whole answer.
+    truncated: int = 0
+
+
 class ScraperStatusOut(ApiOut):
     """The dashboard's poll: `scan_state`, the schedule, and the live progress."""
 
     running: bool = False
     last_started_at: str | None = None
     last_finished_at: str | None = None
-    last_summary: str = ""
+    last_counts: ScanCountsOut | None = None
     # One row per portal the most recent scan reached, filled in as each answers
     # rather than all at the end, and still there once the scan is over.
     last_portals: list[ScanPortalOut] = []

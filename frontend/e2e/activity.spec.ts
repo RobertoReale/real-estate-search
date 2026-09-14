@@ -26,7 +26,7 @@ const RUNNING = {
   running: true,
   last_started_at: "2026-03-04T10:00:00Z",
   last_finished_at: null,
-  last_summary: "",
+  last_counts: null,
   next_auto_run: null,
   paused: false,
   progress: {

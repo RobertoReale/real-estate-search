@@ -778,6 +778,87 @@ are pinned offline now — the parser against saved cards, the stop reason again
 a split result, the restatement against the reference suite. No network in any of
 them.
 
+## Measurements — 2026-09-14, the acceptance pass
+
+The run above measured the scan path against the reference shapes. This one asked
+the narrower question a release actually turns on: does the product work for
+someone using it the way the owner does. Four searches — Immobiliare and
+Idealista, sale and rent — created through the API, one scan, every journal row
+and a sample of the stored properties read, *Prova questa ricerca* on each, and
+the built dashboard walked in Chromium against the same backend. **Zero credits
+of the 75 budgeted**; the paid rung was never armed.
+
+**Use 8140, not 8138.** The run before this one took 8138 and said so, and 8138 is
+`EMPTY_BACKEND_PORT` in `frontend/e2e/harness/ports.ts` — the browser suite's second
+backend. A live backend left on it does not collide with anything until someone runs
+`npm run e2e`, which then fails to start with *"already used"* and looks like a suite
+defect. 8137, 8138 and 8139 all belong to harnesses; 8140 is the first free one.
+
+| Search | Outcome | Listings | Pages | Why it stopped |
+|---|---|---|---|---|
+| IMM sale, Milano Bicocca | `ok` | 257 | 21, in 2 parts | the parts covered the whole result set |
+| IMM rent, Milano Bicocca | `ok` | 250 of ~683 | 10 / 28 | the page limit of 10 pages |
+| IDE sale, Milano Forlanini | `ok` | 248 | 10 / 10 | the page limit of 10 pages |
+| IDE rent, Milano Forlanini | `ok` | 65 | 4 | nothing more to give |
+
+Four of four `ok`, the stored fields present on the sample read back, one listing
+per portal opened in a real browser and still live, and the dashboard walked over
+nine screens — the grid in both contracts, the map, a detail panel, insights,
+searches, activity, logs, settings — with **no console error, no page error, no
+failed request and no response at or above 400**. Two defects came out of it
+anyway, both invisible to a green journal row.
+
+### 1. An Idealista macro-area flagged every district inside it
+
+`outside_requested_area` fired on **224 of 248** Idealista sale listings and **52 of
+65** rents. Not one was outside anything: the searches are Forlanini, and what came
+back was Mecenate, Ponte Lambro and Parco Forlanini — the districts *inside*
+Forlanini.
+
+Idealista's search paths nest three levels — `/milano/fiera-de-angeli/fiera/` — and a
+URL that stops at the second names a macro-area. No listing ever carries one:
+`_place_from_title` reads the district off the end of the card title, which is always
+the narrowest level. So the requested zone and the listing's zone are two levels of
+one hierarchy, and nothing in the app can resolve either into the other — there is no
+district gazetteer, only the comuni in `geo_reference`. The check was reading a
+disagreement out of a difference in altitude.
+
+`zone_is_macro_area` in the search builder now recognises the shape, and
+`requested_area` drops the zones when it sees one, exactly as it already did for
+Immobiliare's opaque `idMZona[]` ids: the comune still applies, the districts cannot.
+Re-run over the same stored corpus, the two Idealista searches go **224 → 0** and
+**52 → 0**, and the Immobiliare searches keep all of theirs — Istria, Precotto,
+Maggiolina, Affori and Dergano really are other districts. That is the guard against
+over-correcting, and it has a test of its own.
+
+### 2. The header said what the scan did, in English, in an Italian app
+
+`scan_state["last_summary"]` was an English sentence built in the scanner
+(*"14 new, 2 updated, …"*) and printed verbatim in the nav header. The rule it broke is
+one the same file already follows for `last_portals` and the cards follow for
+`filtered_reason`: **the backend sends the facts, the dashboard writes the sentence.**
+It is now `last_counts` — five integers and a `ScanCountsOut` schema — with
+`nav.lastScan` and the two `nav.lastScanTruncated` forms owning every word in both
+language files.
+
+### What this pass could not close
+
+* **Immobiliare refused this connection throughout.** *Prova questa ricerca* on both
+  Immobiliare searches returned `blocked`: 403 on the first rungs, then the breaker
+  after three in a row. `--suite` the same hour agreed — six Immobiliare entries, no
+  rung worked, 403 on every free one tried — while Idealista answered 3 of 3 on
+  `curl:safari184`. The refusal followed the scan's own 45 pages from this address, so
+  it is the expected cost of having just run one, and it is not something this machine
+  can decide: per the budgets, it gets no retries.
+* **`deal_reasons` is still English** in the same Italian panel, for the same reason
+  item 2 existed. It is a stored column rather than a line in flight, so it is a
+  migration and not a rendering fix; it is written up in
+  [`roadmap.md`](roadmap.md#deal_reasons-reaches-an-italian-screen-in-english) with
+  what closing it costs.
+* `curl:safari18_4_ios` raises `ImpersonateError: Impersonating safari18_4_ios is not
+  supported` on both Idealista runs — a rung on the ladder that the installed
+  `curl_cffi` cannot actually drive.
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:
