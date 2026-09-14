@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 
+from app import config
 from app.livecheck import suite
 from app.livecheck.__main__ import main
 from app.livecheck.budget import (
@@ -60,6 +61,7 @@ from app.livecheck.rungs import (
     replay,
     run_checks,
     run_rungs,
+    secrets_of,
     select_rungs,
 )
 from app.scrapers import idealista_api
@@ -497,6 +499,19 @@ def test_redaction_catches_a_key_nobody_declared():
 
 def test_a_declared_secret_is_removed_from_free_text():
     assert redact(f"failed with {FAKE_KEY}", [FAKE_KEY]) == "failed with ***"
+
+
+def test_every_stored_secret_is_declared_to_the_report():
+    """`secrets_of` says "every value that must not appear anywhere in the
+    output", and the report and the diagnose endpoint both take it at its word.
+    A second hand-written list of credential names is a list that drifts from
+    `config.SECRET_SETTINGS` the next time one is added, silently and in the
+    direction that publishes something."""
+    settings = {key: f"value-of-{key}" for key in config.SECRET_SETTINGS}
+
+    declared = secrets_of(settings)
+
+    assert sorted(declared) == sorted(settings.values())
 
 
 # --- the table and the verdict ------------------------------------------

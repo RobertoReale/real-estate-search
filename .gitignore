@@ -58,7 +58,11 @@ frontend/.e2e-data/
 # Lighthouse (frontend/lighthouse/): the reports of the last run. The budget it
 # is judged against is committed; the measurement is not — it describes one
 # machine on one afternoon, and CI keeps its own copy as a build artifact.
+# Two directories because lhci writes its own `.lighthouseci/` beside the one
+# the config names, and only the named one was ignored — so the gate left an
+# untracked folder behind and the next `git add -A` would have committed it.
 frontend/.lighthouse/
+frontend/.lighthouseci/
 
 # Build and temporary files
 frontend/dist/

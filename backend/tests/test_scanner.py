@@ -603,6 +603,63 @@ def test_crashed_profile_counts_as_a_failure(db, profile, health, monkeypatch):
     assert result["health_alerts"] == 1
 
 
+SCRAPE_API_KEY = "sk-live-9f2c7a41bd6e"
+
+
+def _scan_with_the_key(db, monkeypatch, scraper) -> None:
+    """One scan by a scraper that fails, with the provider key on file."""
+    monkeypatch.setattr(scanner, "get_scraper", lambda portal: scraper)
+    monkeypatch.setattr(scanner, "SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        scanner,
+        "load_settings",
+        lambda: {"excluded_keywords": [], "scrape_api_key": SCRAPE_API_KEY},
+    )
+    scanner.run_scan()
+
+
+def test_a_crash_carrying_the_api_key_never_stores_it(db, profile, monkeypatch):
+    """The provider takes its key in the query string, and an error message
+    copies whatever URL it failed on. The journal was scrubbed, the column it
+    copies from was not — and that column is what the dashboard renders and
+    Telegram quotes, so it has to be clean where it is written."""
+
+    class _BoomWithTheKey:
+        delay_seconds = 0
+        max_pages = 1
+
+        def scrape(self, url, known=None):
+            raise RuntimeError(
+                f"connection reset: https://api.scrapfly.io/scrape?key={SCRAPE_API_KEY}"
+            )
+
+    _scan_with_the_key(db, monkeypatch, _BoomWithTheKey())
+
+    assert profile.last_run_status == "error"
+    assert SCRAPE_API_KEY not in profile.last_run_detail
+    assert "***" in profile.last_run_detail
+
+
+def test_a_reported_error_carrying_the_api_key_never_stores_it(db, profile, monkeypatch):
+    """Same rule on the other write: the scrape did not raise, it came back
+    with an error string it had built out of the URL it could not read."""
+
+    class _FailsWithTheKey:
+        delay_seconds = 0
+        max_pages = 1
+
+        def scrape(self, url, known=None):
+            return ScrapeResult(
+                error=f"502 from https://api.scrapfly.io/scrape?key={SCRAPE_API_KEY}"
+            )
+
+    _scan_with_the_key(db, monkeypatch, _FailsWithTheKey())
+
+    assert profile.last_run_status == "error"
+    assert SCRAPE_API_KEY not in profile.last_run_detail
+    assert "***" in profile.last_run_detail
+
+
 class _BlockedScraper:
     """Simulates DataDome refusing the very first request."""
 

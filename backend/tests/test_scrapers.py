@@ -1109,6 +1109,50 @@ def test_probe_treats_the_datadome_wall_served_200_as_blocked():
     assert probe.was_blocked is True
 
 
+def test_a_browser_block_never_means_the_ad_is_gone():
+    """Invariant 16 on the transport that had no test for it. The HTTP path was
+    pinned twice over; the browser path reaches the same decision through its
+    own branch, and turning its `None` into `False` left the whole suite green —
+    which is to say the expensive transport, the one a batch escalates to
+    exactly when the portal is refusing, could have started discarding live ads
+    without a single test noticing. Both refusals it can see are checked: the
+    soft 403 and the wall served 200."""
+
+    class FakeResp:
+        def __init__(self, status):
+            self.status = status
+
+    class FakePage:
+        url = "https://www.immobiliare.it/annunci/1/"
+
+        def __init__(self, status, body):
+            self._status = status
+            self._body = body
+
+        def goto(self, url, **kwargs):
+            return FakeResp(self._status)
+
+        def wait_for_timeout(self, _ms):
+            pass
+
+        def content(self):
+            return self._body
+
+    wall = (
+        "<html><body><h1>Access is temporarily restricted</h1>"
+        "<p>We detected unusual activity from your device or network.</p>"
+        "</body></html>"
+    )
+    for status, body in ((403, "<html><body>Forbidden</body></html>"), (200, wall)):
+        probe = AdProbe()
+        probe._browser_headful = False
+        probe._browser_warmed_hosts = {"www.immobiliare.it"}
+        setattr(probe, "_browser_page", FakePage(status, body))
+
+        assert probe._browser_check_inner("https://www.immobiliare.it/annunci/1/") is None
+        assert probe.was_blocked is True
+
+
 def test_a_block_never_means_the_ad_is_gone():
     """The dangerous mistake is the false negative: a listing wrongly reported
     as gone gets discarded, and a discard is remembered forever. DataDome

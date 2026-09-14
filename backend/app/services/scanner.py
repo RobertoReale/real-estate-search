@@ -332,9 +332,16 @@ def _without_secrets(text: str, settings: dict) -> str:
     """Scrub every stored credential out of text written for the user to read.
 
     A search URL can carry an API key and an error message copies whatever URL
-    it failed on, so the journal is one copy away from publishing a secret on a
-    screen. Redacting the *values* rather than looking for key-shaped strings is
-    what makes that hold for a message nobody has thought of yet.
+    it failed on, so any line built out of one is a copy away from publishing a
+    secret on a screen. Redacting the *values* rather than looking for
+    key-shaped strings is what makes that hold for a message nobody has thought
+    of yet.
+
+    Applied where the text is *stored*, not only where it is displayed. The
+    journal used to be the one scrubbed copy while `last_run_detail` kept the
+    original, and that column is the one the dashboard renders and the one
+    Telegram quotes — so it is cleaned at the two places that write text the app
+    did not compose itself.
     """
     for key in SECRET_SETTINGS:
         value = settings.get(key)
@@ -824,7 +831,7 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
                     # streak would silently reset to zero
                     profile.last_run_at = datetime.now(UTC)
                     profile.last_run_status = "error"
-                    profile.last_run_detail = str(e)[:300]
+                    profile.last_run_detail = _without_secrets(str(e), settings)[:300]
                 # after the branch above, so the entry reads the status this
                 # profile actually ended on, crash included
                 _record_journal(profile, fetched, result, settings)
@@ -1410,7 +1417,7 @@ def _record_scrape(
             return result
     elif outcome == "error":
         profile.last_run_status = "error"
-        profile.last_run_detail = result.error[:300]
+        profile.last_run_detail = _without_secrets(result.error, settings)[:300]
         summary["errors"].append(result.error)
         return result
 

@@ -55,8 +55,8 @@ cd frontend && npm run lighthouse
 cd frontend && npm run e2e:visual
 ```
 
-Expected today: **1213 passed** (1213 collected; one of them skips where the optional
-Playwright is absent, so a machine without it reads 1212 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **465 frontend tests**,
+Expected today: **1217 passed** (1217 collected; one of them skips where the optional
+Playwright is absent, so a machine without it reads 1216 + 1), **pyright 0 errors**, **ruff clean**, **vite build OK**, **465 frontend tests**,
 **82 browser tests** (52 journeys, then 30 that hold the run to the control inventory),
 **9 visual snapshots** (27 PNGs — nine routes at three widths each), and **no diff** from
 the type generator. The browser suite prints the two numbers worth reading: **233
@@ -114,9 +114,11 @@ coin toss. The measurement itself completes on Windows; what fails is the teardo
 browser it just killed has not finished releasing. There is no flag for it and retrying does
 not help, so the budget is enforced in CI (`.github/workflows/ci.yml` → *performance
 budget*, Linux) and a local run is for reading the report, not for a verdict. Today's build:
-**896 KiB of script, 90 KiB of stylesheet, 1149 KiB total over 16 requests**, against a
+**941 KiB of script, 90 KiB of stylesheet, 1196 KiB total over 16 requests**, against a
 budget of 950 / 100 / 1300. A commit that adds a dependency to a single screen spends that
-headroom on every screen, which is the decision the gate exists to force.
+headroom on every screen, which is the decision the gate exists to force — and there are
+**9 KiB of script left**, so the next such commit is the one that fails it. What to do about
+that is [`roadmap.md`](roadmap.md).
 
 `npm run e2e:visual` is a pixel diff against `frontend/e2e/visual.spec.ts-snapshots/`, not a
 behavioural check — that is what the suite above already owns. It exists to catch what
@@ -239,7 +241,7 @@ named, the invariant has two halves that fail independently.
 | 13 | StaticFiles mount stays last in `main.py` | `main.py` (bottom: after every `include_router`) | `test_static_frontend.py::test_static_mount_never_shadows_the_api` |
 | 14 | Unauthenticated API → bind address is the control | `run.py`; `main.py` (`require_api_token`, `reject_cross_site_writes`); `services/telegram_bot.py` (polls, never a webhook); `routers/events.py` (outbound stream under `/api`, no inbound port) | `test_api_auth.py::test_a_page_on_another_site_cannot_reset_the_database`, `::test_wrong_token_is_rejected`, `::test_nothing_that_changes_state_lives_outside_api`, `test_events.py::test_the_stream_is_an_api_route_and_a_get` |
 | 15 | *retired as written; the sync-`def` + module-lock rule now binds the availability check* | `services/availability_check.py`, `routers/properties.py` | `test_availability_check.py::test_the_check_endpoints_stay_sync_defs_on_the_threadpool`, `::test_a_second_concurrent_run_is_refused_with_a_readable_error` |
-| 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_scrapers.py::test_a_block_never_means_the_ad_is_gone`, `test_availability_check.py::test_the_probe_budget_caps_live_fetches_not_the_selection` |
+| 16 | Availability probe fails open; every batch guard | `scrapers/probe.py` `AdProbe`, `scrapers/page_text.py`, `services/availability_check.py` | `test_scrapers.py::test_a_block_never_means_the_ad_is_gone`, `test_scrapers.py::test_a_browser_block_never_means_the_ad_is_gone`, `test_availability_check.py::test_the_probe_budget_caps_live_fetches_not_the_selection` |
 | 17 | Settings tests must not read real `settings.json` | `tests/conftest.py` | `test_config.py::test_the_suite_never_points_at_the_real_settings_file` |
 | 18 | Cookie harvester optional/headful-only/fail-open; engines | `services/cookie_harvester.py` `_launch`, `refresh_into_settings`, `scrapers/probe.py` | `test_cookie_harvester.py::test_refresh_refuses_headless_without_launching_anything`, `::test_recording_a_refusal_never_breaks_the_scrape_that_saw_it`, `test_scrapers.py::test_api_block_records_the_refusal_once_and_launches_nothing` |
 | 19 | `Property.source` upgrade-only ("email" now historical) | `services/deduplicator.py` | `test_dashboard_management.py::test_email_origin_upgraded_to_scan_when_a_scan_refinds_it` |
@@ -307,11 +309,17 @@ audit them on purpose.
   `clear_dashboard`/`factory_reset` delete all of them. When auditing "what can remove a
   card", check all three, not just invariant 20's.
 - **Live scraping cannot be tested offline** (DataDome). The suite simulates the portal
-  HTML; the real fetch is only ever verified by hand with `AdProbe`. Treat a green suite as
-  "logic is correct", not "the portal still parses". Everything that follows from that
-  sentence — which checks a person has to run, in what order, and what the right answer
-  looks like — is [`manual-tests.md`](manual-tests.md), and it is what the owner reads
-  before deciding a release is good.
+  HTML, so treat a green suite as "logic is correct", not "the portal still parses". What
+  answers the second question is `python -m app.livecheck`
+  ([`live-checks.md`](live-checks.md)): it asks a search through every transport
+  separately, from this machine's own connection, and says per rung what the portal
+  answered and what the real parsers made of it — so an audit that needs to know whether
+  the scrapers still work **runs it** rather than asking the owner to try the app. It is
+  not a gate and never will be: it costs requests from an address the owner's real scans
+  leave from, and its budgets are the rules. What is left for a person after that —
+  which checks, in what order, and what the right answer looks like — is
+  [`manual-tests.md`](manual-tests.md), and it is what the owner reads before deciding a
+  release is good.
 - **Portal filter tokens rot when the portals change their UI.** Every token in
   `search_builder.py` was measured against a portal result total, never inferred. Re-measure
   with a known-good control before trusting a sweep (see the token rows in
@@ -391,7 +399,8 @@ check rather than an opinion.
 | Surface | The question | Where it is answered today |
 |---|---|---|
 | **Secrets at rest** | Is every secret masked on the way out, and does the mask never come back in as a value? | `routers/settings.py` — one `*_set` boolean and a `"***"` per secret in `get_settings`, one `pop` per secret in `update_settings`. `api_auth_token` is the deliberate exception and says so in `config.py`: it is returned in clear to a caller who already holds it, because Settings has to be able to show and clear it |
-| | Does a secret ever reach a log, an export, or the scan journal? | `grep` the logger calls for the secret names (nothing logs a *value* today); `scanner._without_secrets` redacts every stored credential out of journal text by value, not by shape, so a message nobody has written yet is covered too |
+| | Does a secret ever reach a log, an export, or the scan journal? | `grep` the logger calls for the secret names (nothing logs a *value* today); `scanner._without_secrets` redacts every stored credential out of journal text by value, not by shape, so a message nobody has written yet is covered too. **Ask it of every copy, not of the one that is displayed**: the journal was scrubbed while `search_profiles.last_run_detail` — the column the dashboard renders and Telegram quotes — kept the original, so both writes of it are scrubbed now (`test_scanner.py::test_a_crash_carrying_the_api_key_never_stores_it`) |
+| | Does the live-check harness publish one? | `livecheck/report.redact` removes known values by literal match and anything shaped like `key=…` by pattern, over every URL, error and sample title, before the table and the saved record. The list of values comes from `rungs.secrets_of`, which is **derived from `config.SECRET_SETTINGS`** and not written out again — a second hand-written list drifts the next time a credential is added, silently and in the direction that publishes something (`test_livecheck.py::test_every_stored_secret_is_declared_to_the_report`). The same list is what `services/diagnosis.py` hands to the browser |
 | **The loopback assumption** | Can a page on another site drive this API? | `main.py` `reject_cross_site_writes` (invariant 14). This is the surface the bind cannot cover, and the one to re-check after every new route |
 | | Does a widened bind expose more than the token covers? | `run.py` (the default), `main.py` `require_api_token`, and the two install endpoints, which run `pip install` and therefore insist on loopback *in addition* (`routers/settings.py` `_require_loopback`) |
 | **Untrusted portal input** | Every scraped string that reaches a document: escaped as text, *and* filtered by scheme where it lands in an attribute? | `services/exporter.py` — `_md`, `_csv_text`, `_safe_url`. Escaping a URL keeps it inside the `href` and does nothing about `javascript:` being valid there |
@@ -477,7 +486,7 @@ being in it.
 
 ### 7.2 Expected numbers
 
-Measured 2026-09-09, at the end of cycle 3, on the settings the script pins (5 pages per
+Measured 2026-09-13, at the end of cycle 4, on the settings the script pins (5 pages per
 portal, 0.4 s between pages, two portals, 80-property demo corpus):
 
 | Measurement | Then | What it says |
@@ -489,14 +498,14 @@ portal, 0.4 s between pages, two portals, 80-property demo corpus):
 | the grid, unbounded (`limit=0`, the map and "select all") | 9 queries | **the number that matters**: it does not move with the size of the result set. `selectinload` batches the three relationships and every annotation is one set-wide query, so there is no N+1 to find |
 | one property's card | 8 queries | |
 | the "did anything change?" tick (`services/events.py`, every 4 s during a scan) | 2 queries | two aggregates — the property fingerprint and scraper health. Cheap enough to sample for the *machine*, which is what lets one shared task replace a poll per open tab |
-| market velocity / scraper health / searches | 3 / 2 / 1 queries | |
+| market velocity / scraper health / searches | 3 / 3 / 1 queries | scraper health gained one in cycle 4: the credit meter (`credits_this_month`) is a single bounded range query over this month's scans, constant in the number of searches like the other two beside it |
 
 And what the interface costs, from `measure_frontend.mjs` and `--only payloads`:
 
 | Measurement | Then | What it says |
 |---|---|---|
-| the bundle | 922 kB of JavaScript in **one chunk**, 90 kB of CSS | there is no route-level splitting, so every route pays for every other route's dependencies. The Lighthouse budget (950 kB) is the only thing holding it, and it is close |
-| where that JavaScript comes from | react-dom 174 kB (19 %), **leaflet 145 kB (16 %)**, `src/components` 111 kB, `src/routes` 87 kB, **the two locale catalogues 78 + 72 kB** | the two emphasised rows are the ones a reader can act on: the map is one route out of nine and the user reads one language out of two, and both are in the chunk that loads before anything renders |
+| the bundle | 941 kB of JavaScript in **one chunk**, 90 kB of CSS | there is no route-level splitting, so every route pays for every other route's dependencies. The Lighthouse budget (950 kB) is the only thing holding it, and cycle 4 spent 19 kB of the 28 that were left: **9 kB of headroom**, which is less than one dependency |
+| where that JavaScript comes from | react-dom 174 kB (19 %), **leaflet 145 kB (16 %)**, `src/components` 113 kB, `src/routes` 92 kB, **the two locale catalogues 84 + 78 kB** | the two emphasised rows are the ones a reader can act on: the map is one route out of nine and the user reads one language out of two, and both are in the chunk that loads before anything renders |
 | the grid payload, unbounded | 189 kB for 80 properties | |
 | …of which nothing on the grid page reads | 85 kB (45 %) | 66 kB of it is inside the nested listings: the card reads their `portal` name and counts them, 895 bytes' worth, and is sent every field of every listing. The rest is `deal_reasons`, `found_by`, `price_history` and the two timestamps |
 

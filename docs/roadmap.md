@@ -210,11 +210,17 @@ recorded so that whoever does measure it at 100 000 properties finds it already 
 
 ### The dashboard ships as one chunk, and a fifth of it is for one route or one language
 
-Measured 2026-09-09 with `scripts/measure_frontend.mjs` ([`audit.md`](audit.md) §7.2): 922 kB
-of JavaScript in a single chunk, of which **leaflet is 145 kB (16 %)** and the **two locale
-catalogues are 78 + 72 kB**. The map is one route out of nine, and the user reads one of the
-two languages, so roughly a fifth of what loads before anything renders is for something this
-visit will not do. The Lighthouse budget is 950 kB and the build is at 922.
+Re-measured 2026-09-13 with `scripts/measure_frontend.mjs` ([`audit.md`](audit.md) §7.2):
+**941 kB** of JavaScript in a single chunk, of which **leaflet is 145 kB (16 %)** and the
+**two locale catalogues are 84 + 78 kB**. The map is one route out of nine, and the user
+reads one of the two languages, so roughly a fifth of what loads before anything renders is
+for something this visit will not do.
+
+**This is now the near one.** The Lighthouse budget is 950 kB; cycle 4 spent 19 kB of the 28
+that were left and the build is at 941. Nine kilobytes is less than one dependency, so the
+next feature that adds a library to a single screen is the one that turns the *performance
+budget* job in CI red — and it will look like that feature's fault when it is not. Whoever
+picks this up does it before adding the library, not after.
 
 **What doing it looks like.** A `React.lazy` around the map route and a dynamic `import()`
 per locale, with a loading state each. Both change when a module is evaluated, and the

@@ -34,7 +34,7 @@ from urllib.parse import urlencode, urlparse
 
 from curl_cffi import requests as curl_requests
 
-from ..config import BASE_DIR, DB_PATH, load_settings
+from ..config import BASE_DIR, DB_PATH, SECRET_SETTINGS, load_settings
 from ..scrapers import idealista_api
 from ..scrapers.base import BaseScraper, RawListing
 from ..scrapers.idealista import IdealistaScraper
@@ -721,9 +721,15 @@ def _capture_writer(directory: Path) -> Callable[[Attempt, Target, str], str]:
 
 
 def secrets_of(settings: dict) -> list[str]:
-    """Every value that must not appear anywhere in the output."""
-    keys = ("scrape_api_key", "datadome_cookie", "idealista_api_key", "idealista_api_secret")
-    return [str(settings.get(key) or "").strip() for key in keys if settings.get(key)]
+    """Every value that must not appear anywhere in the output.
+
+    Read off `config.SECRET_SETTINGS` rather than named again here. The four
+    credentials this harness handles itself are the four it used to list, but
+    the report is free text written by code that does not know what it is
+    quoting, and the next credential added to the settings would have joined
+    that text without joining this list.
+    """
+    return [str(settings.get(key) or "").strip() for key in SECRET_SETTINGS if settings.get(key)]
 
 
 def _scraper_for(portal: str, delay_seconds: float) -> BaseScraper:
