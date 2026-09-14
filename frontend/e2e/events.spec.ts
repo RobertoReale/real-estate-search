@@ -76,8 +76,13 @@ test("a scan runs from start to summary without the screen asking anything", asy
   await expect(page.getByText("Scansione in corso")).toBeVisible({ timeout: 10_000 });
 
   // …then that it is over, with something to report.
-  stream.push({ running: false, last_summary: "14 new listings" });
-  await expect(page.getByText("14 new listings")).toBeVisible({ timeout: 10_000 });
+  stream.push({
+    running: false,
+    last_counts: { new: 14, updated: 2, filtered: 5, price_changes: 1, truncated: 0 },
+  });
+  await expect(
+    page.getByText("14 nuovi, 2 aggiornati, 5 filtrati, 1 cambi di prezzo"),
+  ).toBeVisible({ timeout: 10_000 });
 
   expect(
     statusReads(),
@@ -100,7 +105,9 @@ test("a backend that goes away and comes back is reconnected to within ten secon
   await page.waitForTimeout(6000);
 
   const before = stream.opens;
-  stream.push({ last_summary: "back from the dead" });
+  stream.push({
+    last_counts: { new: 41, updated: 0, filtered: 0, price_changes: 0, truncated: 0 },
+  });
   stream.setDown(false);
   const restarted = Date.now();
 
@@ -112,7 +119,9 @@ test("a backend that goes away and comes back is reconnected to within ten secon
   // Reconnected is not the claim; carrying again is. The stream opens by
   // resending the whole world, so the state set while it was down is on screen
   // without anybody reloading the page.
-  await expect(page.getByText("back from the dead")).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByText("41 nuovi, 0 aggiornati, 0 filtrati, 0 cambi di prezzo"),
+  ).toBeVisible({ timeout: 10_000 });
 });
 
 test("a stream that cannot be opened at all puts the timers back", async ({ page }) => {

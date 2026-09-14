@@ -981,6 +981,42 @@ def parse_immobiliare_url(url: str) -> dict[str, Any]:
 _IDEALISTA_NOT_A_LOCATION = ("vendita-", "affitto-", "con-", "lista-", "pag-")
 
 
+def _idealista_location_segments(segments: list[str]) -> list[str]:
+    """The location part of a city-page path: the city, then whatever narrows
+    it, up to the first filter, page or map segment."""
+    if not segments:
+        return []
+    start = 1 if segments[0] in ("vendita-case", "affitto-case", "vendita", "affitto") else 0
+    out: list[str] = []
+    for s in segments[start:]:
+        if s.startswith(("con-", "lista-", "pag-", "aree", "mappa")) or s == "?":
+            break
+        out.append(s)
+    return out
+
+
+def zone_is_macro_area(url: str) -> bool:
+    """Does this URL's zone name a macro-area rather than a district?
+
+    Idealista nests three levels — /milano/fiera-de-angeli/fiera/ — and a URL
+    that stops at the second names the macro-area. That matters because no
+    listing ever carries one: `IdealistaScraper._place_from_title` reads the
+    district off the end of the card title, always the narrowest level. So
+    "Forlanini" and the "Mecenate" its own results come back with are two
+    levels of one hierarchy rather than a disagreement, and nothing here can
+    resolve either into the other.
+    """
+    url_str = (url or "").strip()
+    if "idealista.it" not in url_str:
+        return False
+    segments = [s for s in urlparse(url_str).path.split("/") if s]
+    if not segments or segments[0] in ("multi", "aree", "cerca"):
+        # Ids, a drawn area, or free text the user typed at whatever level they
+        # meant: none of the three is the nesting this reads.
+        return False
+    return len(_idealista_location_segments(segments)) == 2
+
+
 def parse_idealista_url(url: str) -> dict[str, Any]:
     parsed = urlparse((url or "").strip())
     segments = [s for s in parsed.path.split("/") if s]
@@ -1019,12 +1055,7 @@ def parse_idealista_url(url: str) -> dict[str, Any]:
         city, zone = split_cerca_location(loc)
         return _idealista_params(city, province, zone, contract, segments)
 
-    loc_segments = []
-    start_idx = 1 if segments[0] in ("vendita-case", "affitto-case", "vendita", "affitto") else 0
-    for s in segments[start_idx:]:
-        if s.startswith(("con-", "lista-", "pag-", "aree", "mappa")) or s == "?":
-            break
-        loc_segments.append(s)
+    loc_segments = _idealista_location_segments(segments)
 
     if loc_segments:
         tokens = [t for t in loc_segments[0].split("-") if t]

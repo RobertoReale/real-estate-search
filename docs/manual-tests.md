@@ -141,7 +141,7 @@ stored, `price_history` holds the drop a second message would have announced, an
 journal row says which search on which portal read how many pages and how it ended. The two
 links after that leave no trace. `scanner._dispatch_notifications` returns how many messages
 it sent, and that number rides in the scan's own reply and nowhere else —
-`scan_state["last_summary"]` is a sentence that does not mention it, the journal
+`scan_state["last_counts"]` counts new, updated, filtered and price changes and not it, the journal
 (`scanner.get_scan_journal`) records pages, listings, outcome and stop reason but not
 notifications, and it keeps its last forty entries **in memory**, so an app restart takes
 them. The notifier logs only failures. So there is no table of past runs to fill in from

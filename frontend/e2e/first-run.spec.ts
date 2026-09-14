@@ -25,7 +25,7 @@ const SCANNING = {
   running: true,
   last_started_at: "2026-01-01T09:00:00Z",
   last_finished_at: null,
-  last_summary: "",
+  last_counts: null,
   next_auto_run: null,
   paused: false,
   data_version: "first-run",

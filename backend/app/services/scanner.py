@@ -28,7 +28,13 @@ from . import (
 )
 from .deduplicator import upsert_listing
 from .filter_engine import find_excluded_keyword, parse_keywords_csv
-from .search_builder import MAX_SEARCH_PARTS, parse_search_url, segment_search, zone_names
+from .search_builder import (
+    MAX_SEARCH_PARTS,
+    parse_search_url,
+    segment_search,
+    zone_is_macro_area,
+    zone_names,
+)
 from .timeutils import as_utc
 
 logger = logging.getLogger(__name__)
@@ -96,7 +102,10 @@ scan_state: dict = {
     "running": False,
     "last_started_at": None,
     "last_finished_at": None,
-    "last_summary": "",
+    # What the most recent scan did, as numbers. The dashboard says it in the
+    # user's language, so this carries the facts and not a sentence — the same
+    # rule `last_portals` below is written to.
+    "last_counts": None,
     # What each portal contributed to the most recent scan, one row per portal
     # in the order they were first reached (`_record_portal_outcome`). Written
     # while the scan runs and left standing after it, because "which portals
@@ -869,20 +878,19 @@ def run_scan(profile_id: int | None = None, manual: bool = False, full_sweep: bo
         _end_scan()
         scan_state["running"] = False
         scan_state["last_finished_at"] = datetime.now(UTC).isoformat()
-        last_summary = (
-            f"{summary['new']} new, {summary['updated']} updated, "
-            f"{summary['filtered']} filtered, {summary['price_changes']} price changes"
-        )
-        if summary["truncated"]:
-            # The one thing this line could not previously say: whether the
-            # numbers in front of it are the whole answer. Which searches, and
-            # of how many listings, is on each search's own line.
-            searches = "search" if summary["truncated"] == 1 else "searches"
-            last_summary += f" — {summary['truncated']} {searches} stopped at the page limit"
-        scan_state["last_summary"] = last_summary
+        scan_state["last_counts"] = {
+            "new": summary["new"],
+            "updated": summary["updated"],
+            "filtered": summary["filtered"],
+            "price_changes": summary["price_changes"],
+            # Whether the numbers beside it are the whole answer. Which searches,
+            # and of how many listings, is on each search's own line.
+            "truncated": summary["truncated"],
+        }
         # …and the per-portal rows, detached from the list this scan was
-        # appending to. Not folded into the sentence above: the dashboard says
-        # this in the user's language, so it gets the facts and not the English.
+        # appending to. Not folded into the counts above: they answer different
+        # questions, and a scan that reached one portal of two and a scan that
+        # reached both produce the same counts.
         scan_state["last_portals"] = [dict(row) for row in summary["portals"]]
         _scan_lock.release()
     return {"status": "done", **summary}
@@ -1059,9 +1067,18 @@ def requested_area(search_url: str) -> RequestedArea:
     if params.get("drawn_circle"):
         drawn.append(params["drawn_circle"])
 
+    # A macro-area is a level above the district a listing carries, so it is no
+    # more usable as zone evidence than an opaque zone id — and gets the same
+    # treatment: the comune still applies, the districts cannot.
+    zones = (
+        []
+        if zone_is_macro_area(search_url)
+        else zone_names(params.get("zone") or "", params.get("zones"))
+    )
+
     return RequestedArea(
         city=city,
-        zones=tuple(zone_names(params.get("zone") or "", params.get("zones"))),
+        zones=tuple(zones),
         zone_ids=tuple(params.get("zone_ids") or ()),
         circle=geo_reference.city_search_area(city) if city else None,
         drawn=tuple(drawn),
@@ -1104,11 +1121,23 @@ def _outside_requested_area(area: RequestedArea, raw: RawListing, prop: Property
     listing that is not on the map: it falls through to the evidence below,
     which for a pure map URL names no comune and so answers None.
 
-    Zone *ids* are deliberately absent from step 4. Immobiliare's `idMZona[]`
-    values are opaque numbers the portal alone can resolve, and a listing's zone
-    text can never match one, so a search that carries ids and no names is
-    judged on the comune alone. Reading "no name matched" out of ids nobody can
-    name would flag every listing of a perfectly good multi-zone search.
+    Two kinds of requested zone are deliberately absent from step 4, for the
+    same reason: the app cannot put them in the same vocabulary as a listing's
+    zone text, and reading "no name matched" out of that would flag every
+    listing of a perfectly good search.
+
+    - **zone ids.** Immobiliare's `idMZona[]` values are opaque numbers the
+      portal alone can resolve, and a listing's zone text can never match one.
+    - **an Idealista macro-area.** Its search paths nest three levels and its
+      cards name only the narrowest, so a search for `/milano/forlanini/` comes
+      back — correctly — full of Mecenate and Ponte Lambro. `zone_is_macro_area`
+      is where that grammar is read.
+
+    Either way the search is judged on the comune alone. That does give up the
+    one case where such a search really is answered from elsewhere, and it is
+    the right way round: steps 1–3 still catch a listing in the wrong comune,
+    which is the disagreement worth reporting, while the alternative was
+    accusing nine correct listings in ten.
     """
     lat = raw.latitude if raw.latitude is not None else prop.latitude
     lng = raw.longitude if raw.longitude is not None else prop.longitude

@@ -2650,6 +2650,42 @@ export interface components {
             reload: boolean;
         };
         /**
+         * ScanCountsOut
+         * @description What the most recent scan did, as numbers rather than as a sentence.
+         *
+         *     The dashboard writes the line the user reads, in the user's language, so
+         *     what crosses the API is the facts — the same rule `ScanPortalOut` follows.
+         *     This was an English sentence built in the scanner until it turned up,
+         *     untranslated, in the header of an otherwise Italian app.
+         */
+        ScanCountsOut: {
+            /**
+             * New
+             * @default 0
+             */
+            new: number;
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
+            /**
+             * Filtered
+             * @default 0
+             */
+            filtered: number;
+            /**
+             * Price Changes
+             * @default 0
+             */
+            price_changes: number;
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
+        };
+        /**
          * ScanJournalEntryOut
          * @description One search's line in the scan journal (`scanner.get_scan_journal`).
          */
@@ -3081,11 +3117,7 @@ export interface components {
             last_started_at: string | null;
             /** Last Finished At */
             last_finished_at: string | null;
-            /**
-             * Last Summary
-             * @default
-             */
-            last_summary: string;
+            last_counts: components["schemas"]["ScanCountsOut"] | null;
             /**
              * Last Portals
              * @default []

@@ -835,6 +835,10 @@ MILANO_URL = "https://www.immobiliare.it/vendita-case/milano/"
 # What the portal's own map produces for a multi-district selection: the path
 # stays at the bare comune and the districts ride along as opaque ids.
 MULTIZONE_URL = "https://www.immobiliare.it/vendita-case/milano/?idMZona[]=10046&idMZona[]=10047"
+# Idealista's two shapes: the macro-area, a level above anything a card names,
+# and the district under it, which is the level a card does name.
+IDEALISTA_MACRO_URL = "https://www.idealista.it/vendita-case/milano/forlanini/"
+IDEALISTA_DISTRICT_URL = "https://www.idealista.it/vendita-case/milano/fiera-de-angeli/fiera/"
 
 # Somewhere in the Navigli, and Rome — 480 km outside any circle Milano has.
 IN_MILANO = (45.4500, 9.1750)
@@ -1022,6 +1026,53 @@ def test_zone_ids_alone_never_flag_a_district(db, monkeypatch):
     props = _by_title(db)
     assert props["Un distretto qualsiasi"].outside_requested_area is False
     assert props["Altro comune"].outside_requested_area is True
+
+
+def test_an_idealista_macro_area_never_flags_the_districts_inside_it(db, monkeypatch):
+    """Idealista nests three levels and its cards name only the narrowest, so a
+    search for the Forlanini macro-area comes back — correctly — full of
+    Mecenate and Ponte Lambro. Comparing the two levels as if they were one
+    vocabulary flagged 224 of 248 listings of a search that had worked."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        IDEALISTA_MACRO_URL,
+        [
+            _listing("1", 90.0, title="Mecenate", zone="Mecenate", portal="idealista"),
+            _listing("2", 70.0, title="Ponte Lambro", zone="Ponte Lambro", portal="idealista"),
+            _listing(
+                "3", 80.0, title="Parco Forlanini", zone="Parco Forlanini", portal="idealista"
+            ),
+            _listing(
+                "4", 60.0, title="Altro comune", city="Monza", zone="Centro", portal="idealista"
+            ),
+        ],
+    )
+
+    assert summary["outside_area"] == 1
+    props = _by_title(db)
+    assert props["Mecenate"].outside_requested_area is False
+    assert props["Ponte Lambro"].outside_requested_area is False
+    assert props["Parco Forlanini"].outside_requested_area is False
+    # the comune still applies, which is the whole point of giving up the zone
+    assert props["Altro comune"].outside_requested_area is True
+
+
+def test_an_idealista_district_url_still_flags_on_the_district(db, monkeypatch):
+    """Three location segments name the narrowest level, the one a card carries
+    too, so the two are comparable again and the check keeps its opinion."""
+    _, summary = _scan_area(
+        db,
+        monkeypatch,
+        IDEALISTA_DISTRICT_URL,
+        [
+            _listing("1", 90.0, title="Dentro", zone="Fiera", portal="idealista"),
+            _listing("2", 70.0, title="Zona accanto", zone="Città Studi", portal="idealista"),
+        ],
+    )
+
+    assert summary["outside_area"] == 1
+    assert _by_title(db)["Zona accanto"].outside_requested_area is True
 
 
 def test_a_search_with_no_readable_location_judges_nothing(db, monkeypatch):
@@ -2496,6 +2547,13 @@ def test_the_summary_says_what_each_portal_contributed(scan_db, portal, live_sca
     # and detached from the list the scan was appending to.
     assert scanner.scan_state["last_portals"] == summary["portals"]
     assert scanner.scan_state["last_portals"] is not summary["portals"]
+    # The same rule for what the scan did: numbers, so the dashboard can say it
+    # in the user's language. A sentence built here reached the header of an
+    # otherwise Italian app in English.
+    counts = scanner.scan_state["last_counts"]
+    assert set(counts) == {"new", "updated", "filtered", "price_changes", "truncated"}
+    assert all(isinstance(v, int) for v in counts.values())
+    assert counts["new"] == summary["new"]
 
 
 def test_one_portal_two_searches_reports_the_block_and_keeps_the_count(db):
