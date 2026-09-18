@@ -216,11 +216,19 @@ Re-measured 2026-09-13 with `scripts/measure_frontend.mjs` ([`audit.md`](audit.m
 reads one of the two languages, so roughly a fifth of what loads before anything renders is
 for something this visit will not do.
 
-**This is now the near one.** The Lighthouse budget is 950 kB; cycle 4 spent 19 kB of the 28
-that were left and the build is at 941. Nine kilobytes is less than one dependency, so the
-next feature that adds a library to a single screen is the one that turns the *performance
-budget* job in CI red — and it will look like that feature's fault when it is not. Whoever
-picks this up does it before adding the library, not after.
+**This is no longer the near one — it has arrived.** The Lighthouse budget is 950 kB; cycle 4
+spent 19 kB of the 28 that were left and the build is at 941. Nine kilobytes is less than one
+dependency, and on 2026-09-18 they went: Dependabot's grouped frontend bump (`react` and
+`react-dom` 19.2.8 → 19.3.0, `lucide-react` 1.41.0 → 1.46.0 and six more) builds at **998 kB**
+and turns the *performance budget* job red. The pull request was closed rather than merged —
+raising the ceiling to absorb a routine bump is the one thing the gate exists to prevent.
+
+The prediction above was right about the mechanism and wrong about who would trigger it. It
+named "the next feature that adds a library to a single screen"; what actually spent the
+headroom was a dependency update nobody chose the size of, which means the cost is no longer
+paid only by new work — **the frontend cannot take its upgrades until this is done.** That
+moves it from a performance item to a maintenance blocker, and it is why it should be the
+first task of the next cycle rather than a candidate for one.
 
 **What doing it looks like.** A `React.lazy` around the map route and a dynamic `import()`
 per locale, with a loading state each. Both change when a module is evaluated, and the
