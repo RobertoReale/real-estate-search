@@ -24,4 +24,4 @@ pillow>=10.0
 # One-folder bundle. Not one-file: one-file unpacks to a temp directory on every
 # launch, which is slow for a ~40 MB app and, more importantly, is the exact
 # behaviour that makes an on-disk database dangerous to resolve against the code.
-pyinstaller>=6.10
+pyinstaller>=6.22.3
