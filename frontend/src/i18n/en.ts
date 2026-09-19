@@ -1518,6 +1518,8 @@ export const en = {
     "Stopped at page {pages}, the configured limit — the portal counted {total} listings for this search.",
   "limits.portalBlocked":
     "This portal refused the request, so its listings are missing from this scan rather than absent from the market.",
+  "limits.coverageShortfall":
+    "Read {listings} of the {total} listings the portal counted for this search — the rest did not come back, so this scan is not the whole of it.",
   "limits.outsideArea":
     "{count} of these came back from outside the area the search asked for.",
   "limits.outsideAreaMarker": "outside the search area",

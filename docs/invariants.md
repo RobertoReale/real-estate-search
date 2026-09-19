@@ -585,6 +585,14 @@ each invariant to its code home and its test file. See also
     testable: `frontend/src/routes/activity/progress.test.ts` — "refuses a fraction where
     the portal declared no total" and "never runs past the total the portal stated".
 
+    The scan journal's `coverage` is the same rule away from a progress bar, and the same
+    two ways of getting it wrong: `scanner._coverage` returns `None` where the portal
+    declared no total — because a missing denominator rendered as 0 % reads as "this scan
+    found nothing", which is the strongest false claim on the row — and clamps to 1 where
+    the portal under-declared, for the reason the bar clamps. Tests:
+    `test_scanner.py::test_coverage_is_left_unsaid_wherever_the_ratio_would_be_noise` and
+    `::test_reading_more_than_the_portal_admitted_to_is_not_over_a_hundred_percent`.
+
 27. **A stored secret is never overwritten by its own mask.** `GET /api/settings` returns
     every secret as `"***"` (`config.SECRET_SETTINGS`; the Telegram token as a truncated
     prefix), and the settings form writes the whole object back — so an untouched

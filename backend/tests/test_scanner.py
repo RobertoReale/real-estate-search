@@ -18,7 +18,7 @@ from sqlalchemy.pool import StaticPool
 from app import config
 from app.database import Base
 from app.models import Listing, Property, SearchProfile
-from app.scrapers.base import RawListing, ScrapeResult
+from app.scrapers.base import RawListing, ScrapeResult, merge_scrapes
 from app.scrapers.immobiliare import ImmobiliareScraper
 from app.services import scanner, scraper_health
 from app.services.search_builder import IMMOBILIARE_ZONE_ID_PARAM
@@ -1977,6 +1977,119 @@ def test_a_search_that_fit_says_so_on_its_journal_line(scan_db, portal, live_sca
     assert entry["truncated"] is False
     assert entry["total_listings"] is None
     assert entry["outside_area"] == 0
+    # nothing to compare against, and "0 %" would be the wrong way to say so
+    assert entry["coverage"] is None
+    assert entry["coverage_shortfall"] is False
+
+
+def _read(listings: int, total: int | None, **kwargs) -> ScrapeResult:
+    """A finished sweep that collected `listings` of a declared `total`."""
+    return ScrapeResult(
+        listings=[_listing(str(n), 70.0 + n) for n in range(listings)],
+        pages_fetched=1,
+        page_limit=10,
+        total_listings=total,
+        **kwargs,
+    )
+
+
+def test_a_finished_full_scan_records_how_much_of_the_portal_s_count_it_read(
+    scan_db, portal, live_scan, monkeypatch
+):
+    """The counts on a journal line answer "what did this scan find", never
+    "did it find everything" — and the second question is the one a user asks
+    when a listing they saw on the portal is missing here. The portal declares
+    its own total; a sweep that finished and was never capped has no excuse for
+    coming back with less, so the ratio is worth writing down."""
+
+    class _Partial:
+        delay_seconds = 0
+        max_pages = 10
+        on_progress = None
+
+        def scrape(self, url, known=None):
+            return _read(9, 12)
+
+    monkeypatch.setattr(scanner, "get_scraper", lambda _portal: _Partial())
+    _watch(scan_db, portal, "Torino", "immobiliare", "/vendita-case/torino/")
+
+    scanner.run_scan(manual=True)
+
+    entry = scanner.get_scan_journal()[0]
+    assert entry["outcome"] == "ok" and entry["mode"] == "full"
+    assert entry["coverage"] == 0.75
+    assert entry["coverage_shortfall"] is True
+    # and the two numbers the notice is written from are on the same row, so the
+    # dashboard states the ratio rather than recomputing it
+    assert entry["listings"] == 9 and entry["total_listings"] == 12
+
+
+@pytest.mark.parametrize(
+    "result, mode, outcome",
+    [
+        # a quick scan stopped where it was told to; that is not a shortfall
+        (_read(1, 40), "quick", "ok"),
+        # the cap is the reason, and the row already carries it
+        (_read(20, 400, truncated_by="page_limit"), "full", "ok"),
+        (_read(0, 40), "full", "blocked"),
+        (_read(0, 40), "full", "error"),
+        # no denominator: the portal declared nothing to compare against
+        (_read(30, None), "full", "ok"),
+        (_read(30, 0), "full", "ok"),
+        (None, "full", "error"),
+    ],
+)
+def test_coverage_is_left_unsaid_wherever_the_ratio_would_be_noise(result, mode, outcome):
+    """Every one of these rows is partial for a reason it already states. A
+    second, worse account of the same fact would be noise at best — and for the
+    searches with no declared total it would be a fabricated denominator, which
+    is the failure invariant 26 exists to prevent."""
+    assert scanner._coverage(result, mode=mode, outcome=outcome) is None
+
+
+def test_a_split_search_is_measured_against_the_whole_s_declared_total():
+    """A search too big for the page cap is run as parts, and each part carries
+    the total of its own slice. Counting against those would compare the
+    listings of every part with the total of the last one. `merge_scrapes`
+    already keeps the whole's — this is the assertion that it stays that way."""
+    whole = ScrapeResult(listings=[], pages_fetched=0, total_listings=100)
+    parts = [
+        ScrapeResult(listings=[_listing(str(n), 70.0 + n)], pages_fetched=1, total_listings=30)
+        for n in range(80)
+    ]
+    # the same listing in two parts is one listing, which is why the merge
+    # deduplicates before anything counts them
+    parts.append(ScrapeResult(listings=[_listing("0", 70.0)], pages_fetched=1, total_listings=30))
+    merged = merge_scrapes([whole, *parts])
+
+    assert merged.total_listings == 100
+    assert scanner._coverage(merged, mode="full", outcome="ok") == 0.8
+
+
+def test_the_shortfall_is_flagged_below_the_tolerance_and_not_at_it():
+    """The tolerance is the whole of the feature: above it a scan is healthy and
+    says nothing, below it the row turns. Both sides are asserted against the
+    constant rather than against a number copied out of it, so re-calibrating it
+    cannot leave this test green while the behaviour moves."""
+    total = 400
+    at = round(scanner.COVERAGE_TOLERANCE * total)
+
+    def flagged(listings: int) -> bool:
+        coverage = scanner._coverage(_read(listings, total), mode="full", outcome="ok")
+        assert coverage is not None
+        return coverage < scanner.COVERAGE_TOLERANCE
+
+    assert flagged(at) is False
+    assert flagged(at - 1) is True
+    assert flagged(total) is False
+
+
+def test_reading_more_than_the_portal_admitted_to_is_not_over_a_hundred_percent():
+    """Portals under-declare — the count on the first page is taken before the
+    walk that follows it. "Read 112 % of them" reads as a bug in this app rather
+    than as arithmetic from the portal, so it is clamped where the progress bar
+    is clamped."""
+    assert scanner._coverage(_read(45, 40), mode="full", outcome="ok") == 1.0
 
 
 def test_the_journal_counts_what_came_back_from_outside_the_requested_area(

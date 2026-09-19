@@ -1536,6 +1536,8 @@ export const it: Dict = {
     "Fermata alla pagina {pages}, il limite impostato — il portale contava {total} annunci per questa ricerca.",
   "limits.portalBlocked":
     "Questo portale ha rifiutato la richiesta: i suoi annunci mancano da questa scansione, non dal mercato.",
+  "limits.coverageShortfall":
+    "Letti {listings} dei {total} annunci dichiarati dal portale per questa ricerca — il resto non è tornato, quindi questa scansione non è tutto.",
   "limits.outsideArea":
     "{count} di questi sono arrivati da fuori la zona che la ricerca chiedeva.",
   "limits.outsideAreaMarker": "fuori zona",

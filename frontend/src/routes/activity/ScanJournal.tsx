@@ -15,8 +15,10 @@
  *  Which is exactly why the page cap needs a line of its own here. A search that
  *  stopped at the limit ends `ok` — it worked, it simply did not finish — so
  *  every explanation above skips it, and the counts read as the whole answer.
- *  This is the one row that earns the `incomplete` tone, and it takes the cap
- *  and the portal's own total off the entry rather than out of the copy.
+ *  The shortfall row below it is the quieter version of the same problem: a scan
+ *  that was never capped and never refused, and still came back with less than
+ *  the portal said it had. Both earn the `incomplete` tone, and both take their
+ *  figures off the entry rather than out of the copy.
  */
 import { formatDateTime, formatNumber, useI18n } from "../../i18n";
 import { Limit } from "../../components/Limit";
@@ -91,6 +93,21 @@ export default function ScanJournal() {
                             pages: formatNumber(entry.page_limit),
                             total: formatNumber(entry.total_listings),
                           })}
+                    </Limit>
+                  )}
+                  {/* Not capped, not refused, and still short of what the
+                      portal counted. The backend decided "short" — the
+                      tolerance is a measured constant beside the scanner, and
+                      a copy of it here would be a second place to change it —
+                      so the row only has to state the two numbers behind the
+                      verdict. `total_listings` cannot be null here, but the
+                      check keeps the copy honest if that ever changes. */}
+                  {entry.coverage_shortfall && entry.total_listings !== null && (
+                    <Limit id="scan.coverageShortfall" tone="incomplete">
+                      {t("limits.coverageShortfall", {
+                        listings: formatNumber(entry.listings),
+                        total: formatNumber(entry.total_listings),
+                      })}
                     </Limit>
                   )}
                   {entry.outside_area > 0 && (

@@ -399,6 +399,15 @@ class ScanJournalEntryOut(ApiOut):
     # answer; a search whose zone the portal only approximated is where it is
     # not, which is exactly when the count is worth showing.
     outside_area: int = 0
+    # `listings` over `total_listings`, but only where the ratio means
+    # something: a full sweep that finished `ok`, was not truncated, and got a
+    # declared total. `None` everywhere else — a quick scan, a capped one, a
+    # refusal, a portal that declared nothing — and `None` is never 0 %, since
+    # each of those rows already states the reason it is partial.
+    # `coverage_shortfall` is the same fact against `scanner.COVERAGE_TOLERANCE`,
+    # decided on the backend so the threshold has one home.
+    coverage: float | None = None
+    coverage_shortfall: bool = False
 
 
 class ScanPortalOut(ApiOut):
