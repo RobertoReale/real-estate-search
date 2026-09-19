@@ -859,6 +859,110 @@ language files.
   supported` on both Idealista runs — a rung on the ladder that the installed
   `curl_cffi` cannot actually drive.
 
+## Measurements — 2026-09-19, one request answers and the next is refused
+
+For a week Immobiliare behaved as if it were rationing: a fresh cookie answered
+once and then refused, a rested connection answered once and then refused. The
+pattern was read as a rate limit and it was not one — **the app was throwing the
+cookie away between requests.**
+
+### The shape, run by run
+
+| When | What happened |
+|---|---|
+| 2026-09-12 | 6 of 6 reference searches answered on a cookie 56 hours old (§ *Measurements — 2026-09-12*) |
+| 2026-09-14 | a scan read 45 pages in one session; every session after it was refused |
+| 2026-09-18 11:03 | 0 of 6, every free rung 403, on the same cookie |
+| 2026-09-18 11:06 | cookie minted headful minutes earlier: first request 200 with 25 ads, **every later request 403** |
+| 2026-09-18 11:10 | two requests, both 403 — and each 403 carried a `Set-Cookie: datadome=…` of its own |
+| 2026-09-19 10:41 | after a day's rest: one request 200 with 25 ads, declared total 18,607 |
+
+The three refusals of 11:06–11:10 went out on **three different sessions**, each
+one freshly seeded with the same saved cookie. That is the whole tell.
+
+**One correction, because it cost a day of reasoning.** The 10:41 run was read as
+"answered once, then refused". It was not: after the one 200, every remaining
+attempt is `skipped — request cap reached (3 per run)`. The budget stopped that
+run, not the portal. A skipped attempt and a blocked one both read as *nothing
+came back* in the summary table, so check the `OUTCOME` column before concluding
+a portal refused you.
+
+### What the portal is actually doing
+
+DataDome reissues its token on an answered request and stops trusting the value
+that token superseded once the binding context drifts; the cookie is not a bearer
+credential that can be lifted from one client and replayed from another. The
+published guidance is the opposite of what this app was doing: persist the cookie
+the portal hands back, per session, pinned to the address it was earned from.
+
+* [DataDome — cookie & session storage](https://docs.datadome.co/docs/cookie-session-storage)
+  (the cookie is long-lived and used by both the server- and client-side checks;
+  the refresh mechanics are not documented)
+* [The DataDome cookie lifecycle](https://blog.crawlex.net/blog/datadome-cookie-lifecycle/)
+* [403s with the same status and different causes](https://www.aethyn.io/blog/datadome-403-same-status-different-outcomes)
+* [Handling DataDome blocks from Python](https://www.aethyn.io/solutions/handle-datadome-blocks-python)
+
+Nothing in any of them documents a per-cookie or per-address request threshold,
+which is the other hypothesis this measurement had to separate.
+
+Against that, the code read as a machine for discarding rotations:
+`BaseScraper._new_session` seeded the *saved* cookie onto every new session and
+nothing ever wrote back what came in on a `Set-Cookie`; `run_checks` built a new
+scraper per URL and `build_rungs` a new session per rung, so a six-search suite
+was six to twelve first-time visitors in a row; and one `datadome_cookie` setting
+fed both portals, so minting for one overwrote the other's working token with a
+value that had never been valid there.
+
+### The measurement
+
+One run, 2026-09-19 11:22:17, about 40 minutes after the last request left this
+address. `--suite --portal immobiliare --rungs curl+cookie --max-requests 8`,
+**8 requests, zero credits, no `--paid`**: five geography lookups (three of which
+went to the network) and five listing requests, all on **one session** carrying
+whatever cookie the portal had last set.
+
+| Search | Shape | HTTP | Ads | Declared total | ms |
+|---|---|---|---|---|---|
+| `imm-city` | city | 200 | 25 | 18,607 | 202 |
+| `imm-zone-path` | zone in the path | 200 | 25 | 247 | 373 |
+| `imm-zone-ids` | zone ids in the query | 200 | 25 | 1,003 | 424 |
+| `imm-polygon` | drawn polygon | 200 | 25 | 1,226 | 637 |
+| `imm-radius` | radius around a point | 200 | 25 | 3,470 | 475 |
+| `imm-zone-path-form` | form | — | — | — | skipped at the 8-request cap |
+
+**5 of 5, where the same ladder got 1 and then 403s.** Hypothesis (a) — rotation
+with the superseded value distrusted — is confirmed; hypothesis (b), a rate or
+behaviour threshold, is not what was stopping these runs. Five requests inside a
+minute is the opposite of what a rate limit tolerates.
+
+What this does **not** rule out is a threshold much higher up: the 45-page scan of
+2026-09-14 was followed by real refusals, and nothing here measures where that
+edge is. The scan's existing page caps and `request_delay_seconds` stay the answer
+for volume; they were not tightened, because there is no measured number to tighten
+them to.
+
+### What was built from it
+
+* **The cookie the portal hands back is kept.** `_CookieKeepingSession` wraps the
+  scraper's session, reads the `datadome` cookie off the jar after an answered
+  response and persists it. Only after an answered one: every 403 on 2026-09-18
+  also set a cookie, and a token issued alongside a refusal is not worth keeping.
+* **Per portal, not shared.** `datadome_session_cookies` holds one value per
+  portal, keyed by the jar's domain; `datadome_cookie` stays the seed a first
+  session starts from, and minting a new one drops the rotations it supersedes.
+  A fresh cookie for Immobiliare no longer overwrites Idealista's.
+* **One session per portal per run.** `run_checks` builds one scraper and one set
+  of rungs per portal instead of per URL, and the `curl+cookie` rung goes out on
+  the scraper's own jar — the one the geography lookup already used — rather than
+  opening a second jar seeded from the same value.
+* **It is a secret, and it is treated as one.** The rotated values are written by
+  the scrapers and never by a person, so they are not in `SECRET_SETTINGS` (that
+  list drives the settings form's mask/unmask round trip). `config.secret_values()`
+  is what the two redactors read instead, and `GET /api/settings` drops the map
+  outright: nothing in the UI reads it, so it never leaves the backend.
+* **Still no retry loop.** A refusal ends the attempt exactly as before
+  (invariant 8); what changed is what the *next* attempt carries.
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:

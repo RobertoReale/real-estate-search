@@ -35,6 +35,10 @@ def get_settings():
     settings["smtp_password"] = "***" if settings.get("smtp_password") else ""
     settings["datadome_cookie_set"] = bool(settings.get("datadome_cookie"))
     settings["datadome_cookie"] = "***" if settings.get("datadome_cookie") else ""
+    # The cookies the portals rotated onto the saved one are not masked, they
+    # are dropped: nothing in the UI reads them and nothing writes them back, so
+    # the value never needs to leave the backend at all.
+    settings.pop("datadome_session_cookies", None)
     settings["scrape_api_key_set"] = bool(settings.get("scrape_api_key"))
     settings["scrape_api_key"] = "***" if settings.get("scrape_api_key") else ""
     settings["llm_api_key_set"] = bool(settings.get("llm_api_key"))

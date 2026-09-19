@@ -423,6 +423,13 @@ DEFAULT_SETTINGS = {
     # portal says so, which is observable, not when a timer guesses.
     "datadome_cookie_refused_at": "",
     "datadome_cookie_refused_detail": "",
+    # The cookie the portal itself last issued, per portal — DataDome rotates
+    # the token on an answered request and stops trusting the value it
+    # superseded, so replaying the minted one on every session made every
+    # session a first-time visitor. Written by the scrapers from a `Set-Cookie`
+    # on an answered response, never by hand; `datadome_cookie` above stays the
+    # seed a fresh session starts from. Dropped whenever a new cookie is minted.
+    "datadome_session_cookies": {},
     # Availability check transport. When on, the "is this ad still online?"
     # batch runs entirely through a persistent headless browser (Playwright)
     # instead of curl_cffi, so it earns a real DataDome cookie once and reuses
@@ -542,6 +549,23 @@ SECRET_SETTINGS = (
 )
 
 
+def secret_values(settings: dict) -> list[str]:
+    """Every stored credential as a flat list of strings to redact.
+
+    `SECRET_SETTINGS` is the list of *user-entered* credentials — the settings
+    form masks each one and unmasks it on the way back, so a field the user
+    never fills has no business in it. `datadome_session_cookies` is one of
+    those: written by the scrapers, never shown, never posted. It is just as
+    secret though, so it joins the values here, which is what the two redactors
+    read.
+    """
+    out = [str(settings.get(key) or "").strip() for key in SECRET_SETTINGS]
+    rotated = settings.get("datadome_session_cookies") or {}
+    if isinstance(rotated, dict):
+        out += [str(value or "").strip() for value in rotated.values()]
+    return [value for value in out if value]
+
+
 def save_settings(new_values: dict) -> dict:
     settings = load_settings()
     # The timestamp and the refusal marker are metadata about the cookie, so
@@ -557,6 +581,17 @@ def save_settings(new_values: dict) -> dict:
             **new_values,
             "datadome_cookie_updated_at": datetime.now(UTC).isoformat(),
         }
+    # A newly minted seed supersedes whatever the portals had rotated onto the
+    # old one: those tokens belong to a session that no longer exists, and
+    # preferring them would send the fresh cookie straight back to a refusal.
+    # Only when the seed actually changes — saving the same cookie again (the
+    # settings form posts every field) must not throw away a live rotation.
+    if (
+        "datadome_cookie" in new_values
+        and "datadome_session_cookies" not in new_values
+        and "".join(str(new_values["datadome_cookie"]).split()) != settings.get("datadome_cookie")
+    ):
+        new_values = {**new_values, "datadome_session_cookies": {}}
     settings.update({k: v for k, v in new_values.items() if k in DEFAULT_SETTINGS})
     for key in SECRET_SETTINGS:
         value = settings.get(key)

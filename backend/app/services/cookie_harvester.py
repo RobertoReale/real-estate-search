@@ -209,6 +209,69 @@ def _pick_datadome(cookies: Sequence[Mapping[str, Any]]) -> str | None:
     return None
 
 
+# The cookie domain each portal issues on. DataDome tokens are per-site: the
+# value immobiliare.it hands out means nothing to idealista.it, so they are
+# stored and replayed apart even though a single pasted seed still starts both.
+COOKIE_DOMAINS = {
+    "immobiliare": ".immobiliare.it",
+    "idealista": ".idealista.it",
+}
+
+_rotation_lock = threading.Lock()
+
+
+def cookie_for(portal: str, settings: Mapping[str, Any] | None = None) -> str:
+    """The `datadome` value to present to `portal`, newest first.
+
+    The rotated token wins over the pasted seed. DataDome reissues the cookie on
+    an answered request and then distrusts the value it superseded, so a session
+    that always re-seeds the minted one arrives as a first-time visitor on every
+    request — which is what made the *second* request of a run fail while the
+    first answered (`docs/live-checks.md`). Falls back to the seed when the
+    portal has not rotated anything yet.
+    """
+    data = settings if settings is not None else load_settings()
+    rotated = data.get("datadome_session_cookies") or {}
+    if isinstance(rotated, Mapping):
+        value = str(rotated.get(portal) or "").strip()
+        if value:
+            return value
+    return str(data.get("datadome_cookie") or "").strip()
+
+
+def remember_rotated_cookie(portal: str, value: str) -> bool:
+    """Persist the `datadome` value `portal` issued on an answered response.
+
+    Called from the scrapers' session wrapper, so it runs on the scan's worker
+    threads and on the live-check's: the read-modify-write of settings.json is
+    held under a lock, and a value identical to the stored one writes nothing at
+    all — a scan walking twenty answered pages must not write the file twenty
+    times. Only ever called for an answered response: a 403 also arrives with a
+    fresh `datadome` cookie, and storing *that* would overwrite a working token
+    with a challenge one. Fails open like the rest of the custody bookkeeping.
+
+    Returns True when settings were written.
+    """
+    value = (value or "").strip()
+    if not value or len(value) < 8 or portal not in COOKIE_DOMAINS:
+        return False
+    try:
+        with _rotation_lock:
+            settings = load_settings()
+            rotated = dict(settings.get("datadome_session_cookies") or {})
+            if rotated.get(portal) == value:
+                return False
+            rotated[portal] = value
+            save_settings({"datadome_session_cookies": rotated})
+        logger.info(
+            "cookie custody: %s rotated its DataDome cookie; kept for the next request", portal
+        )
+        return True
+    except Exception:
+        logger.exception("cookie custody: could not keep the rotated cookie for %s", portal)
+        return False
+
+
 def note_cookie_refused(portal: str, rung: str, status: int | None = None) -> None:
     """Record that the portal refused a request carrying the saved cookie.
 
@@ -690,9 +753,17 @@ def refresh_into_settings(portal: str = "immobiliare", headless: bool = False) -
     if not result.cookie:
         return {"ok": False, "error": result.error or "No cookie obtained"}
     now = datetime.now(UTC)
+    # The token belongs to the portal that issued it, so it is kept per portal
+    # as well as in the shared seed: before this, minting for one portal
+    # overwrote the other's working cookie with a value that had never been
+    # valid there. The other portal's entry survives untouched — nothing about
+    # this grab invalidates it.
+    rotated = dict(load_settings().get("datadome_session_cookies") or {})
+    rotated[portal] = result.cookie
     save_settings(
         {
             "datadome_cookie": result.cookie,
+            "datadome_session_cookies": rotated,
             "datadome_cookie_updated_at": now.isoformat(),
             # a cookie just earned carries no refusal; leaving the old marker
             # would have Settings asking for the cookie it has just been given
