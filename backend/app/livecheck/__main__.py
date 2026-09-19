@@ -9,6 +9,12 @@ Everything that costs something is off by default. The browser rung has to be
 asked for by name (invariant 18), the paid rung needs `--paid`, and the credit
 cap and account floor apply on top of that — the defaults are the budget, and
 raising one is a deliberate act with a number attached.
+
+Four exit codes, because "it did not answer" has four different next steps:
+0 everything asked answered; 1 something was asked and did not; 2 the command
+or the reference list is wrong and nothing left this machine; 3 nothing was
+refused but something was never asked, which is a budget to raise rather than a
+portal to investigate.
 """
 
 import argparse
@@ -22,16 +28,16 @@ from .budget import (
     DEFAULT_MAX_REQUESTS,
     Budget,
 )
-from .report import render, succeeded
+from .report import exit_code, render
 from .rungs import PORTAL_HOSTS, active_profiles, replay, run_checks
 from .suite import (
     entries,
-    every_search_answered,
     render_comparison,
     render_suite,
     request_cap,
     run_suite,
     suite_complaints,
+    suite_exit_code,
 )
 
 
@@ -138,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.replay:
         run = replay(Path(args.replay))
         print(render(run))
-        return 0 if succeeded(run) else 1
+        return exit_code(run)
 
     urls = list(args.urls)
     if args.profiles:
@@ -193,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.compare_form:
             print(f"\n{render_comparison(run)}")
         print(f"\nwritten to {run.directory}")
-        return 0 if every_search_answered(run) else 1
+        return suite_exit_code(run)
 
     run = run_checks(
         urls,
@@ -204,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(render(run))
     print(f"\nwritten to {run.directory}")
-    return 0 if succeeded(run) else 1
+    return exit_code(run)
 
 
 if __name__ == "__main__":

@@ -22,9 +22,10 @@ cd backend && .venv\Scripts\python -m app.livecheck "https://www.immobiliare.it/
 ## What it does
 
 One run takes a search URL, works out the portal, builds every rung this machine
-could climb, and tries them in order — free first, cheapest evidence first, money
-last. Nothing in `app/scrapers/` is modified or re-implemented: the scrapers are
-driven from outside, so what the report measures is what a scan would get.
+could climb, and tries them in order — what a scan would do first, then free
+evidence, then money. Nothing in `app/scrapers/` is modified or re-implemented:
+the scrapers are driven from outside, so what the report measures is what a scan
+would get.
 
 Four ways to say what to check:
 
@@ -45,10 +46,23 @@ Four ways to say what to check:
 | `api:<provider>` | the paid scrape API. Needs `--paid`, and answers to the credit cap and the account floor |
 | `official` | Idealista's own API, where a key is configured. Not a scrape at all, and the control for everything above it |
 
+**The cookie goes first when there is one.** With a `datadome` value saved —
+either the pasted `datadome_cookie` or, ahead of it, the per-portal token the
+portal last rotated back at us in `datadome_session_cookies` — `curl+cookie` is
+the first rung tried, because that is the scanner's own rung 0 and a live check
+is asking *does a scan still work*. A climb that spends its cap on the bare
+impersonations first answers a different question and then has nothing left to
+ask this one with; worse, the three refusals those impersonations collect trip
+the blocked streak and drop the portal before the working rung is reached (the
+trap below, measured on 2026-09-12). With no cookie saved there is no rung 0 to
+imitate and the cheapest-evidence-first order stands.
+
 `--rungs` selects a subset by family (`curl`, `api`) or by exact name
-(`curl:safari184`, `curl+cookie`, `browser`, `official`). A rung this machine
-cannot climb — no cookie saved, no browser installed, no key configured — is
-reported as skipped **with the reason**, never quietly left out of the table.
+(`curl:safari184`, `curl+cookie`, `browser`, `official`) and overrides nothing
+about the order — it just narrows the list. `--all-rungs` still asks the whole
+matrix. A rung this machine cannot climb — no cookie saved, no browser
+installed, no key configured — is reported as skipped **with the reason**, never
+quietly left out of the table.
 
 ### The targets
 
@@ -82,8 +96,25 @@ and is reported as one, but it is **not** a rung and can never be the verdict �
 it answers a lookup endpoint anti-bot rarely guards, so a run where every real
 transport was refused must still read `no rung worked`.
 
-**Exit code:** 0 when every portal checked had at least one rung that parsed
-listings or *proved* the search matches nothing; 1 otherwise.
+**Not checked is not failed.** A portal whose every attempt was refused *by the
+budget* — the request cap reached, or the portal dropped for another search's
+refusals — never measured anything, and the report says `not checked — <reason>`
+rather than `no rung worked`. The two sit in the same column and mean opposite
+things: one is the portal's answer, the other is that there was no answer to
+read. The per-portal verdict counts them apart (`2 answered, 4 not checked:
+request cap reached (13 per run)`), and so does the exit code.
+
+**Exit codes**, because "it did not answer" has four different next steps:
+
+| | |
+|---|---|
+| 0 | everything asked answered: a rung parsed listings, or *proved* the search matches nothing |
+| 1 | something was asked and did not answer — a finding about the portal, worth investigating |
+| 2 | the command or the reference list is wrong; nothing left this machine |
+| 3 | nothing was refused, but something was never asked — a finding about the run, wanting `--max-requests` or a narrower `--portal` |
+
+A run that checked nothing at all is a 1: the caller asked a question and got no
+measurement, which is a failure however it came about.
 
 ## The reference suite
 
@@ -125,13 +156,27 @@ a suite that has drifted would report a green table for shapes it never checked.
 **It climbs one rung, not the matrix.** Each search stops at the first rung that
 parses, so a suite run costs a handful of requests rather than one per rung per
 search. `--all-rungs` asks every rung of every search; it is the full matrix, and
-it is the thing the budget exists to make you ask for on purpose. The request cap
-scales with the list — three requests per search of the busiest portal — so the
-second half of the suite is not refused by a cap sized for one URL.
+it is the thing the budget exists to make you ask for on purpose.
 
-**Exit code:** 0 only when **every** reference search had a rung that answered.
-The per-portal verdict cannot say this: one working city search would cover for
-four broken shapes.
+The request cap scales with the list, and it is **derived from the climb** rather
+than picked: a healthy search costs one geography lookup plus one listing request
+(Immobiliare; Idealista's HTML page needs no lookup and so costs less), which is
+two requests per search of the busiest portal, plus **one** spare request for the
+whole run so a single search that needs its second rung does not cut the suite
+short. Today that is `2 × 6 + 1 = 13` for Immobiliare, floored at the
+single-search default of 12. The headroom is one for the run and not one per
+search on purpose: per-entry headroom would let a portal that refuses everything
+spend half the cap again before the blocked streak stops it, and the streak is
+the limit that is supposed to end that run. Add a rung to the ladder or a search
+to the list and the cap moves on its own.
+
+**Exit code:** 0 only when **every** reference search had a rung that answered;
+3 when the ones that did not were never asked; 1 when a search was asked and
+refused. The per-portal verdict cannot say this: one working city search would
+cover for four broken shapes. A shape nothing was asked about reads `not
+checked — <reason>` in the table and is counted separately in the roll-up
+(`4 of 9 reference searches answered, 5 not checked`), because a suite the cap
+stopped halfway and a suite the portal refused want opposite next steps.
 
 ### `--portal`
 
@@ -188,7 +233,7 @@ from, and a retry loop on it is what gets that address blocked for a day
 
 | | Default | Raise it with |
 |---|---|---|
-| requests per portal, per run | 12 | `--max-requests` |
+| requests per portal, per run | 12; `--suite` derives its own from the climb (13 today) | `--max-requests` |
 | seconds between requests to one portal | `request_delay_seconds` from settings, plus jitter | `--delay` |
 | consecutive blocked attempts before the portal is dropped | 3 | — |
 | credits one run may spend | 25 (one page) | `--max-credits` |
@@ -352,18 +397,25 @@ worked. [`roadmap.md`](roadmap.md) carries it as a known limit.
 ### The trap in reading `--all-rungs`
 
 `--suite --all-rungs` reported `immobiliare: no rung worked` in run
-`20260912-032029`, and that verdict was an artefact. The rungs are ordered
-cheapest-evidence-first, so all six cookieless profiles are tried before
-`curl+cookie`; the third consecutive 403 tripped the blocked-streak limit and
-dropped the portal for the rest of the run — before the one rung that works was
-ever asked, and before four of the five Immobiliare shapes were reached at all.
-Twenty-five minutes later the same searches answered on the first attempt.
+`20260912-032029`, and that verdict was an artefact. The rungs were ordered
+cheapest-evidence-first at the time, so all six cookieless profiles were tried
+before `curl+cookie`; the third consecutive 403 tripped the blocked-streak limit
+and dropped the portal for the rest of the run — before the one rung that works
+was ever asked, and before four of the five Immobiliare shapes were reached at
+all. Twenty-five minutes later the same searches answered on the first attempt.
 
-So an Immobiliare verdict from `--all-rungs` says *the free cookieless rungs were
+Two things were built from it. The default climb now puts `curl+cookie` first
+whenever a cookie is saved, so an ordinary `--suite` run cannot lose the working
+rung to a streak the cookieless profiles collected on the way to it. And a search
+nothing was asked about reads `not checked — <reason>` instead of `no rung
+worked`, so the artefact states itself in the table rather than having to be
+deduced from an empty note column.
+
+`--all-rungs` still climbs the whole matrix, so the trap still applies to it: an
+Immobiliare verdict from `--all-rungs` says *the free cookieless rungs were
 refused*, never *the portal is dead*. The rows below the streak limit are
-**untried**, and the report says so in the note column — read that column before
-concluding anything from an empty one. The cheap confirmation is one targeted
-run: `--rungs curl+cookie` against a single URL costs two requests.
+**untried** and now say so. The cheap confirmation is one targeted run:
+`--rungs curl+cookie` against a single URL costs two requests.
 
 ## Measurements — 2026-09-12, why every free local rung is refused
 
@@ -962,6 +1014,44 @@ them to.
   outright: nothing in the UI reads it, so it never leaves the backend.
 * **Still no retry loop.** A refusal ends the attempt exactly as before
   (invariant 8); what changed is what the *next* attempt carries.
+
+## Measurements — 2026-09-19, the default suite with the cookie climbed first
+
+The run above needed `--portal immobiliare --rungs curl+cookie --max-requests 8`
+to reach the working rung at all. With `curl+cookie` first by default, the same
+evidence comes out of the plain command. One run, 2026-09-19 20:28:08,
+`--suite` with no flags: **no `--rungs`, no `--paid`, zero credits**.
+
+| Search | Portal | Shape | HTTP | Ads | Declared total | Via | Tried |
+|---|---|---|---|---|---|---|---|
+| `imm-city` | Immobiliare | city | 200 | 25 | 18,633 | `curl+cookie` | 1 |
+| `imm-zone-path` | Immobiliare | zone in the path | 200 | 25 | 247 | `curl+cookie` | 1 |
+| `imm-zone-ids` | Immobiliare | zone ids in the query | 200 | 25 | 1,003 | `curl+cookie` | 1 |
+| `imm-polygon` | Immobiliare | drawn polygon | 200 | 25 | 1,226 | `curl+cookie` | 1 |
+| `imm-radius` | Immobiliare | radius around a point | 200 | 25 | 3,484 | `curl+cookie` | 1 |
+| `ide-city` | Idealista | city | 200 | 30 | 15,074 | `curl+cookie` | 1 |
+| `ide-zone` | Idealista | zone with filters | 200 | 30 | 64 | `curl+cookie` | 1 |
+| `imm-zone-path-form` | Immobiliare | form | 200 | 25 | 247 | `curl+cookie` | 1 |
+| `ide-zone-form` | Idealista | form | 200 | 30 | 107 | `curl+cookie` | 1 |
+
+```
+immobiliare: works via curl+cookie (api-next p1); 6 of 6 free attempts got through
+idealista: works via curl+cookie (html p1); 3 of 3 free attempts got through
+
+9 of 9 reference searches answered
+```
+
+**Nine of nine, zero 403s, one attempt each, exit 0.** Every shape answered on
+the first rung tried, which is the whole claim the reordering makes: the suite
+now measures the transport a scan uses instead of spending its cap proving that
+the cookieless ones are still refused.
+
+It also confirms the derived cap from the outside. Immobiliare made twelve
+requests — six geography lookups and six listing pages, two per search — against
+a cap of thirteen, so a healthy run finishes with exactly the one spare request
+the derivation reserves for a fallback and not a request more. Under the old
+cap of eighteen the same run would have left six unexplained; under the
+single-URL default of twelve it would have refused its last listing request.
 
 ## Where it fits
 

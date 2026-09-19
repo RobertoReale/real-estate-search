@@ -38,15 +38,22 @@ from typing import Any
 from ..services.search_builder import build_search_urls, parse_search_url
 from ..services.search_validator import normalize_profile_url, zone_coverage_warnings
 from .budget import DEFAULT_MAX_REQUESTS, Budget
-from .report import OK_OUTCOMES, Attempt, Run, pages
+from .report import EXIT_NOT_CHECKED, OK_OUTCOMES, Attempt, Run, not_checked, pages
 from .rungs import portal_of, run_checks
 
-# What one search costs when its cheapest rung answers: for Immobiliare the
-# geography lookup plus the api-next page, for Idealista the HTML page alone.
-# The third is the headroom for one rung that gets refused before another
-# answers — past that the blocked streak is the right thing to stop the run, not
-# a cap that would make an unfinished suite look like a finished one.
-REQUESTS_PER_ENTRY = 3
+# What one search costs when the first rung answers, which is the climb the
+# suite is sized for: Immobiliare's geography lookup plus its api-next page,
+# and for Idealista the HTML page alone with the lookup it does not need. With
+# the cookie rung tried first this is the whole of a healthy run — the
+# cookieless impersonations below it are never reached.
+REQUESTS_PER_ENTRY = 2
+
+# ...plus one spare request for the whole run, so a single search that needs its
+# second rung does not cut the suite short. One, not one per search: headroom
+# per entry would let a portal that refuses everything spend half the cap again
+# before the blocked streak stops it, and the streak is the limit that is
+# supposed to end that run.
+FALLBACK_HEADROOM = 1
 
 
 @dataclass(frozen=True)
@@ -409,12 +416,13 @@ def request_cap(refs: tuple[Reference, ...] | None = None) -> int:
     """How many requests one portal may take for a whole suite run.
 
     The single-URL default is a cap for one search. Left alone it would refuse
-    the second half of the suite, and a refusal reads as "not checked" — the
-    table would be short exactly where a person stops looking.
+    the second half of the suite, which is a shorter table exactly where a person
+    stops looking. Derived from the climb rather than picked, so that a rung
+    added to the ladder or a search added to the list moves it on its own.
     """
     refs = entries() if refs is None else refs
     busiest = max(Counter(r.portal for r in refs).values(), default=0)
-    return max(DEFAULT_MAX_REQUESTS, REQUESTS_PER_ENTRY * busiest)
+    return max(DEFAULT_MAX_REQUESTS, REQUESTS_PER_ENTRY * busiest + FALLBACK_HEADROOM)
 
 
 def run_suite(
@@ -450,13 +458,40 @@ def _winner(run: Run, name: str) -> Attempt | None:
     return next((a for a in _for(run, name) if a.outcome in OK_OUTCOMES), None)
 
 
+def _asked(run: Run) -> list[Reference]:
+    """The reference searches this run produced any row for at all."""
+    return [e for e in entries() if any(a.search == e.name for a in run.attempts)]
+
+
 def every_search_answered(run: Run) -> bool:
     """True when every reference search had a rung that parsed listings or
     proved the search matches nothing. This is what a suite run exits on: the
     per-portal verdict cannot answer it, because one working city search would
     cover for four broken shapes."""
-    checked = [e for e in entries() if any(a.search == e.name for a in run.attempts)]
-    return bool(checked) and all(_winner(run, e.name) is not None for e in checked)
+    asked = _asked(run)
+    return bool(asked) and all(_winner(run, e.name) is not None for e in asked)
+
+
+def why_not_checked(run: Run, name: str) -> str:
+    """Why this reference search was never actually asked — empty when it was."""
+    return not_checked(_for(run, name))
+
+
+def suite_exit_code(run: Run) -> int:
+    """0 when every reference search answered, `EXIT_NOT_CHECKED` when the ones
+    that did not were never asked, 1 when a search was asked and refused.
+
+    The distinction is the whole point of the third code. A suite the request
+    cap stopped halfway and a suite the portal refused both used to exit 1, so
+    the number could not tell an operator whether to raise `--max-requests` or
+    to go and find out what the portal had changed."""
+    if every_search_answered(run):
+        return 0
+    asked = _asked(run)
+    if not asked:
+        return 1
+    unanswered = [e for e in asked if _winner(run, e.name) is None]
+    return EXIT_NOT_CHECKED if all(why_not_checked(run, e.name) for e in unanswered) else 1
 
 
 def _cells(rows: list[list[str]]) -> str:
@@ -478,21 +513,35 @@ def _count(attempt: Attempt | None) -> str:
 
 
 def render_suite(run: Run) -> str:
-    """One line per reference search: did this shape still work, and via what."""
+    """One line per reference search: did this shape still work, and via what.
+
+    A shape nothing was asked about says *not checked* with the reason, never
+    `no rung worked`. The two sit in the same column and mean opposite things —
+    one is the portal's answer, the other is that there was no answer to read —
+    and the roll-up counts them apart for the same reason.
+    """
     rows = [["SEARCH", "PORTAL", "SHAPE", "RESULT", "VIA", "ADS", "TOTAL", "TRIED"]]
     answered = 0
+    missed = 0
     for entry in entries():
         attempts = _for(run, entry.name)
         if not attempts:
             continue
         winner = _winner(run, entry.name)
         answered += 1 if winner else 0
+        if winner:
+            result = winner.outcome
+        elif reason := why_not_checked(run, entry.name):
+            result = f"not checked — {reason}"
+            missed += 1
+        else:
+            result = "no rung worked"
         rows.append(
             [
                 entry.name,
                 entry.portal,
                 entry.shape,
-                winner.outcome if winner else "no rung worked",
+                result,
                 winner.rung if winner else "",
                 str(winner.listings) if winner and winner.listings else "",
                 _count(winner),
@@ -500,7 +549,8 @@ def render_suite(run: Run) -> str:
             ]
         )
     checked = len(rows) - 1
-    return f"{_cells(rows)}\n\n{answered} of {checked} reference searches answered"
+    tail = f", {missed} not checked" if missed else ""
+    return f"{_cells(rows)}\n\n{answered} of {checked} reference searches answered{tail}"
 
 
 def render_comparison(run: Run) -> str:
