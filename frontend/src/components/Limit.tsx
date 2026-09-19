@@ -12,9 +12,11 @@
  *    fine — a zone matched by name, a pin on a district centre, a walk measured
  *    on the road network. They are printed quietly, next to the number they
  *    qualify, in the same weight as the rest of the small print.
- *  - `incomplete` is reserved for the two that mean *the answer in front of you
- *    is not the whole answer*: a portal that blocked the request, and a search
- *    that stopped at the page limit with listings still to collect.
+ *  - `incomplete` is reserved for the three that mean *the answer in front of
+ *    you is not the whole answer*: a portal that blocked the request, a search
+ *    that stopped at the page limit with listings still to collect, and a
+ *    finished search that came back with fewer listings than the portal said it
+ *    had.
  *
  *  Rendering twelve yellow triangles would teach the user to skip past the one
  *  that matters, which is exactly the case `incomplete` is being saved for.

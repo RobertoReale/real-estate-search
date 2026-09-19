@@ -15,9 +15,10 @@
  *  that has to reach a card through the grid.
  *
  *  The last test is the other half of the rule, and the one most likely to rot:
- *  a limit is a fact, not a warning. Only two of them mean *the answer in front
- *  of you is incomplete* — a portal that refused, and a search that stopped at
- *  the cap — and only those two are allowed to be coloured like it.
+ *  a limit is a fact, not a warning. Only three of them mean *the answer in
+ *  front of you is incomplete* — a portal that refused, a search that stopped
+ *  at the cap, and a search that finished short of what the portal counted —
+ *  and only those three are allowed to be coloured like it.
  */
 import { checkScreen, expect, test } from "./fixtures";
 import { cards, waitForResults } from "./harness/dashboard";
@@ -29,9 +30,11 @@ import type { Locator, Page } from "@playwright/test";
 /** A limit by name, wherever on the page it was stated. */
 const limit = (page: Page, id: string): Locator => page.locator(`[data-limit="${id}"]`);
 
-/** Two finished searches with the qualifications that matter: one stopped at
- *  the cap with the portal's own total known, one refused outright. The numbers
- *  are deliberately not the defaults — `max_pages_per_search` ships at 10. */
+/** Three finished searches with the qualifications that matter: one stopped at
+ *  the cap with the portal's own total known, one refused outright, and one
+ *  that ran to the end and still came back with less than the portal counted.
+ *  The numbers are deliberately not the defaults — `max_pages_per_search` ships
+ *  at 10. */
 const JOURNAL = [
   {
     profile_id: 1, profile: "Trilocale Navigli", portal: "immobiliare",
@@ -39,6 +42,7 @@ const JOURNAL = [
     pages: 3, listings: 74, outcome: "ok", detail: "", transport: "http",
     stopped_because: "", mode: "full",
     truncated: true, page_limit: 3, total_listings: 812, outside_area: 9,
+    coverage: null, coverage_shortfall: false,
   },
   {
     profile_id: 2, profile: "Bilocale Isola", portal: "idealista",
@@ -46,6 +50,15 @@ const JOURNAL = [
     pages: 0, listings: 0, outcome: "blocked", detail: "", transport: "browser",
     stopped_because: "the portal returned a challenge page", mode: "full",
     truncated: false, page_limit: 3, total_listings: null, outside_area: 0,
+    coverage: null, coverage_shortfall: false,
+  },
+  {
+    profile_id: 3, profile: "Quadrilocale Bicocca", portal: "immobiliare",
+    started_at: "2026-03-04T10:07:00Z", finished_at: "2026-03-04T10:09:40Z",
+    pages: 8, listings: 180, outcome: "ok", detail: "", transport: "http",
+    stopped_because: "", mode: "full",
+    truncated: false, page_limit: 10, total_listings: 247, outside_area: 0,
+    coverage: 0.7287, coverage_shortfall: true,
   },
 ];
 
@@ -86,6 +99,12 @@ test("a scan that did not finish says so with its own cap and the portal's own t
   // A blocked search is the other kind of incomplete: nothing was collected,
   // and the reason is not that there was nothing there.
   await expect(limit(page, "scan.portalBlocked")).toBeVisible();
+
+  // And the quietest kind: nothing refused it, nothing capped it, and it still
+  // came back with 180 of 247. Both numbers are off the entry — no scan in this
+  // suite ever collected either — so the ratio cannot have come from the copy.
+  await expect(limit(page, "scan.coverageShortfall")).toContainText("180");
+  await expect(limit(page, "scan.coverageShortfall")).toContainText("247");
 
   await checkScreen(page, "the journal, qualified");
 });
@@ -140,14 +159,14 @@ test("a listing called gone says how many days of silence that took", async ({ p
     .toContain("11 giorni");
 });
 
-test("only the two limits that mean the answer is incomplete are coloured like it", async ({ page }) => {
+test("only the limits that mean the answer is incomplete are coloured like it", async ({ page }) => {
   await fakeJournal(page);
   await page.goto("/activity");
   await expect(limit(page, "scan.pageCap")).toBeVisible();
 
   // Twelve caution-coloured lines would teach the eye to skip the one that
-  // matters, so the tone is spent on exactly the two that earn it.
-  const alarming = ["scan.pageCap", "scan.portalBlocked"];
+  // matters, so the tone is spent on exactly the three that earn it.
+  const alarming = ["scan.pageCap", "scan.portalBlocked", "scan.coverageShortfall"];
   for (const id of alarming) {
     await expect(limit(page, id)).toHaveClass(/text-caution-ink/);
   }

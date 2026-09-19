@@ -386,6 +386,61 @@ def _stop_reason(result: ScrapeResult | None) -> str:
     return "the portal had nothing more to give"
 
 
+def _coverage(result: ScrapeResult | None, *, mode: str, outcome: str) -> float | None:
+    """How much of what the portal declared this search actually read.
+
+    `None` far more often than not, and every one of those cases is a refusal
+    rather than an omission. A quick scan stopped on purpose, a truncated one
+    hit the cap, a blocked or errored one never finished, and a search the
+    portal gave no total for has no denominator — each already says so on its
+    own row, and a ratio computed anyway would be a second, worse account of the
+    same fact. **A missing total is never a coverage of zero**: that is
+    invariant 26 in the one place it could be broken without touching a
+    progress bar.
+
+    A split search needs no special case and deliberately gets none. The numbers
+    `_split_the_search` hands over are already the right two: `merge_scrapes`
+    keeps the listings of every part deduplicated on their URL, and carries the
+    *whole* search's declared total rather than the parts' — which is the same
+    comparison `_parts_cover_the_whole` makes, from the other side.
+
+    Clamped to 1, for the reason invariant 26 clamps the progress bar: portals
+    under-declare, and "read 112% of them" reads as a bug in this app rather
+    than as arithmetic from the portal. Rounded because the rounded value is
+    what the dashboard receives, so the flag below and the row it qualifies are
+    decided on one number.
+    """
+    if result is None or mode != "full" or outcome != "ok":
+        return None
+    if result.truncated or not result.total_listings:
+        return None
+    return round(min(len(result.listings) / result.total_listings, 1.0), 4)
+
+
+# Below this much of the portal's declared total, a finished full sweep is
+# reported as having fallen short.
+#
+# Measured against both portals on 2026-09-20, with the two reference searches
+# `livecheck.suite` keeps: Milano Bicocca on Immobiliare read 247 of a declared
+# 247 over ten pages, and Milano Forlanini on Idealista read 65 of a declared 65
+# over four. Both finished uncaptured by the page limit, and **both came back at
+# exactly 1.00** — a healthy sweep on either portal loses nothing at all, so
+# there is no measured noise floor for this number to sit above.
+#
+# Which is why it is not 1 regardless. The measurement says what a good day looks
+# like; it cannot say what the known mechanisms cost on a bad one, and they are
+# real: a portal recounts between the first page and the last, and a listing
+# published mid-walk shifts every later one down a place, past the cap. 0.95 is
+# the margin those are given — on the 247-listing search above it is twelve
+# listings of slack, on the 65-listing one it is three. Set tighter, the notice
+# fires on scans that are fine, and an alarm that cries wolf stops being read;
+# set looser, a search quietly missing an eighth of itself says nothing.
+#
+# `docs/limits.md` carries the same figures beside what the row buys the user.
+# Re-measure it there and here together if a portal changes how it counts.
+COVERAGE_TOLERANCE = 0.95
+
+
 def _record_journal(
     profile: SearchProfile,
     fetched: "_Fetched",
@@ -407,6 +462,9 @@ def _record_journal(
     try:
         started_at = fetched.started_at
         transport = fetched.progress.state.get("transport") or ""
+        outcome = profile.last_run_status or "error"
+        mode = "full" if fetched.search.seen is None else "quick"
+        coverage = _coverage(result, mode=mode, outcome=outcome)
         _journal.append(
             {
                 "profile_id": profile.id,
@@ -418,7 +476,7 @@ def _record_journal(
                 "listings": len(result.listings) if result else 0,
                 # G.5's word, taken from the profile rather than recomputed, so
                 # the journal and the search's own line can never disagree.
-                "outcome": profile.last_run_status or "error",
+                "outcome": outcome,
                 "detail": _without_secrets(profile.last_run_detail or "", settings),
                 "transport": transport,
                 "stopped_because": _stop_reason(result),
@@ -433,7 +491,14 @@ def _record_journal(
                 # rather than from how it ended: a quick scan that happened to
                 # read every page is still the scan the user was given, and the
                 # line beside it already says where it stopped and why.
-                "mode": "full" if fetched.search.seen is None else "quick",
+                "mode": mode,
+                # How much of the portal's own count this search read, and
+                # whether that is short enough to say out loud. The threshold
+                # travels as the verdict rather than as a number, because it is
+                # a constant here and copying it into the dashboard's copy
+                # would be the second place it could be changed.
+                "coverage": coverage,
+                "coverage_shortfall": coverage is not None and coverage < COVERAGE_TOLERANCE,
             }
         )
     except Exception:

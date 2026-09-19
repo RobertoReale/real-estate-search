@@ -2764,6 +2764,13 @@ export interface components {
              * @default 0
              */
             outside_area: number;
+            /** Coverage */
+            coverage: number | null;
+            /**
+             * Coverage Shortfall
+             * @default false
+             */
+            coverage_shortfall: boolean;
         };
         /**
          * ScanPortalOut
