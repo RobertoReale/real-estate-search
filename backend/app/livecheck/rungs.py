@@ -34,7 +34,7 @@ from urllib.parse import urlencode, urlparse
 
 from curl_cffi import requests as curl_requests
 
-from ..config import BASE_DIR, DB_PATH, SECRET_SETTINGS, load_settings
+from ..config import BASE_DIR, DB_PATH, load_settings, secret_values
 from ..scrapers import idealista_api
 from ..scrapers.base import BaseScraper, RawListing
 from ..scrapers.idealista import IdealistaScraper
@@ -217,6 +217,9 @@ def _session_for(scraper: BaseScraper, index: int, *, cookie: bool):
     session = scraper._new_session()
     if not cookie:
         session.cookies.clear()
+        # ...and it must not acquire one either: this rung measures what the
+        # portal gives a stranger, so anything it is handed stays inside the run.
+        session.keep_rotated = False
     return session
 
 
@@ -360,7 +363,13 @@ def build_rungs(
     ]
 
     cookie = (settings.get("datadome_cookie") or "").strip()
-    cookie_rung = _curl_rung("curl+cookie", _session_for(scraper, 0, cookie=True))
+    # The cookie rung goes out on the scraper's *own* session — the one the
+    # geography lookup used — instead of opening a second jar seeded from the
+    # same value. DataDome rotates the token on every answered request and stops
+    # trusting the one it superseded, so two jars claiming to be one visitor
+    # means the second of them is always presenting a dead cookie.
+    scraper._imp_index = 0
+    cookie_rung = _curl_rung("curl+cookie", scraper.session)
     if not cookie:
         cookie_rung.unavailable = "no datadome_cookie is saved"
     rungs.append(cookie_rung)
@@ -723,13 +732,13 @@ def _capture_writer(directory: Path) -> Callable[[Attempt, Target, str], str]:
 def secrets_of(settings: dict) -> list[str]:
     """Every value that must not appear anywhere in the output.
 
-    Read off `config.SECRET_SETTINGS` rather than named again here. The four
+    Read off `config.secret_values` rather than named again here. The four
     credentials this harness handles itself are the four it used to list, but
     the report is free text written by code that does not know what it is
     quoting, and the next credential added to the settings would have joined
     that text without joining this list.
     """
-    return [str(settings.get(key) or "").strip() for key in SECRET_SETTINGS if settings.get(key)]
+    return secret_values(settings)
 
 
 def _scraper_for(portal: str, delay_seconds: float) -> BaseScraper:
@@ -776,6 +785,14 @@ def run_checks(
     browser = _BrowserRung() if wants_browser else None
 
     names = list(labels or []) + [""] * max(0, len(urls) - len(labels or []))
+    # One scraper — and so one session per rung — per portal for the whole run.
+    # A suite used to build a new one per URL, which re-seeded the saved cookie
+    # every time and threw away the token the portal had just rotated onto the
+    # jar; the second search then went out as a first-time visitor and was
+    # refused. Six searches of one portal now walk one conversation, which is
+    # also what a browser would do.
+    scrapers: dict[str, BaseScraper] = {}
+    portal_rungs: dict[str, list[Rung]] = {}
 
     try:
         for url, name in zip(urls, names, strict=True):
@@ -809,15 +826,18 @@ def run_checks(
                     )
                 )
             else:
-                scraper = _scraper_for(portal, budget.delay_seconds)
+                scraper = scrapers.get(portal) or _scraper_for(portal, budget.delay_seconds)
+                scrapers[portal] = scraper
                 if isinstance(scraper, ImmobiliareScraper):
                     targets = _immobiliare_targets(scraper, url, budget, run.attempts, search=name)
                 else:
                     targets = _idealista_targets(url)
-                rungs = select_rungs(
-                    build_rungs(portal, scraper, budget, settings=settings, browser=browser),
-                    rung_filter,
-                )
+                if portal not in portal_rungs:
+                    portal_rungs[portal] = select_rungs(
+                        build_rungs(portal, scraper, budget, settings=settings, browser=browser),
+                        rung_filter,
+                    )
+                rungs = portal_rungs[portal]
                 run.attempts += run_rungs(
                     portal,
                     scraper,

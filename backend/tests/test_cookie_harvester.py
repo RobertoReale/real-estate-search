@@ -5,9 +5,12 @@ the launch: which cookie to pick, that headless never gets to launch at all, and
 the bookkeeping that records whether the cookie in hand still works. Those are
 the parts that would silently misbehave, so those are the parts covered here."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from app.config import load_settings, save_settings
+from app.scrapers import base
 from app.services import cookie_harvester as ch
 
 
@@ -426,3 +429,165 @@ def test_launch_stops_playwright_when_every_channel_fails(monkeypatch, tmp_path)
     with pytest.raises(RuntimeError):
         ch._launch(lambda: FakeP(), headless=True)
     assert stopped == [1]
+
+
+# --- the cookie the portal rotates back ----------------------------------
+#
+# Measured from this connection on 2026-09-18 and again on 2026-09-19: the
+# first Immobiliare request of a run answers and every one after it is refused.
+# Every session was seeded from the same pasted cookie and dropped the token
+# DataDome had just reissued on the answered response, so each request arrived
+# as a first-time visitor. The tests below pin the custody of that reissued
+# value: kept on an answer, ignored on a refusal, per portal, and never shown.
+
+
+class _FakeCookie:
+    def __init__(self, name, value, domain):
+        self.name = name
+        self.value = value
+        self.domain = domain
+
+
+class _FakeJar:
+    """Stands in for curl_cffi's cookie jar: iterable, one entry per domain."""
+
+    def __init__(self, seeded):
+        self.jar = [_FakeCookie("datadome", v, d) for d, v in seeded.items()]
+
+    def rotate(self, domain, value):
+        for cookie in self.jar:
+            if cookie.domain == domain:
+                cookie.value = value
+                return
+        self.jar.append(_FakeCookie("datadome", value, domain))
+
+
+class _FakeSession:
+    """Answers a scripted list of (status, the cookie the portal sets)."""
+
+    def __init__(self, seeded, script, domain=".immobiliare.it"):
+        self.cookies = _FakeJar(seeded)
+        self._script = list(script)
+        self._domain = domain
+        self.requests = 0
+
+    def get(self, *_a, **_k):
+        status, rotated = self._script.pop(0)
+        self.requests += 1
+        if rotated:
+            self.cookies.rotate(self._domain, rotated)
+        return SimpleNamespace(status_code=status)
+
+
+def _keeping(seeded, script, **kwargs):
+    inner = _FakeSession(seeded, script, **kwargs)
+    return inner, base._CookieKeepingSession(inner, seeded)
+
+
+def test_cookie_for_prefers_what_the_portal_last_issued():
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    assert ch.cookie_for("immobiliare") == "thePastedSeedValue"
+    assert ch.cookie_for("idealista") == "thePastedSeedValue"
+
+    ch.remember_rotated_cookie("immobiliare", "theRotatedImmobiliareValue")
+    assert ch.cookie_for("immobiliare") == "theRotatedImmobiliareValue"
+    # ...and only for the portal that issued it: DataDome scopes the token to
+    # the site, so the other portal keeps falling back to the seed.
+    assert ch.cookie_for("idealista") == "thePastedSeedValue"
+
+
+def test_remember_rotated_cookie_refuses_junk_and_writes_once():
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    assert ch.remember_rotated_cookie("immobiliare", "") is False
+    assert ch.remember_rotated_cookie("immobiliare", "short") is False
+    assert ch.remember_rotated_cookie("someOtherPortal", "aPlausibleTokenValue") is False
+    assert ch.remember_rotated_cookie("immobiliare", "aPlausibleTokenValue") is True
+    # A scan walking twenty answered pages carries the same cookie on each: the
+    # second one must not rewrite settings.json.
+    assert ch.remember_rotated_cookie("immobiliare", "aPlausibleTokenValue") is False
+
+
+def test_a_freshly_minted_seed_drops_the_rotations_it_supersedes():
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    ch.remember_rotated_cookie("immobiliare", "theRotatedImmobiliareValue")
+
+    # the settings form posts every field, including the cookie it did not touch
+    save_settings({"datadome_cookie": "thePastedSeedValue", "scan_interval_minutes": 30})
+    assert ch.cookie_for("immobiliare") == "theRotatedImmobiliareValue"
+
+    # a genuinely new seed belongs to a session the old rotations are not part of
+    save_settings({"datadome_cookie": "aBrandNewPastedValue"})
+    assert load_settings()["datadome_session_cookies"] == {}
+    assert ch.cookie_for("immobiliare") == "aBrandNewPastedValue"
+
+
+def test_the_session_keeps_the_cookie_an_answered_request_rotated():
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    seeded = {".immobiliare.it": "thePastedSeedValue", ".idealista.it": "thePastedSeedValue"}
+    inner, session = _keeping(seeded, [(200, "theValueThePortalReissued")])
+
+    session.get("https://www.immobiliare.it/api-next/")
+    assert ch.cookie_for("immobiliare") == "theValueThePortalReissued"
+    # the portal that was never asked keeps the seed
+    assert ch.cookie_for("idealista") == "thePastedSeedValue"
+    assert inner.requests == 1
+
+
+def test_the_session_ignores_the_cookie_a_refusal_rotated():
+    """Every 403 measured on 2026-09-18 set a `datadome` cookie of its own.
+    Storing it would replace a working token with a challenge one, so the write
+    back happens on an answered response and nowhere else."""
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    ch.remember_rotated_cookie("immobiliare", "theValueThatStillWorks")
+    seeded = {".immobiliare.it": "theValueThatStillWorks"}
+    _, session = _keeping(seeded, [(403, "theChallengeValue")])
+
+    session.get("https://www.immobiliare.it/api-next/")
+    assert ch.cookie_for("immobiliare") == "theValueThatStillWorks"
+
+
+def test_a_cookie_less_rung_never_stores_what_it_was_handed():
+    """`curl:<profile>` exists to measure what the portal gives a stranger. A
+    rung that quietly kept a token would change what the next rung measures."""
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    _, session = _keeping({}, [(200, "theValueGivenToAStranger")])
+    session.keep_rotated = False
+
+    session.get("https://www.immobiliare.it/api-next/")
+    assert ch.cookie_for("immobiliare") == "thePastedSeedValue"
+
+
+def test_a_new_session_is_seeded_per_portal():
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    ch.remember_rotated_cookie("immobiliare", "theRotatedImmobiliareValue")
+
+    from app.scrapers.immobiliare import ImmobiliareScraper
+
+    session = ImmobiliareScraper()._new_session()
+    by_domain = {c.domain: c.value for c in session.cookies.jar if c.name == "datadome"}
+    assert by_domain[".immobiliare.it"] == "theRotatedImmobiliareValue"
+    assert by_domain[".idealista.it"] == "thePastedSeedValue"
+
+
+def test_the_rotated_cookies_are_scrubbed_out_of_what_the_user_reads():
+    """They are as secret as the pasted one, and the scan journal quotes URLs
+    and errors it did not compose. `SECRET_SETTINGS` is the list of fields the
+    settings *form* owns, so this value rides in `secret_values` instead."""
+    from app.config import secret_values
+    from app.services.scanner import _without_secrets
+
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    ch.remember_rotated_cookie("immobiliare", "theRotatedImmobiliareValue")
+    settings = load_settings()
+
+    assert "theRotatedImmobiliareValue" in secret_values(settings)
+    scrubbed = _without_secrets("blocked with datadome=theRotatedImmobiliareValue", settings)
+    assert "theRotatedImmobiliareValue" not in scrubbed
+
+
+def test_the_rotated_cookies_never_reach_the_dashboard():
+    from app.routers.settings import get_settings
+
+    save_settings({"datadome_cookie": "thePastedSeedValue"})
+    ch.remember_rotated_cookie("immobiliare", "theRotatedImmobiliareValue")
+    assert "datadome_session_cookies" not in get_settings()

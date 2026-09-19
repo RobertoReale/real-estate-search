@@ -220,6 +220,61 @@ def merge_scrapes(results: list[ScrapeResult]) -> ScrapeResult:
     return merged
 
 
+class _CookieKeepingSession:
+    """A session that outlives its own `datadome` cookie rotation.
+
+    DataDome reissues the token on an answered request and then stops trusting
+    the value it superseded. Every session here was seeded from the same pasted
+    cookie and threw the reissued one away with the session, so each request
+    arrived as a first-time visitor — which is the shape that was measured from
+    this connection: the first request of a run answers, the next is refused
+    (`docs/live-checks.md`). curl_cffi already keeps the `Set-Cookie` in this
+    session's jar; what was missing was writing it back, so the next session and
+    the next run start from the value the portal itself last issued.
+
+    Only on an answered response. A refusal sets a `datadome` cookie too — on
+    2026-09-18 every 403 did — and keeping that one would replace a working
+    token with a challenge one. The domain in the jar decides which portal the
+    value belongs to, not the scraper's own `portal`, because the ad probe walks
+    both.
+    """
+
+    def __init__(self, inner: typing.Any, seeded: dict[str, str]):
+        self._inner = inner
+        self._seeded = dict(seeded)
+        # The live-check's cookie-less rungs turn this off: they exist to measure
+        # what the saved cookie is worth, and a rung that quietly stored a token
+        # of its own would change the thing the next rung is measuring.
+        self.keep_rotated = True
+
+    def get(self, *args, **kwargs):
+        response = self._inner.get(*args, **kwargs)
+        self._remember(getattr(response, "status_code", None))
+        return response
+
+    def _remember(self, status: int | None) -> None:
+        if status is None or status >= 400 or not self.keep_rotated:
+            return
+        try:
+            from ..services.cookie_harvester import COOKIE_DOMAINS, remember_rotated_cookie
+
+            portals = {domain: portal for portal, domain in COOKIE_DOMAINS.items()}
+            for cookie in self._inner.cookies.jar:
+                if cookie.name != "datadome" or not cookie.value:
+                    continue
+                portal = portals.get(cookie.domain)
+                if portal is None or self._seeded.get(cookie.domain) == cookie.value:
+                    continue
+                self._seeded[cookie.domain] = cookie.value
+                remember_rotated_cookie(portal, cookie.value)
+        except Exception as e:
+            # Custody bookkeeping never breaks the scrape it observes.
+            logger.warning("BaseScraper: failed to keep the rotated datadome cookie: %s", e)
+
+    def __getattr__(self, name: str):
+        return getattr(self._inner, name)
+
+
 class BaseScraper:
     portal: str = ""
     # The rotation, ordered by preference. The names themselves are data
@@ -316,18 +371,24 @@ class BaseScraper:
         self._current_proxy = proxy_url
         if proxy_url:
             session.proxies = {"http": proxy_url, "https": proxy_url}
+        seeded: dict[str, str] = {}
         try:
             # DataDome cookies are portal-specific: a cookie from one portal
             # is harmless on the other (the warm-up replaces it), but it will
-            # not bypass anything there. The dot-prefix covers www. too.
-            cookie_val = (settings.get("datadome_cookie") or "").strip()
-            if cookie_val:
-                session.cookies.set("datadome", cookie_val, domain=".immobiliare.it")
-                session.cookies.set("datadome", cookie_val, domain=".idealista.it")
+            # not bypass anything there. So each domain gets the newest value
+            # *that* portal issued, falling back to the pasted seed. The
+            # dot-prefix covers www. too.
+            from ..services.cookie_harvester import COOKIE_DOMAINS, cookie_for
+
+            for portal, domain in COOKIE_DOMAINS.items():
+                cookie_val = cookie_for(portal, settings)
+                if cookie_val:
+                    session.cookies.set("datadome", cookie_val, domain=domain)
+                    seeded[domain] = cookie_val
         except Exception as e:
             # the cookie is best-effort (worst case: more blocks), unlike the proxy
             logger.warning("BaseScraper: failed to apply datadome cookie: %s", e)
-        return session
+        return _CookieKeepingSession(session, seeded)
 
     def _rotate_session(self) -> bool:
         """Switch to the next impersonation profile. False if all exhausted (or wrap around for ad-probe)."""

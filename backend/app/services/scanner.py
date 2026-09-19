@@ -12,7 +12,7 @@ from functools import partial
 
 from sqlalchemy import select
 
-from ..config import SECRET_SETTINGS, load_settings
+from ..config import load_settings, secret_values
 from ..database import SessionLocal
 from ..models import Listing, ListingProfile, Property, SearchProfile
 from ..scrapers import get_scraper, transport_policy
@@ -352,10 +352,9 @@ def _without_secrets(text: str, settings: dict) -> str:
     Telegram quotes — so it is cleaned at the two places that write text the app
     did not compose itself.
     """
-    for key in SECRET_SETTINGS:
-        value = settings.get(key)
-        if isinstance(value, str) and len(value.strip()) >= MIN_REDACTED_SECRET:
-            text = text.replace(value.strip(), "***")
+    for value in secret_values(settings):
+        if len(value) >= MIN_REDACTED_SECRET:
+            text = text.replace(value, "***")
     return text
 
 

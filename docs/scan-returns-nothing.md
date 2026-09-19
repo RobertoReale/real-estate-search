@@ -47,6 +47,16 @@ working fourteen minutes after answering
 ([`live-checks.md`](live-checks.md) §4) — so "it is probably too old" is a
 guess, and pressing the button is how you settle it.
 
+**"It answered once, then refused" is its own story, and it is fixed.** Until
+2026-09-19 a fresh cookie would return listings on the first request and 403 on
+every one after it. The portal rotates the cookie on a request it answers and
+stops trusting the value it replaced; the app was re-seeding the *saved* cookie
+onto every new session and dropping the rotation, so each request went out as a
+first-time visitor. The cookie the portal hands back is now kept, per portal, and
+a whole run walks one session — 5 of 5 searches answered where the same ladder had
+managed 1 ([`live-checks.md`](live-checks.md#measurements--2026-09-19-one-request-answers-and-the-next-is-refused)).
+If you see that shape again on a current build, it is not this.
+
 If blocks continue, **run the one test that separates the two real causes**: open
 the same portal page in your own browser, on the same connection, with no proxy.
 
@@ -139,6 +149,12 @@ earned by a real browser on your own connection. Two ways to do it:
   step-by-step instructions. This is the gesture the automatic grab removes —
   and the gesture you come back to when a cookie stops being accepted, which
   happens on the portal's clock rather than on a predictable one.
+
+Either way, what you save is the **seed**: the value a first session presents.
+From there the app keeps whatever the portal rotates onto it, separately for each
+portal, and saving a new seed drops the rotations it supersedes. So a cookie
+grabbed for Immobiliare no longer costs Idealista its working one, and there is
+nothing to re-paste between requests.
 
 ### Leave from a different address
 

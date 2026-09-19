@@ -21,10 +21,12 @@ import json
 import socket
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from app import config
+from app.livecheck import rungs as rungs_module
 from app.livecheck import suite
 from app.livecheck.__main__ import main
 from app.livecheck.budget import (
@@ -1170,6 +1172,54 @@ def test_a_dropped_portal_is_not_resurrected_by_the_next_search(tmp_path):
     assert "blocked attempts in a row" in run.attempts[0].skipped
     assert run.attempts[0].search == "imm-city"
     assert budget.requests_made("immobiliare") == 0
+
+
+class FakeOnePortalSession:
+    """One jar for a whole run: the geography lookup, then the listing page."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def get(self, url, **_kwargs):
+        self.calls += 1
+        if "autocomplete" in url:
+            return FakeResponse(MILANO_GEO)
+        return SimpleNamespace(status_code=200, text=API_NEXT)
+
+
+def test_a_run_walks_one_session_per_portal(tmp_path, monkeypatch):
+    """Measured from this connection on 2026-09-18 and 2026-09-19: the first
+    Immobiliare request of a run answered and the next was refused. Every search
+    built its own scraper, so every search opened a session re-seeded with the
+    pasted cookie and dropped the token DataDome had just rotated onto the
+    answered one — six searches arriving as six first-time visitors. One scraper
+    per portal for the run is what keeps them one conversation."""
+    session = FakeOnePortalSession()
+    built: list[str] = []
+    real = rungs_module._scraper_for
+
+    def counting(portal: str, delay: float):
+        built.append(portal)
+        scraper = real(portal, delay)
+        scraper.session = session  # pyright: ignore[reportAttributeAccessIssue]
+        return scraper
+
+    monkeypatch.setattr(rungs_module, "_scraper_for", counting)
+
+    run = run_checks(
+        [SEARCH_URL, "https://www.immobiliare.it/vendita-case/milano/isola/"],
+        budget=a_budget(),
+        rung_filter=["curl+cookie"],
+        out_root=tmp_path,
+        settings={"datadome_cookie": "aPlausibleClearanceToken"},
+        labels=["imm-city", "imm-zone-path"],
+        stop_at_first=True,
+    )
+
+    assert built == ["immobiliare"]
+    # two searches: geography and api-next each, all four on the one session
+    assert session.calls == 4
+    assert [a.listings for a in run.attempts if a.rung == "curl+cookie"] == [2, 2]
 
 
 def _answered(name: str, declared: int | None = None) -> Attempt:
