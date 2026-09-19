@@ -36,9 +36,11 @@ from app.livecheck.budget import (
     Budget,
 )
 from app.livecheck.report import (
+    EXIT_NOT_CHECKED,
     Attempt,
     Run,
     capture_name,
+    exit_code,
     new_run_directory,
     redact,
     render,
@@ -575,6 +577,78 @@ def test_a_portal_no_rung_reached_fails_the_run(scraper):
 
     assert verdicts(run)["immobiliare"].startswith("immobiliare: no rung worked")
     assert not succeeded(run)
+    assert exit_code(run) == 1
+
+
+def test_a_portal_nothing_was_asked_of_is_not_checked_rather_than_broken(scraper):
+    # "no rung worked" is a verdict on the portal; this is a verdict on the
+    # budget. They read as the same sentence until 2026-09-19, when a suite run
+    # the request cap had stopped after one answered search was taken for a
+    # portal refusing everything after the first page.
+    attempts = run_rungs(
+        "immobiliare",
+        scraper,
+        [html_target()],
+        [a_rung("curl:safari184", [Fetched(status=200, body=PAGE_HTML)])],
+        a_budget(max_requests=0),
+    )
+    run = Run(started_at="now", network="live", targets=[SEARCH_URL], budget={}, attempts=attempts)
+
+    assert verdicts(run)["immobiliare"].startswith(
+        "immobiliare: not checked — request cap reached (0 per run)"
+    )
+    assert not succeeded(run)
+    # Its own code: a cap wants --max-requests raised, a refusal wants finding
+    # out what the portal changed, and 1 could not tell an operator which.
+    assert exit_code(run) == EXIT_NOT_CHECKED
+
+
+def test_one_portal_refusing_outranks_another_never_asked(scraper):
+    refused = run_rungs(
+        "immobiliare",
+        scraper,
+        [html_target()],
+        [a_rung("curl:safari184", [Fetched(status=403)])],
+        a_budget(),
+    )
+    unasked = run_rungs(
+        "idealista",
+        IdealistaScraper(),
+        [Target(name="html p1", url="https://www.idealista.it/vendita-case/milano/", kind="html")],
+        [a_rung("curl:safari184", [Fetched(status=200, body=PAGE_HTML)])],
+        a_budget(max_requests=0),
+    )
+    run = Run(
+        started_at="now",
+        network="live",
+        targets=[SEARCH_URL],
+        budget={},
+        attempts=refused + unasked,
+    )
+
+    # Something was asked and did not answer, and that is the finding worth
+    # exiting on however much else the budget cut short.
+    assert exit_code(run) == 1
+
+
+def test_the_verdict_counts_the_searches_it_never_asked_about(scraper):
+    attempts = []
+    for name, cap in (("imm-city", 12), ("imm-zone", 0)):
+        rows = run_rungs(
+            "immobiliare",
+            scraper,
+            [html_target()],
+            [a_rung("curl:safari184", [Fetched(status=200, body=PAGE_HTML)])],
+            a_budget(max_requests=cap),
+        )
+        for row in rows:
+            row.search = name
+        attempts += rows
+    run = Run(started_at="now", network="live", targets=[SEARCH_URL], budget={}, attempts=attempts)
+
+    assert (
+        "1 answered, 1 not checked: request cap reached (0 per run)" in verdicts(run)["immobiliare"]
+    )
 
 
 def test_a_proven_empty_search_is_a_working_portal(scraper):
@@ -663,6 +737,45 @@ def test_a_saved_cookie_makes_the_cookie_rung_available(scraper):
     )
 
     assert next(r for r in rungs if r.name == "curl+cookie").unavailable == ""
+
+
+def test_a_saved_cookie_is_climbed_first(scraper):
+    # A suite run asks "does a scan still work", and a scan opens with the
+    # cookie. Climbing the bare impersonations first answers a different
+    # question, spends the cap on it, and collects the three refusals that drop
+    # the portal before the rung a scan uses is ever reached.
+    rungs = build_rungs(
+        "immobiliare", scraper, a_budget(), settings={"datadome_cookie": "a-long-cookie-value"}
+    )
+
+    assert rungs[0].name == "curl+cookie"
+    assert [r.name for r in rungs[1 : 1 + len(scraper.impersonations)]] == [
+        f"curl:{n}" for n in scraper.impersonations
+    ]
+
+
+def test_with_no_cookie_saved_the_first_rung_is_the_first_impersonation(scraper):
+    # Nothing to imitate, so the cheapest-evidence-first order stands.
+    rungs = build_rungs("immobiliare", scraper, a_budget(), settings={})
+
+    assert rungs[0].name == f"curl:{scraper.impersonations[0]}"
+    assert [r.name for r in rungs].index("curl+cookie") == len(scraper.impersonations)
+
+
+def test_the_rotated_cookie_is_a_saved_cookie_too(scraper):
+    # The pasted seed is superseded the moment the portal hands back a token,
+    # and the rotated one is what a scan presents. Reading only
+    # `datadome_cookie` would climb cookieless on exactly the machine that has
+    # been scanning successfully for weeks.
+    rungs = build_rungs(
+        "immobiliare",
+        scraper,
+        a_budget(),
+        settings={"datadome_session_cookies": {"immobiliare": "a-rotated-cookie-value"}},
+    )
+
+    assert rungs[0].name == "curl+cookie"
+    assert rungs[0].unavailable == ""
 
 
 def test_idealista_is_offered_its_own_api():
@@ -1074,8 +1187,11 @@ def test_the_request_cap_scales_with_the_number_of_searches():
         for portal in {e.portal for e in suite.entries()}
     )
 
-    assert suite.request_cap() == suite.REQUESTS_PER_ENTRY * busiest
+    assert suite.request_cap() == suite.REQUESTS_PER_ENTRY * busiest + suite.FALLBACK_HEADROOM
     assert suite.request_cap() > DEFAULT_MAX_REQUESTS
+    # The headroom is one spare request for the whole run, not one per search:
+    # a portal refusing everything must hit the blocked streak, not a second cap.
+    assert suite.FALLBACK_HEADROOM == 1
     # A shorter list never drops the cap below the single-search default.
     assert suite.request_cap(suite.PASTED[:1]) == DEFAULT_MAX_REQUESTS
 
@@ -1273,6 +1389,59 @@ def test_the_roll_up_reports_one_line_per_search():
     assert "imm-city" in rendered and "ide-city" in rendered
     assert "12,000" in rendered
     assert "2 of 2 reference searches answered" in rendered
+
+
+def _never_asked(name: str, reason: str = "request cap reached (13 per run)") -> Attempt:
+    entry = a_reference(name)
+    return Attempt(
+        portal=entry.portal,
+        rung="curl+cookie",
+        target="html p1",
+        skipped=reason,
+        search=name,
+    )
+
+
+def test_a_search_the_budget_cut_short_reads_not_checked():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [_answered("imm-city", 12000), _never_asked("ide-city")]
+
+    rendered = suite.render_suite(run)
+
+    assert "not checked — request cap reached (13 per run)" in rendered
+    assert "no rung worked" not in rendered
+    assert "1 of 2 reference searches answered, 1 not checked" in rendered
+    # Nothing refused, so the run is not a finding about a portal.
+    assert suite.suite_exit_code(run) == EXIT_NOT_CHECKED
+
+
+def test_a_search_that_was_asked_and_refused_still_fails_the_suite():
+    run = Run(started_at="", network="live", targets=[], budget={})
+    refused = _answered("ide-city")
+    refused.listings = 0
+    refused.refused_status = True
+    run.attempts = [_answered("imm-city", 12000), refused]
+
+    rendered = suite.render_suite(run)
+
+    assert "no rung worked" in rendered
+    assert "not checked" not in rendered
+    assert suite.suite_exit_code(run) == 1
+
+
+def test_a_portal_dropped_for_another_searchs_refusals_is_not_checked():
+    # The blocked streak drops the portal for the rest of the run, so the
+    # searches behind it were never asked. The one that was asked is the
+    # failure; the ones after it are not evidence of anything.
+    run = Run(started_at="", network="live", targets=[], budget={})
+    run.attempts = [
+        _never_asked("imm-city", "dropped after 3 blocked attempts in a row"),
+        _never_asked("imm-zone-path", "dropped after 3 blocked attempts in a row"),
+    ]
+
+    assert "dropped after 3 blocked attempts in a row" in suite.render_suite(run)
+    assert suite.suite_exit_code(run) == EXIT_NOT_CHECKED
+    assert suite.why_not_checked(run, "imm-city")
 
 
 def test_the_comparison_sets_the_pasted_and_form_totals_side_by_side():

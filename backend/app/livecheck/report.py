@@ -42,6 +42,14 @@ _SECRET_QUERY_RE = re.compile(
 
 OK_OUTCOMES = ("ok", "no_results")
 
+# The exit code for "nothing was refused, but something was never asked". It is
+# its own number because the two readings ask for opposite next steps: a refusal
+# is a finding about the portal and wants investigating, while a run the budget
+# cut short is a finding about the run and wants `--max-requests` or a narrower
+# `--portal`. Collapsing them into 1 is what made the 2026-09-19 run read as
+# "answered once, then refused" when the budget had simply stopped it.
+EXIT_NOT_CHECKED = 3
+
 
 def redact(text: str, secrets: Iterable[str] = ()) -> str:
     """`text` with every credential removed: known secret values by literal
@@ -240,6 +248,50 @@ def pages(attempts: Iterable[Attempt]) -> list[Attempt]:
     return [a for a in attempts if a.kind != "prepare"]
 
 
+def not_checked(attempts: Iterable[Attempt]) -> str:
+    """Why these attempts never asked anything — empty when at least one did.
+
+    A run whose every attempt was refused before it left measured nothing, and
+    the two ways of saying so are not interchangeable: "no rung worked" is a
+    verdict on the portal, and this is a verdict on the budget. They were the
+    same sentence until 2026-09-19, when a suite run that the request cap had
+    stopped after one answered search was read for a day as a portal refusing
+    every request after the first.
+
+    The reason is the first one recorded, because the rungs are consulted in the
+    order they would be climbed: what stopped the first of them is what stopped
+    the search.
+    """
+    rows = pages(attempts)
+    if not rows or any(not a.skipped for a in rows):
+        return ""
+    return rows[0].skipped
+
+
+def _search_census(attempts: list[Attempt]) -> str:
+    """How many of this portal's named searches answered and how many were never
+    asked, with the reasons. Empty for a run of a single unnamed URL, and empty
+    when everything was at least attempted — a count of nothing reads as a
+    warning and there is none."""
+    names: list[str] = []
+    for attempt in attempts:
+        if attempt.search and attempt.search not in names:
+            names.append(attempt.search)
+    if not names:
+        return ""
+    answered = 0
+    missed: dict[str, int] = {}
+    for name in names:
+        rows = [a for a in attempts if a.search == name]
+        if any(a.outcome in OK_OUTCOMES for a in pages(rows)):
+            answered += 1
+        elif reason := not_checked(rows):
+            missed[reason] = missed.get(reason, 0) + 1
+    if not missed:
+        return ""
+    return f"{answered} answered, {sum(missed.values())} not checked: {'; '.join(sorted(missed))}"
+
+
 def _free_summary(attempts: list[Attempt]) -> str:
     """What the rungs that leave from this machine had to say, in one clause."""
     direct = [a for a in pages(attempts) if a.rung.split(":", 1)[0] not in ("api", "official")]
@@ -273,21 +325,40 @@ def verdicts(run: Run) -> dict[str, str]:
         if winner:
             what = "works" if winner.outcome == "ok" else "answers (nothing matches this search)"
             head = f"{portal}: {what} via {winner.rung} ({winner.target}{_credits_note(winner)})"
+        elif reason := not_checked(attempts):
+            head = f"{portal}: not checked — {reason}"
         else:
             head = f"{portal}: no rung worked"
-        out[portal] = f"{head}; {_free_summary(attempts)}"
+        clauses = [head, _free_summary(attempts), _search_census(attempts)]
+        out[portal] = "; ".join(c for c in clauses if c)
     return out
+
+
+def _portal_answered(run: Run, portal: str) -> bool:
+    return any(a.outcome in OK_OUTCOMES for a in pages(run.attempts) if a.portal == portal)
 
 
 def succeeded(run: Run) -> bool:
     """True when every portal checked had at least one rung that parsed listings
-    or proved the search matched nothing. This is the exit code."""
+    or proved the search matched nothing."""
     if not run.portals:
         return False
-    return all(
-        any(a.outcome in OK_OUTCOMES for a in pages(run.attempts) if a.portal == portal)
-        for portal in run.portals
-    )
+    return all(_portal_answered(run, portal) for portal in run.portals)
+
+
+def exit_code(run: Run) -> int:
+    """What the command exits with: 0 every portal answered, `EXIT_NOT_CHECKED`
+    when the portals that did not answer were never actually asked, 1 otherwise.
+
+    A run that checked nothing at all is a 1: the caller asked a question and
+    got no measurement, which is a failure however it came about."""
+    if succeeded(run):
+        return 0
+    if not run.portals:
+        return 1
+    unanswered = [p for p in run.portals if not _portal_answered(run, p)]
+    asked = [p for p in unanswered if not not_checked([a for a in run.attempts if a.portal == p])]
+    return 1 if asked else EXIT_NOT_CHECKED
 
 
 def render(run: Run) -> str:

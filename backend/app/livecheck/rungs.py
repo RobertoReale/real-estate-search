@@ -356,13 +356,31 @@ def build_rungs(
     browser: _BrowserRung | None = None,
 ) -> list[Rung]:
     """Every rung this machine could use against `portal`, in the order they are
-    tried: free first, cheapest evidence first, money last."""
-    rungs: list[Rung] = [
+    tried: what a scan would do first, then free evidence, then money.
+
+    The order is not a preference, it is a question. With a cookie saved the
+    first rung has to be the one the scanner actually opens with — its own rung
+    0 carries the cookie — because a suite run is asking *does a scan still
+    work*, and a climb that spends its cap on four cookieless impersonations
+    answers a different question and then has nothing left to ask this one with.
+    Worse, the three refusals those impersonations collect trip the blocked
+    streak and drop the portal before the working rung is reached
+    (`docs/live-checks.md`, the trap in reading `--all-rungs`). With no cookie
+    saved there is no scanner rung 0 to imitate and the cheapest-evidence-first
+    order stands.
+    """
+    from ..services.cookie_harvester import cookie_for
+
+    bare = [
         _curl_rung(f"curl:{name}", _session_for(scraper, index, cookie=False))
         for index, name in enumerate(scraper.impersonations)
     ]
 
-    cookie = (settings.get("datadome_cookie") or "").strip()
+    # The value this portal would actually present, which is the token it last
+    # rotated onto us and only then the pasted seed — the same answer
+    # `BaseScraper._new_session` gets, so "a cookie is saved" means here what it
+    # means to a scan.
+    cookie = cookie_for(portal, settings)
     # The cookie rung goes out on the scraper's *own* session — the one the
     # geography lookup used — instead of opening a second jar seeded from the
     # same value. DataDome rotates the token on every answered request and stops
@@ -372,7 +390,7 @@ def build_rungs(
     cookie_rung = _curl_rung("curl+cookie", scraper.session)
     if not cookie:
         cookie_rung.unavailable = "no datadome_cookie is saved"
-    rungs.append(cookie_rung)
+    rungs: list[Rung] = [cookie_rung, *bare] if cookie else [*bare, cookie_rung]
 
     if browser is not None:
         rungs.append(Rung(name="browser", fetch=browser.fetch))
