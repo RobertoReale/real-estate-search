@@ -3087,6 +3087,7 @@ export interface components {
              * @default 0
              */
             api_calls: number;
+            last_refusal: components["schemas"]["ScraperHealthRefusalOut"] | null;
         };
         /**
          * ScraperHealthProfileOut
@@ -3109,6 +3110,40 @@ export interface components {
              * @default
              */
             last_run_status: string;
+        };
+        /**
+         * ScraperHealthRefusalOut
+         * @description The last time a scan session of this portal was refused, and how far it
+         *     had got first.
+         *
+         *     `answered` is the number of search pages the portal served that session
+         *     before it said no — the measured edge a scan's page budget has to stay
+         *     below. `cookie_rotated` says whether the session was carrying a token the
+         *     portal itself had issued; the token is never carried here.
+         */
+        ScraperHealthRefusalOut: {
+            /** Date */
+            date: string;
+            /**
+             * At
+             * @default
+             */
+            at: string;
+            /**
+             * Answered
+             * @default 0
+             */
+            answered: number;
+            /**
+             * Delay
+             * @default 0
+             */
+            delay: number;
+            /**
+             * Cookie Rotated
+             * @default false
+             */
+            cookie_rotated: boolean;
         };
         /**
          * ScraperStatusOut

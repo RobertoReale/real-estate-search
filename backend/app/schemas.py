@@ -1081,6 +1081,23 @@ class ScraperHealthDayOut(ApiOut):
     errors: int = 0
 
 
+class ScraperHealthRefusalOut(ApiOut):
+    """The last time a scan session of this portal was refused, and how far it
+    had got first.
+
+    `answered` is the number of search pages the portal served that session
+    before it said no — the measured edge a scan's page budget has to stay
+    below. `cookie_rotated` says whether the session was carrying a token the
+    portal itself had issued; the token is never carried here.
+    """
+
+    date: str  # ISO date of the day the refusal was recorded on
+    at: str = ""  # ISO timestamp of the refusal itself
+    answered: int = 0
+    delay: float = 0.0  # seconds between requests, as that scan was paced
+    cookie_rotated: bool = False
+
+
 class ScraperHealthPortalOut(ApiOut):
     """One portal over the window: its daily series and the totals behind the
     block rate."""
@@ -1098,6 +1115,10 @@ class ScraperHealthPortalOut(ApiOut):
     api_credits: int = 0
     api_credits_estimated: int = 0
     api_calls: int = 0
+    # None while no scan of this portal has been refused inside the window,
+    # which is the normal state and reads as "nothing to report" rather than as
+    # a zero-page refusal.
+    last_refusal: ScraperHealthRefusalOut | None = None
 
 
 class ScraperHealthProfileOut(ApiOut):

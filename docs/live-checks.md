@@ -27,13 +27,14 @@ evidence, then money. Nothing in `app/scrapers/` is modified or re-implemented:
 the scrapers are driven from outside, so what the report measures is what a scan
 would get.
 
-Four ways to say what to check:
+Five ways to say what to check:
 
 | | |
 |---|---|
 | `python -m app.livecheck URL [URL …]` | the searches you name |
 | `--profiles` | every active saved search, read out of `case.db` **read-only** (`file:…?mode=ro`) |
 | `--suite` | the tracked reference searches: one per shape a search can have |
+| `--pages N` | walk **one** search from page 1 to page N on the scanner's own session, stopping at the first refusal |
 | `--replay DIR` | re-parse an earlier run's saved pages; makes no network call at all |
 
 ### The rungs
@@ -224,6 +225,62 @@ reaches the zone page and produces this very URL; the form total beside it is th
 wider /cerca/ fallback"*. Without that sentence the row read as a gap between two
 searches, when it is a gap between a live path of the product and a path the user
 never gets — and an unpredicted gap is what item 2 calls a failure.
+
+## `--pages` — how deep one session gets
+
+```bash
+cd backend && .venv\Scripts\python -m app.livecheck --pages 80 --max-requests 84 \
+  "https://www.immobiliare.it/vendita-case/milano/"
+```
+
+Every other mode asks a portal *one* question per transport: can you still be
+read at all. This one asks the question a scan's page budget actually depends
+on — **how many search pages one session is allowed to walk before the anti-bot
+decides it is not a person** — and there is no way to look that answer up, so it
+is measured and dated (the first reading is
+[2026-09-20](#measurements--2026-09-20-how-deep-one-immobiliare-session-gets)).
+
+It imitates a scan rather than a diagnostic, because a reading taken any other
+way would be a reading about the instrument:
+
+* one URL, pages 1..N **in order**, on the scraper's own session — the saved
+  cookie seeded, the rotated one kept exactly as a scan keeps it;
+* paced at `request_delay_seconds` plus the same jitter a scan uses;
+* through the transport a scan of that portal really uses — api-next for
+  Immobiliare (so the geography resolves first and is booked as its own row, as
+  everywhere else), HTML for Idealista. If the geography will not resolve the
+  pages fall back to HTML, which is also a scan's fallback.
+
+**It stops at the first refusal and never asks again.** The refusal *is* the
+result; a page N+1 after page N was refused is the retry loop invariant 8
+forbids wearing a different URL, and this address is the one the owner's scans
+leave from. The closing sentence says which of three things ended the run, and
+they are not interchangeable: *refused at page N* (the measurement), *stopped by
+the run's own budget* (a cap to raise, not a portal to investigate), or *not
+refused in N pages* — a bound on where the edge is, never a proof it is absent.
+
+The count is **pages answered**, not pages parsed: a page that came back empty
+or unreadable still consumed the session's welcome, so it counts. Only a refusal
+and a request never made do not. That is the same line `BaseScraper._fetch_once`
+draws for the passive count below, and the two numbers have to mean the same
+thing to be comparable.
+
+`--pages` obeys the same budget module as every other mode, with one extra rule:
+a page count above the per-run request cap has to be asked for with
+`--max-requests` explicitly. The mode's whole purpose is to spend an unusual
+amount of an address's welcome, so the number of requests it may make is typed
+out by the person asking for it rather than inferred from the page count.
+
+### The passive half: every scan measures it too
+
+The deliberate run happens once. The same number is collected for free, forever,
+from the scans that already run: when a scan session ends in a refusal, scraper
+health records **how many requests that session had answered before it**, the
+pacing it ran at, and whether a rotated cookie was in play — never the cookie
+value, which is never recorded anywhere (see below). The last few per portal are
+kept, capped per day, and the most recent is shown in the health panel
+("*ultimo rifiuto dopo 38 pagine nella stessa sessione*"). A deliberate
+measurement dates quickly; this one does not.
 
 ## The budgets are the rules
 
@@ -991,7 +1048,9 @@ What this does **not** rule out is a threshold much higher up: the 45-page scan 
 2026-09-14 was followed by real refusals, and nothing here measures where that
 edge is. The scan's existing page caps and `request_delay_seconds` stay the answer
 for volume; they were not tightened, because there is no measured number to tighten
-them to.
+them to. *(Measured on
+[2026-09-20](#measurements--2026-09-20-how-deep-one-immobiliare-session-gets):
+80 pages on one session, unrefused. 45 was not a threshold either.)*
 
 ### What was built from it
 
@@ -1053,6 +1112,132 @@ the derivation reserves for a fallback and not a request more. Under the old
 cap of eighteen the same run would have left six unexplained; under the
 single-URL default of twelve it would have refused its last listing request.
 
+## Measurements — 2026-09-20, how deep one Immobiliare session gets
+
+The 2026-09-19 measurement above closed the cookie question and left one open,
+in its own words: *"what this does not rule out is a threshold much higher up:
+the 45-page scan of 2026-09-14 was followed by real refusals, and nothing here
+measures where that edge is."* The scan's page caps were left alone because
+**there was no measured number to tighten them to.** This is the run that went
+looking for one.
+
+### Why it has to be measured
+
+DataDome's own documentation is the primary source and it settles the question
+by not answering it. Rate Limiting is a *response* a customer configures, not a
+platform default:
+
+> you can define a volume threshold (by providing the value of the number of
+> requests during a time period of either one hour or one day)
+
+and the counter behind it is chosen per rule — all traffic, per IP, or per
+session — with the response (CAPTCHA, block, device check) chosen with it.
+
+* [DataDome — rule responses, incl. Rate Limiting](https://docs.datadome.co/docs/rule-responses)
+* [DataDome — custom rules](https://docs.datadome.co/docs/configure-custom-rules)
+* [DataDome — rate limiting, announced](https://datadome.co/changelog/rate-limiting-the-latest-addition-to-the-datadome-response-suite/)
+
+So there is no universal number to look up, and there is no published number for
+Immobiliare's own configuration. Every threshold is that customer's, on that
+customer's counter, over that customer's window. The only way to know what a
+scan may spend on this portal from this address is to spend it once, deliberately,
+and write down the date it was true on.
+
+### The run
+
+One run, 2026-09-20 02:41:52, port 8000 confirmed not listening first so the
+owner's app could not be scanning from the same address at the same time.
+`--pages 80 --max-requests 84` against the reference suite's `imm-city`
+(`/vendita-case/milano/`, ~18,630 results, so the pages could not run out).
+**Zero credits, no `--paid`**, no browser rung: one session, api-next, pages 1 to
+80 in order at `request_delay_seconds` = 10 s plus jitter. 13 minutes end to end.
+
+| Page | HTTP | Ads | Declared | ms |
+|---|---|---|---|---|
+| 1 | 200 | 25 | 18,630 | 472 |
+| 5 | 200 | 25 | 18,630 | 427 |
+| 10 | 200 | 25 | 18,630 | 372 |
+| 15 | 200 | 25 | 18,630 | 430 |
+| 20 | 200 | 25 | 18,628 | 481 |
+| 25 | 200 | 25 | 18,628 | 367 |
+| 30 | 200 | 25 | 18,630 | 521 |
+| 35 | 200 | 25 | 18,630 | 321 |
+| 40 | 200 | 25 | 18,630 | 433 |
+| 45 | 200 | 25 | 18,630 | 528 |
+| 50 | 200 | 25 | 18,629 | 404 |
+| 55 | 200 | 25 | 18,629 | 468 |
+| 60 | 200 | 25 | 18,630 | 377 |
+| 65 | 200 | 25 | 18,630 | 640 |
+| 70 | 200 | 25 | 18,630 | 585 |
+| 75 | 200 | 25 | 18,630 | 449 |
+| 80 | 200 | 25 | 18,630 | 502 |
+
+Every fifth page, because **nothing varied**: all 80 rows are HTTP 200 with 25
+ads parsed, 302–926 ms (median 436), 15.1 MB of JSON in total. No 403, no 429,
+no DataDome marker in a 200, no CAPTCHA, no slow-down as the walk went on — the
+last ten pages are no slower than the first ten. The declared total drifted
+between 18,628 and 18,630 across the thirteen minutes, which is the market
+moving under the walk and the cheapest proof that these were live pages and not
+a cache.
+
+```
+immobiliare: works via scan session (api-next p1); 80 of 80 free attempts got through
+
+not refused in 80 pages at one request every 10.0s: the edge is beyond this run, not absent
+```
+
+### The verdict
+
+**No refusal in 80 pages.** The measurement did not find the edge, and the
+sentence it prints is careful about what that means: *beyond this run, not
+absent.* Eighty pages is a **lower bound** on where a single session's welcome
+ends, taken on one date, at one pace, on one address, against one search — it is
+not a guarantee and nothing here should be read as one (invariant 26's habit,
+applied to a number about ourselves).
+
+What it does settle is the 2026-09-14 reading, and it settles it against the
+rate-limit hypothesis:
+
+* 2026-09-14: a scan read **45 pages** in one session and every session after it
+  was refused. That looked like a volume threshold at 45.
+* 2026-09-20: **80 pages** on one session, unrefused, at a pace a scan actually
+  uses.
+
+45 cannot be a threshold that 80 walks straight through. The refusals that
+followed the 45-page scan were the discarded-cookie bug R.8 fixed — the sessions
+*after* it went out re-seeded with a superseded token, which is exactly what the
+2026-09-19 measurement caught and corrected. The volume was never the problem.
+
+**So no limit changes.** The existing bounds are the right ones and they are
+already inside what was measured:
+
+| | Pages |
+|---|---|
+| `max_pages_per_search` (default) | 10 |
+| worst case for one search, whole + `MAX_SEARCH_PARTS` narrower parts | 10 + 8 × 10 = 90 |
+| measured unrefused in one session | ≥ 80 |
+
+The routine case — ten pages a search — sits an order of magnitude inside the
+bound. The worst case, a search big enough to be split into all eight parts,
+comes out at 90 and is the one number this measurement cannot clear. It is left
+where it is deliberately: `search_builder` already picked 8 as *"about where a
+single search tops out on the portal itself"*, the parts are consecutive
+searches with `polite_sleep` between them rather than one unbroken walk, and
+tightening a real limit on the strength of a bound the run never reached would
+trade a measured saving for an unmeasured one. **Nothing is guarded that was not
+guarded before, because nothing measured says it should be.**
+
+### What is left watching
+
+A one-off measurement dates, and this one will. What does not date is the
+passive half built alongside it: every scan session that ends in a refusal now
+records how many requests it had answered first, the pacing, and whether a
+rotated cookie was in play, and scraper health publishes the most recent per
+portal. If Immobiliare's threshold is lowered, or if it is per-session and this
+run simply sat under it, the next refusal says so with a number attached and
+without anyone spending an address to ask. The first row the panel shows will be
+a real one; this section is the control it gets read against.
+
 ## Where it fits
 
 * A scan came back empty or blocked and you want to know why:
@@ -1066,5 +1251,9 @@ single-URL default of twelve it would have refused its last listing request.
   only what a person is still asked for.
 * A portal changed something overnight and you want to know how much of the
   product it took with it: `--suite` answers it shape by shape in one run.
+* Someone proposes raising `max_pages_per_search`, or a scan of a big search
+  comes back refused: the page budget is only defensible against a measured
+  depth. `--pages` is how that number is taken, and the last one taken is the
+  dated section above — not a number to re-derive by reasoning about it.
 * The parsing strategies themselves, and which portal quirk each one exists for,
   are in [`architecture.md`](architecture.md).

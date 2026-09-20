@@ -289,6 +289,10 @@ class BaseScraper:
     rotate_on_block = True
     _warmed = False
     _current_proxy: str | None = None
+    # Set by `_new_session`: was this session seeded with a token the portal
+    # itself issued, rather than the pasted seed? Read only by the refusal
+    # record. Class-level so a subclass that never builds a session still has it.
+    cookie_rotated = False
     # Whether a configured scrape-API key routes fetches through the provider
     # from the start. True at class level so the non-scan paths (AdProbe, and
     # the availability check through it) keep using a set key unconditionally;
@@ -342,6 +346,15 @@ class BaseScraper:
         self.api_credits_spent = 0
         self.api_credits_estimated = 0
         self.api_calls = 0
+        # Where this session ran out of welcome. `requests_answered` counts the
+        # search pages `_fetch_once` got an answer for — the requests a scan's
+        # page budget is actually spent on — and `first_refusal_after` freezes
+        # that count at the moment the portal first said no. Nothing here reads
+        # it: the scanner hands it to the health row, which is how the number
+        # accumulates across scans instead of being lost with the scraper
+        # (`services.scraper_health`, docs/live-checks.md).
+        self.requests_answered = 0
+        self.first_refusal_after: int | None = None
 
     def _new_session(self):
         session = curl_requests.Session(
@@ -388,6 +401,15 @@ class BaseScraper:
         except Exception as e:
             # the cookie is best-effort (worst case: more blocks), unlike the proxy
             logger.warning("BaseScraper: failed to apply datadome cookie: %s", e)
+        # Which kind of visitor this session is, for the refusal record: one
+        # carrying a token the portal itself issued, or one carrying the pasted
+        # seed (or nothing). The distinction is the whole of R.8, so a refusal
+        # count that did not say which it was would be unreadable a month from
+        # now. Only the fact, never the value.
+        rotated = settings.get("datadome_session_cookies")
+        self.cookie_rotated = bool(
+            isinstance(rotated, dict) and str(rotated.get(self.portal) or "").strip()
+        )
         return _CookieKeepingSession(session, seeded)
 
     def _rotate_session(self) -> bool:
@@ -533,7 +555,15 @@ class BaseScraper:
             return self._fetch_via_scrape_api(url, provider, key)
         resp = self.session.get(url, allow_redirects=True)
         if resp.status_code in (403, 429) or "captcha" in resp.text[:4000].lower():
+            if self.first_refusal_after is None:
+                self.first_refusal_after = self.requests_answered
             raise BlockedError(f"{self.portal}: blocked (HTTP {resp.status_code}) on {url}")
+        # Counted here and not after `raise_for_status`: the question this
+        # number answers is how much volume the anti-bot tolerated, and a 500
+        # from the origin is the portal answering, not refusing. Only the free
+        # path counts — a page the provider fetched says nothing about what this
+        # address is allowed to ask for.
+        self.requests_answered += 1
         # Idealista answers 404 for a search that simply matched nothing, serving
         # its "abbiamo guardato dappertutto" page in full — the same status a
         # dead slug gets. Raising here turned every empty search into a permanent

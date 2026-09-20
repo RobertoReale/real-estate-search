@@ -6,6 +6,7 @@ health signal, and any persisted visibility of the pipeline degrading. The
 policy is pure (no network) exactly like the scheduler's decision helpers.
 """
 
+import json
 import time
 from datetime import UTC, date, datetime, timedelta
 
@@ -274,6 +275,162 @@ class TestCreditCeiling:
         # currently costing something: the same rules, with the money left out.
         s = _settings(scrape_api_key="k", scrape_api_mode="always", scrape_api_monthly_credits=1)
         assert transport_policy.decide(0, s).start_on_api is True
+
+
+class _Answer:
+    """What `curl_cffi` hands `_fetch_once` back, reduced to what it reads."""
+
+    def __init__(self, status: int, text: str = "<html>ok</html>"):
+        self.status_code = status
+        self.text = text
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+
+class _CountingScraper(BaseScraper):
+    """A scraper whose session answers a scripted list of statuses.
+
+    The real `_fetch_once` runs — that is the point: the count it keeps is the
+    measurement C.3 exists to take, and a test that reimplemented the counting
+    would agree with itself while the scraper drifted.
+    """
+
+    portal = "test"
+
+    def __init__(self, statuses: list[int]):
+        super().__init__()
+        self.rotate_on_block = False
+        self.session = self  # type: ignore[assignment]
+        self._statuses = list(statuses)
+
+    def get(self, url: str, **kwargs) -> _Answer:
+        return _Answer(self._statuses.pop(0))
+
+
+class TestRefusalDepthCounting:
+    """Where a session stopped being welcome, counted as it happens.
+
+    Nobody publishes how many pages a portal will serve one session, and the
+    only machine that can find out is the one already paging it. So every scan
+    counts what it was given and freezes that number at the first refusal —
+    invariant 8 forbids asking again to find out.
+    """
+
+    def test_answered_pages_are_counted_and_the_refusal_freezes_the_count(self):
+        scraper = _CountingScraper([200, 200, 200, 403])
+        for _ in range(3):
+            scraper._fetch_once("https://example.invalid/x")
+        with pytest.raises(BlockedError):
+            scraper._fetch_once("https://example.invalid/x")
+
+        assert scraper.requests_answered == 3
+        assert scraper.first_refusal_after == 3
+
+    def test_a_clean_session_reports_no_refusal_rather_than_zero(self):
+        scraper = _CountingScraper([200, 200])
+        for _ in range(2):
+            scraper._fetch_once("https://example.invalid/x")
+        # None, not 0: "never refused" and "refused on the first page" are the
+        # opposite readings and would otherwise print the same number.
+        assert scraper.first_refusal_after is None
+
+    def test_the_first_refusal_wins_over_any_later_one(self):
+        scraper = _CountingScraper([200, 403, 200, 403])
+        scraper._fetch_once("https://example.invalid/x")
+        with pytest.raises(BlockedError):
+            scraper._fetch_once("https://example.invalid/x")
+        scraper._fetch_once("https://example.invalid/x")
+        with pytest.raises(BlockedError):
+            scraper._fetch_once("https://example.invalid/x")
+
+        # The edge is where the portal first said no. A later refusal is the
+        # same wall being walked into again, and recording it would raise the
+        # published number every time the scan pushed past the limit.
+        assert scraper.first_refusal_after == 1
+        assert scraper.requests_answered == 2
+
+    def test_a_server_error_is_the_portal_answering(self):
+        # 500 is the origin failing, not the anti-bot refusing. Counting it as a
+        # refusal would move the measured edge to wherever the portal last had a
+        # bad minute.
+        scraper = _CountingScraper([500])
+        with pytest.raises(RuntimeError):
+            scraper._fetch_once("https://example.invalid/x")
+        assert scraper.requests_answered == 1 and scraper.first_refusal_after is None
+
+
+class TestRefusalDepthRecording:
+    def test_a_refused_scan_leaves_a_record_and_a_clean_one_does_not(self):
+        db = _db()
+        scraper_health.record_scan(db, "immobiliare", "ok", "local (curl_cffi)")
+        scraper_health.record_scan(
+            db,
+            "immobiliare",
+            "blocked",
+            "local (curl_cffi)",
+            answered_before_refusal=38,
+            delay_seconds=6.0,
+            cookie_rotated=True,
+        )
+        db.commit()
+
+        immo = next(
+            p for p in scraper_health.get_health(db)["portals"] if p["portal"] == "immobiliare"
+        )
+        assert immo["last_refusal"]["answered"] == 38
+        assert immo["last_refusal"]["delay"] == 6.0
+        assert immo["last_refusal"]["cookie_rotated"] is True
+
+        scraper_health.record_scan(db, "idealista", "ok", "local (curl_cffi)")
+        db.commit()
+        quiet = next(
+            p for p in scraper_health.get_health(db)["portals"] if p["portal"] == "idealista"
+        )
+        assert quiet["last_refusal"] is None
+
+    def test_the_newest_refusal_is_the_one_published(self):
+        db = _db()
+        for answered in (40, 12, 27):
+            scraper_health.record_scan(
+                db, "immobiliare", "blocked", "local (curl_cffi)", answered_before_refusal=answered
+            )
+        db.commit()
+
+        immo = scraper_health.get_health(db)["portals"][0]
+        assert immo["last_refusal"]["answered"] == 27
+
+    def test_a_day_of_refusals_cannot_grow_the_row_without_bound(self):
+        db = _db()
+        for answered in range(scraper_health.MAX_REFUSALS_PER_DAY + 4):
+            scraper_health.record_scan(
+                db, "immobiliare", "blocked", "local (curl_cffi)", answered_before_refusal=answered
+            )
+        db.commit()
+
+        row = db.scalars(select(ScraperHealthSnapshot)).one()
+        kept = json.loads(row.refusals)
+        assert len(kept) == scraper_health.MAX_REFUSALS_PER_DAY
+        # The ones kept are the last ones, not the first.
+        assert [r["answered"] for r in kept] == list(
+            range(4, scraper_health.MAX_REFUSALS_PER_DAY + 4)
+        )
+
+    def test_a_row_whose_text_is_not_json_reads_as_no_refusals(self):
+        # The column is free text in SQLite: a row written before it existed, or
+        # one truncated by anything at all, must not take the health panel down.
+        db = _db()
+        db.add(
+            ScraperHealthSnapshot(
+                captured_on=datetime.now(UTC).date(),
+                portal="immobiliare",
+                attempts=1,
+                refusals="{not json",
+            )
+        )
+        db.commit()
+        assert scraper_health.get_health(db)["portals"][0]["last_refusal"] is None
 
 
 class TestCreditAccounting:

@@ -17,6 +17,10 @@ export default function ScraperHealthPanel() {
   const detail = isError && error instanceof Error ? error.message : "";
 
   const failingProfiles = data?.profiles.filter((p) => p.consecutive_failures > 0) ?? [];
+  // flatMap rather than filter: it narrows away the null, so the row below can
+  // read the record without asserting it is there.
+  const refusals = (data?.portals ?? []).flatMap((p) =>
+    p.last_refusal ? [{ portal: p.portal, refusal: p.last_refusal }] : []);
   const empty = data && data.portals.length === 0;
   const budget = data?.budget;
 
@@ -187,6 +191,30 @@ export default function ScraperHealthPanel() {
                 </tbody>
               </table>
               <p className="text-xs t-dim mt-2">{t("health.legend")}</p>
+            </div>
+          )}
+
+          {/* The one number nobody can look up: how much volume a portal
+              tolerates before it refuses. Every scan that runs into it records
+              where the wall was, and the most recent reading per portal is
+              shown here — never the cookie that was in play, only whether one
+              the portal had issued was. */}
+          {refusals.length > 0 && (
+            <div>
+              <h3 className="font-medium text-sm">{t("health.refusalTitle")}</h3>
+              <ul className="text-sm space-y-1 mt-2">
+                {refusals.map(({ portal, refusal }) => (
+                  <li key={portal} className="t-body">
+                    {t(refusal.cookie_rotated ? "health.refusalRowRotated" : "health.refusalRow", {
+                      portal,
+                      answered: refusal.answered,
+                      date: refusal.date,
+                      delay: refusal.delay,
+                    })}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs t-dim mt-2">{t("health.refusalHint")}</p>
             </div>
           )}
 

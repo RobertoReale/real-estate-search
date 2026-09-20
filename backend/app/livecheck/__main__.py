@@ -1,9 +1,11 @@
 """`python -m app.livecheck` — run a search through every transport separately.
 
-Four ways to say what to check: URLs on the command line, `--profiles` for the
+Five ways to say what to check: URLs on the command line, `--profiles` for the
 saved searches the app actually monitors, `--suite` for the tracked reference
-searches that cover every shape a search can have, or `--replay DIR` to re-run
-the parsers over an earlier run's captures without touching the network.
+searches that cover every shape a search can have, `--pages N` to walk one
+search deep enough to find where the portal stops answering, or `--replay DIR`
+to re-run the parsers over an earlier run's captures without touching the
+network.
 
 Everything that costs something is off by default. The browser rung has to be
 asked for by name (invariant 18), the paid rung needs `--paid`, and the credit
@@ -28,6 +30,7 @@ from .budget import (
     DEFAULT_MAX_REQUESTS,
     Budget,
 )
+from .depth import render_depth, run_depth
 from .report import exit_code, render
 from .rungs import PORTAL_HOSTS, active_profiles, replay, run_checks
 from .suite import (
@@ -82,6 +85,18 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--pages",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "walk ONE search from page 1 to page N on the scanner's own session, "
+            "stopping at the first refusal: the measurement of how deep a scan may "
+            "go. Above the per-run request cap it must be asked for with "
+            "--max-requests explicitly."
+        ),
+    )
+    p.add_argument(
         "--replay",
         metavar="DIR",
         help="re-parse a previous run's captures; makes no network call at all",
@@ -130,6 +145,29 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+def _pages_complaint(args: argparse.Namespace, suite: bool) -> str:
+    """Why this `--pages` run must not start, or "" if it may.
+
+    Every one of these is caught before a socket is opened. The last is the
+    rule the task that added this mode was given and the one worth keeping: the
+    depth run's whole purpose is to spend an unusual amount of an address's
+    welcome, so the number of requests it may make is typed out by the person
+    asking for it rather than inferred from the page count.
+    """
+    if args.pages < 1:
+        return "--pages takes a page count of at least 1"
+    if suite or args.profiles or args.replay:
+        return "--pages walks one search of its own: drop --suite, --profiles and --replay"
+    if len(args.urls) != 1:
+        return "--pages walks one search: pass exactly one URL"
+    if args.max_requests is None and args.pages > DEFAULT_MAX_REQUESTS:
+        return (
+            f"--pages {args.pages} is above this run's request cap of "
+            f"{DEFAULT_MAX_REQUESTS}: raise it with --max-requests, deliberately"
+        )
+    return ""
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     suite = args.suite or args.compare_form
@@ -139,6 +177,10 @@ def main(argv: list[str] | None = None) -> int:
     # the flag they already meant.
     if args.portal and not suite:
         print("--portal narrows --suite: pass --suite too", file=sys.stderr)
+        return 2
+
+    if args.pages and (problem := _pages_complaint(args, suite)):
+        print(problem, file=sys.stderr)
         return 2
 
     if args.replay:
@@ -184,6 +226,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     rung_filter = [r.strip() for r in args.rungs.split(",") if r.strip()] if args.rungs else None
     out_root = Path(args.out) if args.out else None
+
+    if args.pages:
+        run = run_depth(urls[0], args.pages, budget=budget, out_root=out_root, settings=settings)
+        print(render(run))
+        print(f"\n{render_depth(run)}")
+        print(f"\nwritten to {run.directory}")
+        return exit_code(run)
 
     if suite:
         run = run_suite(
