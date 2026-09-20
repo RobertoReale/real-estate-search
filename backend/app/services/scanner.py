@@ -1500,6 +1500,12 @@ def _record_scrape(
         credits=getattr(scraper, "api_credits_spent", 0),
         credits_estimated=getattr(scraper, "api_credits_estimated", 0),
         api_calls=getattr(scraper, "api_calls", 0),
+        # Where this session stopped being welcome, when it stopped at all. The
+        # scraper counted it; nothing else can, because the count dies with the
+        # session and the interesting sessions are the long ones.
+        answered_before_refusal=getattr(scraper, "first_refusal_after", None),
+        delay_seconds=getattr(scraper, "delay_seconds", 0.0),
+        cookie_rotated=getattr(scraper, "cookie_rotated", False),
     )
 
     if result.blocked:

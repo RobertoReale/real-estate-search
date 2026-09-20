@@ -377,6 +377,13 @@ class ScraperHealthSnapshot(Base):
     # Provider calls made on this day, priced or not. `api_credits / api_calls`
     # is the only per-page price this app ever knows to be true.
     api_calls: Mapped[int] = mapped_column(Integer, default=0)
+    # The last few scan sessions of this day that ended in a refusal, as JSON:
+    # `[{"at": ISO, "answered": N, "delay": seconds, "cookie_rotated": bool}]`,
+    # oldest first. `answered` is how many search pages the portal had served
+    # that session before it said no — the only measurement this app can make of
+    # where a portal's tolerance ends, and the one the page budget has to stay
+    # below. Never the cookie itself, only whether a rotated one was in play.
+    refusals: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

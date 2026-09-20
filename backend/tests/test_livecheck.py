@@ -35,6 +35,7 @@ from app.livecheck.budget import (
     DEFAULT_MAX_REQUESTS,
     Budget,
 )
+from app.livecheck.depth import answered_pages, depth_targets, render_depth, run_depth
 from app.livecheck.report import (
     EXIT_NOT_CHECKED,
     Attempt,
@@ -932,6 +933,118 @@ def test_a_rental_page_is_parsed_as_a_rental_page():
     assert [listing.price for listing in listings] == [1150]
     # The scraper was told, rather than the price being fixed up afterwards.
     assert scraper.contract == "rent"
+
+
+# --- how deep one session gets ------------------------------------------
+
+
+def a_depth_run(pages: int, answers: list[Fetched], tmp_path, **budget_kwargs) -> Run:
+    """One depth run over Idealista, whose pages need no geography lookup."""
+    return run_depth(
+        IDEALISTA_SEARCH,
+        pages,
+        budget=a_budget(**budget_kwargs),
+        out_root=tmp_path,
+        settings={},
+        rung=a_rung("scan session", answers),
+    )
+
+
+def test_depth_walks_the_pages_in_order(tmp_path):
+    run = a_depth_run(3, [Fetched(status=200, body=PAGE_HTML)] * 3, tmp_path)
+
+    assert [a.target for a in run.attempts] == ["html p1", "html p2", "html p3"]
+    # Answered, not parsed: these bodies are the wrong portal's and the parser
+    # makes nothing of them, and they are still three pages this address was
+    # served. What is being measured is the anti-bot's patience, not the parser.
+    assert answered_pages(run) == 3
+    # Page 1 is the URL as saved. On Idealista the synthesised /lista-1.htm is a
+    # different URL from the one a profile holds, and measuring the wrong one
+    # would be measuring a redirect.
+    assert run.attempts[0].url == IDEALISTA_SEARCH
+    assert run.attempts[1].url.endswith("/lista-2.htm")
+
+
+def test_depth_stops_at_the_first_refusal(tmp_path):
+    """The refusal is the measurement, and asking again is the retry loop
+    invariant 8 forbids wearing a different page number. It is also the thing
+    that gets this address refused for hours, and the owner's scans leave from
+    it."""
+    answers = [
+        Fetched(status=200, body=PAGE_HTML),
+        Fetched(status=200, body=PAGE_HTML),
+        Fetched(status=403),
+        Fetched(status=200, body=PAGE_HTML),
+    ]
+    run = a_depth_run(10, answers, tmp_path)
+
+    assert [a.target for a in run.attempts] == ["html p1", "html p2", "html p3"]
+    assert run.attempts[-1].blocked
+    assert answered_pages(run) == 2
+    assert "after 2 pages answered" in render_depth(run)
+
+
+def test_a_wall_served_with_a_200_ends_the_depth_run_too(tmp_path):
+    run = a_depth_run(5, [Fetched(status=200, body=BLOCKED_HTML)], tmp_path)
+
+    assert len(run.attempts) == 1
+    assert run.attempts[0].blocked and answered_pages(run) == 0
+
+
+def test_depth_stops_at_the_request_cap(tmp_path):
+    """The cap is the budget module's, not the mode's: a page count is a wish
+    and the cap is what the run is actually allowed to spend."""
+    run = a_depth_run(20, [Fetched(status=200, body=PAGE_HTML)] * 20, tmp_path, max_requests=3)
+
+    assert len(run.attempts) == 4  # three fetched, then the refusal that ended it
+    assert answered_pages(run) == 3
+    assert "request cap reached (3 per run)" in run.attempts[-1].skipped
+    assert "stopped after 3 pages" in render_depth(run)
+
+
+def test_a_run_that_was_never_refused_says_the_edge_is_beyond_it(tmp_path):
+    run = a_depth_run(2, [Fetched(status=200, body=PAGE_HTML)] * 2, tmp_path)
+    # Never "the portal allows N pages": this run found no edge, which bounds it
+    # from below and nothing more.
+    assert render_depth(run).startswith("not refused in 2 pages")
+
+
+def test_depth_pages_immobiliare_through_the_api_a_scan_uses(scraper):
+    """A scan's `scrape()` tries api-next first, so that is where its pages go.
+    Measuring the HTML page instead would measure a transport the scan only
+    falls back to."""
+    scraper.session = FakeGeoSession(MILANO_GEO)
+    attempts: list[Attempt] = []
+    targets = depth_targets(scraper, SEARCH_URL, 3, a_budget(), attempts)
+
+    assert [t.name for t in targets] == ["api-next p1", "api-next p2", "api-next p3"]
+    assert all(t.kind == "api-next" for t in targets)
+    assert [t.url[-6:] for t in targets] == ["&pag=1", "&pag=2", "&pag=3"]
+    # The lookup is one request like any other, and it is on the record
+    assert [a.target for a in attempts] == ["geography"]
+
+
+def test_depth_falls_back_to_html_when_geography_will_not_resolve(scraper):
+    scraper.session = FakeGeoSession([], status=403)
+    attempts: list[Attempt] = []
+    targets = depth_targets(scraper, SEARCH_URL, 2, a_budget(), attempts)
+
+    assert [t.name for t in targets] == ["html p1", "html p2"]
+    assert targets[1].url.endswith("pag=2")
+
+
+def test_the_page_count_above_the_cap_has_to_be_asked_for(capsys):
+    # Nothing leaves the machine: the complaint is made before a socket exists.
+    assert main(["--pages", "80", SEARCH_URL]) == 2
+    assert "--max-requests" in capsys.readouterr().err
+
+
+def test_depth_walks_one_search_and_says_so(capsys):
+    assert main(["--pages", "3", SEARCH_URL, IDEALISTA_SEARCH]) == 2
+    assert "exactly one URL" in capsys.readouterr().err
+
+    assert main(["--pages", "3", "--suite"]) == 2
+    assert "drop --suite" in capsys.readouterr().err
 
 
 # --- replay -------------------------------------------------------------

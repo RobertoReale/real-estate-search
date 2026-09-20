@@ -457,15 +457,15 @@ def select_rungs(rungs: list[Rung], wanted: list[str] | None) -> list[Rung]:
 # --- the targets --------------------------------------------------------
 
 
-def _immobiliare_targets(
+def immobiliare_params(
     scraper: ImmobiliareScraper,
     search_url: str,
     budget: Budget,
     attempts: list[Attempt],
     *,
     search: str = "",
-) -> list[Target]:
-    """The api-next page and the HTML page, in that order.
+) -> dict[str, str | list[str]] | None:
+    """Resolve this search's api-next geography, booking the lookup as a row.
 
     Geography is resolved once for the run and then reused by every rung: the
     api-next URL it produces is a plain URL any transport can fetch, and
@@ -474,8 +474,6 @@ def _immobiliare_targets(
     request like any other, it can fail on its own, and invariant 7 means its
     failure is the reason api-next cannot be asked for at all.
     """
-    contract = detect_contract(search_url)
-    html = Target(name="html p1", url=search_url, kind="html", contract=contract)
     attempt = Attempt(
         portal="immobiliare", rung="prepare", target="geography", kind="prepare", search=search
     )
@@ -501,15 +499,7 @@ def _immobiliare_targets(
         attempt.strategy = ",".join(sorted(params))
         budget.record_outcome("immobiliare", blocked=False)
         attempts.append(attempt)
-        query = urlencode({**params, "pag": "1"}, doseq=True)
-        api = Target(
-            name="api-next p1",
-            url=f"{API_LISTINGS}?{query}",
-            kind="api-next",
-            referer=search_url,
-            contract=contract,
-        )
-        return [api, html]
+        return params
 
     if not attempt.skipped and not attempt.error:
         attempt.error = "the geography lookup resolved nothing for this URL"
@@ -519,6 +509,37 @@ def _immobiliare_targets(
         attempt.refused_status = True
         budget.record_outcome("immobiliare", blocked=True)
     attempts.append(attempt)
+    return None
+
+
+def immobiliare_api_target(
+    params: dict[str, str | list[str]], search_url: str, page: int, contract: str
+) -> Target:
+    """The api-next target for one page of a resolved search."""
+    query = urlencode({**params, "pag": str(page)}, doseq=True)
+    return Target(
+        name=f"api-next p{page}",
+        url=f"{API_LISTINGS}?{query}",
+        kind="api-next",
+        referer=search_url,
+        contract=contract,
+    )
+
+
+def _immobiliare_targets(
+    scraper: ImmobiliareScraper,
+    search_url: str,
+    budget: Budget,
+    attempts: list[Attempt],
+    *,
+    search: str = "",
+) -> list[Target]:
+    """The api-next page and the HTML page, in that order."""
+    contract = detect_contract(search_url)
+    html = Target(name="html p1", url=search_url, kind="html", contract=contract)
+    params = immobiliare_params(scraper, search_url, budget, attempts, search=search)
+    if params:
+        return [immobiliare_api_target(params, search_url, 1, contract), html]
     return [html]
 
 
@@ -659,6 +680,7 @@ def run_rungs(
     capture: Callable[[Attempt, Target, str], str] | None = None,
     secrets: list[str] | None = None,
     stop_at_first: bool = False,
+    stop_on_refusal: bool = False,
     search: str = "",
 ) -> list[Attempt]:
     """Every rung against every target it serves, each measured on its own.
@@ -673,6 +695,11 @@ def run_rungs(
     work", and once the cheapest rung has answered it, every further rung is a
     request that buys nothing and spends the address. The full matrix is still
     one flag away for the run that needs it.
+
+    `stop_on_refusal` returns as soon as one attempt is refused or skipped. It
+    is what the depth mode runs on: there the refusal *is* the measurement, and
+    asking for page 39 after page 38 was refused would be the retry loop
+    invariant 8 forbids, dressed as a different URL.
     """
     secrets = secrets or []
     attempts: list[Attempt] = []
@@ -702,6 +729,8 @@ def run_rungs(
             if refusal:
                 attempt.skipped = redact(refusal, secrets)
                 attempts.append(attempt)
+                if stop_on_refusal:
+                    return attempts
                 continue
 
             if rung.direct:
@@ -727,6 +756,8 @@ def run_rungs(
                 attempt.capture = capture(attempt, target, fetched.body)
             attempts.append(attempt)
             if stop_at_first and attempt.outcome in OK_OUTCOMES:
+                return attempts
+            if stop_on_refusal and attempt.blocked:
                 return attempts
     return attempts
 

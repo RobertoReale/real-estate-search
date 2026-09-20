@@ -1486,6 +1486,13 @@ export const it: Dict = {
   "health.daySomeFailed": "alcune scansioni fallite",
   "health.dayLabel":
     "{date}: {state} — {attempts} scansioni, {blocked} bloccate, {errors} errori",
+  "health.refusalTitle": "Dove un portale ha smesso di rispondere, l'ultima volta",
+  "health.refusalRow":
+    "{portal}: ultimo rifiuto dopo {answered} pagine nella stessa sessione, il {date}, con una richiesta ogni {delay}s.",
+  "health.refusalRowRotated":
+    "{portal}: ultimo rifiuto dopo {answered} pagine nella stessa sessione, il {date}, con una richiesta ogni {delay}s — con un cookie emesso dal portale stesso.",
+  "health.refusalHint":
+    "Fin dove è arrivata una sessione prima che il portale la rifiutasse. Il budget di pagine di una scansione deve restare ben sotto il più piccolo di questi numeri: a spenderle è max_pages_per_search in Impostazioni → Scraping.",
   "health.failingTitle": "Adesso — ricerche ancora in errore",
   "health.failingSubtitle":
     "La serie in corso, non un totale: si azzera alla prima scansione che passa.",

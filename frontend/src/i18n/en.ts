@@ -1470,6 +1470,13 @@ export const en = {
   "health.dayAllFailed": "every scan failed",
   "health.daySomeFailed": "some scans failed",
   "health.dayLabel": "{date}: {state} — {attempts} scans, {blocked} blocked, {errors} errors",
+  "health.refusalTitle": "Where a portal last stopped answering",
+  "health.refusalRow":
+    "{portal}: last refusal after {answered} pages in the same session, on {date}, at one request every {delay}s.",
+  "health.refusalRowRotated":
+    "{portal}: last refusal after {answered} pages in the same session, on {date}, at one request every {delay}s — on a cookie the portal had issued itself.",
+  "health.refusalHint":
+    "How far a session got before the portal refused it. A scan's page budget has to stay well below the smallest of these numbers: max_pages_per_search in Settings → Scraping is what spends them.",
   "health.failingTitle": "Right now — searches still failing",
   "health.failingSubtitle":
     "The current unbroken streak, not a running total: it clears the moment a scan gets through.",

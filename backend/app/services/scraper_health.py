@@ -15,6 +15,7 @@ is a sum over the days of the current calendar month, and it is the number the
 transport policy is refused against.
 """
 
+import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 
@@ -27,6 +28,21 @@ from ..scrapers import transport_policy
 logger = logging.getLogger(__name__)
 
 DEFAULT_WINDOW_DAYS = 30
+# How many refusal records one day's row keeps. Enough to see whether a portal
+# stops at a repeatable volume or at a different one each time, few enough that
+# a day of nothing but refusals cannot grow the row without bound.
+MAX_REFUSALS_PER_DAY = 5
+
+
+def _refusals(row: ScraperHealthSnapshot) -> list[dict]:
+    """The day's refusal records, oldest first. A row written before this column
+    existed, or one whose text stopped being JSON, reads as none rather than
+    taking the panel down with it."""
+    try:
+        parsed = json.loads(row.refusals or "[]")
+    except ValueError:
+        return []
+    return [r for r in parsed if isinstance(r, dict)] if isinstance(parsed, list) else []
 
 
 def record_scan(
@@ -38,6 +54,9 @@ def record_scan(
     credits_estimated: int = 0,
     api_calls: int = 0,
     count_attempt: bool = True,
+    answered_before_refusal: int | None = None,
+    delay_seconds: float = 0.0,
+    cookie_rotated: bool = False,
 ) -> None:
     """Accumulate one profile-scan outcome into today's row for `portal`.
 
@@ -54,6 +73,13 @@ def record_scan(
     diagnosis (`services.diagnosis`) must charge the month's ledger — it is the
     same account and the same ceiling — but it is not a scan of this search, and
     counting it as one would move the block rate this panel exists to report.
+
+    `answered_before_refusal` is set only when this scan's session was refused:
+    how many search pages the portal had already served it, alongside the pacing
+    it ran at and whether a rotated cookie was in play. That is the passive half
+    of the volume measurement — every scan that hits the wall says where the wall
+    was, so the number keeps itself current without anyone spending a request on
+    it (`docs/live-checks.md`).
     """
     try:
         today = datetime.now(UTC).date()
@@ -84,6 +110,17 @@ def record_scan(
         row.api_credits = (row.api_credits or 0) + max(0, credits)
         row.api_credits_estimated = (row.api_credits_estimated or 0) + max(0, credits_estimated)
         row.api_calls = (row.api_calls or 0) + max(0, api_calls)
+        if answered_before_refusal is not None:
+            kept = [
+                *_refusals(row),
+                {
+                    "at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "answered": max(0, int(answered_before_refusal)),
+                    "delay": round(float(delay_seconds), 1),
+                    "cookie_rotated": bool(cookie_rotated),
+                },
+            ]
+            row.refusals = json.dumps(kept[-MAX_REFUSALS_PER_DAY:])
     except Exception:
         logger.exception("scraper health recording failed")
 
@@ -184,6 +221,7 @@ def get_health(db: Session, days: int = DEFAULT_WINDOW_DAYS) -> dict:
                 "api_credits": 0,
                 "api_credits_estimated": 0,
                 "api_calls": 0,
+                "last_refusal": None,
             },
         )
         entry["days"].append(
@@ -202,6 +240,12 @@ def get_health(db: Session, days: int = DEFAULT_WINDOW_DAYS) -> dict:
         entry["api_credits"] += r.api_credits or 0
         entry["api_credits_estimated"] += r.api_credits_estimated or 0
         entry["api_calls"] += r.api_calls or 0
+        # Rows arrive oldest first and each day's list is oldest first, so the
+        # last one assigned is the newest refusal in the window. Only the most
+        # recent is published: the panel's job is "where did it stop last time",
+        # and a list of five would need a table nobody asked for.
+        if day_refusals := _refusals(r):
+            entry["last_refusal"] = {"date": r.captured_on.isoformat(), **day_refusals[-1]}
 
     for entry in portals.values():
         attempts = sum(d["attempts"] for d in entry["days"])
