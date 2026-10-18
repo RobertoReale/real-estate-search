@@ -1,21 +1,30 @@
-MIT License
+Copyright (c) 2026 Roberto Reale. All rights reserved.
 
-Copyright (c) 2026 Roberto Reale
+This software, including its source code, documentation, design and
+accompanying files (the "Software"), is the exclusive property of the copyright
+holder and is protected by copyright law, including Italian Law no. 633 of
+22 April 1941 and international treaties.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+The source code is made publicly visible for reference and evaluation only.
+No licence is granted. Without the prior written permission of the copyright
+holder, you may not use, copy, modify, merge, publish, distribute, sublicense,
+sell, host as a service, or create derivative works from the Software, in whole
+or in part.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The only exception is what GitHub's Terms of Service require of a public
+repository: viewing the Software and forking it within GitHub. Neither grants
+any further right, and a fork remains subject to this notice.
+
+Versions released up to and including 2.2.0 were distributed under the MIT
+License. That grant still covers those versions exactly as they were
+distributed, and does not extend to any later change or version.
+
+To request permission, contact the copyright holder through
+https://github.com/RobertoReale.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -412,10 +412,15 @@ La documentazione tecnica, **in inglese**, è in [`docs/`](docs/):
 
 ## Licenza
 
-[MIT](LICENSE). Usalo, modificalo, distribuiscilo: tieni solo la nota di
-copyright.
+© 2026 Roberto Reale. **Tutti i diritti riservati** ([LICENSE](LICENSE)).
 
-Gli annunci raccolti non sono coperti da quella licenza: appartengono ai portali
+Il codice è pubblico perché si possa vedere e valutare, non perché si possa
+riutilizzare: non è concessa alcuna licenza. Usarlo, copiarlo, modificarlo,
+ridistribuirlo o offrirlo come servizio, anche solo in parte, richiede il
+permesso scritto dell'autore. Le versioni fino alla 2.2.0 compresa erano
+distribuite con licenza MIT, che continua a valere solo per quelle versioni.
+
+Gli annunci raccolti non sono coperti da questa nota: appartengono ai portali
 da cui arrivano. Le quotazioni OMI appartengono all'Agenzia delle Entrate, che
 le fornisce gratuitamente ma non come open data. Nessuno dei due viene
 ridistribuito qui, ed è per questo che i riferimenti OMI partono vuoti e sei tu a
